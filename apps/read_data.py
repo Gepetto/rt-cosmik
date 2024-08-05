@@ -3,22 +3,7 @@ import pinocchio as pin
 from pinocchio.visualize import GepettoVisualizer
 import sys 
 import numpy as np
-
-def Rquat(x, y, z, w):
-    q = pin.Quaternion(x, y, z, w)
-    q.normalize()
-    return q.matrix()  
-
-def place(viz,name, M):
-    """_Set the transformation matrix of a given visual object named with name to M_
-
-    Args:
-        viz (_Visualizer_): _A pinocchio visualizer_
-        name (_str_): _Name of the visual object_
-        M (_SE3_): _Transformation matrix where to put the object_
-    """
-    viz.viewer.gui.applyConfiguration(name, pin.SE3ToXYZQUAT(M).tolist())
-    viz.viewer.gui.refresh()
+from utils.viz_utils import place, Rquat
 
 model = pin.Model()
 visual_model = pin.GeometryModel()
