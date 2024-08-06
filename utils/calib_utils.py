@@ -1,5 +1,5 @@
 import cv2 as cv
-from cv2 import aruco
+import yaml
 import glob
 import numpy as np
 
@@ -139,6 +139,27 @@ def save_cam_params(mtx, dist, reproj, path):
     cv_file.write('reproj', reproj)
     # note you *release* you don't close() a FileStorage object
     cv_file.release()
+
+def load_cam_pose(filename):
+    """
+        Load the rotation matrix and translation vector from a YAML file.
+        
+        Parameters:
+            filename (str): The path to the YAML file.
+        
+        Returns:
+            rotation_matrix (np.ndarray): The 3x3 rotation matrix.
+            translation_vector (np.ndarray): The 3x1 translation vector.
+    """
+
+    with open(filename, 'r') as file:
+        data = yaml.safe_load(file)
+
+    rotation_matrix = np.array(data['rotation_matrix']['data']).reshape((3, 3))
+    translation_vector = np.array(data['translation_vector']['data']).reshape((3, 1))
+    
+    return rotation_matrix, translation_vector
+
 
 def load_cam_params(path):
     '''Loads camera matrix and distortion coefficients.'''
