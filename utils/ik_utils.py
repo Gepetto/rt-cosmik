@@ -78,7 +78,7 @@ class Ipopt_warm_start(object):
 class IK_Quadprog:
     """_Class to manage multi body IK problem using qp solver quadprog_
     """
-    def __init__(self,model: pin.Model, dict_m: Dict, q0: np.ndarray) -> None:
+    def __init__(self,model: pin.Model, dict_m: Dict, q0: np.ndarray, keys_to_track_list: List, dt: float) -> None:
         """_Init of the class _
 
         Args:
@@ -91,7 +91,7 @@ class IK_Quadprog:
         self._dict_m = dict_m
         self._q0 = q0
 
-        self._dt = 0.01 # TO SET UP : FRAMERATE OF THE DATA
+        self._dt = dt # TO SET UP : FRAMERATE OF THE DATA
 
         # Create a list of keys excluding the specified key
         self._keys_list = [key for key in self._dict_m[0].keys() if key !='Time']
@@ -99,8 +99,8 @@ class IK_Quadprog:
         self._nq = self._model.nq
         self._nv = self._model.nv
 
-        self._keys_to_track_list = ['LIAS', 'RIAS', 'LIPS', 'RIPS', 'LFLE', 'LFAL', 'LFCC', 'RFLE', 'RFAL', 'RFCC', 'LFME', 'LTAM', 'LFM5', 'LFM1', 'RFM5', 'RFM1', 'RTAM', 'RFME']
-        
+        self._keys_to_track_list = keys_to_track_list
+
         pin.forwardKinematics(self._model, self._data, self._q0)
         pin.updateFramePlacements(self._model,self._data)
         
