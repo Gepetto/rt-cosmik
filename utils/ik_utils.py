@@ -34,6 +34,182 @@ def quadprog_solve_qp(P: np.ndarray, q: np.ndarray, G: np.ndarray=None, h: np.nd
         meq = 0
     return quadprog.solve_qp(qp_G, qp_a, qp_C, qp_b, meq)[0] 
 
+class RT_Quadprog:
+    """_Class to manage multi body IK problem using qp solver quadprog_
+    """
+    def __init__(self,model: pin.Model, dict_m: Dict, q0: np.ndarray, keys_to_track_list: List, dt: float, dict_dof_to_keypoints=None, with_freeflyer=True) -> None:
+        """_Init of the class _
+
+        Args:
+            model (pin.Model): _Pinocchio biomechanical model_
+            dict_m (Dict): _a dictionnary containing the measures of the landmarks_
+            q0 (np.ndarray): _initial configuration_
+            keys_to_track_list (List): _name of the points to track from the dictionnary_
+            dict_dof_to_keypoints (Dict): _a dictionnary linking frame of pinocchio model to measurements. Default to None if the pinocchio model has the same frame naming than the measurements_
+            with_freeflyer (boolean): _tells if the pinocchio model has a ff or not. Default to True.
+        """
+        self._model = model
+        self._data = self._model.createData()
+        self._dict_m = dict_m
+        self._q0 = q0
+        self._with_freeflyer = with_freeflyer
+
+        self._dt = dt # TO SET UP : FRAMERATE OF THE DATA
+
+        # Create a list of keys excluding the specified key
+        self._keys_list = [key for key in self._dict_m.keys() if key !='Time']
+
+        self._nq = self._model.nq
+        self._nv = self._model.nv
+
+        self._keys_to_track_list = keys_to_track_list
+        # Ensure dict_dof_to_keypoints is either a valid dictionary or None
+        self._dict_dof_to_keypoints = dict_dof_to_keypoints if dict_dof_to_keypoints is not None else None
+
+        pin.forwardKinematics(self._model, self._data, self._q0)
+        pin.updateFramePlacements(self._model, self._data)
+
+        markers_est_pos = []
+        if self._dict_dof_to_keypoints:
+            # If a mapping dictionary is provided, use it
+            for key in self._keys_to_track_list:
+                frame_id = self._dict_dof_to_keypoints.get(key)
+                if frame_id:
+                    markers_est_pos.append(self._data.oMf[self._model.getFrameId(frame_id)].translation.reshape((3, 1)))
+        else:
+            # Direct linking with Pinocchio model frames
+            for key in self._keys_to_track_list:
+                markers_est_pos.append(self._data.oMf[self._model.getFrameId(key)].translation.reshape((3, 1)))
+
+        self._dict_m_est = dict(zip(self._keys_to_track_list, markers_est_pos))
+
+        # Quadprog and qp settings
+        self._K_ii=1
+        self._K_lim=1
+        self._damping=1e-3
+        self._max_iter = 50
+        self._threshold = 0.01
+
+    def calculate_RMSE_dicts(self, meas:Dict, est:Dict)->float:
+        """_Calculate the RMSE between a dictionnary of markers measurements and markers estimations_
+
+        Args:
+            meas (Dict): _Measured markers_
+            est (Dict): _Estimated markers_
+
+        Returns:
+            float: _RMSE value for all the markers_
+        """
+
+        # Initialize lists to store all the marker positions
+        all_est_pos = []
+        all_meas_pos = []
+
+        # Concatenate all marker positions and measurements
+        for key in self._keys_to_track_list:
+            all_est_pos.append(est[key])
+            all_meas_pos.append(meas[key])
+
+        # Convert lists to numpy arrays
+        all_est_pos = np.concatenate(all_est_pos)
+        all_meas_pos = np.concatenate(all_meas_pos)
+
+        # Calculate the global RMSE
+        rmse = np.sqrt(np.mean((all_meas_pos - all_est_pos) ** 2))
+
+        return rmse
+
+    def solve_ik_sample(self)->np.ndarray:
+        """_Solve the ik optimisation problem : q* = argmin(||P_m - P_e||^2 + lambda|q_init - q|) st to q_min <= q <= q_max for a given sample _
+        """
+        q0=self._q0
+
+        G=np.concatenate((np.identity(self._nv),-np.identity(self._nv)),axis=0) # Inequality matrix size number of inequalities (=nv) \times nv
+
+        q_max_n=self._K_lim*(self._model.upperPositionLimit-q0)/self._dt
+        q_min_n=self._K_lim*(-self._model.lowerPositionLimit+q0)/self._dt
+        h=np.reshape((np.concatenate((q_max_n,q_min_n),axis=0)),(2*len(q_max_n),))
+        
+        # Reset estimated markers dict 
+        pin.forwardKinematics(self._model, self._data, q0)
+        pin.updateFramePlacements(self._model,self._data)
+        
+        markers_est_pos = []
+        if self._dict_dof_to_keypoints:
+            # If a mapping dictionary is provided, use it
+            for key in self._keys_to_track_list:
+                frame_id = self._dict_dof_to_keypoints.get(key)
+                if frame_id:
+                    markers_est_pos.append(self._data.oMf[self._model.getFrameId(frame_id)].translation.reshape((3, 1)))
+        else:
+            # Direct linking with Pinocchio model frames
+            for key in self._keys_to_track_list:
+                markers_est_pos.append(self._data.oMf[self._model.getFrameId(key)].translation.reshape((3, 1)))
+
+        self._dict_m_est = dict(zip(self._keys_to_track_list, markers_est_pos))
+        nb_iter = 0
+
+        rmse = self.calculate_RMSE_dicts(self._dict_m,self._dict_m_est)
+
+        while rmse > self._threshold and nb_iter<self._max_iter:
+            print(rmse)
+            # Set QP matrices 
+            P=np.zeros((self._nv,self._nv)) # Hessian matrix size nv \times nv
+            q=np.zeros((self._nv,)) # Gradient vector size nv
+
+            pin.forwardKinematics(self._model, self._data, q0)
+            pin.updateFramePlacements(self._model,self._data)
+            for marker_name in self._keys_to_track_list:
+
+                if self._dict_dof_to_keypoints is not None :
+                    self._dict_m_est[marker_name]=self._data.oMf[self._model.getFrameId(self._dict_dof_to_keypoints[marker_name])].translation.reshape((3,1))
+                else :
+                    self._dict_m_est[marker_name]=self._data.oMf[self._model.getFrameId(marker_name)].translation.reshape((3,1))
+
+                v_ii=(self._dict_m[marker_name]-self._dict_m_est[marker_name])/self._dt
+
+                mu_ii=self._damping*np.dot(v_ii.T,v_ii)
+
+                
+                if self._dict_dof_to_keypoints is not None :
+                    J_ii=pin.computeFrameJacobian(self._model,self._data,q0,self._model.getFrameId(self._dict_dof_to_keypoints[marker_name]),pin.ReferenceFrame.LOCAL_WORLD_ALIGNED)
+                else :
+                    J_ii=pin.computeFrameJacobian(self._model,self._data,q0,self._model.getFrameId(marker_name),pin.ReferenceFrame.LOCAL_WORLD_ALIGNED)
+                
+                J_ii_reduced=J_ii[:3,:]
+
+                P_ii=np.matmul(J_ii_reduced.T,J_ii_reduced)+mu_ii*np.eye(self._nv)
+                P+=P_ii
+
+                q_ii=np.matmul(-self._K_ii*v_ii.T,J_ii_reduced)
+                q+=q_ii.flatten()
+
+            print('Solving ...')
+            dq=quadprog_solve_qp(P,q,G,h)
+            q0=pin.integrate(self._model,q0,dq*self._dt)
+
+            # Reset estimated markers dict 
+            pin.forwardKinematics(self._model, self._data, q0)
+            pin.updateFramePlacements(self._model,self._data)
+            
+            markers_est_pos = []
+            if self._dict_dof_to_keypoints:
+                # If a mapping dictionary is provided, use it
+                for key in self._keys_to_track_list:
+                    frame_id = self._dict_dof_to_keypoints.get(key)
+                    if frame_id:
+                        markers_est_pos.append(self._data.oMf[self._model.getFrameId(frame_id)].translation.reshape((3, 1)))
+            else:
+                # Direct linking with Pinocchio model frames
+                for key in self._keys_to_track_list:
+                    markers_est_pos.append(self._data.oMf[self._model.getFrameId(key)].translation.reshape((3, 1)))
+
+            self._dict_m_est = dict(zip(self._keys_to_track_list, markers_est_pos))
+            rmse = self.calculate_RMSE_dicts(self._dict_m,self._dict_m_est)
+            nb_iter+=1
+
+        return q0
+
 class Ipopt_warm_start(object):
 
     def __init__(self,  model,meas,keys,dict_dof_to_keypoints,with_freeflyer):
@@ -136,6 +312,9 @@ class IK_Quadprog:
         self._K_ii=1
         self._K_lim=1
         self._damping=1e-3
+        self._max_iter = 5
+        self._threshold = 0.01
+
 
     def create_meas_list(self)-> List[Dict]:
         """_Create a list with each element is a dictionnary of measurements referencing a given sample_
@@ -308,7 +487,6 @@ class IK_Quadprog:
                 print('Solving for ' + str(ii) +'...')
                 dq=quadprog_solve_qp(P,q,G,h)
                 q0=pin.integrate(self._model,q0,dq*self._dt)
-
 
             return q0
 
