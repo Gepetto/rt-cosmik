@@ -1,7 +1,8 @@
 from utils.model_utils import Robot, model_scaling
-from utils.read_write_utils import set_zero_data
+from utils.read_write_utils import formatting_keypoints_data, remove_nans_from_list_of_dicts, set_zero_data
 from utils.viz_utils import Rquat, place
 from utils.calib_utils import load_cam_pose
+from utils.ik_utils import IK_Quadprog
 import pandas as pd
 import sys
 import pinocchio as pin 
@@ -71,16 +72,31 @@ except AttributeError as err:
     print(err)
     sys.exit(0)
 
-viz.display(pin.neutral(human_model))
-
 for keypoint in keypoint_names:
     viz.viewer.gui.addSphere('world/'+keypoint,0.01,color[keypoint])
 
+# IK calculations 
+q0 = pin.neutral(human_model)
+dt = 1/30
+keys_to_track_list = ["Right Knee","Right Hip","Right Shoulder","Right Elbow","Right Wrist"]
+dict_dof_to_keypoints = dict(zip(keys_to_track_list,['knee_Z', 'lumbar_Z', 'shoulder_Z', 'elbow_Z', 'hand_fixed']))
+
+meas_list = formatting_keypoints_data(data)
+meas_list = remove_nans_from_list_of_dicts(meas_list)
+
+ik_problem = IK_Quadprog(human_model, meas_list, q0, keys_to_track_list,dt,dict_dof_to_keypoints,False)
+
+q = ik_problem.solve_ik()
+
+q=np.array(q)
+
 for ii in range(1,data['Frame'].iloc[-1]+1): 
+    q_ii = q[ii,:]
     for name in keypoint_names:
         # Filter the DataFrame for the specific frame and keypoint
         keypoint_data = data[(data['Frame'] == ii) & (data['Keypoint'] == name)]
         if not keypoint_data.empty:
             M = pin.SE3(pin.SE3(Rquat(1, 0, 0, 0), np.matrix([keypoint_data.iloc[0]['X'],keypoint_data.iloc[0]['Y'],keypoint_data.iloc[0]['Z']]).T))
             place(viz,'world/'+keypoint_data.iloc[0]['Keypoint'],M)
+            viz.display(q_ii)
     input()

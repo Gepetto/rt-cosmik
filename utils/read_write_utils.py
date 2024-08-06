@@ -158,6 +158,33 @@ def read_mocap_data(file_path: str) -> list:
     
     return list_of_dicts
 
+def formatting_keypoints_data(df) -> list:
+    """ Format the keypoint data to be given to the IK 
+    
+    Args:
+        data (pandas DF): Dataframe to format (initial format is Frame,Keypoint_name,X,Y,Z).
+
+    Returns:
+        jcp_positions (dict): Dictionary containing jcp names as keys 
+                                    and their 3D positions as values.
+    """
+    # Read the CSV file into a DataFrame
+    positions =  df[['X', 'Y', 'Z']].to_numpy(dtype=np.float64)
+
+    # Extract landmarks names from the columns and remove 'Lowerbody:' prefix
+    landmarks = df['Keypoint'].drop_duplicates().tolist()
+
+    list_of_dicts = [] #Each 
+    for jj in range(int(positions.shape[0]/len(landmarks))):
+        current_position = positions[len(landmarks)*jj:len(landmarks)*(jj+1)]
+        list_of_arrays = [np.array(current_position[i]).reshape(3, 1) for i in range(current_position.shape[0])]
+        
+        # Initialize dictionary to store the 3D positions of the landmarks
+        mocap_mks_positions = dict(zip(landmarks,list_of_arrays))
+        list_of_dicts.append(mocap_mks_positions)
+    
+    return list_of_dicts
+
 # def write_joint_angle_results(directory_name: str, q:np.ndarray):
 #     """_Write the joint angles obtained from the ik as asked by the challenge moderators_
 
