@@ -36,9 +36,11 @@ def quadprog_solve_qp(P: np.ndarray, q: np.ndarray, G: np.ndarray=None, h: np.nd
 
 class Ipopt_warm_start(object):
 
-    def __init__(self,  model,meas,keys):
+    def __init__(self,  model,meas,keys,dict_dof_to_keypoints,with_freeflyer):
         self._meas=meas
         self._keys=keys
+        self._with_freeflyer=with_freeflyer
+        self._dict_dof_to_keypoints=dict_dof_to_keypoints
         self._model=model
         self._data=self._model.createData()
         
@@ -52,7 +54,10 @@ class Ipopt_warm_start(object):
 
         for key in self._keys:
             Goal=np.concatenate((Goal,np.reshape(np.array(self._meas[key]),(1,3))),axis=0)
-            markers_pos.append(self._data.oMf[self._model.getFrameId(key)].translation)           
+            if self._dict_dof_to_keypoints is not None :
+                markers_pos.append(self._data.oMf[self._model.getFrameId(self._dict_dof_to_keypoints[key])].translation)
+            else :
+                markers_pos.append(self._data.oMf[self._model.getFrameId(key)].translation)           
         
         J=np.sum((Goal-markers_pos)**2)
 
@@ -60,7 +65,10 @@ class Ipopt_warm_start(object):
 
     def constraints(self, x):
         """Returns the constraints."""
-        return np.linalg.norm([x[3],x[4],x[5],x[6]]) # norm of the freeflyer quaternion equal to 1
+        if self._with_freeflyer:
+            return np.linalg.norm([x[3],x[4],x[5],x[6]]) # norm of the freeflyer quaternion equal to 1
+        else : 
+            return 1
 
     def gradient(self, x):
         # callback for gradient
@@ -78,18 +86,22 @@ class Ipopt_warm_start(object):
 class IK_Quadprog:
     """_Class to manage multi body IK problem using qp solver quadprog_
     """
-    def __init__(self,model: pin.Model, dict_m: Dict, q0: np.ndarray, keys_to_track_list: List, dt: float) -> None:
+    def __init__(self,model: pin.Model, dict_m: Dict, q0: np.ndarray, keys_to_track_list: List, dt: float, dict_dof_to_keypoints=None, with_freeflyer=True) -> None:
         """_Init of the class _
 
         Args:
             model (pin.Model): _Pinocchio biomechanical model_
             dict_m (Dict): _a dictionnary containing the measures of the landmarks_
             q0 (np.ndarray): _initial configuration_
+            keys_to_track_list (List): _name of the points to track from the dictionnary_
+            dict_dof_to_keypoints (Dict): _a dictionnary linking frame of pinocchio model to measurements. Default to None if the pinocchio model has the same frame naming than the measurements_
+            with_freeflyer (boolean): _tells if the pinocchio model has a ff or not. Default to True.
         """
         self._model = model
         self._data = self._model.createData()
         self._dict_m = dict_m
         self._q0 = q0
+        self._with_freeflyer = with_freeflyer
 
         self._dt = dt # TO SET UP : FRAMERATE OF THE DATA
 
@@ -100,14 +112,25 @@ class IK_Quadprog:
         self._nv = self._model.nv
 
         self._keys_to_track_list = keys_to_track_list
+        # Ensure dict_dof_to_keypoints is either a valid dictionary or None
+        self._dict_dof_to_keypoints = dict_dof_to_keypoints if dict_dof_to_keypoints is not None else None
 
         pin.forwardKinematics(self._model, self._data, self._q0)
-        pin.updateFramePlacements(self._model,self._data)
-        
+        pin.updateFramePlacements(self._model, self._data)
+
         markers_est_pos = []
-        for ii in self._keys_to_track_list:
-            markers_est_pos.append(self._data.oMf[self._model.getFrameId(ii)].translation.reshape((3,1)))
-        self._dict_m_est = dict(zip(self._keys_to_track_list,markers_est_pos))
+        if self._dict_dof_to_keypoints:
+            # If a mapping dictionary is provided, use it
+            for key in self._keys_to_track_list:
+                frame_id = self._dict_dof_to_keypoints.get(key)
+                if frame_id:
+                    markers_est_pos.append(self._data.oMf[self._model.getFrameId(frame_id)].translation.reshape((3, 1)))
+        else:
+            # Direct linking with Pinocchio model frames
+            for key in self._keys_to_track_list:
+                markers_est_pos.append(self._data.oMf[self._model.getFrameId(key)].translation.reshape((3, 1)))
+
+        self._dict_m_est = dict(zip(self._keys_to_track_list, markers_est_pos))
 
         # Quadprog and qp settings
         self._K_ii=1
@@ -174,7 +197,7 @@ class IK_Quadprog:
             nlp = cyipopt.Problem(
                 n=len(self._q0),
                 m=len(cl),
-                problem_obj=Ipopt_warm_start(self._model,meas,self._keys_to_track_list),
+                problem_obj=Ipopt_warm_start(self._model,meas,self._keys_to_track_list,self._dict_dof_to_keypoints, self._with_freeflyer),
                 lb=lb,
                 ub=ub,
                 cl=cl,
@@ -195,39 +218,97 @@ class IK_Quadprog:
             pin.updateFramePlacements(self._model,self._data)
             
             markers_est_pos = []
-            for el in self._keys_to_track_list:
-                markers_est_pos.append(self._data.oMf[self._model.getFrameId(el)].translation.reshape((3,1)))
-            self._dict_m_est = dict(zip(self._keys_to_track_list,markers_est_pos))
+            if self._dict_dof_to_keypoints:
+                # If a mapping dictionary is provided, use it
+                for key in self._keys_to_track_list:
+                    frame_id = self._dict_dof_to_keypoints.get(key)
+                    if frame_id:
+                        markers_est_pos.append(self._data.oMf[self._model.getFrameId(frame_id)].translation.reshape((3, 1)))
+            else:
+                # Direct linking with Pinocchio model frames
+                for key in self._keys_to_track_list:
+                    markers_est_pos.append(self._data.oMf[self._model.getFrameId(key)].translation.reshape((3, 1)))
 
-            # Set QP matrices 
-            P=np.zeros((self._nv,self._nv)) # Hessian matrix size nv \times nv
-            q=np.zeros((self._nv,)) # Gradient vector size nv
-            G=np.concatenate((np.zeros((2*(self._nv-6),6)),np.concatenate((np.identity(self._nv-6),-np.identity(self._nv-6)),axis=0)),axis=1) # Inequality matrix size number of inequalities (=nv) \times nv
+            self._dict_m_est = dict(zip(self._keys_to_track_list, markers_est_pos))
 
-            q_max_n=self._K_lim*(self._model.upperPositionLimit[7:]-q0[7:])/self._dt
-            q_min_n=self._K_lim*(-self._model.lowerPositionLimit[7:]+q0[7:])/self._dt
-            h=np.reshape((np.concatenate((q_max_n,q_min_n),axis=0)),(2*len(q_max_n),))
+            if self._with_freeflyer:
+                # Set QP matrices 
+                P=np.zeros((self._nv,self._nv)) # Hessian matrix size nv \times nv
+                q=np.zeros((self._nv,)) # Gradient vector size nv
+                G=np.concatenate((np.zeros((2*(self._nv-6),6)),np.concatenate((np.identity(self._nv-6),-np.identity(self._nv-6)),axis=0)),axis=1) # Inequality matrix size number of inequalities (=nv) \times nv
 
-            pin.forwardKinematics(self._model, self._data, q0)
-            pin.updateFramePlacements(self._model,self._data)
-            for marker_name in self._keys_to_track_list:
-                self._dict_m_est[marker_name]=self._data.oMf[self._model.getFrameId(marker_name)].translation.reshape((3,1))
+                q_max_n=self._K_lim*(self._model.upperPositionLimit[7:]-q0[7:])/self._dt
+                q_min_n=self._K_lim*(-self._model.lowerPositionLimit[7:]+q0[7:])/self._dt
+                h=np.reshape((np.concatenate((q_max_n,q_min_n),axis=0)),(2*len(q_max_n),))
 
-                v_ii=(meas[marker_name]-self._dict_m_est[marker_name])/self._dt
-                mu_ii=self._damping*np.dot(v_ii.T,v_ii)
-                
-                J_ii=pin.computeFrameJacobian(self._model,self._data,q0,self._model.getFrameId(marker_name),pin.ReferenceFrame.LOCAL_WORLD_ALIGNED)
-                J_ii_reduced=J_ii[:3,:]
+                pin.forwardKinematics(self._model, self._data, q0)
+                pin.updateFramePlacements(self._model,self._data)
+                for marker_name in self._keys_to_track_list:
 
-                P_ii=np.matmul(J_ii_reduced.T,J_ii_reduced)+mu_ii*np.eye(self._nv)
-                P+=P_ii
+                    if self._dict_dof_to_keypoints is not None :
+                        self._dict_m_est[marker_name]=self._data.oMf[self._model.getFrameId(self._dict_dof_to_keypoints[marker_name])].translation.reshape((3,1))
+                    else :
+                        self._dict_m_est[marker_name]=self._data.oMf[self._model.getFrameId(marker_name)].translation.reshape((3,1))
 
-                q_ii=np.matmul(-self._K_ii*v_ii.T,J_ii_reduced)
-                q+=q_ii.flatten()
+                    v_ii=(meas[marker_name]-self._dict_m_est[marker_name])/self._dt
+                    mu_ii=self._damping*np.dot(v_ii.T,v_ii)
+                    
+                    if self._dict_dof_to_keypoints is not None :
+                        J_ii=pin.computeFrameJacobian(self._model,self._data,q0,self._model.getFrameId(self._dict_dof_to_keypoints[marker_name]),pin.ReferenceFrame.LOCAL_WORLD_ALIGNED)
+                    else :
+                        J_ii=pin.computeFrameJacobian(self._model,self._data,q0,self._model.getFrameId(marker_name),pin.ReferenceFrame.LOCAL_WORLD_ALIGNED)
 
-            print('Solving for ' + str(ii) +'...')
-            dq=quadprog_solve_qp(P,q,G,h)
-            q0=pin.integrate(self._model,q0,dq*self._dt)
+                    P_ii=np.matmul(J_ii_reduced.T,J_ii_reduced)+mu_ii*np.eye(self._nv)
+                    P+=P_ii
+
+                    q_ii=np.matmul(-self._K_ii*v_ii.T,J_ii_reduced)
+                    q+=q_ii.flatten()
+
+                print('Solving for ' + str(ii) +'...')
+                dq=quadprog_solve_qp(P,q,G,h)
+                q0=pin.integrate(self._model,q0,dq*self._dt)
+
+            else :
+                # Set QP matrices 
+                P=np.zeros((self._nv,self._nv)) # Hessian matrix size nv \times nv
+                q=np.zeros((self._nv,)) # Gradient vector size nv
+                G=np.concatenate((np.identity(self._nv),-np.identity(self._nv)),axis=0) # Inequality matrix size number of inequalities (=nv) \times nv
+
+                q_max_n=self._K_lim*(self._model.upperPositionLimit-q0)/self._dt
+                q_min_n=self._K_lim*(-self._model.lowerPositionLimit+q0)/self._dt
+                h=np.reshape((np.concatenate((q_max_n,q_min_n),axis=0)),(2*len(q_max_n),))
+
+                pin.forwardKinematics(self._model, self._data, q0)
+                pin.updateFramePlacements(self._model,self._data)
+                for marker_name in self._keys_to_track_list:
+
+                    if self._dict_dof_to_keypoints is not None :
+                        self._dict_m_est[marker_name]=self._data.oMf[self._model.getFrameId(self._dict_dof_to_keypoints[marker_name])].translation.reshape((3,1))
+                    else :
+                        self._dict_m_est[marker_name]=self._data.oMf[self._model.getFrameId(marker_name)].translation.reshape((3,1))
+
+                    v_ii=(meas[marker_name]-self._dict_m_est[marker_name])/self._dt
+
+                    mu_ii=self._damping*np.dot(v_ii.T,v_ii)
+
+                    
+                    if self._dict_dof_to_keypoints is not None :
+                        J_ii=pin.computeFrameJacobian(self._model,self._data,q0,self._model.getFrameId(self._dict_dof_to_keypoints[marker_name]),pin.ReferenceFrame.LOCAL_WORLD_ALIGNED)
+                    else :
+                        J_ii=pin.computeFrameJacobian(self._model,self._data,q0,self._model.getFrameId(marker_name),pin.ReferenceFrame.LOCAL_WORLD_ALIGNED)
+                    
+                    J_ii_reduced=J_ii[:3,:]
+
+                    P_ii=np.matmul(J_ii_reduced.T,J_ii_reduced)+mu_ii*np.eye(self._nv)
+                    P+=P_ii
+
+                    q_ii=np.matmul(-self._K_ii*v_ii.T,J_ii_reduced)
+                    q+=q_ii.flatten()
+
+                print('Solving for ' + str(ii) +'...')
+                dq=quadprog_solve_qp(P,q,G,h)
+                q0=pin.integrate(self._model,q0,dq*self._dt)
+
 
             return q0
 
