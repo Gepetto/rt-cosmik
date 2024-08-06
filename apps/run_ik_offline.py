@@ -8,7 +8,7 @@ from pinocchio.visualize import GepettoVisualizer
 import numpy as np 
 
 # Loading human urdf
-human = Robot('models/human_urdf/urdf/human.urdf','models',True) 
+human = Robot('models/human_urdf/urdf/human.urdf','models') 
 human_model = human.model
 human_visual_model = human.visual_model
 human_collision_model = human.collision_model
