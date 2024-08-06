@@ -2,12 +2,13 @@ from utils.model_utils import Robot, model_scaling
 from utils.read_write_utils import formatting_keypoints_data, remove_nans_from_list_of_dicts, set_zero_data
 from utils.viz_utils import Rquat, place
 from utils.calib_utils import load_cam_pose
-from utils.ik_utils import IK_Quadprog
+from utils.ik_utils import IK_Quadprog, RT_Quadprog
 import pandas as pd
 import sys
 import pinocchio as pin 
 from pinocchio.visualize import GepettoVisualizer
 import numpy as np 
+import time 
 
 # Loading human urdf
 human = Robot('models/human_urdf/urdf/human.urdf','models') 
@@ -84,14 +85,20 @@ dict_dof_to_keypoints = dict(zip(keys_to_track_list,['knee_Z', 'lumbar_Z', 'shou
 meas_list = formatting_keypoints_data(data)
 meas_list = remove_nans_from_list_of_dicts(meas_list)
 
-ik_problem = IK_Quadprog(human_model, meas_list, q0, keys_to_track_list,dt,dict_dof_to_keypoints,False)
+# ik_problem = IK_Quadprog(human_model, meas_list, q0, keys_to_track_list,dt,dict_dof_to_keypoints,False)
+ik_problem = RT_Quadprog(human_model, meas_list[0], q0, keys_to_track_list,dt,dict_dof_to_keypoints,False)
 
-q = ik_problem.solve_ik()
-
+q = ik_problem.solve_ik_sample()
 q=np.array(q)
 
 for ii in range(1,data['Frame'].iloc[-1]+1): 
-    q_ii = q[ii,:]
+    ik_problem = RT_Quadprog(human_model, meas_list[ii-1], q0, keys_to_track_list,dt,dict_dof_to_keypoints,False)
+    t1= time.time()
+    q = ik_problem.solve_ik_sample()
+    t2=time.time()
+    print('Time spent = ',t2-t1)
+    q=np.array(q)
+    q_ii = q
     for name in keypoint_names:
         # Filter the DataFrame for the specific frame and keypoint
         keypoint_data = data[(data['Frame'] == ii) & (data['Keypoint'] == name)]
