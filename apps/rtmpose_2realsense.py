@@ -1,9 +1,11 @@
+# To run the code from RT-COSMIK root : python -m apps.rtmpose_2realsense.py  
+
 import mmcv
 from mmcv import imread
 import mmengine
 from mmengine.registry import init_default_scope
 import numpy as np
-from cams_calibration.calib_utils import load_cam_params, load_cam_to_cam_params
+from utils.calib_utils import load_cam_params, load_cam_to_cam_params
 from utils.triangulation_utils import DLT_adaptive, triangulate_points
 
 from mmpose.apis import inference_topdown
