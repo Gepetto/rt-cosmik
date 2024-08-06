@@ -1,3 +1,5 @@
+# To run the code from RT-COSMIK root : python -m cams_calibration.calibrate_cameras.py 
+
 import pyrealsense2 as rs
 import numpy as np
 import cv2

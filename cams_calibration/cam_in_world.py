@@ -1,3 +1,5 @@
+# To run the code from RT-COSMIK root : python -m cams_calibration.cam_in_world.py 
+
 import cv2
 import numpy as np
 import pyrealsense2 as rs
@@ -37,9 +39,8 @@ if len(ctx.devices) > 0:
                 d.get_info(rs.camera_info.serial_number))
         sn_list.append(d.get_info(rs.camera_info.serial_number))
 
-    else:
-
-        print("No Intel Device connected")
+else:
+    print("No Intel Device connected")
 
 # Get device product line for setting a supporting resolution
 pipeline_wrapper_1 = rs.pipeline_wrapper(pipeline_1)
@@ -85,7 +86,7 @@ pipeline_1.start(config_1)
 pipeline_2.start(config_2)
 
 # Define the ArUco dictionary and marker size
-aruco_dict = cv2.aruco.Dictionary_get(cv2.aruco.DICT_4X4_50)
+aruco_dict = cv2.aruco.getPredefinedDictionary(cv2.aruco.DICT_4X4_50)
 marker_length = 0.176  # Marker size in meters (17.6 cm)
 
 K1, D1 = load_cam_params("cam_params/c1_params_color_test_test.yml")
@@ -100,7 +101,7 @@ dist_coeffs_1 = D1
 dist_coeffs_2 = D2
 
 # Initialize the ArUco detection parameters
-parameters = cv2.aruco.DetectorParameters_create()
+parameters = cv2.aruco.DetectorParameters()
 
 # Function to detect the ArUco marker and estimate the camera pose
 def get_camera_pose(frame, camera_matrix, dist_coeffs):
@@ -185,7 +186,7 @@ while True:
     
         # Draw the marker and its pose on the frame for Camera 1
         cv2.aruco.drawDetectedMarkers(frame_1, corners_1)
-        cv2.aruco.drawAxis(frame_1, K1, D1, rvec_1, tvec_1, 0.1)
+        cv2.drawFrameAxes(frame_1, K1, D1, rvec_1, tvec_1, 0.1)
 
     if transformation_matrix_2 is not None and not saved_2:
         print("Camera 2 Pose (Transformation Matrix):")
@@ -197,7 +198,7 @@ while True:
     
         # Draw the marker and its pose on the frame for Camera 2
         cv2.aruco.drawDetectedMarkers(frame_2, corners_2)
-        cv2.aruco.drawAxis(frame_2, K2, D2, rvec_2, tvec_2, 0.1)
+        cv2.drawFrameAxes(frame_2, K2, D2, rvec_2, tvec_2, 0.1)
 
     # Display the frames for both cameras
     cv2.imshow('Camera 1 Pose Estimation', frame_1)
