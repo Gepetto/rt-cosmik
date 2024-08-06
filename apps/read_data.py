@@ -54,7 +54,7 @@ color = dict(zip(keypoint_names,color_values))
 for keypoint in keypoint_names:
     viz.viewer.gui.addSphere('world/'+keypoint,0.01,color[keypoint])
 
-data = pd.read_csv('keypoints_3D_pos_2RGB_2.csv')
+data = pd.read_csv('output/keypoints_3D_pos_2RGB_2.csv')
 
 for ii in range(1,data['Frame'].iloc[-1]+1): 
     for name in keypoint_names:

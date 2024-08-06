@@ -5,6 +5,21 @@ import matplotlib.pyplot as plt
 import os
 import csv
 
+def set_zero_data(df):
+    # Isolate the right ankle coordinates for frame 1
+    right_ankle_frame1 = df[(df['Frame'] == 1) & (df['Keypoint'] == 'Right Ankle')]
+
+    # Extract the X, Y, Z coordinates
+    x_ankle = right_ankle_frame1['X'].values[0]
+    y_ankle = right_ankle_frame1['Y'].values[0]
+    z_ankle = right_ankle_frame1['Z'].values[0]
+
+    # Subtract these coordinates from the entire dataframe
+    df['X'] = df['X'] - x_ankle
+    df['Y'] = df['Y'] - y_ankle
+    df['Z'] = df['Z'] - z_ankle
+
+
 def read_lstm_data(file_name: str)->Tuple[Dict, Dict]:
     """_Creates two dictionnaries, one containing the 3D positions of all the markers output by the LSTM, another to map the number of the marks to the JC associated_
     Args:
