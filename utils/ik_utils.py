@@ -22,7 +22,7 @@ def quadprog_solve_qp(P: np.ndarray, q: np.ndarray, G: np.ndarray=None, h: np.nd
     Returns:
         _launch solve_qp of quadprog solver_
     """
-    qp_G = .5 * (P + P.T) #+ np.eye(P.shape[0])*(1e-5)   # make sure P is symmetric, pos,def
+    qp_G = .5 * (P + P.T) + np.eye(P.shape[0])*(1e-5)   # make sure P is symmetric, pos,def
     qp_a = -q
     if A is not None:
         qp_C = -np.vstack([A, G]).T
@@ -87,8 +87,13 @@ class RT_Quadprog:
         self._K_ii=1
         self._K_lim=1
         self._damping=1e-3
-        self._max_iter = 50
+        self._max_iter = 35
         self._threshold = 0.01
+
+        # Line search tuning 
+        self._alpha = 1.0 # Start with full step size 
+        self._c = 0.5 # Backtracking line search factor 
+        self._beta = 0.8 # Reduction factor 
 
     def calculate_RMSE_dicts(self, meas:Dict, est:Dict)->float:
         """_Calculate the RMSE between a dictionnary of markers measurements and markers estimations_
@@ -118,6 +123,19 @@ class RT_Quadprog:
         rmse = np.sqrt(np.mean((all_meas_pos - all_est_pos) ** 2))
 
         return rmse
+    
+    def update_marker_estimates(self, q0):
+        """Update the estimated marker positions."""
+        pin.forwardKinematics(self._model, self._data, q0)
+        pin.updateFramePlacements(self._model, self._data)
+
+        for key in self._keys_to_track_list:
+            if self._dict_dof_to_keypoints is not None:
+                frame_id = self._model.getFrameId(self._dict_dof_to_keypoints.get(key))
+            else:
+                frame_id = self._model.getFrameId(key)
+            self._dict_m_est[key] = self._data.oMf[frame_id].translation.reshape((3, 1))
+
 
     def solve_ik_sample(self)->np.ndarray:
         """_Solve the ik optimisation problem : q* = argmin(||P_m - P_e||^2 + lambda|q_init - q|) st to q_min <= q <= q_max for a given sample _
@@ -131,22 +149,8 @@ class RT_Quadprog:
         h=np.reshape((np.concatenate((q_max_n,q_min_n),axis=0)),(2*len(q_max_n),))
         
         # Reset estimated markers dict 
-        pin.forwardKinematics(self._model, self._data, q0)
-        pin.updateFramePlacements(self._model,self._data)
+        self.update_marker_estimates(q0)
         
-        markers_est_pos = []
-        if self._dict_dof_to_keypoints:
-            # If a mapping dictionary is provided, use it
-            for key in self._keys_to_track_list:
-                frame_id = self._dict_dof_to_keypoints.get(key)
-                if frame_id:
-                    markers_est_pos.append(self._data.oMf[self._model.getFrameId(frame_id)].translation.reshape((3, 1)))
-        else:
-            # Direct linking with Pinocchio model frames
-            for key in self._keys_to_track_list:
-                markers_est_pos.append(self._data.oMf[self._model.getFrameId(key)].translation.reshape((3, 1)))
-
-        self._dict_m_est = dict(zip(self._keys_to_track_list, markers_est_pos))
         nb_iter = 0
 
         rmse = self.calculate_RMSE_dicts(self._dict_m,self._dict_m_est)
@@ -159,18 +163,13 @@ class RT_Quadprog:
 
             pin.forwardKinematics(self._model, self._data, q0)
             pin.updateFramePlacements(self._model,self._data)
-            for marker_name in self._keys_to_track_list:
 
-                if self._dict_dof_to_keypoints is not None :
-                    self._dict_m_est[marker_name]=self._data.oMf[self._model.getFrameId(self._dict_dof_to_keypoints[marker_name])].translation.reshape((3,1))
-                else :
-                    self._dict_m_est[marker_name]=self._data.oMf[self._model.getFrameId(marker_name)].translation.reshape((3,1))
+            for marker_name in self._keys_to_track_list:
 
                 v_ii=(self._dict_m[marker_name]-self._dict_m_est[marker_name])/self._dt
 
                 mu_ii=self._damping*np.dot(v_ii.T,v_ii)
 
-                
                 if self._dict_dof_to_keypoints is not None :
                     J_ii=pin.computeFrameJacobian(self._model,self._data,q0,self._model.getFrameId(self._dict_dof_to_keypoints[marker_name]),pin.ReferenceFrame.LOCAL_WORLD_ALIGNED)
                 else :
@@ -186,25 +185,24 @@ class RT_Quadprog:
 
             # print('Solving ...')
             dq=quadprog_solve_qp(P,q,G,h)
-            q0=pin.integrate(self._model,q0,dq*self._dt)
+
+            # Line search 
+            initial_rmse = rmse  # Store current RMSE
+            while self._alpha > 1e-5:  # Prevent alpha from becoming too small
+                q_test = pin.integrate(self._model, q0, dq * self._alpha * self._dt)
+                
+                self.update_marker_estimates(q_test)
+                new_rmse = self.calculate_RMSE_dicts(self._dict_m, self._dict_m_est)
+                
+                if new_rmse < initial_rmse - self._c * self._alpha * np.dot(q.T, dq):  # Sufficient decrease condition
+                    break  # Sufficient improvement found
+                
+                self._alpha *= self._beta  # Reduce the step size
+
+            q0 = pin.integrate(self._model, q0, dq * self._alpha * self._dt)
 
             # Reset estimated markers dict 
-            pin.forwardKinematics(self._model, self._data, q0)
-            pin.updateFramePlacements(self._model,self._data)
-            
-            markers_est_pos = []
-            if self._dict_dof_to_keypoints:
-                # If a mapping dictionary is provided, use it
-                for key in self._keys_to_track_list:
-                    frame_id = self._dict_dof_to_keypoints.get(key)
-                    if frame_id:
-                        markers_est_pos.append(self._data.oMf[self._model.getFrameId(frame_id)].translation.reshape((3, 1)))
-            else:
-                # Direct linking with Pinocchio model frames
-                for key in self._keys_to_track_list:
-                    markers_est_pos.append(self._data.oMf[self._model.getFrameId(key)].translation.reshape((3, 1)))
-
-            self._dict_m_est = dict(zip(self._keys_to_track_list, markers_est_pos))
+            self.update_marker_estimates(q0)
             rmse = self.calculate_RMSE_dicts(self._dict_m,self._dict_m_est)
             nb_iter+=1
 

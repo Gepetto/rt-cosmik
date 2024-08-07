@@ -92,7 +92,7 @@ q = ik_problem.solve_ik_sample()
 q=np.array(q)
 
 for ii in range(1,data['Frame'].iloc[-1]+1): 
-    ik_problem = RT_Quadprog(human_model, meas_list[ii-1], q0, keys_to_track_list,dt,dict_dof_to_keypoints,False)
+    ik_problem = RT_Quadprog(human_model, meas_list[ii-1], q, keys_to_track_list,dt,dict_dof_to_keypoints,False)
     t1= time.time()
     q = ik_problem.solve_ik_sample()
     t2=time.time()
