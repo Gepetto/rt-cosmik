@@ -5,19 +5,36 @@ import matplotlib.pyplot as plt
 import os
 import csv
 
-def set_zero_data(df):
+def set_zero_data_df(df, x=None, y=None, z=None):
     # Isolate the right ankle coordinates for frame 1
     right_ankle_frame1 = df[(df['Frame'] == 1) & (df['Keypoint'] == 'Right Ankle')]
 
-    # Extract the X, Y, Z coordinates
-    x_ankle = right_ankle_frame1['X'].values[0]
-    y_ankle = right_ankle_frame1['Y'].values[0]
-    z_ankle = right_ankle_frame1['Z'].values[0]
+    # Extract the X, Y, Z 
+    if x is None: 
+        x_ankle = right_ankle_frame1['X'].values[0]
+    else :
+        x_ankle = x
+
+    if y is None: 
+        y_ankle = right_ankle_frame1['Y'].values[0]
+    else :
+        y_ankle = y
+
+    if z is None: 
+        z_ankle = right_ankle_frame1['Z'].values[0]
+    else :
+        z_ankle = z
 
     # Subtract these coordinates from the entire dataframe
     df['X'] = df['X'] - x_ankle
     df['Y'] = df['Y'] - y_ankle
     df['Z'] = df['Z'] - z_ankle
+
+def set_zero_data(keypoints, x, y, z):
+    keypoints[:][0]-= x
+    keypoints[:][1]-= y
+    keypoints[:][2]-= z
+    return keypoints
 
 
 def read_lstm_data(file_name: str)->Tuple[Dict, Dict]:
@@ -184,6 +201,10 @@ def formatting_keypoints_data(df) -> list:
         list_of_dicts.append(mocap_mks_positions)
     
     return list_of_dicts
+
+def formatting_keypoints(keypoints,keypoints_names):
+    list_of_arrays = [np.array(keypoints[i][:]).reshape(3, 1) for i in range(keypoints.shape[0])]
+    return dict(zip(keypoints_names, list_of_arrays))
 
 # def write_joint_angle_results(directory_name: str, q:np.ndarray):
 #     """_Write the joint angles obtained from the ik as asked by the challenge moderators_

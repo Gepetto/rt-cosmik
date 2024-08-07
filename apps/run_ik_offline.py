@@ -1,5 +1,5 @@
-from utils.model_utils import Robot, model_scaling
-from utils.read_write_utils import formatting_keypoints_data, remove_nans_from_list_of_dicts, set_zero_data
+from utils.model_utils import Robot, model_scaling_df
+from utils.read_write_utils import formatting_keypoints_data, remove_nans_from_list_of_dicts, set_zero_data_df, set_zero_data_df
 from utils.viz_utils import Rquat, place
 from utils.calib_utils import load_cam_pose
 from utils.ik_utils import IK_Quadprog, RT_Quadprog
@@ -34,7 +34,7 @@ keypoints_transformed = np.dot(keypoints_shifted,R1_global)
 
 # Update the DataFrame with the transformed points, replacing the old X, Y, Z values
 data['X'], data['Y'], data['Z'] = keypoints_transformed[:, 0], keypoints_transformed[:, 1], keypoints_transformed[:, 2]
-set_zero_data(data)
+set_zero_data_df(data)
 
 keypoint_names = [
     "Nose", "Left Eye", "Right Eye", "Left Ear", "Right Ear", 
@@ -50,7 +50,7 @@ color_values=[blue,blue,blue,blue,blue,green,orange,green,orange,green,orange,gr
 color = dict(zip(keypoint_names,color_values))
 
 # Scaling segments lengths 
-human_model,human_data=model_scaling(human_model, data[(data['Frame']==1)])
+human_model,human_data=model_scaling_df(human_model, data[(data['Frame']==1)])
 
 # Visualisation
 

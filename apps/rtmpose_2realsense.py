@@ -5,8 +5,15 @@ from mmcv import imread
 import mmengine
 from mmengine.registry import init_default_scope
 import numpy as np
-from utils.calib_utils import load_cam_params, load_cam_to_cam_params
+import csv
+import matplotlib.pyplot as plt
+from scipy import linalg
+import pinocchio as pin
+from utils.read_write_utils import formatting_keypoints, formatting_keypoints_data, remove_nans_from_list_of_dicts, set_zero_data
+from utils.model_utils import Robot, model_scaling
+from utils.calib_utils import load_cam_params, load_cam_to_cam_params, load_cam_pose
 from utils.triangulation_utils import DLT_adaptive, triangulate_points
+from utils.ik_utils import RT_Quadprog
 
 from mmpose.apis import inference_topdown
 from mmpose.apis import init_model as init_pose_estimator
@@ -18,10 +25,6 @@ import pyrealsense2 as rs
 import cv2
 import os.path as osp
 import json_tricks as json
-
-import csv
-import matplotlib.pyplot as plt
-from scipy import linalg
 
 try:
     from mmdet.apis import inference_detector, init_detector
@@ -69,6 +72,10 @@ for cam in dict_cam :
     dict_cam[cam]["projection"] = projection
     dists.append(dict_cam[cam]["dist"])
     mtxs.append(dict_cam[cam]["mtx"])
+
+# Loading camera pose 
+R1_global, T1_global = load_cam_pose('cams_calibration/cam_params/camera1_pose_test_test.yml')
+R1_global = R1_global@pin.utils.rotate('z', np.pi) # aligns measurements to human model definition
 
 local_runtime = True
 
@@ -121,6 +128,8 @@ keypoint_names = [
     "Left Wrist", "Right Wrist", "Left Hip", "Right Hip", 
     "Left Knee", "Right Knee", "Left Ankle", "Right Ankle"]
 
+mapping = dict(zip(keypoint_names,[i for i in range(len(keypoint_names))]))
+
 # keypoint_colors = {
 #     "Nose": "blue", "Left Eye": "blue", "Right Eye": "blue",
 #     "Left Ear": "blue", "Right Ear": "blue",
@@ -158,6 +167,20 @@ with open(csv_file_path, mode='w', newline='') as file:
     csv_writer = csv.writer(file)
     # Write the header row
     csv_writer.writerow(['Frame', 'Keypoint', 'X', 'Y', 'Z'])
+
+first_sample = True 
+
+# Loading human urdf
+human = Robot('models/human_urdf/urdf/human.urdf','models') 
+human_model = human.model
+human_visual_model = human.visual_model
+human_collision_model = human.collision_model
+
+# IK calculations 
+q = pin.neutral(human_model)
+dt = 1/30
+keys_to_track_list = ["Right Knee","Right Hip","Right Shoulder","Right Elbow","Right Wrist"]
+dict_dof_to_keypoints = dict(zip(keys_to_track_list,['knee_Z', 'lumbar_Z', 'shoulder_Z', 'elbow_Z', 'hand_fixed']))
 
 def get_device_serial_numbers():
     """Get a list of serial numbers for connected RealSense devices."""
@@ -246,21 +269,33 @@ def process_realsense_multi(detector, pose_estimator, visualizer, show_interval=
                 cv2.imshow(f'Visualization Result {idx}', vis_result_bgr)
             
             p3d_frame = triangulate_points(keypoints_list, mtxs, dists, projections)
-            print(p3d_frame)
 
             with open(csv_file_path, mode='a', newline='') as file:
                 csv_writer = csv.writer(file)
                 for jj in range(len(keypoint_names)):
                     # Write to CSV
                     csv_writer.writerow([frame_idx, keypoint_names[jj], p3d_frame[jj][0], p3d_frame[jj][1], p3d_frame[jj][2]])
-            #         ax.scatter(p3d_frame[jj][0],p3d_frame[jj][1],p3d_frame[jj][2], color = keypoint_colors[keypoint_names[jj]], label = keypoint_names[jj])
 
-            # ax.set_xlim([-2,2])
-            # ax.set_ylim([-2,2])
-            # ax.set_zlim([0,4])
-            # ax.legend()
-            # plt.draw()
-            # plt.pause(0.001)
+            # Subtract the translation vector (shifting the origin)
+            keypoints_shifted = p3d_frame - T1_global.T
+
+            # Apply the rotation matrix to align the points
+            keypoints_in_world = np.dot(keypoints_shifted,R1_global)
+            
+            if first_sample:
+                x0_ankle, y0_ankle, z0_ankle = keypoints_in_world[mapping['Right Ankle']][0], keypoints_in_world[mapping['Right Ankle']][1], keypoints_in_world[mapping['Right Ankle']][2]
+                keypoints_in_world=set_zero_data(keypoints_in_world,x0_ankle,y0_ankle,z0_ankle)
+                # Scaling segments lengths 
+                human_model, _ =model_scaling(human_model, keypoints_in_world)
+                first_sample = False
+            else :
+                keypoints_in_world=set_zero_data(keypoints_in_world,x0_ankle,y0_ankle,z0_ankle)
+            
+            dict_keypoints = formatting_keypoints(keypoints_in_world,keypoint_names)
+            ik_problem = RT_Quadprog(human_model, dict_keypoints, q, keys_to_track_list,dt,dict_dof_to_keypoints,False)
+            q = ik_problem.solve_ik_sample()
+
+            print(q)
 
             # Press 'q' to exit the loop, 's' to start/stop saving
             key = cv2.waitKey(1) & 0xFF
