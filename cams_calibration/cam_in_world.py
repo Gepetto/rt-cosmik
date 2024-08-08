@@ -1,4 +1,4 @@
-# To run the code from RT-COSMIK root : python -m cams_calibration.cam_in_world.py 
+# To run the code from RT-COSMIK root : python -m cams_calibration.cam_in_world
 
 import cv2
 import numpy as np
@@ -87,10 +87,10 @@ pipeline_2.start(config_2)
 
 # Define the ArUco dictionary and marker size
 aruco_dict = cv2.aruco.getPredefinedDictionary(cv2.aruco.DICT_4X4_50)
-marker_length = 0.176  # Marker size in meters (17.6 cm)
+marker_size = 0.176  # Marker size in meters (17.6 cm)
 
-K1, D1 = load_cam_params("cam_params/c1_params_color_test_test.yml")
-K2, D2 = load_cam_params("cam_params/c2_params_color_test_test.yml")
+K1, D1 = load_cam_params("./cams_calibration/cam_params/c1_params_color_test_test.yml")
+K2, D2 = load_cam_params("./cams_calibration/cam_params/c2_params_color_test_test.yml")
 
 # Camera intrinsic parameters (from your YAML file)
 camera_matrix_1 = K1
@@ -102,35 +102,41 @@ dist_coeffs_2 = D2
 
 # Initialize the ArUco detection parameters
 parameters = cv2.aruco.DetectorParameters()
+detector = cv2.aruco.ArucoDetector(aruco_dict, parameters)
 
 # Function to detect the ArUco marker and estimate the camera pose
 def get_camera_pose(frame, camera_matrix, dist_coeffs):
     # Convert the frame to grayscale
     gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+
+    marker_points = np.array([[-marker_size / 2, marker_size / 2, 0],
+                              [marker_size / 2, marker_size / 2, 0],
+                              [marker_size / 2, -marker_size / 2, 0],
+                              [-marker_size / 2, -marker_size / 2, 0]], dtype=np.float32)
     
     # Detect the markers in the image
-    corners, ids, _ = cv2.aruco.detectMarkers(gray, aruco_dict, parameters=parameters)
+    corners, ids, _ = detector.detectMarkers(gray)
     
-    if ids is not None:
-        # Estimate the pose of each marker
-        rvecs, tvecs, _ = cv2.aruco.estimatePoseSingleMarkers(corners, marker_length, camera_matrix, dist_coeffs)
+    if ids is not None and len(corners) > 0:
+        # Extract the corners of the first detected marker for pose estimation
+        # Reshape the first marker's corners for solvePnP
+        corners_for_solvePnP = corners[0].reshape(-1, 2)
         
-        # Assuming we're using one marker, get the rotation and translation vectors
-        rvec = rvecs[0][0]
-        tvec = tvecs[0][0]
+        # Estimate the pose of each marker
+        _, R, t = cv2.solvePnP(marker_points, corners_for_solvePnP, camera_matrix, dist_coeffs, False, cv2.SOLVEPNP_IPPE_SQUARE)
         
         # Convert the rotation vector to a rotation matrix
-        rotation_matrix, _ = cv2.Rodrigues(rvec)
+        rotation_matrix, _ = cv2.Rodrigues(R)
         
         # Now we can form the transformation matrix
         transformation_matrix = np.eye(4)
         transformation_matrix[:3, :3] = rotation_matrix
-        transformation_matrix[:3, 3] = tvec
+        transformation_matrix[:3, 3] = t.flatten()
         
-        return transformation_matrix, corners, rvec, tvec
+        return transformation_matrix, corners[0], R, t
     else:
         return None, None, None, None
-
+    
 # Function to save the rotation matrix and translation vector to a YAML file
 def save_pose_to_yaml(rotation_matrix, translation_vector, filename):
     # Prepare the data to be saved in YAML format
@@ -176,29 +182,31 @@ while True:
     transformation_matrix_1, corners_1, rvec_1, tvec_1 = get_camera_pose(frame_1, K1, D1)
     transformation_matrix_2, corners_2, rvec_2, tvec_2 = get_camera_pose(frame_2, K2, D2)
 
-    if transformation_matrix_1 is not None and not saved_1:
+    if transformation_matrix_1 is not None:
         print("Camera 1 Pose (Transformation Matrix):")
         print(transformation_matrix_1)
-        
-        # Save the rotation matrix and translation vector to a YAML file for Camera 1
-        save_pose_to_yaml(transformation_matrix_1[:3, :3], transformation_matrix_1[:3, 3], f'cam_params/camera1_pose_{expe_no}_{trial_no}.yml')
-        saved_1 = True  # Ensure we save only once for Camera 1
     
         # Draw the marker and its pose on the frame for Camera 1
-        cv2.aruco.drawDetectedMarkers(frame_1, corners_1)
+        cv2.aruco.drawDetectedMarkers(frame_1, [corners_1])
         cv2.drawFrameAxes(frame_1, K1, D1, rvec_1, tvec_1, 0.1)
 
-    if transformation_matrix_2 is not None and not saved_2:
+        if not(saved_1):
+            # Save the rotation matrix and translation vector to a YAML file for Camera 1
+            save_pose_to_yaml(transformation_matrix_1[:3, :3], transformation_matrix_1[:3, 3], f'./cams_calibration/cam_params/camera1_pose_{expe_no}_{trial_no}.yml')
+            saved_1 = True  # Ensure we save only once for Camera 1
+
+    if transformation_matrix_2 is not None:
         print("Camera 2 Pose (Transformation Matrix):")
         print(transformation_matrix_2)
-        
-        # Save the rotation matrix and translation vector to a YAML file for Camera 2
-        save_pose_to_yaml(transformation_matrix_2[:3, :3], transformation_matrix_2[:3, 3], f'cam_params/camera2_pose_{expe_no}_{trial_no}.yml')
-        saved_2 = True  # Ensure we save only once for Camera 2
     
         # Draw the marker and its pose on the frame for Camera 2
-        cv2.aruco.drawDetectedMarkers(frame_2, corners_2)
+        cv2.aruco.drawDetectedMarkers(frame_2, [corners_2])
         cv2.drawFrameAxes(frame_2, K2, D2, rvec_2, tvec_2, 0.1)
+
+        if not(saved_2):
+            # Save the rotation matrix and translation vector to a YAML file for Camera 2
+            save_pose_to_yaml(transformation_matrix_2[:3, :3], transformation_matrix_2[:3, 3], f'./cams_calibration/cam_params/camera2_pose_{expe_no}_{trial_no}.yml')
+            saved_2 = True  # Ensure we save only once for Camera 2
 
     # Display the frames for both cameras
     cv2.imshow('Camera 1 Pose Estimation', frame_1)
