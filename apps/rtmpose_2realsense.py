@@ -1,3 +1,5 @@
+#! /home/gepetto/mmpose/mmpose_env/bin/python3
+
 # To run the code from RT-COSMIK root : python -m apps.rtmpose_2realsense 
 
 import mmcv
@@ -7,6 +9,8 @@ from mmengine.registry import init_default_scope
 import numpy as np
 import csv
 import pinocchio as pin
+import rospy
+from sensor_msgs.msg import JointState
 from utils.read_write_utils import formatting_keypoints, set_zero_data
 from utils.model_utils import Robot, model_scaling
 from utils.calib_utils import load_cam_params, load_cam_to_cam_params, load_cam_pose
@@ -30,6 +34,12 @@ try:
 except (ImportError, ModuleNotFoundError):
     has_mmdet = False
 
+# Initialize ROS node 
+rospy.init_node('human_rt_ik', anonymous=True)
+pub = rospy.Publisher('/human_RT_joint_angles', JointState, queue_size=10)
+
+csv_file_path = './output/keypoints_3d_positions.csv'
+csv2_file_path = './output/q.csv'
 
 K1, D1 = load_cam_params("cams_calibration/cam_params/c1_params_color_test_test.yml")
 K2, D2 = load_cam_params("cams_calibration/cam_params/c2_params_color_test_test.yml")
@@ -109,16 +119,7 @@ visualizer = VISUALIZERS.build(pose_estimator.cfg.visualizer)
 # then pass to the model in init_pose_estimator
 visualizer.set_dataset_meta(pose_estimator.dataset_meta)
 
-# Define the keypoint names in order as per the Halpe 26-keypoint format
-# keypoint_names = [
-#     "Nose", "Left Eye", "Right Eye", "Left Ear", "Right Ear", 
-#     "Left Shoulder", "Right Shoulder", "Left Elbow", "Right Elbow", 
-#     "Left Wrist", "Right Wrist", "Left Hip", "Right Hip", 
-#     "Left Knee", "Right Knee", "Left Ankle", "Right Ankle",
-#     "Pelvis", "Upper Neck", "Head Top", 
-#     "Left Big Toe", "Left Small Toe", "Left Heel", 
-#     "Right Big Toe", "Right Small Toe", "Right Heel"
-# ]
+dof_names=['ankle_Z', 'knee_Z', 'lumbar_Z', 'shoulder_Z', 'elbow_Z'] 
 
 keypoint_names = [
     "Nose", "Left Eye", "Right Eye", "Left Ear", "Right Ear", 
@@ -127,20 +128,6 @@ keypoint_names = [
     "Left Knee", "Right Knee", "Left Ankle", "Right Ankle"]
 
 mapping = dict(zip(keypoint_names,[i for i in range(len(keypoint_names))]))
-
-# keypoint_colors = {
-#     "Nose": "blue", "Left Eye": "blue", "Right Eye": "blue",
-#     "Left Ear": "blue", "Right Ear": "blue",
-#     "Left Shoulder": "green", "Right Shoulder": "orange",
-#     "Left Elbow": "green", "Right Elbow": "orange",
-#     "Left Wrist": "green", "Right Wrist": "orange",
-#     "Left Hip": "green", "Right Hip": "orange",
-#     "Left Knee": "green", "Right Knee": "orange",
-#     "Left Ankle": "green", "Right Ankle": "orange",
-#     "Pelvis": "blue", "Upper Neck": "orange", "Head Top":"orange", 
-#     "Left Big Toe": "green", "Left Small Toe": "green", "Left Heel": "green", 
-#     "Right Big Toe": "orange", "Right Small Toe": "orange", "Right Heel": "orange"
-# }
 
 keypoint_colors = {
     "Nose": "blue", "Left Eye": "blue", "Right Eye": "blue",
@@ -154,26 +141,20 @@ keypoint_colors = {
 
 
 # Initialize CSV files
-csv_file_path = './output/keypoints_3d_positions.csv'
 with open(csv_file_path, mode='w', newline='') as file:
     csv_writer = csv.writer(file)
     # Write the header row
     csv_writer.writerow(['Frame', 'Time','Keypoint', 'X', 'Y', 'Z'])
 
-csv2_file_path = './output/q.csv'
 with open(csv2_file_path, mode='w', newline='') as file2:
     csv2_writer = csv.writer(file2)
     # Write the header row
     csv2_writer.writerow(['Frame','Time','q0', 'q1','q2','q3','q4'])
 
-
 def get_device_serial_numbers():
     """Get a list of serial numbers for connected RealSense devices."""
     ctx = rs.context()
-    serial_numbers = []
-    for device in ctx.query_devices():
-        serial_numbers.append(device.get_info(rs.camera_info.serial_number))
-    return serial_numbers
+    return [device.get_info(rs.camera_info.serial_number) for device in ctx.query_devices()]
 
 def process_realsense_multi(detector, pose_estimator, visualizer, show_interval=1):
     """Process frames from multiple Intel RealSense cameras and visualize predicted keypoints."""
@@ -204,8 +185,10 @@ def process_realsense_multi(detector, pose_estimator, visualizer, show_interval=
     frame_idx = 0
     output_root = './output'
     mmengine.mkdir_or_exist(output_root)
+
     try:
-        while True:
+        # while True:
+        while not rospy.is_shutdown():
             frames_list = [pipeline.wait_for_frames().get_color_frame() for pipeline in pipelines]
             if not all(frames_list):
                 continue
@@ -294,6 +277,13 @@ def process_realsense_multi(detector, pose_estimator, visualizer, show_interval=
                 ik_problem = RT_Quadprog(human_model, dict_keypoints, q, keys_to_track_list,dt,dict_dof_to_keypoints,False)
                 q = ik_problem.solve_ik_sample()
 
+                # Publish joint angles 
+                joint_state_msg=JointState()
+                joint_state_msg.header.stamp=rospy.Time.now()
+                joint_state_msg.name = dof_names
+                joint_state_msg.position = q.tolist()
+                pub.publish(joint_state_msg)
+
                 # print(q)
 
                 with open(csv2_file_path, mode='a', newline='') as file2:
@@ -310,9 +300,13 @@ def process_realsense_multi(detector, pose_estimator, visualizer, show_interval=
             pipeline.stop()
         cv2.destroyAllWindows()
 
-process_realsense_multi(
-    detector,
-    pose_estimator,
-    visualizer,
-    show_interval=1
-)
+if __name__ == "__main__":
+    try :
+        process_realsense_multi(
+            detector,
+            pose_estimator,
+            visualizer,
+            show_interval=1
+        )
+    except rospy.ROSInterruptException:
+        pass
