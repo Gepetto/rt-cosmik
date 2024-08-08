@@ -158,7 +158,7 @@ def get_device_serial_numbers():
 
 def process_realsense_multi(detector, pose_estimator, visualizer, show_interval=1):
     """Process frames from multiple Intel RealSense cameras and visualize predicted keypoints."""
-    sync_thr = 10 #ms
+    sync_thr = 100 #ms
     start_time = datetime.datetime.now()
     
     serial_numbers = get_device_serial_numbers()
@@ -187,7 +187,6 @@ def process_realsense_multi(detector, pose_estimator, visualizer, show_interval=
     mmengine.mkdir_or_exist(output_root)
 
     try:
-        # while True:
         while not rospy.is_shutdown():
             frames_list = [pipeline.wait_for_frames().get_color_frame() for pipeline in pipelines]
             if not all(frames_list):
@@ -225,28 +224,27 @@ def process_realsense_multi(detector, pose_estimator, visualizer, show_interval=
                     # keypoints_list.append(data_samples.pred_instances.keypoints.reshape((26,2)).flatten())
                     keypoints_list.append(pose_results[0].pred_instances.keypoints.reshape((17,2)).flatten())
                     
+                    # # Show the results
+                    # visualizer.add_datasample(
+                    #     'result',
+                    #     frame_rgb,
+                    #     data_sample=data_samples,
+                    #     draw_gt=False,
+                    #     draw_heatmap=False,
+                    #     draw_bbox=True,
+                    #     show=False,
+                    #     wait_time=show_interval,
+                    #     out_file=None,
+                    #     kpt_thr=0.4)
                     
-                    # Show the results
-                    visualizer.add_datasample(
-                        'result',
-                        frame_rgb,
-                        data_sample=data_samples,
-                        draw_gt=False,
-                        draw_heatmap=False,
-                        draw_bbox=True,
-                        show=False,
-                        wait_time=show_interval,
-                        out_file=None,
-                        kpt_thr=0.4)
+                    # # Retrieve the visualized image
+                    # vis_result = visualizer.get_image()
                     
-                    # Retrieve the visualized image
-                    vis_result = visualizer.get_image()
+                    # # Convert image from RGB to BGR for OpenCV
+                    # vis_result_bgr = cv2.cvtColor(vis_result, cv2.COLOR_RGB2BGR)
                     
-                    # Convert image from RGB to BGR for OpenCV
-                    vis_result_bgr = cv2.cvtColor(vis_result, cv2.COLOR_RGB2BGR)
-                    
-                    # Display the frame using OpenCV
-                    cv2.imshow(f'Visualization Result {idx}', vis_result_bgr)
+                    # # Display the frame using OpenCV
+                    # cv2.imshow(f'Visualization Result {idx}', vis_result_bgr)
                 
                 p3d_frame = triangulate_points(keypoints_list, mtxs, dists, projections)
 
@@ -277,6 +275,10 @@ def process_realsense_multi(detector, pose_estimator, visualizer, show_interval=
                 ik_problem = RT_Quadprog(human_model, dict_keypoints, q, keys_to_track_list,dt,dict_dof_to_keypoints,False)
                 q = ik_problem.solve_ik_sample()
 
+                with open(csv2_file_path, mode='a', newline='') as file2:
+                    csv2_writer = csv.writer(file2)
+                    csv2_writer.writerow([frame_idx,absolute_times[0],q[0],q[1],q[2],q[3],q[4]])
+
                 # Publish joint angles 
                 joint_state_msg=JointState()
                 joint_state_msg.header.stamp=rospy.Time.now()
@@ -285,11 +287,6 @@ def process_realsense_multi(detector, pose_estimator, visualizer, show_interval=
                 pub.publish(joint_state_msg)
 
                 # print(q)
-
-                with open(csv2_file_path, mode='a', newline='') as file2:
-                    csv2_writer = csv.writer(file2)
-                    csv2_writer.writerow([frame_idx,absolute_times[0],q[0],q[1],q[2],q[3],q[4]])
-
                 # Press 'q' to exit the loop, 's' to start/stop saving
                 key = cv2.waitKey(1) & 0xFF
                 if key == ord('q'):
