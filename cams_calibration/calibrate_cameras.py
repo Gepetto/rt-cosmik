@@ -1,4 +1,4 @@
-# To run the code from RT-COSMIK root : python -m cams_calibration.calibrate_cameras.py 
+# To run the code from RT-COSMIK root : python -m cams_calibration.calibrate_cameras
 
 import pyrealsense2 as rs
 import numpy as np
@@ -87,22 +87,22 @@ pipeline_1.start(config_1)
 pipeline_2.start(config_2)
 
 # Use os.makedirs() to create your directory; exist_ok=True means it won't throw an error if the directory already exists
-os.makedirs("./images_calib_cam_1/" + expe_no + "_" + trial_no + "/color", exist_ok=True)
-os.makedirs("./images_calib_cam_2/" + expe_no + "_" + trial_no + "/color", exist_ok=True)
-os.makedirs("./images_calib_cam_1/" + expe_no + "_" + trial_no + "/ir", exist_ok=True)
-os.makedirs("./images_calib_cam_2/" + expe_no + "_" + trial_no + "/ir", exist_ok=True)
+os.makedirs("./cams_calibration/images_calib_cam_1/" + expe_no + "_" + trial_no + "/color", exist_ok=True)
+os.makedirs("./cams_calibration/images_calib_cam_2/" + expe_no + "_" + trial_no + "/color", exist_ok=True)
+os.makedirs("./cams_calibration/images_calib_cam_1/" + expe_no + "_" + trial_no + "/ir", exist_ok=True)
+os.makedirs("./cams_calibration/images_calib_cam_2/" + expe_no + "_" + trial_no + "/ir", exist_ok=True)
 
-c1_ir_imgs_path = "./images_calib_cam_1/" + expe_no + "_" + trial_no + "/ir/*"
-c2_ir_imgs_path = "./images_calib_cam_2/" + expe_no + "_" + trial_no + "/ir/*"
-c1_ir_params_path = "./cam_params/c1_params_ir_" + expe_no + "_" + trial_no + ".yml"
-c2_ir_params_path = "./cam_params/c2_params_ir_" + expe_no + "_" + trial_no + ".yml"
-c1_to_c2_ir_params_path = "./cam_params/c1_to_c2_params_ir_" + expe_no + "_" + trial_no + ".yml"
+c1_ir_imgs_path = "./cams_calibration/images_calib_cam_1/" + expe_no + "_" + trial_no + "/ir/*"
+c2_ir_imgs_path = "./cams_calibration/images_calib_cam_2/" + expe_no + "_" + trial_no + "/ir/*"
+c1_ir_params_path = "./cams_calibration/cam_params/c1_params_ir_" + expe_no + "_" + trial_no + ".yml"
+c2_ir_params_path = "./cams_calibration/cam_params/c2_params_ir_" + expe_no + "_" + trial_no + ".yml"
+c1_to_c2_ir_params_path = "./cams_calibration/cam_params/c1_to_c2_params_ir_" + expe_no + "_" + trial_no + ".yml"
 
-c1_color_imgs_path = "./images_calib_cam_1/" + expe_no + "_" + trial_no + "/color/*"
-c2_color_imgs_path = "./images_calib_cam_2/" + expe_no + "_" + trial_no + "/color/*"
-c1_color_params_path = "./cam_params/c1_params_color_" + expe_no + "_" + trial_no + ".yml"
-c2_color_params_path = "./cam_params/c2_params_color_" + expe_no + "_" + trial_no + ".yml"
-c1_to_c2_color_params_path = "./cam_params/c1_to_c2_params_color_" + expe_no + "_" + trial_no + ".yml"
+c1_color_imgs_path = "./cams_calibration/images_calib_cam_1/" + expe_no + "_" + trial_no + "/color/*"
+c2_color_imgs_path = "./cams_calibration/images_calib_cam_2/" + expe_no + "_" + trial_no + "/color/*"
+c1_color_params_path = "./cams_calibration/cam_params/c1_params_color_" + expe_no + "_" + trial_no + ".yml"
+c2_color_params_path = "./cams_calibration/cam_params/c2_params_color_" + expe_no + "_" + trial_no + ".yml"
+c1_to_c2_color_params_path = "./cams_calibration/cam_params/c1_to_c2_params_color_" + expe_no + "_" + trial_no + ".yml"
 
 img_idx = 0
 try:
@@ -148,10 +148,10 @@ try:
         cv2.imshow('RealSense', images_vstack)
         c = cv2.waitKey(10)
         if c == ord('s'):
-            cv2.imwrite("./images_calib_cam_1/" + expe_no + "_" + trial_no + "/color/img_" + str(img_idx) + ".png", color_image_1)
-            cv2.imwrite("./images_calib_cam_2/" + expe_no + "_" + trial_no + "/color/img_" + str(img_idx) + ".png", color_image_2)
-            cv2.imwrite("./images_calib_cam_1/" + expe_no + "_" + trial_no + "/ir/img_" + str(img_idx) + ".png", ir_image_1)
-            cv2.imwrite("./images_calib_cam_2/" + expe_no + "_" + trial_no + "/ir/img_" + str(img_idx) + ".png", ir_image_2)
+            cv2.imwrite("./cams_calibration/images_calib_cam_1/" + expe_no + "_" + trial_no + "/color/img_" + str(img_idx) + ".png", color_image_1)
+            cv2.imwrite("./cams_calibration/images_calib_cam_2/" + expe_no + "_" + trial_no + "/color/img_" + str(img_idx) + ".png", color_image_2)
+            cv2.imwrite("./cams_calibration/images_calib_cam_1/" + expe_no + "_" + trial_no + "/ir/img_" + str(img_idx) + ".png", ir_image_1)
+            cv2.imwrite("./cams_calibration/images_calib_cam_2/" + expe_no + "_" + trial_no + "/ir/img_" + str(img_idx) + ".png", ir_image_2)
             img_idx = img_idx + 1
         if c == ord('q'):
             break
