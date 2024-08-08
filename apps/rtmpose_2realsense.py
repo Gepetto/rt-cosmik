@@ -1,4 +1,4 @@
-# To run the code from RT-COSMIK root : python -m apps.rtmpose_2realsense.py  
+# To run the code from RT-COSMIK root : python -m apps.rtmpose_2realsense 
 
 import mmcv
 from mmcv import imread
@@ -6,13 +6,11 @@ import mmengine
 from mmengine.registry import init_default_scope
 import numpy as np
 import csv
-import matplotlib.pyplot as plt
-from scipy import linalg
 import pinocchio as pin
-from utils.read_write_utils import formatting_keypoints, formatting_keypoints_data, remove_nans_from_list_of_dicts, set_zero_data
+from utils.read_write_utils import formatting_keypoints, set_zero_data
 from utils.model_utils import Robot, model_scaling
 from utils.calib_utils import load_cam_params, load_cam_to_cam_params, load_cam_pose
-from utils.triangulation_utils import DLT_adaptive, triangulate_points
+from utils.triangulation_utils import triangulate_points
 from utils.ik_utils import RT_Quadprog
 
 from mmpose.apis import inference_topdown
@@ -23,8 +21,8 @@ from mmpose.structures import merge_data_samples
 
 import pyrealsense2 as rs
 import cv2
-import os.path as osp
-import json_tricks as json
+
+import datetime
 
 try:
     from mmdet.apis import inference_detector, init_detector
@@ -154,33 +152,20 @@ keypoint_colors = {
     "Left Knee": "green", "Right Knee": "orange",
     "Left Ankle": "green", "Right Ankle": "orange"}
 
-# Initialize Matplotlib for real-time 3D visualization
-fig = plt.figure()
-ax = fig.add_subplot(111, projection='3d')
-ax.set_xlabel('X (meters)')
-ax.set_ylabel('Y (meters)')
-ax.set_zlabel('Z (meters)')
 
-# Initialize CSV file
+# Initialize CSV files
 csv_file_path = './output/keypoints_3d_positions.csv'
 with open(csv_file_path, mode='w', newline='') as file:
     csv_writer = csv.writer(file)
     # Write the header row
-    csv_writer.writerow(['Frame', 'Keypoint', 'X', 'Y', 'Z'])
+    csv_writer.writerow(['Frame', 'Time','Keypoint', 'X', 'Y', 'Z'])
 
-first_sample = True 
+csv2_file_path = './output/q.csv'
+with open(csv2_file_path, mode='w', newline='') as file2:
+    csv2_writer = csv.writer(file2)
+    # Write the header row
+    csv2_writer.writerow(['Frame','Time','q0', 'q1','q2','q3','q4'])
 
-# Loading human urdf
-human = Robot('models/human_urdf/urdf/human.urdf','models') 
-human_model = human.model
-human_visual_model = human.visual_model
-human_collision_model = human.collision_model
-
-# IK calculations 
-q = pin.neutral(human_model)
-dt = 1/30
-keys_to_track_list = ["Right Knee","Right Hip","Right Shoulder","Right Elbow","Right Wrist"]
-dict_dof_to_keypoints = dict(zip(keys_to_track_list,['knee_Z', 'lumbar_Z', 'shoulder_Z', 'elbow_Z', 'hand_fixed']))
 
 def get_device_serial_numbers():
     """Get a list of serial numbers for connected RealSense devices."""
@@ -192,6 +177,8 @@ def get_device_serial_numbers():
 
 def process_realsense_multi(detector, pose_estimator, visualizer, show_interval=1):
     """Process frames from multiple Intel RealSense cameras and visualize predicted keypoints."""
+    sync_thr = 10 #ms
+    start_time = datetime.datetime.now()
     
     serial_numbers = get_device_serial_numbers()
     pipelines = []
@@ -202,120 +189,126 @@ def process_realsense_multi(detector, pose_estimator, visualizer, show_interval=
         config.enable_stream(rs.stream.color, 1280, 720, rs.format.bgr8, 30)
         pipeline.start(config)
         pipelines.append(pipeline)
-    
-    saving = False
-    pred_instances_list = []
+
+    # Loading human urdf
+    human = Robot('models/human_urdf/urdf/human.urdf','models') 
+    human_model = human.model
+
+    # IK calculations 
+    q = pin.neutral(human_model)
+    dt = 1/30
+    keys_to_track_list = ["Right Knee","Right Hip","Right Shoulder","Right Elbow","Right Wrist"]
+    dict_dof_to_keypoints = dict(zip(keys_to_track_list,['knee_Z', 'lumbar_Z', 'shoulder_Z', 'elbow_Z', 'hand_fixed']))
+
+    first_sample = True 
     frame_idx = 0
     output_root = './output'
     mmengine.mkdir_or_exist(output_root)
-    pred_save_path = f'{output_root}/results_realsense.json'
-    
     try:
         while True:
             frames_list = [pipeline.wait_for_frames().get_color_frame() for pipeline in pipelines]
             if not all(frames_list):
                 continue
-            
-            frame_idx += 1
-            keypoints_list = []
-            ax.clear()
 
-            for idx, color_frame in enumerate(frames_list):
-                frame = np.asanyarray(color_frame.get_data())
-                
-                # Convert frame to RGB
-                frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-                
-                # Predict bbox
-                scope = detector.cfg.get('default_scope', 'mmdet')
-                if scope is not None:
-                    init_default_scope(scope)
-                detect_result = inference_detector(detector, frame_rgb)
-                pred_instance = detect_result.pred_instances.cpu().numpy()
-                bboxes = np.concatenate(
-                    (pred_instance.bboxes, pred_instance.scores[:, None]), axis=1)
-                bboxes = bboxes[np.logical_and(pred_instance.labels == 0,
-                                               pred_instance.scores > 0.45)]
-                bboxes = bboxes[nms(bboxes, 0.3)][:, :4]
-                
-                # Predict keypoints
-                pose_results = inference_topdown(pose_estimator, frame_rgb, bboxes)
-                data_samples = merge_data_samples(pose_results)
+            timestamps = [frame.get_timestamp() for frame in frames_list]
+            absolute_times = [start_time+datetime.timedelta(milliseconds=timestamp) for timestamp in timestamps]
 
-                # keypoints_list.append(data_samples.pred_instances.keypoints.reshape((26,2)).flatten())
-                keypoints_list.append(pose_results[0].pred_instances.keypoints.reshape((17,2)).flatten())
-                
-                
-                # Show the results
-                visualizer.add_datasample(
-                    'result',
-                    frame_rgb,
-                    data_sample=data_samples,
-                    draw_gt=False,
-                    draw_heatmap=False,
-                    draw_bbox=True,
-                    show=False,
-                    wait_time=show_interval,
-                    out_file=None,
-                    kpt_thr=0.4)
-                
-                # Retrieve the visualized image
-                vis_result = visualizer.get_image()
-                
-                # Convert image from RGB to BGR for OpenCV
-                vis_result_bgr = cv2.cvtColor(vis_result, cv2.COLOR_RGB2BGR)
-                
-                # Display the frame using OpenCV
-                cv2.imshow(f'Visualization Result {idx}', vis_result_bgr)
-            
-            p3d_frame = triangulate_points(keypoints_list, mtxs, dists, projections)
+            if abs(timestamps[0]-timestamps[1]) < sync_thr:
+                frame_idx += 1
+                keypoints_list = []
 
-            with open(csv_file_path, mode='a', newline='') as file:
-                csv_writer = csv.writer(file)
-                for jj in range(len(keypoint_names)):
-                    # Write to CSV
-                    csv_writer.writerow([frame_idx, keypoint_names[jj], p3d_frame[jj][0], p3d_frame[jj][1], p3d_frame[jj][2]])
+                for idx, color_frame in enumerate(frames_list):
+                    frame = np.asanyarray(color_frame.get_data())
+                    
+                    # Convert frame to RGB
+                    frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+                    
+                    # Predict bbox
+                    scope = detector.cfg.get('default_scope', 'mmdet')
+                    if scope is not None:
+                        init_default_scope(scope)
+                    detect_result = inference_detector(detector, frame_rgb)
+                    pred_instance = detect_result.pred_instances.cpu().numpy()
+                    bboxes = np.concatenate(
+                        (pred_instance.bboxes, pred_instance.scores[:, None]), axis=1)
+                    bboxes = bboxes[np.logical_and(pred_instance.labels == 0,
+                                                pred_instance.scores > 0.45)]
+                    bboxes = bboxes[nms(bboxes, 0.3)][:, :4]
+                    
+                    # Predict keypoints
+                    pose_results = inference_topdown(pose_estimator, frame_rgb, bboxes)
+                    data_samples = merge_data_samples(pose_results)
 
-            # Subtract the translation vector (shifting the origin)
-            keypoints_shifted = p3d_frame - T1_global.T
+                    # keypoints_list.append(data_samples.pred_instances.keypoints.reshape((26,2)).flatten())
+                    keypoints_list.append(pose_results[0].pred_instances.keypoints.reshape((17,2)).flatten())
+                    
+                    
+                    # Show the results
+                    visualizer.add_datasample(
+                        'result',
+                        frame_rgb,
+                        data_sample=data_samples,
+                        draw_gt=False,
+                        draw_heatmap=False,
+                        draw_bbox=True,
+                        show=False,
+                        wait_time=show_interval,
+                        out_file=None,
+                        kpt_thr=0.4)
+                    
+                    # Retrieve the visualized image
+                    vis_result = visualizer.get_image()
+                    
+                    # Convert image from RGB to BGR for OpenCV
+                    vis_result_bgr = cv2.cvtColor(vis_result, cv2.COLOR_RGB2BGR)
+                    
+                    # Display the frame using OpenCV
+                    cv2.imshow(f'Visualization Result {idx}', vis_result_bgr)
+                
+                p3d_frame = triangulate_points(keypoints_list, mtxs, dists, projections)
 
-            # Apply the rotation matrix to align the points
-            keypoints_in_world = np.dot(keypoints_shifted,R1_global)
-            
-            if first_sample:
-                x0_ankle, y0_ankle, z0_ankle = keypoints_in_world[mapping['Right Ankle']][0], keypoints_in_world[mapping['Right Ankle']][1], keypoints_in_world[mapping['Right Ankle']][2]
-                keypoints_in_world=set_zero_data(keypoints_in_world,x0_ankle,y0_ankle,z0_ankle)
-                # Scaling segments lengths 
-                human_model, _ =model_scaling(human_model, keypoints_in_world)
-                first_sample = False
-            else :
-                keypoints_in_world=set_zero_data(keypoints_in_world,x0_ankle,y0_ankle,z0_ankle)
-            
-            dict_keypoints = formatting_keypoints(keypoints_in_world,keypoint_names)
-            ik_problem = RT_Quadprog(human_model, dict_keypoints, q, keys_to_track_list,dt,dict_dof_to_keypoints,False)
-            q = ik_problem.solve_ik_sample()
+                with open(csv_file_path, mode='a', newline='') as file:
+                    csv_writer = csv.writer(file)
+                    for jj in range(len(keypoint_names)):
+                        # Write to CSV
+                        csv_writer.writerow([frame_idx, absolute_times[0],keypoint_names[jj], p3d_frame[jj][0], p3d_frame[jj][1], p3d_frame[jj][2]])
 
-            print(q)
+                # Subtract the translation vector (shifting the origin)
+                keypoints_shifted = p3d_frame - T1_global.T
 
-            # Press 'q' to exit the loop, 's' to start/stop saving
-            key = cv2.waitKey(1) & 0xFF
-            if key == ord('q'):
-                break
+                # Apply the rotation matrix to align the points
+                keypoints_in_world = np.dot(keypoints_shifted,R1_global)
+                
+                if first_sample:
+                    x0_ankle, y0_ankle, z0_ankle = keypoints_in_world[mapping['Right Ankle']][0], keypoints_in_world[mapping['Right Ankle']][1], keypoints_in_world[mapping['Right Ankle']][2]
+                    keypoints_in_world=set_zero_data(keypoints_in_world,x0_ankle,y0_ankle,z0_ankle)
+                    # Scaling segments lengths 
+                    human_model, _ = model_scaling(human_model, keypoints_in_world)
+                    first_sample = False
+                else :
+                    keypoints_in_world=set_zero_data(keypoints_in_world,x0_ankle,y0_ankle,z0_ankle)
+                
+                dict_keypoints = formatting_keypoints(keypoints_in_world,keypoint_names)
+                # print(dict_keypoints)
+
+                ik_problem = RT_Quadprog(human_model, dict_keypoints, q, keys_to_track_list,dt,dict_dof_to_keypoints,False)
+                q = ik_problem.solve_ik_sample()
+
+                # print(q)
+
+                with open(csv2_file_path, mode='a', newline='') as file2:
+                    csv2_writer = csv.writer(file2)
+                    csv2_writer.writerow([frame_idx,absolute_times[0],q[0],q[1],q[2],q[3],q[4]])
+
+                # Press 'q' to exit the loop, 's' to start/stop saving
+                key = cv2.waitKey(1) & 0xFF
+                if key == ord('q'):
+                    break
         
     finally:
         for pipeline in pipelines:
             pipeline.stop()
         cv2.destroyAllWindows()
-        
-        if pred_instances_list:
-            with open(pred_save_path, 'w') as f:
-                json.dump(
-                    dict(
-                        meta_info=pose_estimator.dataset_meta,
-                        instance_info=pred_instances_list),
-                    f,
-                    indent='\t')
-            print(f'predictions have been saved at {pred_save_path}')
 
 process_realsense_multi(
     detector,
