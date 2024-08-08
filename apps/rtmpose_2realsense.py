@@ -267,12 +267,6 @@ def process_realsense_multi(detector, pose_estimator, visualizer, show_interval=
                 
                 p3d_frame = triangulate_points(keypoints_list, mtxs, dists, projections)
 
-                with open(csv_file_path, mode='a', newline='') as file:
-                    csv_writer = csv.writer(file)
-                    for jj in range(len(keypoint_names)):
-                        # Write to CSV
-                        csv_writer.writerow([frame_idx, absolute_times[0],keypoint_names[jj], p3d_frame[jj][0], p3d_frame[jj][1], p3d_frame[jj][2]])
-
                 # Subtract the translation vector (shifting the origin)
                 keypoints_shifted = p3d_frame - T1_global.T
 
@@ -287,6 +281,12 @@ def process_realsense_multi(detector, pose_estimator, visualizer, show_interval=
                     first_sample = False
                 else :
                     keypoints_in_world=set_zero_data(keypoints_in_world,x0_ankle,y0_ankle,z0_ankle)
+
+                with open(csv_file_path, mode='a', newline='') as file:
+                    csv_writer = csv.writer(file)
+                    for jj in range(len(keypoint_names)):
+                        # Write to CSV
+                        csv_writer.writerow([frame_idx, absolute_times[0],keypoint_names[jj], keypoints_in_world[jj][0], keypoints_in_world[jj][1], keypoints_in_world[jj][2]])
                 
                 dict_keypoints = formatting_keypoints(keypoints_in_world,keypoint_names)
                 # print(dict_keypoints)
