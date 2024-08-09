@@ -26,7 +26,8 @@ from mmpose.structures import merge_data_samples
 import pyrealsense2 as rs
 import cv2
 
-import datetime
+from datetime import datetime
+import time
 
 try:
     from mmdet.apis import inference_detector, init_detector
@@ -90,8 +91,9 @@ local_runtime = True
 det_config = 'config/rtmdet_nano_320-8xb32_coco-person.py'
 det_checkpoint = 'https://download.openmmlab.com/mmpose/v1/projects/rtmpose/rtmdet_nano_8xb32-100e_coco-obj365-person-05d8511e.pth'
 pose_config = 'config/rtmpose-s_8xb256-420e_coco-256x192.py'
-pose_checkpoint = 'https://download.openmmlab.com/mmpose/v1/projects/rtmposev1/rtmpose-s_simcc-aic-coco_pt-aic-coco_420e-256x192-fcb2599b_20230126.pth'
-
+# pose_checkpoint = 'https://download.openmmlab.com/mmpose/v1/projects/rtmposev1/rtmpose-s_simcc-aic-coco_pt-aic-coco_420e-256x192-fcb2599b_20230126.pth'
+# pose_checkpoint = 'https://download.openmmlab.com/mmpose/v1/projects/rtmposev1/rtmpose-tiny_simcc-aic-coco_pt-aic-coco_420e-256x192-cfc8f33d_20230126.pth'
+pose_checkpoint = 'https://download.openmmlab.com/mmpose/v1/projects/rtmposev1/rtmpose-s_simcc-body7_pt-body7_420e-256x192-acd4a1ef_20230504.pth'
 
 device = 'cuda:0'
 cfg_options = dict(model=dict(test_cfg=dict(output_heatmaps=False)))
@@ -158,9 +160,22 @@ def get_device_serial_numbers():
 
 def process_realsense_multi(detector, pose_estimator, visualizer, show_interval=1):
     """Process frames from multiple Intel RealSense cameras and visualize predicted keypoints."""
-    sync_thr = 100 #ms
-    start_time = datetime.datetime.now()
     
+    sn_list = []
+    ctx = rs.context()
+    if len(ctx.devices) > 0:
+        for d in ctx.devices:
+
+            print ('Found device: ', \
+
+                    d.get_info(rs.camera_info.name), ' ', \
+
+                    d.get_info(rs.camera_info.serial_number))
+            sn_list.append(d.get_info(rs.camera_info.serial_number))
+
+    else:
+        print("No Intel Device connected")
+
     serial_numbers = get_device_serial_numbers()
     pipelines = []
     for serial in serial_numbers:
@@ -168,6 +183,7 @@ def process_realsense_multi(detector, pose_estimator, visualizer, show_interval=
         config = rs.config()
         config.enable_device(serial)
         config.enable_stream(rs.stream.color, 1280, 720, rs.format.bgr8, 30)
+        # config.enable_stream(rs.stream.color, 640, 480, rs.format.bgr8, 30)
         pipeline.start(config)
         pipelines.append(pipeline)
 
@@ -188,109 +204,125 @@ def process_realsense_multi(detector, pose_estimator, visualizer, show_interval=
 
     try:
         while not rospy.is_shutdown():
+            timestamp=datetime.now()
+            formatted_timestamp = timestamp.strftime("%Y-%m-%d %H:%M:%S.%f ")
+
             frames_list = [pipeline.wait_for_frames().get_color_frame() for pipeline in pipelines]
             if not all(frames_list):
                 continue
 
-            timestamps = [frame.get_timestamp() for frame in frames_list]
-            absolute_times = [start_time+datetime.timedelta(milliseconds=timestamp) for timestamp in timestamps]
+            frame_idx += 1
+            keypoints_list = []
 
-            if abs(timestamps[0]-timestamps[1]) < sync_thr:
-                frame_idx += 1
-                keypoints_list = []
-
-                for idx, color_frame in enumerate(frames_list):
-                    frame = np.asanyarray(color_frame.get_data())
-                    
-                    # Convert frame to RGB
-                    frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-                    
-                    # Predict bbox
-                    scope = detector.cfg.get('default_scope', 'mmdet')
-                    if scope is not None:
-                        init_default_scope(scope)
-                    detect_result = inference_detector(detector, frame_rgb)
-                    pred_instance = detect_result.pred_instances.cpu().numpy()
-                    bboxes = np.concatenate(
-                        (pred_instance.bboxes, pred_instance.scores[:, None]), axis=1)
-                    bboxes = bboxes[np.logical_and(pred_instance.labels == 0,
-                                                pred_instance.scores > 0.45)]
-                    bboxes = bboxes[nms(bboxes, 0.3)][:, :4]
-                    
-                    # Predict keypoints
-                    pose_results = inference_topdown(pose_estimator, frame_rgb, bboxes)
-                    data_samples = merge_data_samples(pose_results)
-
-                    # keypoints_list.append(data_samples.pred_instances.keypoints.reshape((26,2)).flatten())
-                    keypoints_list.append(pose_results[0].pred_instances.keypoints.reshape((17,2)).flatten())
-                    
-                    # # Show the results
-                    # visualizer.add_datasample(
-                    #     'result',
-                    #     frame_rgb,
-                    #     data_sample=data_samples,
-                    #     draw_gt=False,
-                    #     draw_heatmap=False,
-                    #     draw_bbox=True,
-                    #     show=False,
-                    #     wait_time=show_interval,
-                    #     out_file=None,
-                    #     kpt_thr=0.4)
-                    
-                    # # Retrieve the visualized image
-                    # vis_result = visualizer.get_image()
-                    
-                    # # Convert image from RGB to BGR for OpenCV
-                    # vis_result_bgr = cv2.cvtColor(vis_result, cv2.COLOR_RGB2BGR)
-                    
-                    # # Display the frame using OpenCV
-                    # cv2.imshow(f'Visualization Result {idx}', vis_result_bgr)
+            for idx, color_frame in enumerate(frames_list):
+                time_init = time.time()
+                frame = np.asanyarray(color_frame.get_data())
                 
-                p3d_frame = triangulate_points(keypoints_list, mtxs, dists, projections)
-
-                # Subtract the translation vector (shifting the origin)
-                keypoints_shifted = p3d_frame - T1_global.T
-
-                # Apply the rotation matrix to align the points
-                keypoints_in_world = np.dot(keypoints_shifted,R1_global)
+                # Convert frame to RGB
+                frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
                 
-                if first_sample:
-                    x0_ankle, y0_ankle, z0_ankle = keypoints_in_world[mapping['Right Ankle']][0], keypoints_in_world[mapping['Right Ankle']][1], keypoints_in_world[mapping['Right Ankle']][2]
-                    keypoints_in_world=set_zero_data(keypoints_in_world,x0_ankle,y0_ankle,z0_ankle)
-                    # Scaling segments lengths 
-                    human_model, _ = model_scaling(human_model, keypoints_in_world)
-                    first_sample = False
-                else :
-                    keypoints_in_world=set_zero_data(keypoints_in_world,x0_ankle,y0_ankle,z0_ankle)
-
-                with open(csv_file_path, mode='a', newline='') as file:
-                    csv_writer = csv.writer(file)
-                    for jj in range(len(keypoint_names)):
-                        # Write to CSV
-                        csv_writer.writerow([frame_idx, absolute_times[0],keypoint_names[jj], keypoints_in_world[jj][0], keypoints_in_world[jj][1], keypoints_in_world[jj][2]])
+                # Predict bbox
+                scope = detector.cfg.get('default_scope', 'mmdet')
+                if scope is not None:
+                    init_default_scope(scope)
+                detect_result = inference_detector(detector, frame_rgb)
+                pred_instance = detect_result.pred_instances.cpu().numpy()
+                bboxes = np.concatenate(
+                    (pred_instance.bboxes, pred_instance.scores[:, None]), axis=1)
+                bboxes = bboxes[np.logical_and(pred_instance.labels == 0,
+                                            pred_instance.scores > 0.45)]
+                bboxes = bboxes[nms(bboxes, 0.3)][:, :4]
                 
-                dict_keypoints = formatting_keypoints(keypoints_in_world,keypoint_names)
-                # print(dict_keypoints)
+                # Predict keypoints
+                pose_results = inference_topdown(pose_estimator, frame_rgb, bboxes)
+                data_samples = merge_data_samples(pose_results)
 
-                ik_problem = RT_Quadprog(human_model, dict_keypoints, q, keys_to_track_list,dt,dict_dof_to_keypoints,False)
-                q = ik_problem.solve_ik_sample()
+                # keypoints_list.append(data_samples.pred_instances.keypoints.reshape((26,2)).flatten())
+                keypoints_list.append(pose_results[0].pred_instances.keypoints.reshape((17,2)).flatten())
+                time_end = time.time()
+                delta_time = (time_end-time_init)*1000          
 
-                with open(csv2_file_path, mode='a', newline='') as file2:
-                    csv2_writer = csv.writer(file2)
-                    csv2_writer.writerow([frame_idx,absolute_times[0],q[0],q[1],q[2],q[3],q[4]])
+                print('delta time for mmpose ', delta_time)
 
-                # Publish joint angles 
-                joint_state_msg=JointState()
-                joint_state_msg.header.stamp=rospy.Time.now()
-                joint_state_msg.name = dof_names
-                joint_state_msg.position = q.tolist()
-                pub.publish(joint_state_msg)
+                # Show the results
+                visualizer.add_datasample(
+                    'result',
+                    frame_rgb,
+                    data_sample=data_samples,
+                    draw_gt=False,
+                    draw_heatmap=False,
+                    draw_bbox=True,
+                    show=False,
+                    wait_time=show_interval,
+                    out_file=None,
+                    kpt_thr=0.4)
+                
+                # Retrieve the visualized image
+                vis_result = visualizer.get_image()
+                
+                # Convert image from RGB to BGR for OpenCV
+                vis_result_bgr = cv2.cvtColor(vis_result, cv2.COLOR_RGB2BGR)
+                
+                # Display the frame using OpenCV
+                cv2.imshow(f'Visualization Result {idx}', vis_result_bgr)
+            
+            time_init = time.time()
+            p3d_frame = triangulate_points(keypoints_list, mtxs, dists, projections)
+            time_end = time.time()
 
-                # print(q)
-                # Press 'q' to exit the loop, 's' to start/stop saving
-                key = cv2.waitKey(1) & 0xFF
-                if key == ord('q'):
-                    break
+            delta_time = (time_end-time_init)*1000          
+
+            print('delta time for triangul ', delta_time)
+
+            # Subtract the translation vector (shifting the origin)
+            keypoints_shifted = p3d_frame - T1_global.T
+
+            # Apply the rotation matrix to align the points
+            keypoints_in_world = np.dot(keypoints_shifted,R1_global)
+            
+            if first_sample:
+                x0_ankle, y0_ankle, z0_ankle = keypoints_in_world[mapping['Right Ankle']][0], keypoints_in_world[mapping['Right Ankle']][1], keypoints_in_world[mapping['Right Ankle']][2]
+                keypoints_in_world=set_zero_data(keypoints_in_world,x0_ankle,y0_ankle,z0_ankle)
+                # Scaling segments lengths 
+                human_model, _ = model_scaling(human_model, keypoints_in_world)
+                first_sample = False
+            else :
+                keypoints_in_world=set_zero_data(keypoints_in_world,x0_ankle,y0_ankle,z0_ankle)
+
+            with open(csv_file_path, mode='a', newline='') as file:
+                csv_writer = csv.writer(file)
+                for jj in range(len(keypoint_names)):
+                    # Write to CSV
+                    csv_writer.writerow([frame_idx, formatted_timestamp,keypoint_names[jj], keypoints_in_world[jj][0], keypoints_in_world[jj][1], keypoints_in_world[jj][2]])
+            
+            dict_keypoints = formatting_keypoints(keypoints_in_world,keypoint_names)
+            # print(dict_keypoints)
+            time_init=time.time()
+            ik_problem = RT_Quadprog(human_model, dict_keypoints, q, keys_to_track_list,dt,dict_dof_to_keypoints,False)
+            q = ik_problem.solve_ik_sample()
+
+            time_end = time.time()
+
+            delta_time = (time_end-time_init)*1000          
+
+            print('delta time for IK ', delta_time)
+
+            with open(csv2_file_path, mode='a', newline='') as file2:
+                csv2_writer = csv.writer(file2)
+                csv2_writer.writerow([frame_idx,formatted_timestamp,q[0],q[1],q[2],q[3],q[4]])
+
+            # Publish joint angles 
+            joint_state_msg=JointState()
+            joint_state_msg.header.stamp=rospy.Time.now()
+            joint_state_msg.name = dof_names
+            joint_state_msg.position = q.tolist()
+            pub.publish(joint_state_msg)
+
+            # print(q)
+            # Press 'q' to exit the loop, 's' to start/stop saving
+            key = cv2.waitKey(1) & 0xFF
+            if key == ord('q'):
+                break
         
     finally:
         for pipeline in pipelines:
