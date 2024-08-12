@@ -22,7 +22,7 @@ def quadprog_solve_qp(P: np.ndarray, q: np.ndarray, G: np.ndarray=None, h: np.nd
     Returns:
         _launch solve_qp of quadprog solver_
     """
-    qp_G = .5 * (P + P.T) + np.eye(P.shape[0])*(1e-5)   # make sure P is symmetric, pos,def
+    qp_G = .5 * (P + P.T) + np.eye(P.shape[0])*(1e-8)   # make sure P is symmetric, pos,def
     qp_a = -q
     if A is not None:
         qp_C = -np.vstack([A, G]).T
@@ -84,10 +84,10 @@ class RT_Quadprog:
         self._dict_m_est = dict(zip(self._keys_to_track_list, markers_est_pos))
 
         # Quadprog and qp settings
-        self._K_ii=1
-        self._K_lim=1
+        self._K_ii=0.5
+        self._K_lim=0.75
         self._damping=1e-3
-        self._max_iter = 35
+        self._max_iter = 10
         self._threshold = 0.01
 
         # Line search tuning 
@@ -142,11 +142,17 @@ class RT_Quadprog:
         """
         q0=self._q0
 
-        G=np.concatenate((np.identity(self._nv),-np.identity(self._nv)),axis=0) # Inequality matrix size number of inequalities (=nv) \times nv
+        G=np.concatenate((np.eye(self._nv),-np.eye(self._nv)),axis=0) # Inequality matrix size number of inequalities (=nv) \times nv
 
-        q_max_n=self._K_lim*(self._model.upperPositionLimit-q0)/self._dt
-        q_min_n=self._K_lim*(-self._model.lowerPositionLimit+q0)/self._dt
-        h=np.reshape((np.concatenate((q_max_n,q_min_n),axis=0)),(2*len(q_max_n),))
+        Delta_q_max = pin.difference(
+            self._model, q0, self._model.upperPositionLimit
+        )
+        Delta_q_min = pin.difference(
+            self._model, q0, self._model.lowerPositionLimit
+        )
+        p_max = self._K_lim * Delta_q_max
+        p_min = self._K_lim * Delta_q_min
+        h = np.hstack([p_max, -p_min])
         
         # Reset estimated markers dict 
         self.update_marker_estimates(q0)

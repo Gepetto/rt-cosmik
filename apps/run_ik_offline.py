@@ -2,13 +2,14 @@ from utils.model_utils import Robot, model_scaling_df
 from utils.read_write_utils import formatting_keypoints_data, remove_nans_from_list_of_dicts, set_zero_data_df, set_zero_data_df
 from utils.viz_utils import Rquat, place
 from utils.calib_utils import load_cam_pose
-from utils.ik_utils import IK_Quadprog, RT_Quadprog
+from utils.ik_utils import RT_Quadprog
 import pandas as pd
 import sys
 import pinocchio as pin 
 from pinocchio.visualize import GepettoVisualizer
 import numpy as np 
 import time 
+import matplotlib.pyplot as plt
 
 # Loading human urdf
 human = Robot('models/human_urdf/urdf/human.urdf','models') 
@@ -76,11 +77,16 @@ except AttributeError as err:
 for keypoint in keypoint_names:
     viz.viewer.gui.addSphere('world/'+keypoint,0.01,color[keypoint])
 
+model_frames=human_model.frames.tolist()
+for frame in model_frames:
+    if frame.name in ['ankle_Z', 'knee_Z', 'lumbar_Z','shoulder_Z','elbow_Z', 'hand']:
+        viz.viewer.gui.addSphere('world/'+frame.name,0.01,[1,0,0,1])
+
 # IK calculations 
-q0 = pin.neutral(human_model)
+q0 = np.array([np.pi/2,0,0,-np.pi,0]) # init pos
 dt = 1/30
-keys_to_track_list = ["Right Knee","Right Hip","Right Shoulder","Right Elbow","Right Wrist"]
-dict_dof_to_keypoints = dict(zip(keys_to_track_list,['knee_Z', 'lumbar_Z', 'shoulder_Z', 'elbow_Z', 'hand_fixed']))
+keys_to_track_list = ["Right Ankle","Right Knee","Right Hip","Right Shoulder","Right Elbow","Right Wrist"]
+dict_dof_to_keypoints = dict(zip(keys_to_track_list,['ankle_Z','knee_Z', 'lumbar_Z', 'shoulder_Z', 'elbow_Z', 'hand_fixed']))
 
 meas_list = formatting_keypoints_data(data)
 meas_list = remove_nans_from_list_of_dicts(meas_list)
@@ -90,6 +96,7 @@ ik_problem = RT_Quadprog(human_model, meas_list[0], q0, keys_to_track_list,dt,di
 
 q = ik_problem.solve_ik_sample()
 q=np.array(q)
+q_list=[]
 
 for ii in range(1,data['Frame'].iloc[-1]+1): 
     ik_problem = RT_Quadprog(human_model, meas_list[ii-1], q, keys_to_track_list,dt,dict_dof_to_keypoints,False)
@@ -99,6 +106,12 @@ for ii in range(1,data['Frame'].iloc[-1]+1):
     print('Time spent = ',t2-t1)
     q=np.array(q)
     q_ii = q
+    print(q_ii)
+    q_list.append(q_ii)
+    pin.forwardKinematics(human_model, human_data, q_ii)
+    pin.updateFramePlacements(human_model, human_data)
+    for frame_name in ['ankle_Z', 'knee_Z', 'lumbar_Z','shoulder_Z','elbow_Z', 'hand']:
+        place(viz,'world/'+frame_name,human_data.oMf[human_model.getFrameId(frame_name)])
     for name in keypoint_names:
         # Filter the DataFrame for the specific frame and keypoint
         keypoint_data = data[(data['Frame'] == ii) & (data['Keypoint'] == name)]
@@ -107,3 +120,8 @@ for ii in range(1,data['Frame'].iloc[-1]+1):
             place(viz,'world/'+keypoint_data.iloc[0]['Keypoint'],M)
             viz.display(q_ii)
     input()
+
+q_list=np.array(q_list)
+for ii in range(q_list.shape[1]):
+    plt.plot(q_list[:,ii])
+    plt.show()

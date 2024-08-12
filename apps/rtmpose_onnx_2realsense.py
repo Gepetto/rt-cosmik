@@ -367,7 +367,7 @@ def process_realsenses(sess: ort.InferenceSession, model_input_size: Tuple[int, 
     human_model = human.model
 
     # IK calculations 
-    q = pin.neutral(human_model)
+    q = np.array([np.pi/2,0,0,-np.pi,0]) # init pos
     dt = 1/30
     keys_to_track_list = ["Right Knee","Right Hip","Right Shoulder","Right Elbow","Right Wrist"]
     dict_dof_to_keypoints = dict(zip(keys_to_track_list,['knee_Z', 'lumbar_Z', 'shoulder_Z', 'elbow_Z', 'hand_fixed']))
