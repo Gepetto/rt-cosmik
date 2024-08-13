@@ -12,21 +12,92 @@ import rospy
 from sensor_msgs.msg import JointState
 from datetime import datetime
 
-# from utils.read_write_utils import formatting_keypoints, set_zero_data
+from utils.read_write_utils import formatting_keypoints, set_zero_data
 from utils.model_utils import Robot, model_scaling
-# from utils.calib_utils import load_cam_params, load_cam_to_cam_params, load_cam_pose
-# from utils.triangulation_utils import triangulate_points
-# from utils.ik_utils import RT_Quadprog
-
+from utils.calib_utils import load_cam_params, load_cam_to_cam_params, load_cam_pose
+from utils.triangulation_utils import triangulate_points
+from utils.ik_utils import RT_Quadprog
 
 logger = loguru.logger
 
 # Define the paths and settings directly within the script
-onnx_file = '/home/gepetto/ros_ws/src/rt-cosmik/config/rtmpose-x_simcc-body7_pt-body7_700e-384x288-71d7b7e9_20230629/end2end.onnx'  # Replace with your ONNX model file path
-# onnx_file = "/home/gepetto/ros_ws/src/rt-cosmik/config/rtmpose-l_simcc-body7_pt-body7_420e-256x192-4dba18fc_20230504/end2end.onnx"
+# onnx_file = '/home/gepetto/ros_ws/src/rt-cosmik/config/rtmpose-x_simcc-body7_pt-body7_700e-384x288-71d7b7e9_20230629/end2end.onnx'  # Replace with your ONNX model file path
+onnx_file = "/home/gepetto/ros_ws/src/rt-cosmik/config/rtmpose-l_simcc-body7_pt-body7_420e-256x192-4dba18fc_20230504/end2end.onnx"
 # onnx_file = "/home/gepetto/ros_ws/src/rt-cosmik/config/rtmpose-l_simcc-body7_pt-body7_420e-384x288-3f5a1437_20230504/20230831/rtmpose_onnx/rtmpose-l_simcc-body7_pt-body7_420e-384x288-3f5a1437_20230504/end2end.onnx"
 device = 'cuda:0'  # Choose 'cpu' or 'cuda' based on your setup
 save_path = 'output.jpg'  # Path where the output image will be saved
+
+# Initialize ROS node 
+rospy.init_node('human_rt_ik', anonymous=True)
+pub = rospy.Publisher('/human_RT_joint_angles', JointState, queue_size=10)
+
+csv_file_path = './output/keypoints_3d_positions.csv'
+csv2_file_path = './output/q.csv'
+
+K1, D1 = load_cam_params("cams_calibration/cam_params/c1_params_color_test_test.yml")
+K2, D2 = load_cam_params("cams_calibration/cam_params/c2_params_color_test_test.yml")
+R,T = load_cam_to_cam_params("cams_calibration/cam_params/c1_to_c2_params_color_test_test.yml")
+
+dict_cam = {
+    "cam1": {
+        "mtx":np.array(K1),
+        "dist":D1,
+        "rotation":np.eye(3),
+        "translation":[
+            0.,
+            0.,
+            0.,
+        ],
+    },
+    "cam2": {
+        "mtx":np.array(K2),
+        "dist":D2,
+        "rotation":R,
+        "translation":T,
+    },
+}
+
+rotations=[]
+translations=[]
+dists=[]
+mtxs=[]
+projections=[]
+
+for cam in dict_cam :
+    rotation=np.array(dict_cam[cam]["rotation"])
+    rotations.append(rotation)
+    translation=np.array([dict_cam[cam]["translation"]]).reshape(3,1)
+    translations.append(translation)
+    projection = np.concatenate([rotation, translation], axis=-1)
+    projections.append(projection)
+    dict_cam[cam]["projection"] = projection
+    dists.append(dict_cam[cam]["dist"])
+    mtxs.append(dict_cam[cam]["mtx"])
+
+# Loading camera pose 
+R1_global, T1_global = load_cam_pose('cams_calibration/cam_params/camera1_pose_test_test.yml')
+R1_global = R1_global@pin.utils.rotate('z', np.pi) # aligns measurements to human model definition
+
+dof_names=['ankle_Z', 'knee_Z', 'lumbar_Z', 'shoulder_Z', 'elbow_Z'] 
+
+keypoint_names = [
+    "Nose", "Left Eye", "Right Eye", "Left Ear", "Right Ear", 
+    "Left Shoulder", "Right Shoulder", "Left Elbow", "Right Elbow", 
+    "Left Wrist", "Right Wrist", "Left Hip", "Right Hip", 
+    "Left Knee", "Right Knee", "Left Ankle", "Right Ankle"]
+
+mapping = dict(zip(keypoint_names,[i for i in range(len(keypoint_names))]))
+
+# Initialize CSV files
+with open(csv_file_path, mode='w', newline='') as file:
+    csv_writer = csv.writer(file)
+    # Write the header row
+    csv_writer.writerow(['Frame', 'Time','Keypoint', 'X', 'Y', 'Z'])
+
+with open(csv2_file_path, mode='w', newline='') as file2:
+    csv2_writer = csv.writer(file2)
+    # Write the header row
+    csv2_writer.writerow(['Frame','Time','q0', 'q1','q2','q3','q4'])
 
 def preprocess(
     img: np.ndarray, input_size: Tuple[int, int] = (192, 256)
@@ -335,7 +406,9 @@ def get_device_serial_numbers():
 
 def process_realsenses(sess: ort.InferenceSession, model_input_size: Tuple[int, int], show_interval=1):
     """Process frames from multiple Intel RealSense cameras and visualize predicted keypoints."""
-    
+    width = 1280
+    height = 720
+
     sn_list = []
     ctx = rs.context()
     if len(ctx.devices) > 0:
@@ -357,8 +430,7 @@ def process_realsenses(sess: ort.InferenceSession, model_input_size: Tuple[int, 
         pipeline = rs.pipeline()
         config = rs.config()
         config.enable_device(serial)
-        config.enable_stream(rs.stream.color, 1280, 720, rs.format.bgr8, 30)
-        # config.enable_stream(rs.stream.color, 640, 360, rs.format.bgr8, 60)
+        config.enable_stream(rs.stream.color, width, height, rs.format.bgr8, 30)
         pipeline.start(config)
         pipelines.append(pipeline)
 
@@ -368,12 +440,17 @@ def process_realsenses(sess: ort.InferenceSession, model_input_size: Tuple[int, 
 
     # IK calculations 
     q = np.array([np.pi/2,0,0,-np.pi,0]) # init pos
-    dt = 1/60
+    dt = 1/30
     keys_to_track_list = ["Right Knee","Right Hip","Right Shoulder","Right Elbow","Right Wrist"]
     dict_dof_to_keypoints = dict(zip(keys_to_track_list,['knee_Z', 'lumbar_Z', 'shoulder_Z', 'elbow_Z', 'hand_fixed']))
 
     first_sample = True 
     frame_idx = 0
+
+    # Define the codec and create VideoWriter objects for both RGB streams
+    fourcc = cv2.VideoWriter_fourcc(*'XVID')  # Codec for AVI files
+    out_vid1 = cv2.VideoWriter('output/cam1.avi', fourcc, 30.0, (width, height), False)
+    out_vid2 = cv2.VideoWriter('output/cam2.avi', fourcc, 30.0, (width, height), False)
     
     try :
         while True:
@@ -385,10 +462,16 @@ def process_realsenses(sess: ort.InferenceSession, model_input_size: Tuple[int, 
                 continue
 
             keypoints_list = []
+            frame_idx += 1  # Increment frame counter
             
             start = time.time()
             for idx, color_frame in enumerate(frames_list):
                 frame = np.asanyarray(color_frame.get_data())
+                
+                if idx == 0 : 
+                    out_vid1.write(frame)
+                elif idx == 1 : 
+                    out_vid2.write(frame)
                 
                 # Convert frame to RGB
                 frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
@@ -403,21 +486,61 @@ def process_realsenses(sess: ort.InferenceSession, model_input_size: Tuple[int, 
                 filtered_keypoints = []
                 filtered_scores = []
                 for kpts, score in zip(keypoints, scores):
-                    valid_kpts = kpts[score > 0.5]
-                    valid_scores = score[score > 0.5]
+                    valid_kpts = kpts[score > 0.6]
+                    valid_scores = score[score > 0.6]
 
                     filtered_keypoints.append(valid_kpts)
                     filtered_scores.append(valid_scores)
+
+                filtered_keypoints = np.array(filtered_keypoints)
+                keypoints_list.append(filtered_keypoints)
 
                 # Draw only the filtered keypoints
                 vis_result = visualize(frame, filtered_keypoints, filtered_scores, center, scale)
 
                 cv2.imshow(f'Visualization Result {idx}',  vis_result)
 
-                frame_idx += 1  # Increment frame counter
+            p3d_frame = triangulate_points(keypoints_list, mtxs, dists, projections)
 
-                if cv2.waitKey(1) & 0xFF == ord('q'):
-                    break
+            # Subtract the translation vector (shifting the origin)
+            keypoints_shifted = p3d_frame - T1_global.T
+
+            # Apply the rotation matrix to align the points
+            keypoints_in_world = np.dot(keypoints_shifted,R1_global)
+            
+            if first_sample:
+                x0_ankle, y0_ankle, z0_ankle = keypoints_in_world[mapping['Right Ankle']][0], keypoints_in_world[mapping['Right Ankle']][1], keypoints_in_world[mapping['Right Ankle']][2]
+                keypoints_in_world=set_zero_data(keypoints_in_world,x0_ankle,y0_ankle,z0_ankle)
+                # Scaling segments lengths 
+                human_model, _ = model_scaling(human_model, keypoints_in_world)
+                first_sample = False
+            else :
+                keypoints_in_world=set_zero_data(keypoints_in_world,x0_ankle,y0_ankle,z0_ankle)
+
+            with open(csv_file_path, mode='a', newline='') as file:
+                csv_writer = csv.writer(file)
+                for jj in range(len(keypoint_names)):
+                    # Write to CSV
+                    csv_writer.writerow([frame_idx, formatted_timestamp,keypoint_names[jj], keypoints_in_world[jj][0], keypoints_in_world[jj][1], keypoints_in_world[jj][2]])
+            
+            dict_keypoints = formatting_keypoints(keypoints_in_world,keypoint_names)
+
+            ik_problem = RT_Quadprog(human_model, dict_keypoints, q, keys_to_track_list,dt,dict_dof_to_keypoints,False)
+            q = ik_problem.solve_ik_sample()      
+
+            with open(csv2_file_path, mode='a', newline='') as file2:
+                csv2_writer = csv.writer(file2)
+                csv2_writer.writerow([frame_idx,formatted_timestamp,q[0],q[1],q[2],q[3],q[4]])
+
+            # Publish joint angles 
+            joint_state_msg=JointState()
+            joint_state_msg.header.stamp=rospy.Time.now()
+            joint_state_msg.name = dof_names
+            joint_state_msg.position = q.tolist()
+            pub.publish(joint_state_msg)
+
+            if cv2.waitKey(1) & 0xFF == ord('q'):
+                break
             end = time.time()
             print(end - start)
     finally:

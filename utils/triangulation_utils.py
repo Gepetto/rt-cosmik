@@ -1,7 +1,7 @@
 import numpy as np
-from scipy import linalg
+# from scipy import linalg
 import cv2
-from scipy.spatial.transform import Rotation as R
+# from scipy.spatial.transform import Rotation as R
 
 def DLT_adaptive(projections, points):
     A=[]
@@ -15,7 +15,7 @@ def DLT_adaptive(projections, points):
 
     A = np.array(A).reshape((-1,4))
     B = A.transpose() @ A
-    _, _, Vh = linalg.svd(B, full_matrices = False)
+    _, _, Vh = np.linalg.svd(B, full_matrices = False)
 
     return Vh[3,0:3]/Vh[3,3]
 
