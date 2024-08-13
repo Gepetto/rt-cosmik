@@ -3,10 +3,8 @@ import pinocchio as pin
 # import pinocchio.casadi as cpin 
 import quadprog
 # import cyipopt
-from scipy.optimize import approx_fprime
 from typing import Dict, List
 import numpy as np 
-from scipy.spatial.transform import Rotation as R
 
 def quadprog_solve_qp(P: np.ndarray, q: np.ndarray, G: np.ndarray=None, h: np.ndarray=None, A: np.ndarray=None, b: np.ndarray=None):
     """_Set up the qp solver using quadprog API_

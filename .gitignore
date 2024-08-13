@@ -1,4 +1,3 @@
-.vscode/
 **/__pycache__/
-.images_calib_cam_1/
-.images_calib_cam_2/
+cams_calibration/images_calib_cam_1/
+cams_calibration/images_calib_cam_2/
