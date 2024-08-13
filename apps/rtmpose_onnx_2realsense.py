@@ -11,21 +11,21 @@ import pinocchio as pin
 import rospy
 from sensor_msgs.msg import JointState
 from datetime import datetime
-from mmdeploy_runtime import PoseDetector
 
-from utils.read_write_utils import formatting_keypoints, set_zero_data
+# from utils.read_write_utils import formatting_keypoints, set_zero_data
 from utils.model_utils import Robot, model_scaling
-from utils.calib_utils import load_cam_params, load_cam_to_cam_params, load_cam_pose
-from utils.triangulation_utils import triangulate_points
-from utils.ik_utils import RT_Quadprog
+# from utils.calib_utils import load_cam_params, load_cam_to_cam_params, load_cam_pose
+# from utils.triangulation_utils import triangulate_points
+# from utils.ik_utils import RT_Quadprog
 
 
 logger = loguru.logger
 
 # Define the paths and settings directly within the script
-# onnx_file = './config/rtmpose-s_simcc-body7_pt-body7_420e-256x192-acd4a1ef_20230504/'  # Replace with your ONNX model file path
-onnx_file = "/home/gepetto/mmpose/mmdeploy/rtmpose-ort/rtmpose-m"
-device = 'cpu'  # Choose 'cpu' or 'cuda' based on your setup
+onnx_file = '/home/gepetto/ros_ws/src/rt-cosmik/config/rtmpose-x_simcc-body7_pt-body7_700e-384x288-71d7b7e9_20230629/end2end.onnx'  # Replace with your ONNX model file path
+# onnx_file = "/home/gepetto/ros_ws/src/rt-cosmik/config/rtmpose-l_simcc-body7_pt-body7_420e-256x192-4dba18fc_20230504/end2end.onnx"
+# onnx_file = "/home/gepetto/ros_ws/src/rt-cosmik/config/rtmpose-l_simcc-body7_pt-body7_420e-384x288-3f5a1437_20230504/20230831/rtmpose_onnx/rtmpose-l_simcc-body7_pt-body7_420e-384x288-3f5a1437_20230504/end2end.onnx"
+device = 'cuda:0'  # Choose 'cpu' or 'cuda' based on your setup
 save_path = 'output.jpg'  # Path where the output image will be saved
 
 def preprocess(
@@ -136,27 +136,27 @@ def get_simcc_maximum(simcc_x: np.ndarray,
 def visualize(img: np.ndarray,
               keypoints: np.ndarray,
               scores: np.ndarray,
+              center: np.ndarray,
+              scale: np.ndarray,
               filename: str = None,
               thr=0.3) -> np.ndarray:
-    skeleton = [(15, 13), (13, 11), (16, 14), (14, 12), (11, 12), (5, 11),
-                (6, 12), (5, 6), (5, 7), (6, 8), (7, 9), (8, 10), (1, 2),
-                (0, 1), (0, 2), (1, 3), (2, 4), (3, 5), (4, 6), (15, 17),
-                (15, 18), (15, 19), (16, 20), (16, 21), (16, 22)]
     palette = [[51, 153, 255], [0, 255, 0], [255, 128, 0], [255, 255, 255],
                [255, 153, 255], [102, 178, 255], [255, 51, 51]]
-    link_color = [1, 1, 2, 2, 0, 0, 0, 0, 1, 2, 1, 2, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 2, 2]
     point_color = [0, 0, 0, 0, 0, 1, 2, 1, 2, 1, 2, 1, 2, 1, 2, 1, 2, 2, 2, 2, 2, 2, 2, 3, 3, 3, 3, 3, 3, 3]
 
+    thickness = 4
+    radius = 5
+
+    # Draw the bounding box
+    bbox_top_left = (int(center[0] - scale[0] / 2), int(center[1] - scale[1] / 2))
+    bbox_bottom_right = (int(center[0] + scale[0] / 2), int(center[1] + scale[1] / 2))
+
     for kpts, score in zip(keypoints, scores):
-        keypoints_num = len(score)
-        for kpt, color in zip(kpts, point_color):
-            cv2.circle(img, tuple(kpt.astype(np.int32)), 1, palette[color], 1,
-                       cv2.LINE_AA)
-        for (u, v), color in zip(skeleton, link_color):
-            if u < keypoints_num and v < keypoints_num and score[u] > thr and score[v] > thr:
-                cv2.line(img, tuple(kpts[u].astype(np.int32)),
-                         tuple(kpts[v].astype(np.int32)), palette[color], 2,
-                         cv2.LINE_AA)
+        valid_kpts = kpts[score > thr]
+        for kpt, color in zip(valid_kpts, point_color):
+            cv2.rectangle(img, bbox_top_left, bbox_bottom_right, (0, 255, 0), 2)  # Green bbox with thickness 2
+
+            cv2.circle(img, tuple(kpt.astype(np.int32)), radius, palette[color], thickness, cv2.LINE_AA)
     
     if filename:
         cv2.imwrite(filename, img)
@@ -358,7 +358,7 @@ def process_realsenses(sess: ort.InferenceSession, model_input_size: Tuple[int, 
         config = rs.config()
         config.enable_device(serial)
         config.enable_stream(rs.stream.color, 1280, 720, rs.format.bgr8, 30)
-        # config.enable_stream(rs.stream.color, 640, 480, rs.format.bgr8, 30)
+        # config.enable_stream(rs.stream.color, 640, 360, rs.format.bgr8, 60)
         pipeline.start(config)
         pipelines.append(pipeline)
 
@@ -368,14 +368,12 @@ def process_realsenses(sess: ort.InferenceSession, model_input_size: Tuple[int, 
 
     # IK calculations 
     q = np.array([np.pi/2,0,0,-np.pi,0]) # init pos
-    dt = 1/30
+    dt = 1/60
     keys_to_track_list = ["Right Knee","Right Hip","Right Shoulder","Right Elbow","Right Wrist"]
     dict_dof_to_keypoints = dict(zip(keys_to_track_list,['knee_Z', 'lumbar_Z', 'shoulder_Z', 'elbow_Z', 'hand_fixed']))
 
     first_sample = True 
     frame_idx = 0
-    detector = PoseDetector(
-                model_path=onnx_file, device_name=device, device_id=0)
     
     try :
         while True:
@@ -386,41 +384,42 @@ def process_realsenses(sess: ort.InferenceSession, model_input_size: Tuple[int, 
             if not all(frames_list):
                 continue
 
-            frame_idx += 1
             keypoints_list = []
             
+            start = time.time()
             for idx, color_frame in enumerate(frames_list):
-                time_init = time.time()
                 frame = np.asanyarray(color_frame.get_data())
                 
                 # Convert frame to RGB
                 frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
 
-                # resized_img, center, scale = preprocess(frame_rgb, model_input_size)
+                resized_img, center, scale = preprocess(frame_rgb, model_input_size)
 
-                # outputs = inference(sess, resized_img)
+                outputs = inference(sess, resized_img)
 
-                # keypoints, scores = postprocess(outputs, model_input_size, center, scale)
-
-                # vis_result = visualize(frame, keypoints, scores)
-
-
-                result = detector(frame_rgb)
-
-                print(result)
-
-                _, point_num, _ = result.shape
-                points = result[:, :, :2].reshape(point_num, 2)
-                for [x, y] in points.astype(int):
-                    cv2.circle(frame_rgb, (x, y), 1, (0, 255, 0), 2)
+                keypoints, scores = postprocess(outputs, model_input_size, center, scale)
                 
-                # Display the frame using OpenCV
-                cv2.imshow(f'Visualization Result {idx}', frame_rgb)
+                # Filter keypoints based on score threshold
+                filtered_keypoints = []
+                filtered_scores = []
+                for kpts, score in zip(keypoints, scores):
+                    valid_kpts = kpts[score > 0.5]
+                    valid_scores = score[score > 0.5]
 
-            # Press 'q' to exit the loop, 's' to start/stop saving
-            key = cv2.waitKey(1) & 0xFF
-            if key == ord('q'):
-                break
+                    filtered_keypoints.append(valid_kpts)
+                    filtered_scores.append(valid_scores)
+
+                # Draw only the filtered keypoints
+                vis_result = visualize(frame, filtered_keypoints, filtered_scores, center, scale)
+
+                cv2.imshow(f'Visualization Result {idx}',  vis_result)
+
+                frame_idx += 1  # Increment frame counter
+
+                if cv2.waitKey(1) & 0xFF == ord('q'):
+                    break
+            end = time.time()
+            print(end - start)
     finally:
         for pipeline in pipelines:
             pipeline.stop()

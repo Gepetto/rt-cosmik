@@ -38,10 +38,8 @@ if len(ctx.devices) > 0:
 
                 d.get_info(rs.camera_info.serial_number))
         sn_list.append(d.get_info(rs.camera_info.serial_number))
-
-    else:
-
-        print("No Intel Device connected")
+else:
+    print("No Intel Device connected")
 
 # Get device product line for setting a supporting resolution
 pipeline_wrapper_1 = rs.pipeline_wrapper(pipeline_1)
