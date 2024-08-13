@@ -15,9 +15,11 @@ def calibrate_camera(images_folder):
     #Change this if the code can't find the checkerboard
     criteria = (cv.TERM_CRITERIA_EPS + cv.TERM_CRITERIA_MAX_ITER, 30, 0.001)
  
-    rows = 7 #number of checkerboard rows.
-    columns = 10 #number of checkerboard columns.
-    world_scaling = 0.025 #change this to the real world square size. Or not.
+    rows = 6 #number of checkerboard rows.
+    # columns = 10 #number of checkerboard columns.
+    columns = 7 #number of checkerboard columns.
+    # world_scaling = 0.025 #change this to the real world square size.
+    world_scaling = 0.108 #change this to the real world square size.
  
     #coordinates of squares in the checkerboard world space
     objp = np.zeros((rows*columns,3), np.float32)
@@ -84,9 +86,15 @@ def stereo_calibrate(mtx1, dist1, mtx2, dist2, frames_folder_1, frames_folder_2)
     #change this if stereo calibration not good.
     criteria = (cv.TERM_CRITERIA_EPS + cv.TERM_CRITERIA_MAX_ITER, 100, 0.0001)
  
-    rows = 7 #number of checkerboard rows.
-    columns = 10 #number of checkerboard columns.
-    world_scaling = 0.025 #change this to the real world square size. Or not.
+    # rows = 7 #number of checkerboard rows.
+    # columns = 10 #number of checkerboard columns.
+    # world_scaling = 0.025 #change this to the real world square size. Or not.
+
+    rows = 6 #number of checkerboard rows.
+    # columns = 10 #number of checkerboard columns.
+    columns = 7 #number of checkerboard columns.
+    # world_scaling = 0.025 #change this to the real world square size.
+    world_scaling = 0.108 #change this to the real world square size.
  
     #coordinates of squares in the checkerboard world space
     objp = np.zeros((rows*columns,3), np.float32)
