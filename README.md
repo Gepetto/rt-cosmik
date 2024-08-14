@@ -1,5 +1,44 @@
 # RT-COSMIK
 
+Command to run the docker container : 
+docker pull openmmlab/mmdeploy:ubuntu20.04-cuda11.8-mmdeploy1.3.1
+docker images
+docker run -it --gpus all --privileged --device-cgroup-rule "c 81:* rmw" --device-cgroup-rule "c 189:* rmw" -e DISPLAY=$DISPLAY -v /dev:/dev -v /tmp/.X11-unix:/tmp/.X11-unix $IMAGE_ID
+
+Then attach vscode to the docker
+
+Commands to run on the latest docker image provided for mmdeploy. 
+
+git clone https://github.com/open-mmlab/mmdetection.git 
+git clone https://github.com/open-mmlab/mmpose.git 
+git clone https://gitlab.laas.fr/msabbah/rt-cosmik.git
+mim install mmdet 
+mim install mmpose
+pip3 install pyrealsense2 quadprog pin rospkg
+
+# run the command to convert RTMDet
+# Model file can be either a local path or a download link
+python3 tools/deploy.py \
+    configs/mmdet/detection/detection_tensorrt_static-320x320.py \
+    ../mmpose/projects/rtmpose/rtmdet/person/rtmdet_nano_320-8xb32_coco-person.py \
+    https://download.openmmlab.com/mmpose/v1/projects/rtmpose/rtmdet_nano_8xb32-100e_coco-obj365-person-05d8511e.pth \
+    demo/resources/human-pose.jpg \
+    --work-dir rtmpose-trt/rtmdet-nano \
+    --device cuda:0 \
+    --show \
+    --dump-info  # dump sdk info
+
+# run the command to convert RTMPose
+# Model file can be either a local path or a download link
+python3 tools/deploy.py \
+    configs/mmpose/pose-detection_simcc_tensorrt_dynamic-256x192.py \
+    ../mmpose/projects/rtmpose/rtmpose/body_2d_keypoint/rtmpose-m_8xb256-420e_coco-256x192.py \
+    https://download.openmmlab.com/mmpose/v1/projects/rtmposev1/rtmpose-m_simcc-aic-coco_pt-aic-coco_420e-256x192-63eb25f7_20230126.pth \
+    demo/resources/human-pose.jpg \
+    --work-dir rtmpose-trt/rtmpose-m \
+    --device cuda:0 \
+    --show \
+    --dump-info  # dump sdk info
 
 
 ## Getting started
