@@ -185,6 +185,7 @@ def visualize(frame,
               output_dir,
               idx,
               frame_id,
+              out_vid,
               thr=0.5,
               resize=1280,
               skeleton_type='coco'):
@@ -215,6 +216,7 @@ def visualize(frame,
         cv2.imwrite(f'{output_dir}/{str(frame_id).zfill(6)}.jpg', img)
     else:
         cv2.imshow('pose_tracker'+str(idx), img)
+        out_vid.write(img)
         return cv2.waitKey(1) != 'q'
     return True
 
@@ -276,10 +278,20 @@ def main():
     first_sample = True 
     frame_idx = 0
 
+    width_vids = []
+    height_vids = []
+    for pipeline in pipelines:
+        # Get the stream profile to extract the width and height for video writer
+        profile = pipeline.get_active_profile()
+        rgb_profile = profile.get_stream(rs.stream.color).as_video_stream_profile()
+        width_vids.append(rgb_profile.width())
+        height_vids.append(rgb_profile.height())
+
     # Define the codec and create VideoWriter objects for both RGB streams
-    fourcc = cv2.VideoWriter_fourcc(*'XVID')  # Codec for AVI files
-    out_vid1 = cv2.VideoWriter('output/cam1.avi', fourcc, 30.0, (width, height), False)
-    out_vid2 = cv2.VideoWriter('output/cam2.avi', fourcc, 30.0, (width, height), False)
+    fourcc = cv2.VideoWriter_fourcc(*'mp4v')  # Codec for AVI files
+    out_vid1 = cv2.VideoWriter('output/cam1.mp4', fourcc, 30.0, (int(width_vids[0]), int(height_vids[0])), True)
+    out_vid2 = cv2.VideoWriter('output/cam2.mp4', fourcc, 30.0, (int(width_vids[1]), int(height_vids[1])), True)
+    out_vid = [out_vid1, out_vid2]
 
     tracker = PoseTracker(
         det_model=args.det_model,
@@ -309,10 +321,10 @@ def main():
             # Process each frame individually
             for idx, color_frame in enumerate(frames):
                 frame = np.asanyarray(color_frame.get_data())
-                if idx == 0 : 
-                    out_vid1.write(frame)
-                elif idx == 1 : 
-                    out_vid2.write(frame)
+                # if idx == 0 : 
+                #     out_vid1.write(frame)
+                # elif idx == 1 : 
+                #     out_vid2.write(frame)
 
                 results = tracker(state, frame, detect=-1)
                 scale = resize / max(frame.shape[0], frame.shape[1])
@@ -333,6 +345,7 @@ def main():
                         args.output_dir,
                         idx,
                         frame_idx + idx,
+                        out_vid[idx],
                         skeleton_type=args.skeleton):
                     break
 
@@ -379,10 +392,17 @@ def main():
                 # joint_state_msg.position = q.tolist()
                 # pub.publish(joint_state_msg)
 
+                # Press 'q' to exit the loop, 's' to start/stop saving
+            key = cv2.waitKey(1) & 0xFF
+            if key == ord('q'):
+                break
+
     finally :
         # Stop the RealSense pipelines
         for pipeline in pipelines:
             pipeline.stop()
+        out_vid1.release()
+        out_vid2.release()
         cv2.destroyAllWindows()
 
 
