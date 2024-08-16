@@ -12,8 +12,8 @@ from mmdeploy_runtime import PoseTracker
 import time 
 import csv
 import pinocchio as pin
-import rospy
-from sensor_msgs.msg import JointState
+# import rospy
+# from sensor_msgs.msg import JointState
 from datetime import datetime
 
 from utils.read_write_utils import formatting_keypoints, set_zero_data
@@ -108,8 +108,8 @@ VISUALIZATION_CFG = dict(
         ]))
 
 # Initialize ROS node 
-rospy.init_node('human_rt_ik', anonymous=True)
-pub = rospy.Publisher('/human_RT_joint_angles', JointState, queue_size=10)
+# rospy.init_node('human_rt_ik', anonymous=True)
+# pub = rospy.Publisher('/human_RT_joint_angles', JointState, queue_size=10)
 
 csv_file_path = './output/keypoints_3d_positions.csv'
 csv2_file_path = './output/q.csv'
@@ -223,11 +223,8 @@ def get_device_serial_numbers():
     ctx = rs.context()
     return [device.get_info(rs.camera_info.serial_number) for device in ctx.query_devices()]
 
-def configure_realsense_pipeline():
+def configure_realsense_pipeline(width,height):
     """Configures and starts the RealSense pipelines."""
-    width = 1280
-    height = 720
-
     sn_list = []
     ctx = rs.context()
     if len(ctx.devices) > 0:
@@ -259,8 +256,11 @@ def main():
     args = parse_args()
     np.set_printoptions(precision=4, suppress=True)
 
+    width = 1280
+    height = 720
+
     # Initialize RealSense pipelines
-    pipelines = configure_realsense_pipeline()
+    pipelines = configure_realsense_pipeline(width,height)
 
     # Loading human urdf
     human = Robot('models/human_urdf/urdf/human.urdf','models') 
@@ -299,7 +299,7 @@ def main():
             formatted_timestamp = timestamp.strftime("%Y-%m-%d %H:%M:%S.%f ")
             
             frames = [pipeline.wait_for_frames().get_color_frame() for pipeline in pipelines]
-            if not all(frames_list):
+            if not all(frames):
                 continue
 
             keypoints_list = []
@@ -318,14 +318,14 @@ def main():
 
                 keypoints_list.append(keypoints)
 
-                # if not visualize(
-                #         frame,
-                #         results,
-                #         args.output_dir,
-                #         idx,
-                #         frame_id + idx,
-                #         skeleton_type=args.skeleton):
-                #     break
+                if not visualize(
+                        frame,
+                        results,
+                        args.output_dir,
+                        idx,
+                        frame_id + idx,
+                        skeleton_type=args.skeleton):
+                    break
             
             p3d_frame = triangulate_points(keypoints_list, mtxs, dists, projections)
 
@@ -359,12 +359,12 @@ def main():
                 csv2_writer = csv.writer(file2)
                 csv2_writer.writerow([frame_idx,formatted_timestamp,q[0],q[1],q[2],q[3],q[4]])
 
-            # Publish joint angles 
-            joint_state_msg=JointState()
-            joint_state_msg.header.stamp=rospy.Time.now()
-            joint_state_msg.name = dof_names
-            joint_state_msg.position = q.tolist()
-            pub.publish(joint_state_msg)
+            # # Publish joint angles 
+            # joint_state_msg=JointState()
+            # joint_state_msg.header.stamp=rospy.Time.now()
+            # joint_state_msg.name = dof_names
+            # joint_state_msg.position = q.tolist()
+            # pub.publish(joint_state_msg)
 
     finally :
         # Stop the RealSense pipelines
