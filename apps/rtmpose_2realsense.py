@@ -9,8 +9,8 @@ from mmengine.registry import init_default_scope
 import numpy as np
 import csv
 import pinocchio as pin
-import rospy
-from sensor_msgs.msg import JointState
+# import rospy
+# from sensor_msgs.msg import JointState
 from utils.read_write_utils import formatting_keypoints, set_zero_data
 from utils.model_utils import Robot, model_scaling
 from utils.calib_utils import load_cam_params, load_cam_to_cam_params, load_cam_pose
@@ -36,8 +36,8 @@ except (ImportError, ModuleNotFoundError):
     has_mmdet = False
 
 # Initialize ROS node 
-rospy.init_node('human_rt_ik', anonymous=True)
-pub = rospy.Publisher('/human_RT_joint_angles', JointState, queue_size=10)
+# rospy.init_node('human_rt_ik', anonymous=True)
+# pub = rospy.Publisher('/human_RT_joint_angles', JointState, queue_size=10)
 
 csv_file_path = './output/keypoints_3d_positions.csv'
 csv2_file_path = './output/q.csv'
@@ -203,7 +203,7 @@ def process_realsense_multi(detector, pose_estimator, visualizer, show_interval=
     mmengine.mkdir_or_exist(output_root)
 
     try:
-        while not rospy.is_shutdown():
+        while True: # not rospy.is_shutdown():
             timestamp=datetime.now()
             formatted_timestamp = timestamp.strftime("%Y-%m-%d %H:%M:%S.%f ")
 
@@ -242,7 +242,7 @@ def process_realsense_multi(detector, pose_estimator, visualizer, show_interval=
                 time_end = time.time()
                 delta_time = (time_end-time_init)*1000          
 
-                print('delta time for mmpose ', delta_time)
+                # print('delta time for mmpose ', delta_time)
 
                 # Show the results
                 visualizer.add_datasample(
@@ -266,13 +266,14 @@ def process_realsense_multi(detector, pose_estimator, visualizer, show_interval=
                 # Display the frame using OpenCV
                 cv2.imshow(f'Visualization Result {idx}', vis_result_bgr)
             
+            print(keypoints_list[0].shape)
             time_init = time.time()
             p3d_frame = triangulate_points(keypoints_list, mtxs, dists, projections)
             time_end = time.time()
 
             delta_time = (time_end-time_init)*1000          
 
-            print('delta time for triangul ', delta_time)
+            # print('delta time for triangul ', delta_time)
 
             # Subtract the translation vector (shifting the origin)
             keypoints_shifted = p3d_frame - T1_global.T
@@ -305,18 +306,18 @@ def process_realsense_multi(detector, pose_estimator, visualizer, show_interval=
 
             delta_time = (time_end-time_init)*1000          
 
-            print('delta time for IK ', delta_time)
+            # print('delta time for IK ', delta_time)
 
             with open(csv2_file_path, mode='a', newline='') as file2:
                 csv2_writer = csv.writer(file2)
                 csv2_writer.writerow([frame_idx,formatted_timestamp,q[0],q[1],q[2],q[3],q[4]])
 
-            # Publish joint angles 
-            joint_state_msg=JointState()
-            joint_state_msg.header.stamp=rospy.Time.now()
-            joint_state_msg.name = dof_names
-            joint_state_msg.position = q.tolist()
-            pub.publish(joint_state_msg)
+            # # Publish joint angles 
+            # joint_state_msg=JointState()
+            # joint_state_msg.header.stamp=rospy.Time.now()
+            # joint_state_msg.name = dof_names
+            # joint_state_msg.position = q.tolist()
+            # pub.publish(joint_state_msg)
 
             # print(q)
             # Press 'q' to exit the loop, 's' to start/stop saving
@@ -330,12 +331,12 @@ def process_realsense_multi(detector, pose_estimator, visualizer, show_interval=
         cv2.destroyAllWindows()
 
 if __name__ == "__main__":
-    try :
-        process_realsense_multi(
-            detector,
-            pose_estimator,
-            visualizer,
-            show_interval=1
-        )
-    except rospy.ROSInterruptException:
-        pass
+    # try :
+    process_realsense_multi(
+        detector,
+        pose_estimator,
+        visualizer,
+        show_interval=1
+    )
+    # except # rospy.ROSInterruptException:
+    #     pass

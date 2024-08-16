@@ -1,6 +1,7 @@
 # RT-COSMIK
 
 Command to run the docker container : 
+xhost +local
 docker pull openmmlab/mmdeploy:ubuntu20.04-cuda11.8-mmdeploy1.3.1
 docker images
 docker run -it --gpus all --privileged --device-cgroup-rule "c 81:* rmw" --device-cgroup-rule "c 189:* rmw" -e DISPLAY=$DISPLAY -v /dev:/dev -v /tmp/.X11-unix:/tmp/.X11-unix $IMAGE_ID
@@ -14,7 +15,7 @@ git clone https://github.com/open-mmlab/mmpose.git
 git clone https://gitlab.laas.fr/msabbah/rt-cosmik.git
 mim install mmdet 
 mim install mmpose
-pip3 install pyrealsense2 quadprog pin rospkg
+pip3 install pyrealsense2 quadprog pin
 
 # run the command to convert RTMDet
 # Model file can be either a local path or a download link
