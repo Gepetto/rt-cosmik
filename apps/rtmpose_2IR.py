@@ -3,7 +3,7 @@ from mmcv import imread
 import mmengine
 from mmengine.registry import init_default_scope
 import numpy as np
-from calib_utils import load_cam_params, load_cam_to_cam_params
+from utils.calib_utils import load_cam_params, load_cam_to_cam_params
 
 from mmpose.apis import inference_topdown
 from mmpose.apis import init_model as init_pose_estimator
@@ -232,6 +232,7 @@ def process_realsense_single(detector, pose_estimator, visualizer, show_interval
 
             for idx, ir_frame in enumerate(frames_list):
                 frame = np.asanyarray(ir_frame.get_data())
+                print(frame.shape)
                 if idx == 0 : 
                     out_ir1.write(frame)
                 elif idx == 1 : 
