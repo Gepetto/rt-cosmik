@@ -258,6 +258,7 @@ def main():
 
     width = 1280
     height = 720
+    resize=1280
 
     # Initialize RealSense pipelines
     pipelines = configure_realsense_pipeline(width,height)
@@ -313,58 +314,70 @@ def main():
                 elif idx == 1 : 
                     out_vid2.write(frame)
 
-                results = tracker(state, color_frame, detect=-1)
+                results = tracker(state, frame, detect=-1)
+                scale = resize / max(frame.shape[0], frame.shape[1])
                 keypoints, bboxes, _ = results
+                scores = keypoints[..., 2]
+                keypoints = (keypoints[..., :2] * scale).astype(float)
+                bboxes *= scale
 
-                keypoints_list.append(keypoints)
+                # print(keypoints)
+                if keypoints.size == 0:
+                    pass
+                else :
+                    keypoints_list.append(keypoints.reshape((17,2)).flatten())
 
                 if not visualize(
                         frame,
                         results,
                         args.output_dir,
                         idx,
-                        frame_id + idx,
+                        frame_idx + idx,
                         skeleton_type=args.skeleton):
                     break
-            
-            p3d_frame = triangulate_points(keypoints_list, mtxs, dists, projections)
 
-            # Subtract the translation vector (shifting the origin)
-            keypoints_shifted = p3d_frame - T1_global.T
-
-            # Apply the rotation matrix to align the points
-            keypoints_in_world = np.dot(keypoints_shifted,R1_global)
             
-            if first_sample:
-                x0_ankle, y0_ankle, z0_ankle = keypoints_in_world[mapping['Right Ankle']][0], keypoints_in_world[mapping['Right Ankle']][1], keypoints_in_world[mapping['Right Ankle']][2]
-                keypoints_in_world=set_zero_data(keypoints_in_world,x0_ankle,y0_ankle,z0_ankle)
-                # Scaling segments lengths 
-                human_model, _ = model_scaling(human_model, keypoints_in_world)
-                first_sample = False
+            if len(keypoints_list)!=2: #number of cams
+                pass
             else :
-                keypoints_in_world=set_zero_data(keypoints_in_world,x0_ankle,y0_ankle,z0_ankle)
+                p3d_frame = triangulate_points(keypoints_list, mtxs, dists, projections)
 
-            with open(csv_file_path, mode='a', newline='') as file:
-                csv_writer = csv.writer(file)
-                for jj in range(len(keypoint_names)):
-                    # Write to CSV
-                    csv_writer.writerow([frame_idx, formatted_timestamp,keypoint_names[jj], keypoints_in_world[jj][0], keypoints_in_world[jj][1], keypoints_in_world[jj][2]])
-            
-            dict_keypoints = formatting_keypoints(keypoints_in_world,keypoint_names)
+                # Subtract the translation vector (shifting the origin)
+                keypoints_shifted = p3d_frame - T1_global.T
 
-            ik_problem = RT_Quadprog(human_model, dict_keypoints, q, keys_to_track_list,dt,dict_dof_to_keypoints,False)
-            q = ik_problem.solve_ik_sample()      
+                # Apply the rotation matrix to align the points
+                keypoints_in_world = np.dot(keypoints_shifted,R1_global)
+                
+                if first_sample:
+                    x0_ankle, y0_ankle, z0_ankle = keypoints_in_world[mapping['Right Ankle']][0], keypoints_in_world[mapping['Right Ankle']][1], keypoints_in_world[mapping['Right Ankle']][2]
+                    keypoints_in_world=set_zero_data(keypoints_in_world,x0_ankle,y0_ankle,z0_ankle)
+                    # Scaling segments lengths 
+                    human_model, _ = model_scaling(human_model, keypoints_in_world)
+                    first_sample = False
+                else :
+                    keypoints_in_world=set_zero_data(keypoints_in_world,x0_ankle,y0_ankle,z0_ankle)
 
-            with open(csv2_file_path, mode='a', newline='') as file2:
-                csv2_writer = csv.writer(file2)
-                csv2_writer.writerow([frame_idx,formatted_timestamp,q[0],q[1],q[2],q[3],q[4]])
+                with open(csv_file_path, mode='a', newline='') as file:
+                    csv_writer = csv.writer(file)
+                    for jj in range(len(keypoint_names)):
+                        # Write to CSV
+                        csv_writer.writerow([frame_idx, formatted_timestamp,keypoint_names[jj], keypoints_in_world[jj][0], keypoints_in_world[jj][1], keypoints_in_world[jj][2]])
+                
+                dict_keypoints = formatting_keypoints(keypoints_in_world,keypoint_names)
 
-            # # Publish joint angles 
-            # joint_state_msg=JointState()
-            # joint_state_msg.header.stamp=rospy.Time.now()
-            # joint_state_msg.name = dof_names
-            # joint_state_msg.position = q.tolist()
-            # pub.publish(joint_state_msg)
+                ik_problem = RT_Quadprog(human_model, dict_keypoints, q, keys_to_track_list,dt,dict_dof_to_keypoints,False)
+                q = ik_problem.solve_ik_sample()      
+
+                with open(csv2_file_path, mode='a', newline='') as file2:
+                    csv2_writer = csv.writer(file2)
+                    csv2_writer.writerow([frame_idx,formatted_timestamp,q[0],q[1],q[2],q[3],q[4]])
+
+                # # Publish joint angles 
+                # joint_state_msg=JointState()
+                # joint_state_msg.header.stamp=rospy.Time.now()
+                # joint_state_msg.name = dof_names
+                # joint_state_msg.position = q.tolist()
+                # pub.publish(joint_state_msg)
 
     finally :
         # Stop the RealSense pipelines
