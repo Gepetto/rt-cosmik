@@ -29,6 +29,7 @@ def set_zero_data_df(df, x=None, y=None, z=None):
     df['X'] = df['X'] - x_ankle
     df['Y'] = df['Y'] - y_ankle
     df['Z'] = df['Z'] - z_ankle
+    return df
 
 def set_zero_data(keypoints, x, y, z):
     keypoints[:][0]-= x
