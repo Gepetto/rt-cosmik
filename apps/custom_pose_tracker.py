@@ -12,8 +12,8 @@ from mmdeploy_runtime import PoseTracker
 import time 
 import csv
 import pinocchio as pin
-# import rospy
-# from sensor_msgs.msg import JointState
+import rospy
+from sensor_msgs.msg import JointState
 from datetime import datetime
 
 from utils.read_write_utils import formatting_keypoints, set_zero_data
@@ -108,8 +108,8 @@ VISUALIZATION_CFG = dict(
         ]))
 
 # Initialize ROS node 
-# rospy.init_node('human_rt_ik', anonymous=True)
-# pub = rospy.Publisher('/human_RT_joint_angles', JointState, queue_size=10)
+rospy.init_node('human_rt_ik', anonymous=True)
+pub = rospy.Publisher('/human_RT_joint_angles', JointState, queue_size=10)
 
 csv_file_path = './output/keypoints_3d_positions.csv'
 csv2_file_path = './output/q.csv'
@@ -262,6 +262,8 @@ def main():
     height = 720
     resize=1280
 
+    kpt_thr = 0.7
+
     # Initialize RealSense pipelines
     pipelines = configure_realsense_pipeline(width,height)
 
@@ -333,8 +335,11 @@ def main():
                 keypoints = (keypoints[..., :2] * scale).astype(float)
                 bboxes *= scale
 
-                # print(keypoints)
-                if keypoints.size == 0:
+                # print("Keypoints are ", keypoints, keypoints.shape)
+                # print("Scores are ", scores, scores.shape)
+
+                # print(keypoints.flatten().shape)
+                if keypoints.size == 0 or keypoints.flatten().shape != (34,):
                     pass
                 else :
                     keypoints_list.append(keypoints.reshape((17,2)).flatten())
@@ -354,21 +359,21 @@ def main():
                 pass
             else :
                 p3d_frame = triangulate_points(keypoints_list, mtxs, dists, projections)
+                keypoints_in_world = p3d_frame
+                # # Subtract the translation vector (shifting the origin)
+                # keypoints_shifted = p3d_frame - T1_global.T
 
-                # Subtract the translation vector (shifting the origin)
-                keypoints_shifted = p3d_frame - T1_global.T
-
-                # Apply the rotation matrix to align the points
-                keypoints_in_world = np.dot(keypoints_shifted,R1_global)
+                # # Apply the rotation matrix to align the points
+                # keypoints_in_world = np.dot(keypoints_shifted,R1_global)
                 
-                if first_sample:
-                    x0_ankle, y0_ankle, z0_ankle = keypoints_in_world[mapping['Right Ankle']][0], keypoints_in_world[mapping['Right Ankle']][1], keypoints_in_world[mapping['Right Ankle']][2]
-                    keypoints_in_world=set_zero_data(keypoints_in_world,x0_ankle,y0_ankle,z0_ankle)
-                    # Scaling segments lengths 
-                    human_model, _ = model_scaling(human_model, keypoints_in_world)
-                    first_sample = False
-                else :
-                    keypoints_in_world=set_zero_data(keypoints_in_world,x0_ankle,y0_ankle,z0_ankle)
+                # if first_sample:
+                #     x0_ankle, y0_ankle, z0_ankle = keypoints_in_world[mapping['Right Ankle']][0], keypoints_in_world[mapping['Right Ankle']][1], keypoints_in_world[mapping['Right Ankle']][2]
+                #     keypoints_in_world=set_zero_data(keypoints_in_world,x0_ankle,y0_ankle,z0_ankle)
+                #     # Scaling segments lengths 
+                #     human_model, _ = model_scaling(human_model, keypoints_in_world)
+                #     first_sample = False
+                # else :
+                #     keypoints_in_world=set_zero_data(keypoints_in_world,x0_ankle,y0_ankle,z0_ankle)
 
                 with open(csv_file_path, mode='a', newline='') as file:
                     csv_writer = csv.writer(file)
@@ -386,11 +391,11 @@ def main():
                     csv2_writer.writerow([frame_idx,formatted_timestamp,q[0],q[1],q[2],q[3],q[4]])
 
                 # # Publish joint angles 
-                # joint_state_msg=JointState()
-                # joint_state_msg.header.stamp=rospy.Time.now()
-                # joint_state_msg.name = dof_names
-                # joint_state_msg.position = q.tolist()
-                # pub.publish(joint_state_msg)
+                joint_state_msg=JointState()
+                joint_state_msg.header.stamp=rospy.Time.now()
+                joint_state_msg.name = dof_names
+                joint_state_msg.position = q.tolist()
+                pub.publish(joint_state_msg)
 
                 # Press 'q' to exit the loop, 's' to start/stop saving
             key = cv2.waitKey(1) & 0xFF
