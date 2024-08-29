@@ -12,8 +12,8 @@ from mmdeploy_runtime import PoseTracker
 import time 
 import csv
 import pinocchio as pin
-# import rospy
-# from sensor_msgs.msg import JointState
+import rospy
+from sensor_msgs.msg import JointState
 from datetime import datetime
 
 from utils.read_write_utils import formatting_keypoints, set_zero_data
@@ -108,8 +108,8 @@ VISUALIZATION_CFG = dict(
         ]))
 
 # Initialize ROS node 
-# rospy.init_node('human_rt_ik', anonymous=True)
-# pub = rospy.Publisher('/human_RT_joint_angles', JointState, queue_size=10)
+rospy.init_node('human_rt_ik', anonymous=True)
+pub = rospy.Publisher('/human_RT_joint_angles', JointState, queue_size=10)
 
 csv_file_path = './output/keypoints_3d_positions.csv'
 csv2_file_path = './output/q.csv'
@@ -386,11 +386,11 @@ def main():
                     csv2_writer.writerow([frame_idx,formatted_timestamp,q[0],q[1],q[2],q[3],q[4]])
 
                 # # Publish joint angles 
-                # joint_state_msg=JointState()
-                # joint_state_msg.header.stamp=rospy.Time.now()
-                # joint_state_msg.name = dof_names
-                # joint_state_msg.position = q.tolist()
-                # pub.publish(joint_state_msg)
+                joint_state_msg=JointState()
+                joint_state_msg.header.stamp=rospy.Time.now()
+                joint_state_msg.name = dof_names
+                joint_state_msg.position = q.tolist()
+                pub.publish(joint_state_msg)
 
                 # Press 'q' to exit the loop, 's' to start/stop saving
             key = cv2.waitKey(1) & 0xFF
