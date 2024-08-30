@@ -373,10 +373,10 @@ def main():
             # Process each frame individually
             for idx, color_frame in enumerate(frames):
                 frame = np.asanyarray(color_frame.get_data())
-                # if idx == 0 : 
-                #     out_vid1.write(frame)
-                # elif idx == 1 : 
-                #     out_vid2.write(frame)
+                if idx == 0 : 
+                    out_vid1.write(frame)
+                elif idx == 1 : 
+                    out_vid2.write(frame)
 
                 results = tracker(state, frame, detect=-1)
                 scale = resize / max(frame.shape[0], frame.shape[1])
@@ -391,15 +391,15 @@ def main():
                 else :
                     keypoints_list.append(keypoints.reshape((17,2)).flatten())
 
-                if not visualize(
-                        frame,
-                        results,
-                        args.output_dir,
-                        idx,
-                        frame_idx + idx,
-                        out_vid[idx],
-                        skeleton_type=args.skeleton):
-                    break
+                # if not visualize(
+                #         frame,
+                #         results,
+                #         args.output_dir,
+                #         idx,
+                #         frame_idx + idx,
+                #         out_vid[idx],
+                #         skeleton_type=args.skeleton):
+                #     break
 
             
             if len(keypoints_list)!=2: #number of cams
@@ -413,15 +413,18 @@ def main():
 
                 # Apply the rotation matrix to align the points
                 keypoints_in_world = np.dot(keypoints_shifted,R1_global)
+
+                # Translate so that the right ankle is at 0 everytime
+                keypoints_in_world -= keypoints_in_world[mapping["Right Ankle"],:]
                 
                 publish_keypoints_as_marker_array(keypoints_in_world, marker_pub, keypoint_names)
                 
-                if first_sample:
+                # if first_sample:
                     # x0_ankle, y0_ankle, z0_ankle = T1_global[0], T1_global[1], T1_global[2]
                     # keypoints_in_world=set_zero_data(keypoints_in_world,x0_ankle,y0_ankle,z0_ankle)
                     # Scaling segments lengths 
-                    human_model, _ = model_scaling(human_model, keypoints_in_world)
-                    first_sample = False
+                    # human_model, _ = model_scaling(human_model, keypoints_in_world)
+                    # first_sample = False
                 # else :
                 #     keypoints_in_world=set_zero_data(keypoints_in_world,x0_ankle,y0_ankle,z0_ankle)
 
