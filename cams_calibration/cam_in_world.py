@@ -213,6 +213,7 @@ while True:
     cv2.imshow('Camera 2 Pose Estimation', frame_2)
 
     if cv2.waitKey(1) & 0xFF == ord('q'):
+        print("quit")
         break
 
 # Stop streaming

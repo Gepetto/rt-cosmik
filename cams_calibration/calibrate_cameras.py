@@ -146,12 +146,14 @@ try:
         cv2.imshow('RealSense', images_vstack)
         c = cv2.waitKey(10)
         if c == ord('s'):
+            print("image taken")
             cv2.imwrite("./cams_calibration/images_calib_cam_1/" + expe_no + "_" + trial_no + "/color/img_" + str(img_idx) + ".png", color_image_1)
             cv2.imwrite("./cams_calibration/images_calib_cam_2/" + expe_no + "_" + trial_no + "/color/img_" + str(img_idx) + ".png", color_image_2)
             cv2.imwrite("./cams_calibration/images_calib_cam_1/" + expe_no + "_" + trial_no + "/ir/img_" + str(img_idx) + ".png", ir_image_1)
             cv2.imwrite("./cams_calibration/images_calib_cam_2/" + expe_no + "_" + trial_no + "/ir/img_" + str(img_idx) + ".png", ir_image_2)
             img_idx = img_idx + 1
         if c == ord('q'):
+            print("quit")
             break
 
 finally:

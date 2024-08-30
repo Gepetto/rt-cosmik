@@ -6,6 +6,7 @@ import numpy as np
 from utils.viz_utils import place, Rquat
 from utils.calib_utils import load_cam_pose
 from utils.model_utils import Robot, model_scaling_df
+import matplotlib.pyplot as plt 
 
 # Loading human urdf
 human = Robot('models/human_urdf/urdf/human.urdf','models') 
@@ -79,14 +80,30 @@ q=pd.read_csv('output/q.csv').to_numpy()[:,-5:].astype(float)
 # # Update the DataFrame with the transformed points, replacing the old X, Y, Z values
 # data['X'], data['Y'], data['Z'] = keypoints_transformed[:, 0], keypoints_transformed[:, 1], keypoints_transformed[:, 2]
 
+hand_frame_tr = np.zeros((601,3))
+c=0
+
 for ii in range(1,data['Frame'].iloc[-1]+1): 
-    for name in keypoint_names:
-        # Filter the DataFrame for the specific frame and keypoint
-        keypoint_data = data[(data['Frame'] == ii) & (data['Keypoint'] == name)]
-        if not keypoint_data.empty:
-            M = pin.SE3(pin.SE3(Rquat(1, 0, 0, 0), np.matrix([keypoint_data.iloc[0]['X'],keypoint_data.iloc[0]['Y'],keypoint_data.iloc[0]['Z']]).T))
-            place(viz,'world/'+keypoint_data.iloc[0]['Keypoint'],M)
-    q_ii = q[ii,:]
-    viz.display(q_ii)
-    input()
-        
+    if 400 <= ii<= 1000: 
+        for name in keypoint_names:
+            # Filter the DataFrame for the specific frame and keypoint
+            keypoint_data = data[(data['Frame'] == ii) & (data['Keypoint'] == name)]
+            if not keypoint_data.empty:
+                M = pin.SE3(pin.SE3(Rquat(1, 0, 0, 0), np.matrix([keypoint_data.iloc[0]['X'],keypoint_data.iloc[0]['Y'],keypoint_data.iloc[0]['Z']]).T))
+                # place(viz,'world/'+keypoint_data.iloc[0]['Keypoint'],M)
+        q_ii = q[ii,:]
+        # viz.display(q_ii)
+        pin.forwardKinematics(human_model,human_data,q_ii)
+        pin.updateFramePlacements(human_model,human_data)
+        hand_frame_tr[c,:]=human_data.oMf[human_model.getFrameId('hand')].translation
+        c+=1
+
+fig, ax = plt.subplots(3,1)
+ax[0].plot(hand_frame_tr[:,0])
+ax[0].set_ylabel('x')
+ax[1].plot(hand_frame_tr[:,1])
+ax[1].set_ylabel('y')
+ax[2].plot(hand_frame_tr[:,2])
+ax[2].set_ylabel('z')
+plt.title('Hand translation')
+plt.show()
