@@ -449,12 +449,7 @@ def main():
                 joint_state_msg.name = dof_names
                 joint_state_msg.position = q.tolist()
                 pub.publish(joint_state_msg)
-
-                # Press 'q' to exit the loop, 's' to start/stop saving
-            key = cv2.waitKey(1) & 0xFF
-            if key == ord('q'):
-                break
-
+                
     finally :
         # Stop the RealSense pipelines
         for pipeline in pipelines:
