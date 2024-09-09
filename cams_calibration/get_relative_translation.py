@@ -209,7 +209,7 @@ def save_translation_to_yaml(translation_vector, filename):
     with open(filename, 'w') as file:
         yaml.dump(data, file)
 
-wand_local = np.array([-0.00004,0.262865,-0.000009])
+wand_local = np.array([[-0.00004],[0.262865],[-0.000009]])
 
 try : 
     while True:
@@ -242,15 +242,15 @@ try :
             tip_pos1=tvec_1 + transformation_matrix_1[:3, :3]@wand_local 
 
             # Project the 3D wand tip position to 2D image coordinates
-            image_points1, _ = cv2.projectPoints(tip_pos1, np.zeros((3, 1)), np.zeros((3, 1)), camera_matrix_1, dist_coeffs_1)
-            image_points1=image_points1[0][0]
+            image_points1, _ = cv2.projectPoints(tip_pos1, np.zeros(3,), np.zeros(3,), camera_matrix_1, dist_coeffs_1)
+            image_points1 = image_points1[0][0]
         
             # Draw the marker and its pose on the frame for Camera 1
             cv2.aruco.drawDetectedMarkers(frame_1, [corners_1])
             cv2.drawFrameAxes(frame_1, K1, D1, rvec_1, tvec_1, 0.1)
 
             # Draw the reprojected wand tip on the image
-            frame_1 = cv2.circle(frame_1, (int(image_points1[0]), int(image_points1[1])), 5, (255, 0, 0), -1)
+            frame_1 = cv2.circle(frame_1, (int(image_points1[0]), int(image_points1[1])), 5, (0, 0, 255), -1)
 
         if transformation_matrix_2 is not None:
             print("Camera 2 Pose (Transformation Matrix):")
@@ -259,7 +259,7 @@ try :
             tip_pos2=tvec_2 + transformation_matrix_2[:3, :3]@wand_local 
 
             # Project the 3D wand tip position to 2D image coordinates
-            image_points2, _ = cv2.projectPoints(tip_pos2, np.zeros((3, 1)), np.zeros((3, 1)), camera_matrix_2, dist_coeffs_2)
+            image_points2, _ = cv2.projectPoints(tip_pos2, np.zeros(3,), np.zeros(3,), camera_matrix_2, dist_coeffs_2)
             image_points2=image_points2[0][0]
         
             # Draw the marker and its pose on the frame for Camera 2
@@ -267,7 +267,7 @@ try :
             cv2.drawFrameAxes(frame_2, K2, D2, rvec_2, tvec_2, 0.1)
 
             # Draw the reprojected wand tip on the image
-            frame_2 = cv2.circle(frame_2, (int(image_points2[0]), int(image_points2[1])), 5, (255, 0, 0), -1)
+            frame_2 = cv2.circle(frame_2, (int(image_points2[0]), int(image_points2[1])), 5, (0, 0, 255), -1)
 
 
         # Display the frames for both cameras
