@@ -157,7 +157,7 @@ def get_relative_translation(images_folder,camera_matrix,dist_coeffs):
         im = cv2.imread(imname, 1)
         images.append(im)
     
-    wand_local = np.array([-0.00004,0.262865,-0.000009])
+    wand_local = np.array([[-0.00004],[0.262865],[-0.000009]])
     for ii, frame in enumerate(images):
         # Convert the frame to grayscale
         gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
