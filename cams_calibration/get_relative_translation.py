@@ -8,6 +8,7 @@ import yaml
 import sys
 import os
 import glob
+import pinocchio as pin 
 
 # Checking if at least two arguments are passed (including the script name)
 if len(sys.argv) > 2:
@@ -216,6 +217,7 @@ def save_translation_to_yaml(translation_vector, filename):
         yaml.dump(data, file)
 
 wand_local = np.array([[-0.00004],[0.262865],[-0.000009]])
+img_idx=0
 
 try : 
     while True:
@@ -230,8 +232,8 @@ try :
             continue
 
         # Pure image 
-        color_image_1 = np.asanyarray(color_frame_1.get_data())
-        color_image_2 = np.asanyarray(color_frame_2.get_data())
+        color_image_1 = np.copy(np.asanyarray(color_frame_1.get_data()))
+        color_image_2 = np.copy(np.asanyarray(color_frame_2.get_data()))
 
         # Convert images to numpy arrays
         frame_1 = np.asanyarray(color_frame_1.get_data())

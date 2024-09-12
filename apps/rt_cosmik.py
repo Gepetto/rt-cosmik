@@ -145,7 +145,7 @@ def visualize(frame,
         cv2.imwrite(f'{output_dir}/{str(frame_id).zfill(6)}.jpg', img)
     else:
         cv2.imshow('pose_tracker'+str(idx), img)
-        out_vid.write(img)
+        # out_vid.write(img)
         return cv2.waitKey(1) != 'q'
     return True
 
@@ -391,15 +391,15 @@ def main():
                 else :
                     keypoints_list.append(keypoints.reshape((17,2)).flatten())
 
-                # if not visualize(
-                #         frame,
-                #         results,
-                #         args.output_dir,
-                #         idx,
-                #         frame_idx + idx,
-                #         out_vid[idx],
-                #         skeleton_type=args.skeleton):
-                #     break
+                if not visualize(
+                        frame,
+                        results,
+                        args.output_dir,
+                        idx,
+                        frame_idx + idx,
+                        out_vid[idx],
+                        skeleton_type=args.skeleton):
+                    break
 
             
             if len(keypoints_list)!=2: #number of cams
@@ -418,7 +418,7 @@ def main():
                 keypoints_in_world -= keypoints_in_world[mapping["Right Ankle"],:]
                 
                 publish_keypoints_as_marker_array(keypoints_in_world, marker_pub, keypoint_names)
-                
+                print("markers published")
                 # if first_sample:
                     # x0_ankle, y0_ankle, z0_ankle = T1_global[0], T1_global[1], T1_global[2]
                     # keypoints_in_world=set_zero_data(keypoints_in_world,x0_ankle,y0_ankle,z0_ankle)
@@ -449,6 +449,7 @@ def main():
                 joint_state_msg.name = dof_names
                 joint_state_msg.position = q.tolist()
                 pub.publish(joint_state_msg)
+                print("kinematics published")
                 
     finally :
         # Stop the RealSense pipelines
