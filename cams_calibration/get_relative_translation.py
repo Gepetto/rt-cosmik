@@ -3,7 +3,7 @@
 import cv2
 import numpy as np
 import pyrealsense2 as rs
-from utils.calib_utils import load_cam_params
+from utils.calib_utils import load_cam_params, load_cam_pose
 import yaml
 import sys
 import os
@@ -105,6 +105,9 @@ marker_size = 0.176  # Marker size in meters (17.6 cm)
 K1, D1 = load_cam_params("./cams_calibration/cam_params/c1_params_color_test_test.yml")
 K2, D2 = load_cam_params("./cams_calibration/cam_params/c2_params_color_test_test.yml")
 
+R1_global, T1_global = load_cam_pose('cams_calibration/cam_params/camera1_pose_test_test.yml')
+R2_global, T2_global = load_cam_pose('cams_calibration/cam_params/camera2_pose_test_test.yml')
+
 # Camera intrinsic parameters (from your YAML file)
 camera_matrix_1 = K1
 camera_matrix_2 = K2
@@ -150,7 +153,7 @@ def get_aruco_pose(frame, camera_matrix, dist_coeffs):
     else:
         return None, None, None, None
     
-def get_relative_translation(images_folder,camera_matrix,dist_coeffs):
+def get_relative_translation(images_folder,camera_matrix,dist_coeffs, T_cam, R_cam):
     images_names = sorted(glob.glob(images_folder))
     images = []
     for imname in images_names:
@@ -186,9 +189,12 @@ def get_relative_translation(images_folder,camera_matrix,dist_coeffs):
             transformation_matrix[:3, :3] = rotation_matrix
             transformation_matrix[:3, 3] = t.flatten()
         if ii == 0:
-            ankle_pos = t+rotation_matrix@wand_local
+            ankle_pos_cam_frame = t+rotation_matrix@wand_local
         else : 
-            robot_pos = t+rotation_matrix@wand_local
+            robot_pos_cam_frame = t+rotation_matrix@wand_local
+
+    ankle_pos = R_cam@ankle_pos_cam_frame + T_cam
+    robot_pos = R_cam@robot_pos_cam_frame + T_cam
 
     relative_T = robot_pos - ankle_pos
     return relative_T
@@ -289,13 +295,13 @@ finally :
     cv2.destroyAllWindows()
 
 
-T_color1 = get_relative_translation(c1_color_imgs_path,K1,D1)
+T_color1 = get_relative_translation(c1_color_imgs_path,K1,D1,T1_global,R1_global)
 print("computed translation RGB cam 1 : ")
 print(T_color1)
 
 save_translation_to_yaml(T_color1, c1_color_params_path)
 
-T_color2 = get_relative_translation(c2_color_imgs_path,K2,D2)
+T_color2 = get_relative_translation(c2_color_imgs_path,K2,D2,T2_global,R2_global)
 print("computed translation RGB cam 2 : ")
 print(T_color2)
 
