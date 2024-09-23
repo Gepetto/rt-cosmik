@@ -160,7 +160,7 @@ class RT_Quadprog:
         rmse = self.calculate_RMSE_dicts(self._dict_m,self._dict_m_est)
 
         while rmse > self._threshold and nb_iter<self._max_iter:
-            # print(rmse)
+            # print(nb_iter)
             # Set QP matrices 
             P=np.zeros((self._nv,self._nv)) # Hessian matrix size nv \times nv
             q=np.zeros((self._nv,)) # Gradient vector size nv
