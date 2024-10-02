@@ -37,14 +37,45 @@ def parse_args():
     parser.add_argument('--output_dir', help='output directory', default=None)
     parser.add_argument(
         '--skeleton',
-        default='coco',
-        choices=['coco', 'coco_wholebody'],
+        default='body26',
+        choices=['coco', 'coco_wholebody','body26'],
         help='skeleton for keypoints')
 
     args = parser.parse_args()
     return args
 
 VISUALIZATION_CFG = dict(
+    body26=dict(
+        skeleton = [(0, 1), (0, 2), (1, 3), (2, 4), (3, 5), (4, 6), (1, 2), (5, 18),(6, 18), (17,18), # Head, shoulders, and neck connections
+                    (5, 7), (7, 9),                                                              # Right arm connections
+                    (6, 8), (8, 10),                                                             # Left arm connections
+                    (18, 19),                                                                    # Trunk connection
+                    (11, 13), (13, 15), (15, 20), (15, 22), (15, 24),                            # Left leg and foot connections
+                    (12, 14), (14, 16), (16, 21), (16, 23), (16, 25),                            # Right leg and foot connections
+                    (12, 19), (11, 19)],                                                         # Hip connection
+
+        # Updated palette
+        palette = [[51, 153, 255], [0, 255, 0], [255, 128, 0], [255, 255, 255],
+               [255, 153, 255], [102, 178, 255], [255, 51, 51]],
+    
+        # Updated link color
+        link_color = [
+            1, 1, 2, 2, 0, 0, 0, 0, 1, 2, 1, 2, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 2, 2,
+            2, 2, 2, 2, 2, 4, 4, 4, 4, 5, 5, 5, 5, 6, 6, 6, 6, 1, 1, 1, 1, 2, 2, 2,
+            2, 4, 4, 4, 4, 5, 5, 5, 5, 6, 6, 6, 6, 1, 1, 1, 1
+        ],
+
+        # Updated point color
+        point_color = [
+            0, 0, 0, 0, 0, 1, 2, 1, 2, 1, 2, 1, 2, 1, 2, 1, 2, 2, 2, 2, 2, 2, 2, 3,
+            3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3,
+            3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3,
+            3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 2, 2, 2, 2, 4, 4, 4, 4,
+            5, 5, 5, 5, 6, 6, 6, 6, 1, 1, 1, 1, 3, 2, 2, 2, 2, 4, 4, 4, 4, 5, 5, 5,
+            5, 6, 6, 6, 6, 1, 1, 1, 1
+        ],
+        sigmas = [0.026] * 26
+    ),
     coco=dict(
         skeleton=[(15, 13), (13, 11), (16, 14), (14, 12), (11, 12), (5, 11),
                   (6, 12), (5, 6), (5, 7), (6, 8), (7, 9), (8, 10), (1, 2),
