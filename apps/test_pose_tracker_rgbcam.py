@@ -188,8 +188,8 @@ def main():
     captures = [cv2.VideoCapture(idx) for idx in camera_indices]
     
     for cap in captures: 
-        cap.set(cv2.CAP_PROP_FRAME_WIDTH, 1080)  # UHD
-        cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 720)  # UHD
+        cap.set(cv2.CAP_PROP_FRAME_WIDTH, width)  # HD
+        cap.set(cv2.CAP_PROP_FRAME_HEIGHT, height)  # HD
         cap.set(cv2.CAP_PROP_FPS, 40)  # Set frame rate to 40fps
 
     
