@@ -228,5 +228,5 @@ def augmentTRC(keypoints_buffer, subject_mass, subject_height,
     # df.to_csv("responses_all_conc_rt.csv", mode='a',header= False, index=False)
 
     
-    return outputs_all
+    return responses_all_conc
 
