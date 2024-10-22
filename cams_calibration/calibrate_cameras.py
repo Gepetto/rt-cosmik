@@ -37,7 +37,7 @@ for index in range(max_cameras):
         cap.release()  # Release the camera after checking
 
 camera_indices = available_cameras
-print(camera_indices)
+# print(camera_indices)
 # if no webcam
 # captures = [cv2.VideoCapture(idx) for idx in camera_indices]
 
@@ -56,18 +56,10 @@ for i, cap in enumerate(captures):
         print(f"Error: Camera {i} not opened.")
 
 # Use os.makedirs() to create your directory; exist_ok=True means it won't throw an error if the directory already exists
-print(parent_directory)
-print(os.path.join(parent_directory,"cams_calibration/images_calib_cam_1/" + expe_no + "_" + trial_no + "/color"))
 os.makedirs(os.path.join(parent_directory,"cams_calibration/images_calib_cam_1/" + expe_no + "_" + trial_no + "/color"), exist_ok=True)
 os.makedirs(os.path.join(parent_directory,"cams_calibration/images_calib_cam_2/" + expe_no + "_" + trial_no + "/color"), exist_ok=True)
 os.makedirs(os.path.join(parent_directory,"cams_calibration/images_calib_cam_1/" + expe_no + "_" + trial_no + "/ir"), exist_ok=True)
 os.makedirs(os.path.join(parent_directory,"cams_calibration/images_calib_cam_2/" + expe_no + "_" + trial_no + "/ir"), exist_ok=True)
-
-c1_ir_imgs_path = os.path.join(parent_directory,"cams_calibration/images_calib_cam_1/" + expe_no + "_" + trial_no + "/ir/*")
-c2_ir_imgs_path = os.path.join(parent_directory,"cams_calibration/images_calib_cam_2/" + expe_no + "_" + trial_no + "/ir/*")
-c1_ir_params_path = os.path.join(parent_directory,"cams_calibration/cam_params/c1_params_ir_" + expe_no + "_" + trial_no + ".yml")
-c2_ir_params_path = os.path.join(parent_directory,"cams_calibration/cam_params/c2_params_ir_" + expe_no + "_" + trial_no + ".yml")
-c1_to_c2_ir_params_path = os.path.join(parent_directory,"cams_calibration/cam_params/c1_to_c2_params_ir_" + expe_no + "_" + trial_no + ".yml")
 
 c1_color_imgs_path = os.path.join(parent_directory,"cams_calibration/images_calib_cam_1/" + expe_no + "_" + trial_no + "/color/*")
 c2_color_imgs_path = os.path.join(parent_directory,"cams_calibration/images_calib_cam_2/" + expe_no + "_" + trial_no + "/color/*")
@@ -118,7 +110,6 @@ save_cam_params(mtx2_color, dist2_color, reproj2_color, c2_color_params_path)
 print("rmse cam1 RGB = ", reproj1_color)
 print("rmse cam2 RGB = ", reproj2_color)
 cv2.destroyAllWindows()
-
 
 mtx_1_color, dist_1_color = load_cam_params(c1_color_params_path)
 mtx_2_color, dist_2_color = load_cam_params(c2_color_params_path)
