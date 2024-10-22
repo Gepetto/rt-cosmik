@@ -1,5 +1,5 @@
 # To run the code : python3 apps/rt_cosmik_rgbcams.py cuda /root/workspace/mmdeploy/rtmpose-trt/rtmdet-nano /root/workspace/mmdeploy/rtmpose-trt/rtmpose-m
-# or python3 -m apps.trt_cosmik_rgbcams cuda /root/workspace/mmdeploy/rtmpose-trt/rtmdet-nano /root/workspace/mmdeploy/rtmpose-trt/rtmpose-m
+# or python3 -m apps.rt_cosmik_rgbcams cuda /root/workspace/mmdeploy/rtmpose-trt/rtmdet-nano /root/workspace/mmdeploy/rtmpose-trt/rtmpose-m
 
 import argparse
 import os
@@ -13,8 +13,17 @@ from collections import deque
 from utils.lstm_v2 import augmentTRC, loadModel
 from datetime import datetime
 
+# don't forget to source dependancies
+import rospy
+from sensor_msgs.msg import JointState
+from visualization_msgs.msg import Marker, MarkerArray
+from geometry_msgs.msg import Point
+
+from utils.read_write_utils import formatting_keypoints, set_zero_data
+from utils.model_utils import Robot, model_scaling
 from utils.calib_utils import load_cam_params, load_cam_to_cam_params, load_cam_pose
 from utils.triangulation_utils import triangulate_points
+from utils.ik_utils import RT_Quadprog
 
 # Get the directory where the script is located
 script_directory = os.path.dirname(os.path.abspath(__file__))
@@ -24,7 +33,7 @@ parent_directory = os.path.dirname(script_directory)
 augmenter_path = os.path.join(parent_directory, 'augmentation_model')
 
 keypoints_buffer = deque(maxlen=2)
-warmed_models= loadModel( augmenterDir=augmenter_path, augmenterModelName="LSTM",augmenter_model='v0.3')
+warmed_models= loadModel(augmenterDir=augmenter_path, augmenterModelName="LSTM",augmenter_model='v0.3')
 
 
 def parse_args():
@@ -227,7 +236,7 @@ def publish_keypoints_as_marker_array(keypoints, marker_pub, keypoint_names, fra
         # Set color based on index 
         color_info = palette[keypoints_color[i]]
 
-        if i < len(link_color):
+        if i < len(keypoints_color):
             marker.color.r = color_info[0]
             marker.color.g = color_info[1]
             marker.color.b = color_info[2]
@@ -329,20 +338,21 @@ def main():
     keypoints_pub = rospy.Publisher('/pose_keypoints', MarkerArray, queue_size=10)
     # augmented_markers_pub = rospy.Publisher('/markers_pose', MarkerArray, queue_size=10)
 
-    width = 1920
-    height = 1080
+    width = 1280
+    height = 720
     resize=1280
 
     # kpt_thr = 0.7
 
     # Initialize cams stream
     camera_indices = list_available_cameras()
+    print(camera_indices)
 
     # if no webcam
     # captures = [cv2.VideoCapture(idx) for idx in camera_indices]
 
     # if webcam remove it 
-    captures = [cv2.VideoCapture(idx) for idx in camera_indices if idx !=0]
+    captures = [cv2.VideoCapture(idx) for idx in camera_indices if idx !=4]
     
     width_vids = []
     height_vids = []
@@ -397,7 +407,7 @@ def main():
         os.makedirs(args.output_dir, exist_ok=True)
 
     try : 
-        while True:
+        while not rospy.is_shutdown():
             timestamp=datetime.now()
             formatted_timestamp = timestamp.strftime("%Y-%m-%d %H:%M:%S.%f ")
             
@@ -445,20 +455,20 @@ def main():
                         skeleton_type=args.skeleton):
                     break
 
-            # if len(keypoints_list)!=2: #number of cams
-            #     pass
-            # else :
-            #     p3d_frame = triangulate_points(keypoints_list, mtxs, dists, projections)
-            #     keypoints_in_world = p3d_frame
-            #     # Subtract the translation vector (shifting the origin)
-            #     keypoints_shifted = p3d_frame - T1_global.T
+            if len(keypoints_list)!=2: #number of cams
+                pass
+            else :
+                p3d_frame = triangulate_points(keypoints_list, mtxs, dists, projections)
+                keypoints_in_world = p3d_frame
+                # Subtract the translation vector (shifting the origin)
+                keypoints_shifted = p3d_frame - T1_global.T
 
-            #     # Apply the rotation matrix to align the points
-            #     keypoints_in_world = np.dot(keypoints_shifted,R1_global)
-            #     print("keypoints_in_world_triangulated", keypoints_in_world)
+                # Apply the rotation matrix to align the points
+                keypoints_in_world = np.dot(keypoints_shifted,R1_global)
+                print("keypoints_in_world_triangulated", keypoints_in_world)
                 
-            #     publish_keypoints_as_marker_array(keypoints_in_world, keypoints_pub, keypoint_names)
-            #     print("markers published")
+                publish_keypoints_as_marker_array(keypoints_in_world, keypoints_pub, keypoint_names)
+                print("markers published")
 
             #     # Translate so that the right ankle is at 0 everytime
             #     #keypoints_in_world -= keypoints_in_world[mapping["Right Ankle"],:]
