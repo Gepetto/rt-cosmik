@@ -25,8 +25,8 @@ else:
 expe_no = str(arg1)
 trial_no = str(arg2)
 
-width = 1920
-height = 1080
+width = 1080
+height = 720
 
 max_cameras = 10
 available_cameras = []
@@ -37,12 +37,12 @@ for index in range(max_cameras):
         cap.release()  # Release the camera after checking
 
 camera_indices = available_cameras
-
+print(camera_indices)
 # if no webcam
 # captures = [cv2.VideoCapture(idx) for idx in camera_indices]
 
 # if webcam remove it 
-captures = [cv2.VideoCapture(idx) for idx in camera_indices if idx !=0]
+captures = [cv2.VideoCapture(idx) for idx in camera_indices if idx !=4]
 
 for cap in captures: 
     cap.set(cv2.CAP_PROP_FRAME_WIDTH, width)  # HD
@@ -54,25 +54,26 @@ for cap in captures:
 for i, cap in enumerate(captures):
     if not cap.isOpened():
         print(f"Error: Camera {i} not opened.")
-        return
 
 # Use os.makedirs() to create your directory; exist_ok=True means it won't throw an error if the directory already exists
-os.makedirs(os.path.join(parent_directory,"/cams_calibration/images_calib_cam_1/" + expe_no + "_" + trial_no + "/color"), exist_ok=True)
-os.makedirs(os.path.join(parent_directory,"/cams_calibration/images_calib_cam_2/" + expe_no + "_" + trial_no + "/color"), exist_ok=True)
-os.makedirs(os.path.join(parent_directory,"/cams_calibration/images_calib_cam_1/" + expe_no + "_" + trial_no + "/ir"), exist_ok=True)
-os.makedirs(os.path.join(parent_directory,"/cams_calibration/images_calib_cam_2/" + expe_no + "_" + trial_no + "/ir"), exist_ok=True)
+print(parent_directory)
+print(os.path.join(parent_directory,"cams_calibration/images_calib_cam_1/" + expe_no + "_" + trial_no + "/color"))
+os.makedirs(os.path.join(parent_directory,"cams_calibration/images_calib_cam_1/" + expe_no + "_" + trial_no + "/color"), exist_ok=True)
+os.makedirs(os.path.join(parent_directory,"cams_calibration/images_calib_cam_2/" + expe_no + "_" + trial_no + "/color"), exist_ok=True)
+os.makedirs(os.path.join(parent_directory,"cams_calibration/images_calib_cam_1/" + expe_no + "_" + trial_no + "/ir"), exist_ok=True)
+os.makedirs(os.path.join(parent_directory,"cams_calibration/images_calib_cam_2/" + expe_no + "_" + trial_no + "/ir"), exist_ok=True)
 
-c1_ir_imgs_path = os.path.join(parent_directory,"/cams_calibration/images_calib_cam_1/" + expe_no + "_" + trial_no + "/ir/*")
-c2_ir_imgs_path = os.path.join(parent_directory,"/cams_calibration/images_calib_cam_2/" + expe_no + "_" + trial_no + "/ir/*")
-c1_ir_params_path = os.path.join(parent_directory,"/cams_calibration/cam_params/c1_params_ir_" + expe_no + "_" + trial_no + ".yml")
-c2_ir_params_path = os.path.join(parent_directory,"/cams_calibration/cam_params/c2_params_ir_" + expe_no + "_" + trial_no + ".yml")
-c1_to_c2_ir_params_path = os.path.join(parent_directory,"/cams_calibration/cam_params/c1_to_c2_params_ir_" + expe_no + "_" + trial_no + ".yml")
+c1_ir_imgs_path = os.path.join(parent_directory,"cams_calibration/images_calib_cam_1/" + expe_no + "_" + trial_no + "/ir/*")
+c2_ir_imgs_path = os.path.join(parent_directory,"cams_calibration/images_calib_cam_2/" + expe_no + "_" + trial_no + "/ir/*")
+c1_ir_params_path = os.path.join(parent_directory,"cams_calibration/cam_params/c1_params_ir_" + expe_no + "_" + trial_no + ".yml")
+c2_ir_params_path = os.path.join(parent_directory,"cams_calibration/cam_params/c2_params_ir_" + expe_no + "_" + trial_no + ".yml")
+c1_to_c2_ir_params_path = os.path.join(parent_directory,"cams_calibration/cam_params/c1_to_c2_params_ir_" + expe_no + "_" + trial_no + ".yml")
 
-c1_color_imgs_path = os.path.join(parent_directory,"/cams_calibration/images_calib_cam_1/" + expe_no + "_" + trial_no + "/color/*")
-c2_color_imgs_path = os.path.join(parent_directory,"/cams_calibration/images_calib_cam_2/" + expe_no + "_" + trial_no + "/color/*")
-c1_color_params_path = os.path.join(parent_directory,"/cams_calibration/cam_params/c1_params_color_" + expe_no + "_" + trial_no + ".yml")
-c2_color_params_path = os.path.join(parent_directory,"/cams_calibration/cam_params/c2_params_color_" + expe_no + "_" + trial_no + ".yml")
-c1_to_c2_color_params_path = os.path.join(parent_directory,"/cams_calibration/cam_params/c1_to_c2_params_color_" + expe_no + "_" + trial_no + ".yml")
+c1_color_imgs_path = os.path.join(parent_directory,"cams_calibration/images_calib_cam_1/" + expe_no + "_" + trial_no + "/color/*")
+c2_color_imgs_path = os.path.join(parent_directory,"cams_calibration/images_calib_cam_2/" + expe_no + "_" + trial_no + "/color/*")
+c1_color_params_path = os.path.join(parent_directory,"cams_calibration/cam_params/c1_params_color_" + expe_no + "_" + trial_no + ".yml")
+c2_color_params_path = os.path.join(parent_directory,"cams_calibration/cam_params/c2_params_color_" + expe_no + "_" + trial_no + ".yml")
+c1_to_c2_color_params_path = os.path.join(parent_directory,"cams_calibration/cam_params/c1_to_c2_params_color_" + expe_no + "_" + trial_no + ".yml")
 
 img_idx = 0
 try:
@@ -93,14 +94,12 @@ try:
         
         # Show images
         cv2.namedWindow('RGB cams', cv2.WINDOW_AUTOSIZE)
-        cv2.imshow('RGB cams', images_vstack)
+        cv2.imshow('RGB cams', images_hstack_1)
         c = cv2.waitKey(10)
         if c == ord('s'):
             print("image taken")
-            cv2.imwrite(os.path.join(parent_directory,"/cams_calibration/images_calib_cam_1/" + expe_no + "_" + trial_no + "/color/img_" + str(img_idx) + ".png", color_image_1))
-            cv2.imwrite(os.path.join(parent_directory,"/cams_calibration/images_calib_cam_2/" + expe_no + "_" + trial_no + "/color/img_" + str(img_idx) + ".png", color_image_2))
-            cv2.imwrite(os.path.join(parent_directory,"/cams_calibration/images_calib_cam_1/" + expe_no + "_" + trial_no + "/ir/img_" + str(img_idx) + ".png", ir_image_1))
-            cv2.imwrite(os.path.join(parent_directory,"/cams_calibration/images_calib_cam_2/" + expe_no + "_" + trial_no + "/ir/img_" + str(img_idx) + ".png", ir_image_2))
+            cv2.imwrite(os.path.join(parent_directory,"cams_calibration/images_calib_cam_1/" + expe_no + "_" + trial_no + "/color/img_" + str(img_idx) + ".png"), color_image_1)
+            cv2.imwrite(os.path.join(parent_directory,"cams_calibration/images_calib_cam_2/" + expe_no + "_" + trial_no + "/color/img_" + str(img_idx) + ".png"), color_image_2)
             img_idx = img_idx + 1
         if c == ord('q'):
             print("quit")

@@ -56,14 +56,13 @@ for cap in captures:
 for i, cap in enumerate(captures):
     if not cap.isOpened():
         print(f"Error: Camera {i} not opened.")
-        return
 
 # Define the ArUco dictionary and marker size
 aruco_dict = cv2.aruco.getPredefinedDictionary(cv2.aruco.DICT_4X4_50)
 marker_size = 0.176  # Marker size in meters (17.6 cm)
 
-K1, D1 = load_cam_params(os.path.join(parent_directory,"/cams_calibration/cam_params/c1_params_color_test_test.yml"))
-K2, D2 = load_cam_params(os.path.join(parent_directory,"/cams_calibration/cam_params/c2_params_color_test_test.yml"))
+K1, D1 = load_cam_params(os.path.join(parent_directory,"cams_calibration/cam_params/c1_params_color_test_test.yml"))
+K2, D2 = load_cam_params(os.path.join(parent_directory,"cams_calibration/cam_params/c2_params_color_test_test.yml"))
 
 # Camera intrinsic parameters (from your YAML file)
 camera_matrix_1 = K1
@@ -160,7 +159,7 @@ while True:
 
         if not(saved_1):
             # Save the rotation matrix and translation vector to a YAML file for Camera 1
-            save_pose_to_yaml(transformation_matrix_1[:3, :3], transformation_matrix_1[:3, 3], f'./cams_calibration/cam_params/camera1_pose_{expe_no}_{trial_no}.yml')
+            save_pose_to_yaml(transformation_matrix_1[:3, :3], transformation_matrix_1[:3, 3], os.path.join(parent_directory,f'cams_calibration/cam_params/camera1_pose_{expe_no}_{trial_no}.yml'))
             saved_1 = True  # Ensure we save only once for Camera 1
 
     if transformation_matrix_2 is not None:
@@ -173,7 +172,7 @@ while True:
 
         if not(saved_2):
             # Save the rotation matrix and translation vector to a YAML file for Camera 2
-            save_pose_to_yaml(transformation_matrix_2[:3, :3], transformation_matrix_2[:3, 3], f'./cams_calibration/cam_params/camera2_pose_{expe_no}_{trial_no}.yml')
+            save_pose_to_yaml(transformation_matrix_2[:3, :3], transformation_matrix_2[:3, 3], os.path.join(parent_directory,f'./cams_calibration/cam_params/camera2_pose_{expe_no}_{trial_no}.yml'))
             saved_2 = True  # Ensure we save only once for Camera 2
 
     # Display the frames for both cameras
