@@ -175,8 +175,8 @@ def main():
     args = parse_args()
     np.set_printoptions(precision=4, suppress=True)
 
-    width = 1920
-    height = 1080
+    width = 1280
+    height = 720
     resize=1280
 
     # kpt_thr = 0.7
@@ -188,7 +188,7 @@ def main():
     # captures = [cv2.VideoCapture(idx) for idx in camera_indices]
 
     # if webcam remove it 
-    captures = [cv2.VideoCapture(idx) for idx in camera_indices if idx !=0]
+    captures = [cv2.VideoCapture(idx) for idx in camera_indices if idx !=4]
     
     for cap in captures: 
         cap.set(cv2.CAP_PROP_FRAME_WIDTH, width)  # HD
