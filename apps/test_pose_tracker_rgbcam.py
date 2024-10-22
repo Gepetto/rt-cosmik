@@ -1,5 +1,3 @@
-# Copyright (c) OpenMMLab. All rights reserved.
-
 # To run the code : python3 apps/test_pose_tracker_rgbcam.py cuda /root/workspace/mmdeploy/rtmpose-trt/rtmdet-nano /root/workspace/mmdeploy/rtmpose-trt/rtmpose-m
 # or python3 -m apps.test_pose_tracker_rgbcam cuda /root/workspace/mmdeploy/rtmpose-trt/rtmdet-nano /root/workspace/mmdeploy/rtmpose-trt/rtmpose-m
 
@@ -179,7 +177,7 @@ def main():
 
     width = 1920
     height = 1080
-    resize=1920
+    resize=1280
 
     # kpt_thr = 0.7
 
