@@ -27,8 +27,8 @@ else:
 expe_no = str(arg1)
 trial_no = str(arg2)
 
-width = 1920
-height = 1080
+width = 1280
+height = 720
 
 max_cameras = 10
 available_cameras = []
@@ -44,7 +44,7 @@ camera_indices = available_cameras
 # captures = [cv2.VideoCapture(idx) for idx in camera_indices]
 
 # if webcam remove it 
-captures = [cv2.VideoCapture(idx) for idx in camera_indices if idx !=0]
+captures = [cv2.VideoCapture(idx) for idx in camera_indices if idx !=4]
 
 for cap in captures: 
     cap.set(cv2.CAP_PROP_FRAME_WIDTH, width)  # HD

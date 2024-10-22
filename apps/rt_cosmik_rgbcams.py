@@ -213,7 +213,7 @@ def publish_keypoints_as_marker_array(keypoints, marker_pub, keypoint_names, fra
     marker_template.color.a = 1.0  # Fully opaque
     
     palette = [[51, 153, 255], [0, 255, 0], [255, 128, 0], [255, 255, 255],
-               [255, 153, 255], [102, 178, 255], [255, 51, 51]],
+               [255, 153, 255], [102, 178, 255], [255, 51, 51]]
     
     keypoints_color=[
             0, 0, 0, 0, 0, 1, 2, 1, 2, 
@@ -237,9 +237,9 @@ def publish_keypoints_as_marker_array(keypoints, marker_pub, keypoint_names, fra
         color_info = palette[keypoints_color[i]]
 
         if i < len(keypoints_color):
-            marker.color.r = color_info[0]
-            marker.color.g = color_info[1]
-            marker.color.b = color_info[2]
+            marker.color.r = color_info[0]/255
+            marker.color.g = color_info[1]/255
+            marker.color.b = color_info[2]/255
         else:
             marker.color.r = 1.0  # Fallback color
             marker.color.g = 0.0
@@ -251,6 +251,42 @@ def publish_keypoints_as_marker_array(keypoints, marker_pub, keypoint_names, fra
 
     marker_pub.publish(marker_array)
 
+def publish_augmented_markers(keypoints, marker_pub, keypoint_names, frame_id="world"):
+    marker_array = MarkerArray()
+    marker_template = Marker()
+    marker_template.header.frame_id = frame_id
+    marker_template.header.stamp = rospy.Time.now()
+    marker_template.ns = "markers"
+    marker_template.type = Marker.SPHERE
+    marker_template.action = Marker.ADD
+    marker_template.scale.x = 0.05  # Adjust size as needed
+    marker_template.scale.y = 0.05
+    marker_template.scale.z = 0.05
+    marker_template.color.a = 1.0  # Fully opaque
+    marker_template.color.r = 0.0  # Fallback color
+    marker_template.color.g = 0.0
+    marker_template.color.b = 1.0
+
+    for i, keypoint in enumerate(keypoints):
+        marker = Marker()
+        # Copy attributes from the template to the new marker
+        marker.header = marker_template.header
+        marker.ns = marker_template.ns
+        marker.type = marker_template.type
+        marker.action = marker_template.action
+        marker.scale = marker_template.scale
+        marker.color.a = marker_template.color.a
+        marker.color.r = marker_template.color.r
+        marker.color.g = marker_template.color.g
+        marker.color.b = marker_template.color.b
+        marker.id = i
+        marker.text = keypoint_names[i] if i < len(keypoint_names) else f"marker_{i}"
+
+        # Set position of the keypoint
+        marker.pose.position = Point(x=keypoint[0], y=keypoint[1], z=keypoint[2])
+        marker_array.markers.append(marker)
+
+    marker_pub.publish(marker_array)
 
 def main():
     args = parse_args()
@@ -313,6 +349,16 @@ def main():
         "Left Knee", "Right Knee", "Left Ankle", "Right Ankle", "Head",
         "Neck", "Hip", "LBigToe", "RBigToe", "LSmallToe", "RSmallToe", "LHeel", "RHeel"]
 
+    marker_names = ['r.ASIS_study','L.ASIS_study','r.PSIS_study','L.PSIS_study','r_knee_study',
+           'r_mknee_study','r_ankle_study','r_mankle_study','r_toe_study','r_5meta_study',
+           'r_calc_study','L_knee_study','L_mknee_study','L_ankle_study','L_mankle_study',
+           'L_toe_study','L_calc_study','L_5meta_study','r_shoulder_study','L_shoulder_study',
+           'C7_study','r_thigh1_study','r_thigh2_study','r_thigh3_study','L_thigh1_study',
+           'L_thigh2_study','L_thigh3_study','r_sh1_study','r_sh2_study','r_sh3_study',
+           'L_sh1_study','L_sh2_study','L_sh3_study','RHJC_study','LHJC_study','r_lelbow_study',
+           'r_melbow_study','r_lwrist_study','r_mwrist_study','L_lelbow_study','L_melbow_study',
+           'L_lwrist_study','L_mwrist_study']
+
     mapping = dict(zip(keypoint_names,[i for i in range(len(keypoint_names))]))
 
     # Initialize CSV files
@@ -336,7 +382,7 @@ def main():
     
     # pub = rospy.Publisher('/human_RT_joint_angles', JointState, queue_size=10)
     keypoints_pub = rospy.Publisher('/pose_keypoints', MarkerArray, queue_size=10)
-    # augmented_markers_pub = rospy.Publisher('/markers_pose', MarkerArray, queue_size=10)
+    augmented_markers_pub = rospy.Publisher('/markers_pose', MarkerArray, queue_size=10)
 
     width = 1280
     height = 720
@@ -442,10 +488,8 @@ def main():
                     print('i')
                     
                 else :
-                    #print("ok", keypoints)
                     keypoints_list.append(keypoints.reshape((26,2)).flatten())
-                    #print("keypoints_list", keypoints_list)
-
+                    
                 if not visualize(
                         frame,
                         results,
@@ -465,11 +509,9 @@ def main():
 
                 # Apply the rotation matrix to align the points
                 keypoints_in_world = np.dot(keypoints_shifted,R1_global)
-                print("keypoints_in_world_triangulated", keypoints_in_world)
                 
                 publish_keypoints_as_marker_array(keypoints_in_world, keypoints_pub, keypoint_names)
-                print("markers published")
-
+                
             #     # Translate so that the right ankle is at 0 everytime
             #     #keypoints_in_world -= keypoints_in_world[mapping["Right Ankle"],:]
             #     flattened_keypoints = keypoints_in_world.flatten()
@@ -482,22 +524,29 @@ def main():
             #         for jj in range(len(keypoint_names)):
             #             # Write to CSV
             #             csv_writer.writerow([frame_idx, formatted_timestamp,keypoint_names[jj], keypoints_in_world[jj][0], keypoints_in_world[jj][1], keypoints_in_world[jj][2]])
+                if first_sample:
+                    for k in range(30):
+                        keypoints_buffer.append(keypoints_in_world)  #add the 1st frame 30 times
+                    first_sample = False  #put the flag to false 
+                else:
+                    keypoints_buffer.append(keypoints_in_world) #add the keyponts to the buffer normally 
+                
+                if len(keypoints_buffer) == 30:
+                    print("lstm")
 
-            #     keypoints_buffer.append(keypoints_in_world)
-            #     print("keypoints_buffer", keypoints_buffer)
-            #     if len(keypoints_buffer) == 2:
-            #         print("lstm")
-
-            #         keypoints_buffer_array = np.array(keypoints_buffer)
-            #         print("keypoints_buffer_array", keypoints_buffer_array)
-            #         # print("keypoints_buffer_array", keypoints_buffer_array)
+                    keypoints_buffer_array = np.array(keypoints_buffer)
+                    print("keypoints_buffer_array", keypoints_buffer_array)
+                    # print("keypoints_buffer_array", keypoints_buffer_array)
                     
-            #         #call augmentTrc
-            #         augmented_markers = augmentTRC(keypoints_buffer_array, subject_mass=subject_mass, subject_height=subject_height, models = warmed_models,
-            #                    augmenterDir=os.path.join(parent_directory,"/augmentation_model")
-            #                    ,augmenter_model='v0.3', offset=True)
+                    #call augmentTrc
+                    augmented_markers = augmentTRC(keypoints_buffer_array, subject_mass=subject_mass, subject_height=subject_height, models = warmed_models,
+                               augmenterDir=os.path.join(parent_directory,"/augmentation_model")
+                               ,augmenter_model='v0.3', offset=True)
 
-            #         print(augmented_markers)
+                    print(augmented_markers)
+
+                    publish_augmented_markers(augmented_markers, augmented_markers_pub, marker_names)
+                
 
                 
             if cv2.waitKey(1) & 0xFF == ord('q'):

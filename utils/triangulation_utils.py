@@ -29,7 +29,7 @@ def triangulate_points(keypoints_list, mtxs, dists, projections):
         points_undistorted = cv2.undistortPoints(np.array(points).reshape(-1, 1, 2), mtxs[ii], distCoeffs_mat)
         undistorted_points.append(points_undistorted)
 
-    for point_idx in range(17):
+    for point_idx in range(26):
         points_per_point = [undistorted_points[i][point_idx] for i in range(len(undistorted_points))]
         _p3d = DLT_adaptive(projections, points_per_point)
         p3ds_frame.append(_p3d)
