@@ -1,9 +1,7 @@
 import numpy as np
 import copy
-import tensorflow as tf
 import json
 import os
-import tensorflow as tflow
 import time
 import numpy as np
 import onnxruntime as ort
@@ -36,7 +34,7 @@ def loadModel(augmenterDir, augmenterModelName="LSTM",augmenter_model='v0.3', of
     models = {}
      # Augmenter types
     if augmenter_model == 'v0.0':
-        from utils import getOpenPoseMarkers_fullBody
+        from utils.lstm_utils import getOpenPoseMarkers_fullBody
         feature_markers_full, response_markers_full = getOpenPoseMarkers_fullBody()         
         augmenterModelType_all = [augmenter_model]
         feature_markers_all = [feature_markers_full]
@@ -44,11 +42,11 @@ def loadModel(augmenterDir, augmenterModelName="LSTM",augmenter_model='v0.3', of
     elif augmenter_model == 'v0.1' or augmenter_model == 'v0.2':
         # Lower body           
         augmenterModelType_lower = '{}_lower'.format(augmenter_model)
-        from utils import getOpenPoseMarkers_lowerExtremity
+        from utils.lstm_utils import getOpenPoseMarkers_lowerExtremity
         feature_markers_lower, response_markers_lower = getOpenPoseMarkers_lowerExtremity()
         # Upper body
         augmenterModelType_upper = '{}_upper'.format(augmenter_model)
-        from utils import getMarkers_upperExtremity_noPelvis
+        from utils.lstm_utils import getMarkers_upperExtremity_noPelvis
         feature_markers_upper, response_markers_upper = getMarkers_upperExtremity_noPelvis()        
         augmenterModelType_all = [augmenterModelType_lower, augmenterModelType_upper]
         feature_markers_all = [feature_markers_lower, feature_markers_upper]
@@ -56,11 +54,11 @@ def loadModel(augmenterDir, augmenterModelName="LSTM",augmenter_model='v0.3', of
     else:
         # Lower body           
         augmenterModelType_lower = '{}_lower'.format(augmenter_model)
-        from utils import getOpenPoseMarkers_lowerExtremity2
+        from utils.lstm_utils import getOpenPoseMarkers_lowerExtremity2
         feature_markers_lower, response_markers_lower = getOpenPoseMarkers_lowerExtremity2()
         # Upper body
         augmenterModelType_upper = '{}_upper'.format(augmenter_model)
-        from utils import getMarkers_upperExtremity_noPelvis2
+        from utils.lstm_utils import getMarkers_upperExtremity_noPelvis2
         feature_markers_upper, response_markers_upper = getMarkers_upperExtremity_noPelvis2()   
              
         augmenterModelType_all = [augmenterModelType_lower, augmenterModelType_upper]
