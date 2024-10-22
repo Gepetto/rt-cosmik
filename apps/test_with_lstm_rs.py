@@ -198,12 +198,12 @@ def main():
     args = parse_args()
     np.set_printoptions(precision=4, suppress=True)
 
-    csv_file_path = os.path.join(parent_directory,'/output/keypoints_3d_positions.csv')
-    csv2_file_path = os.path.join(parent_directory,'/output/q.csv')
+    csv_file_path = os.path.join(parent_directory,'output/keypoints_3d_positions.csv')
+    csv2_file_path = os.path.join(parent_directory,'output/q.csv')
 
-    K1, D1 = load_cam_params(os.path.join(parent_directory,"/cams_calibration/cam_params/c1_params_color_test_test.yml"))
-    K2, D2 = load_cam_params(os.path.join(parent_directory,"/cams_calibration/cam_params/c2_params_color_test_test.yml"))
-    R,T = load_cam_to_cam_params(os.path.join(parent_directory,"/cams_calibration/cam_params/c1_to_c2_params_color_test_test.yml"))
+    K1, D1 = load_cam_params(os.path.join(parent_directory,"cams_calibration/cam_params/c1_params_color_test_test.yml"))
+    K2, D2 = load_cam_params(os.path.join(parent_directory,"cams_calibration/cam_params/c2_params_color_test_test.yml"))
+    R,T = load_cam_to_cam_params(os.path.join(parent_directory,"cams_calibration/cam_params/c1_to_c2_params_color_test_test.yml"))
 
     dict_cam = {
         "cam1": {
