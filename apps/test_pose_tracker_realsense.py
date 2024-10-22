@@ -1,5 +1,3 @@
-# Copyright (c) OpenMMLab. All rights reserved.
-
 # To run the code : python3 test_pose_tracker_realsense.py cuda /root/workspace/mmdeploy/rtmpose-trt/rtmdet-nano /root/workspace/mmdeploy/rtmpose-trt/rtmpose-m
 # or python3 -m apps.test_pose_tracker_realsense cuda /root/workspace/mmdeploy/rtmpose-trt/rtmdet-nano /root/workspace/mmdeploy/rtmpose-trt/rtmpose-m
 
