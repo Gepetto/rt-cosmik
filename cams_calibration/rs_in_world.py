@@ -1,4 +1,4 @@
-# To run the code from RT-COSMIK root : python -m cams_calibration.cam_in_world
+# To run the code from RT-COSMIK root : python -m cams_calibration.rs_in_world
 
 import cv2
 import numpy as np
@@ -27,36 +27,69 @@ else:
 expe_no = str(arg1)
 trial_no = str(arg2)
 
-width = 1920
-height = 1080
+# Configure depth and color streams for both cameras
+pipeline_1 = rs.pipeline()
+pipeline_2 = rs.pipeline()
+config_1 = rs.config()
+config_2 = rs.config()
 
-max_cameras = 10
-available_cameras = []
-for index in range(max_cameras):
-    cap = cv2.VideoCapture(index)
-    if cap.isOpened():
-        available_cameras.append(index)
-        cap.release()  # Release the camera after checking
+sn_list = []
+ctx = rs.context()
+if len(ctx.devices) > 0:
+    for d in ctx.devices:
 
-camera_indices = available_cameras
+        print ('Found device: ', \
 
-# if no webcam
-# captures = [cv2.VideoCapture(idx) for idx in camera_indices]
+                d.get_info(rs.camera_info.name), ' ', \
 
-# if webcam remove it 
-captures = [cv2.VideoCapture(idx) for idx in camera_indices if idx !=0]
+                d.get_info(rs.camera_info.serial_number))
+        sn_list.append(d.get_info(rs.camera_info.serial_number))
 
-for cap in captures: 
-    cap.set(cv2.CAP_PROP_FRAME_WIDTH, width)  # HD
-    cap.set(cv2.CAP_PROP_FRAME_HEIGHT, height)  # HD
-    cap.set(cv2.CAP_PROP_FPS, 40)  # Set frame rate to 40fps
+else:
+    print("No Intel Device connected")
 
+# Get device product line for setting a supporting resolution
+pipeline_wrapper_1 = rs.pipeline_wrapper(pipeline_1)
+pipeline_wrapper_2 = rs.pipeline_wrapper(pipeline_2)
+pipeline_profile_1 = config_1.resolve(pipeline_wrapper_1)
+pipeline_profile_2 = config_2.resolve(pipeline_wrapper_2)
+device_1 = pipeline_profile_1.get_device()
+device_2 = pipeline_profile_2.get_device()
+device_product_line_1 = str(device_1.get_info(rs.camera_info.product_line))
+device_product_line_2 = str(device_2.get_info(rs.camera_info.product_line))
 
-# Check if cameras opened successfully
-for i, cap in enumerate(captures):
-    if not cap.isOpened():
-        print(f"Error: Camera {i} not opened.")
-        return
+found_rgb_1 = False
+found_rgb_2 = False
+for s in device_1.sensors:
+    if s.get_info(rs.camera_info.name) == 'Stereo Module':
+        found_rgb_1 = True
+        break
+for s in device_2.sensors:
+    if s.get_info(rs.camera_info.name) == 'Stereo Module':
+        found_rgb_2 = True
+        break
+if not found_rgb_1 or not found_rgb_2:
+    print("The demo requires Depth cameras with Color sensors")
+    exit(0)
+
+print(sn_list)
+
+# Replace these with your camera serial numbers
+serial_number_1 = sn_list[0]
+serial_number_2 = sn_list[1]
+
+# Enable the devices with the serial numbers
+config_1.enable_device(serial_number_1)
+config_2.enable_device(serial_number_2)
+
+config_1.enable_stream(rs.stream.infrared, 1280, 720, rs.format.y8, 30)
+config_2.enable_stream(rs.stream.infrared, 1280, 720, rs.format.y8, 30)
+config_1.enable_stream(rs.stream.color, 1280, 720, rs.format.bgr8, 30)
+config_2.enable_stream(rs.stream.color, 1280, 720, rs.format.bgr8, 30)
+
+# Start streaming from both cameras
+pipeline_1.start(config_1)
+pipeline_2.start(config_2)
 
 # Define the ArUco dictionary and marker size
 aruco_dict = cv2.aruco.getPredefinedDictionary(cv2.aruco.DICT_4X4_50)
@@ -137,14 +170,19 @@ saved_1 = False
 saved_2 = False
 
 while True:
-    frames = [cap.read()[1] for cap in captures]
-            
-    if not all(frame is not None for frame in frames):
+    # Wait for a coherent pair of frames from both cameras
+    frames_1 = pipeline_1.wait_for_frames()
+    frames_2 = pipeline_2.wait_for_frames()
+
+    color_frame_1 = frames_1.get_color_frame()
+    color_frame_2 = frames_2.get_color_frame()
+
+    if not color_frame_1 or not color_frame_2:
         continue
 
-    # Get images
-    frame_1 = frames[0]
-    frame_2 = frames[1]
+    # Convert images to numpy arrays
+    frame_1 = np.asanyarray(color_frame_1.get_data())
+    frame_2 = np.asanyarray(color_frame_2.get_data())
 
     # Get the camera pose relative to the global frame defined by the ArUco marker
     transformation_matrix_1, corners_1, rvec_1, tvec_1 = get_camera_pose(frame_1, K1, D1)
@@ -184,7 +222,7 @@ while True:
         print("quit")
         break
 
-# Release the camera captures
-for cap in captures:
-    cap.release()
+# Stop streaming
+pipeline_1.stop()
+pipeline_2.stop()
 cv2.destroyAllWindows()
