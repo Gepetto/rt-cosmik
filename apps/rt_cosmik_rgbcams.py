@@ -32,7 +32,7 @@ parent_directory = os.path.dirname(script_directory)
 
 augmenter_path = os.path.join(parent_directory, 'augmentation_model')
 
-keypoints_buffer = deque(maxlen=2)
+keypoints_buffer = deque(maxlen=30)
 warmed_models= loadModel(augmenterDir=augmenter_path, augmenterModelName="LSTM",augmenter_model='v0.3')
 
 
@@ -392,7 +392,7 @@ def main():
 
     # Initialize cams stream
     camera_indices = list_available_cameras()
-    print(camera_indices)
+    # print(camera_indices)
 
     # if no webcam
     # captures = [cv2.VideoCapture(idx) for idx in camera_indices]
@@ -509,6 +509,7 @@ def main():
 
                 # Apply the rotation matrix to align the points
                 keypoints_in_world = np.dot(keypoints_shifted,R1_global)
+                print(keypoints_in_world)
                 
                 publish_keypoints_as_marker_array(keypoints_in_world, keypoints_pub, keypoint_names)
                 
@@ -524,6 +525,7 @@ def main():
             #         for jj in range(len(keypoint_names)):
             #             # Write to CSV
             #             csv_writer.writerow([frame_idx, formatted_timestamp,keypoint_names[jj], keypoints_in_world[jj][0], keypoints_in_world[jj][1], keypoints_in_world[jj][2]])
+                
                 if first_sample:
                     for k in range(30):
                         keypoints_buffer.append(keypoints_in_world)  #add the 1st frame 30 times
@@ -532,22 +534,21 @@ def main():
                     keypoints_buffer.append(keypoints_in_world) #add the keyponts to the buffer normally 
                 
                 if len(keypoints_buffer) == 30:
-                    print("lstm")
-
                     keypoints_buffer_array = np.array(keypoints_buffer)
-                    print("keypoints_buffer_array", keypoints_buffer_array)
-                    # print("keypoints_buffer_array", keypoints_buffer_array)
                     
                     #call augmentTrc
                     augmented_markers = augmentTRC(keypoints_buffer_array, subject_mass=subject_mass, subject_height=subject_height, models = warmed_models,
                                augmenterDir=os.path.join(parent_directory,"/augmentation_model")
                                ,augmenter_model='v0.3', offset=True)
 
+                    if len(augmented_markers) % 3 != 0:
+                        raise ValueError("The length of the list must be divisible by 3.")
+
+                    augmented_markers = np.array(augmented_markers).reshape(-1, 3) 
+    
                     print(augmented_markers)
 
-                    publish_augmented_markers(augmented_markers, augmented_markers_pub, marker_names)
-                
-
+                    publish_augmented_markers(augmented_markers, augmented_markers_pub, marker_names)                
                 
             if cv2.waitKey(1) & 0xFF == ord('q'):
                 print("quit")
