@@ -175,7 +175,7 @@ def augmentTRC(keypoints_buffer, subject_mass, subject_height,
         # inference
         t1 = time.time()
         #outputs = model.predict(inputs)
-       # print("input.shape", inputs)
+        # print("input.shape", inputs)
         input_name = model.get_inputs()[0].name
         outputs = model.run(None, {input_name: inputs.astype(np.float32)})
         t2 = time.time()
@@ -224,10 +224,10 @@ def augmentTRC(keypoints_buffer, subject_mass, subject_height,
     # headers=['r.ASIS_study','L.ASIS_study','r.PSIS_study','L.PSIS_study','r_knee_study','r_mknee_study','r_ankle_study','r_mankle_study','r_toe_study','r_5meta_study','r_calc_study','L_knee_study','L_mknee_study','L_ankle_study','L_mankle_study','L_toe_study','L_calc_study','L_5meta_study','r_shoulder_study','L_shoulder_study','C7_study','r_thigh1_study','r_thigh2_study','r_thigh3_study','L_thigh1_study','L_thigh2_study','L_thigh3_study','r_sh1_study','r_sh2_study','r_sh3_study','L_sh1_study','L_sh2_study','L_sh3_study','RHJC_study','LHJC_study','r_lelbow_study','r_melbow_study','r_lwrist_study','r_mwrist_study','L_lelbow_study','L_melbow_study','L_lwrist_study','L_mwrist_study']		
     # expanded_headers = [f"{name}_{axis}" for name in headers for axis in ['x', 'y', 'z']]
 
-    # Convert responses_all_conc to a pandas DataFrame
-    df = pd.DataFrame([responses_all_conc])
+    # # Convert responses_all_conc to a pandas DataFrame
+    # df = pd.DataFrame([responses_all_conc])
 
-    df.to_csv("responses_all_conc_rt.csv", mode='a',header= False, index=False)
+    # df.to_csv("responses_all_conc_rt.csv", mode='a',header= False, index=False)
 
     
     return outputs_all
