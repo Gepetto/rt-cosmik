@@ -14,6 +14,7 @@ import pinocchio as pin
 from collections import deque
 from utils.lstm_v2 import augmentTRC, loadModel
 from datetime import datetime
+import pandas as pd
 
 # don't forget to source dependancies
 import rospy
@@ -444,7 +445,7 @@ def main():
         sampling_frequency=fs
     )
 
-    iir_filter.add_filter(order=4, cutoff=5, filter_type='lowpass')
+    iir_filter.add_filter(order=4, cutoff=7, filter_type='lowpass')
     
     first_sample = True 
     frame_idx = 0
@@ -520,12 +521,21 @@ def main():
             else :
                 p3d_frame = triangulate_points(keypoints_list, mtxs, dists, projections)
                 keypoints_in_world = p3d_frame
+
                 # Subtract the translation vector (shifting the origin)
                 keypoints_shifted = p3d_frame - T1_global.T
 
                 # Apply the rotation matrix to align the points
                 keypoints_in_world = np.dot(keypoints_shifted,R1_global)
                 # print(keypoints_in_world)
+
+                # # For Kahina 
+                # flattened_keypoints = keypoints_in_world.flatten()
+                # #print(flattened_keypoints)
+                # row = flattened_keypoints.tolist()
+                # with open('keypoints_rt_kahina.csv', mode='a') as file:
+                #     csv_writer = csv.writer(file)
+                #     csv_writer.writerow(row)
 
                 # publish_keypoints_as_marker_array(keypoints_in_world, keypoints_pub, keypoint_names)
                 
@@ -561,16 +571,20 @@ def main():
                     publish_keypoints_as_marker_array(filtered_keypoints_buffer[-1], keypoints_pub, keypoint_names)
                     
                     #call augmentTrc
-                    augmented_markers = augmentTRC(filtered_keypoints_buffer, subject_mass=subject_mass, subject_height=subject_height, models = warmed_models,
-                               augmenterDir=os.path.join(parent_directory,"/augmentation_model")
+                    augmented_markers = augmentTRC(keypoints_buffer_array, subject_mass=subject_mass, subject_height=subject_height, models = warmed_models,
+                               augmenterDir=os.path.join(parent_directory,"augmentation_model")
                                ,augmenter_model='v0.3', offset=True)
+
+                    # # Save for kahina 
+                    # # Convert responses_all_conc to a pandas DataFrame
+                    # df = pd.DataFrame([augmented_markers])
+                    # df.to_csv("markers_rt_kahina.csv", mode='a',header= False, index=False)
+
 
                     if len(augmented_markers) % 3 != 0:
                         raise ValueError("The length of the list must be divisible by 3.")
 
                     augmented_markers = np.array(augmented_markers).reshape(-1, 3) 
-    
-                    print(augmented_markers)
 
                     # Saving keypoints
                     with open(augmented_csv_file_path, mode='a', newline='') as file:
