@@ -4,6 +4,25 @@ import cv2
 # from scipy.spatial.transform import Rotation as R
 
 def DLT_adaptive(projections, points):
+    """
+    Perform Direct Linear Transformation (DLT) for adaptive triangulation.
+    This function computes the 3D coordinates of a point given its projections
+    in multiple views using the DLT algorithm. It constructs a system of linear
+    equations from the projection matrices and the corresponding 2D points, and
+    then solves it using Singular Value Decomposition (SVD).
+    Parameters:
+    -----------
+    projections : list of numpy.ndarray
+        A list of 3x4 projection matrices for each view.
+    points : list of numpy.ndarray
+        A list of 2D points corresponding to each view. Each element in the list
+        is an array of shape (n, 2), where n is the number of points.
+    Returns:
+    --------
+    numpy.ndarray
+        A 1D array of length 3 representing the 3D coordinates of the point.
+    """
+    
     A=[]
     for i in range(len(projections)):
         P=projections[i]
@@ -20,6 +39,17 @@ def DLT_adaptive(projections, points):
     return Vh[3,0:3]/Vh[3,3]
 
 def triangulate_points(keypoints_list, mtxs, dists, projections):
+    """
+    Triangulates 3D points from multiple 2D keypoints using camera matrices and distortion coefficients.
+    Args:
+        keypoints_list (list of list of tuples): A list where each element is a list of 2D keypoints for a single frame.
+        mtxs (list of numpy.ndarray): A list of camera matrices for each frame.
+        dists (list of numpy.ndarray): A list of distortion coefficients for each frame.
+        projections (list of numpy.ndarray): A list of projection matrices for each frame.
+    Returns:
+        numpy.ndarray: An array of 3D points triangulated from the input 2D keypoints.
+    """
+
     p3ds_frame=[]
     undistorted_points = []
 

@@ -1,3 +1,4 @@
+from pydoc import doc
 import cv2 as cv
 import yaml
 import glob
@@ -5,6 +6,17 @@ import numpy as np
 
 
 def calibrate_camera(images_folder):
+    """
+    Calibrates the camera using images of a checkerboard pattern.
+    Args:
+        images_folder (str): Path to the folder containing checkerboard images.
+    Returns:
+        tuple: A tuple containing the following elements:
+            - ret (float): The overall RMS re-projection error.
+            - mtx (numpy.ndarray): The camera matrix.
+            - dist (numpy.ndarray): The distortion coefficients.
+    """
+
     images_names = sorted(glob.glob(images_folder))
     images = []
     for imname in images_names:
@@ -72,6 +84,22 @@ def calibrate_camera(images_folder):
     return ret, mtx, dist
 
 def stereo_calibrate(mtx1, dist1, mtx2, dist2, frames_folder_1, frames_folder_2):
+    """
+    Perform stereo calibration using images from two cameras.
+    Args:
+        mtx1 (numpy.ndarray): Camera matrix for the first camera.
+        dist1 (numpy.ndarray): Distortion coefficients for the first camera.
+        mtx2 (numpy.ndarray): Camera matrix for the second camera.
+        dist2 (numpy.ndarray): Distortion coefficients for the second camera.
+        frames_folder_1 (str): Path to the folder containing images from the first camera.
+        frames_folder_2 (str): Path to the folder containing images from the second camera.
+    Returns:
+        tuple: A tuple containing:
+            - ret (float): The overall RMS re-projection error.
+            - R (numpy.ndarray): The rotation matrix between the coordinate systems of the first and second cameras.
+            - T (numpy.ndarray): The translation vector between the coordinate systems of the first and second cameras.
+    """
+
     #read the synched frames
     c1_images_names = sorted(glob.glob(frames_folder_1))
     c2_images_names = sorted(glob.glob(frames_folder_2))
@@ -142,7 +170,16 @@ def stereo_calibrate(mtx1, dist1, mtx2, dist2, frames_folder_1, frames_folder_2)
     return ret, R, T
 
 def save_cam_params(mtx, dist, reproj, path):
-    '''Save the camera matrix and the distortion coefficients to given path/file.'''
+    """
+    Save camera parameters to a file.
+    Args:
+        mtx (numpy.ndarray): Camera matrix.
+        dist (numpy.ndarray): Distortion coefficients.
+        reproj (numpy.ndarray): Reprojection error.
+        path (str): Path to the file where parameters will be saved.
+    Returns:
+        None
+    """
     cv_file = cv.FileStorage(path, cv.FILE_STORAGE_WRITE)
     cv_file.write('K', mtx)
     cv_file.write('D', dist)
@@ -153,10 +190,8 @@ def save_cam_params(mtx, dist, reproj, path):
 def load_cam_pose(filename):
     """
         Load the rotation matrix and translation vector from a YAML file.
-        
-        Parameters:
+        Args:
             filename (str): The path to the YAML file.
-        
         Returns:
             rotation_matrix (np.ndarray): The 3x3 rotation matrix.
             translation_vector (np.ndarray): The 3x1 translation vector.
@@ -172,7 +207,16 @@ def load_cam_pose(filename):
 
 
 def load_cam_params(path):
-    '''Loads camera matrix and distortion coefficients.'''
+    """
+    Loads camera parameters from a given file.
+    Args:
+        path (str): The path to the file containing the camera parameters.
+    Returns:
+        tuple: A tuple containing the camera matrix and distortion matrix.
+            - camera_matrix (numpy.ndarray): The camera matrix.
+            - dist_matrix (numpy.ndarray): The distortion matrix.
+    """
+    
     # FILE_STORAGE_READ
     cv_file = cv.FileStorage(path, cv.FILE_STORAGE_READ)
 
@@ -185,7 +229,20 @@ def load_cam_params(path):
     return camera_matrix, dist_matrix
 
 def save_cam_to_cam_params(mtx1, dist1, mtx2, dist2, R, T, rmse, path):
-    '''Save the camera matrix and the distortion coefficients to given path/file.'''
+    """
+    Save stereo camera calibration parameters to a file.
+    Args:
+        mtx1 (numpy.ndarray): Camera matrix for the first camera.
+        dist1 (numpy.ndarray): Distortion coefficients for the first camera.
+        mtx2 (numpy.ndarray): Camera matrix for the second camera.
+        dist2 (numpy.ndarray): Distortion coefficients for the second camera.
+        R (numpy.ndarray): Rotation matrix between the two cameras.
+        T (numpy.ndarray): Translation vector between the two cameras.
+        rmse (float): Root Mean Square Error of the calibration.
+        path (str): Path to the file where the parameters will be saved.
+    Returns:
+        None
+    """
     cv_file = cv.FileStorage(path, cv.FILE_STORAGE_WRITE)
     cv_file.write('K1', mtx1)
     cv_file.write('D1', dist1)
@@ -198,7 +255,19 @@ def save_cam_to_cam_params(mtx1, dist1, mtx2, dist2, R, T, rmse, path):
     cv_file.release()
 
 def load_cam_to_cam_params(path):
-    '''Loads camera matrix and distortion coefficients.'''
+    """
+    Loads camera-to-camera calibration parameters from a given file.
+    This function reads the rotation matrix (R) and translation vector (T) from a 
+    specified file using OpenCV's FileStorage. The file should contain these parameters 
+    stored under the keys 'R' and 'T'.
+    Args:
+        path (str): The file path to the calibration parameters.
+    Returns:
+        tuple: A tuple containing:
+            - R (numpy.ndarray): The rotation matrix.
+            - T (numpy.ndarray): The translation vector.
+    """
+    
     # FILE_STORAGE_READ
     cv_file = cv.FileStorage(path, cv.FILE_STORAGE_READ)
 
@@ -209,45 +278,3 @@ def load_cam_to_cam_params(path):
 
     cv_file.release()
     return R, T
-
-
-
-# task_name = "right_front"
-# expe_no = "8"
-# trial_no = "0"
-
-# # # calibrate_<camera_aruco_markers("../Sensors/UDPClient/Expe_2Vimus_patients/expe_0/trial_1/anat_calib/raw/cam_2/img_*")
-# c1_imgs_path = "./images_calib_cam_1/" + expe_no + "_" + trial_no + "/*"
-# c2_imgs_path = "./images_calib_cam_2/" + expe_no + "_" + trial_no + "/*"
-# c1_params_path = "./cam_params/c1_params_" + expe_no + "_" + trial_no + ".yml"
-# c2_params_path = "./cam_params/c2_params_" + expe_no + "_" + trial_no + ".yml"
-# c1_to_c2_params_path = "./cam_params/c1_to_c2_params" + expe_no + "_" + trial_no + ".yml"
-
-# reproj1, mtx1, dist1 = calibrate_camera(images_folder = c1_imgs_path)
-# save_cam_params(mtx1, dist1, reproj1, c1_params_path)
-# reproj2, mtx2, dist2 = calibrate_camera(images_folder = c2_imgs_path)
-# save_cam_params(mtx2, dist2, reproj2, c2_params_path)
-
-# mtx_1, dist_1 = load_cam_params(c1_params_path)
-# mtx_2, dist_2 = load_cam_params(c2_params_path)
-# rmse, R, T = stereo_calibrate(mtx_1, dist_1, mtx_2, dist_2, c1_imgs_path, c2_imgs_path)
-
-# print("computed R :")
-# print(R)
-
-# print("computed T : ")
-# print(T)
-
-# print("rmse : ")
-# print(rmse)
-
-# save_cam_to_cam_params(mtx_1, dist_1, mtx_2, dist_2, R, T, rmse, c1_to_c2_params_path)
-# R_loaded, T_loaded = load_cam_to_cam_params(c1_to_c2_params_path)
-
-# # print("loaded R :")
-# # print(R_loaded)
-# # print("loaded T : ")
-# # print(T_loaded)
-
-# # print("rmse : ")
-# # print(rmse)

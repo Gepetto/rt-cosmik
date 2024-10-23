@@ -10,15 +10,15 @@ import pandas as pd
 
 def marker(buffer, keypoint_index):
     """
-    Récupère la trajectoire 3D d'un marqueur reference: midhip
+    Retrieves the 3D trajectory of a reference marker: midhip
     
     Args:
-        buffer (np.array): Tableau de forme (num_frames, 26, 3), contenant les coordonnées 3D
-                           des 26 marqueurs sur num_frames frames.
-        keypoint_index (int): L'indice du marqueur de référence .
+        buffer (np.array): Array of shape (num_frames, 26, 3), containing the 3D coordinates
+                           of the 26 markers over num_frames frames.
+        keypoint_index (int): The index of the reference marker.
 
     Returns:
-        np.array: Trajectoire du marqueur spécifique, tableau de forme (num_frames, 3).
+        np.array: Trajectory of the specific marker, array of shape (num_frames, 3).
     """
     # Récupérer les coordonnées x, y, z du marqueur spécifique sur toutes les frames
     reference_marker_trajectory = np.empty((buffer.shape[0], 3))
@@ -31,6 +31,31 @@ def marker(buffer, keypoint_index):
     return reference_marker_trajectory
 
 def loadModel(augmenterDir, augmenterModelName="LSTM",augmenter_model='v0.3', offset = True):
+    """
+    Load and initialize LSTM models for different augmenter types.
+    Parameters:
+    -----------
+    augmenterDir : str
+        Directory where the augmenter models are stored.
+    augmenterModelName : str, optional
+        Name of the augmenter model (default is "LSTM").
+    augmenter_model : str, optional
+        Version of the augmenter model to load (default is 'v0.3').
+    offset : bool, optional
+        Flag to indicate if offset should be applied (default is True).
+    Returns:
+    --------
+    dict
+        A dictionary where keys are augmenter model types and values are the corresponding ONNX inference sessions.
+    Notes:
+    ------
+    - The function supports different augmenter model versions ('v0.0', 'v0.1', 'v0.2', and others).
+    - Depending on the augmenter model version, different sets of feature and response markers are loaded.
+    - The function initializes ONNX inference sessions for each augmenter model type and stores them in a dictionary.
+    """
+    
+    # Remove the redundant definition of loadModel
+
     models = {}
      # Augmenter types
     if augmenter_model == 'v0.0':
@@ -63,42 +88,43 @@ def loadModel(augmenterDir, augmenterModelName="LSTM",augmenter_model='v0.3', of
              
         augmenterModelType_all = [augmenterModelType_lower, augmenterModelType_upper]
     
-
     for idx_augm, augmenterModelType in enumerate(augmenterModelType_all):
         augmenterModelDir = os.path.join(augmenterDir, augmenterModelName, 
                                          augmenterModelType)
-        # Load model and weights, and predict outputs.
-
-        # json_file = open(os.path.join(augmenterModelDir, "model.json"), 'r')
-        # pretrainedModel_json = json_file.read()
-        # json_file.close()
-        # model = tflow.keras.models.model_from_json(pretrainedModel_json)
-        # model.load_weights(os.path.join(augmenterModelDir, "weights.h5")) 
-
-        t1 = time.time()
         session = ort.InferenceSession(f"{augmenterModelDir}/model.onnx")
-        t2 = time.time()
-        print(f"Inference time for {augmenterModelType}: {t2 - t1} seconds") # ~~ 0.009 s que pr ça
 
-        # input_name = session.get_inputs()[0].name
-
-        # if augmenterModelType == augmenterModelType_lower:
-        #     warmup_input = np.zeros((1, 111, 47)).astype(np.float32) 
-
-        # else: 
-        #     warmup_input = np.zeros((1, 111, 23)).astype(np.float32) 
-        
-        # outputs = session.run(None, {input_name: warmup_input})
-        
         models[augmenterModelType] = session
-    #print(models)
 
     return models
 
-
-
 def augmentTRC(keypoints_buffer, subject_mass, subject_height,
-               models,augmenterDir, augmenterModelName = 'LSTM',augmenter_model='v0.3', offset=True):
+               models, augmenterDir, augmenterModelName='LSTM', augmenter_model='v0.3', offset=True):
+    """
+    Augments the given keypoints buffer using specified models and parameters.
+    Parameters:
+    -----------
+    keypoints_buffer : numpy.ndarray
+        The buffer containing keypoints data.
+    subject_mass : float
+        The mass of the subject.
+    subject_height : float
+        The height of the subject.
+    models : dict
+        Dictionary containing pre-warmed models for augmentation.
+    augmenterDir : str
+        Directory where augmenter models are stored.
+    augmenterModelName : str, optional
+        Name of the augmenter model (default is 'LSTM').
+    augmenter_model : str, optional
+        Version of the augmenter model (default is 'v0.3').
+    offset : bool, optional
+        Whether to apply offset (default is True).
+    Returns:
+    --------
+    numpy.ndarray
+        The concatenated responses from the lower and upper body augmenters.
+    """
+
     n_response_markers_all = 0
     featureHeight = True
     featureWeight = True
@@ -107,14 +133,11 @@ def augmentTRC(keypoints_buffer, subject_mass, subject_height,
     marker_indices_lower = [18, 6, 5, 12, 11, 14, 13, 16, 15, 25, 24, 23, 22, 21, 20] #['Neck', 'RShoulder', 'LShoulder', 'RHip', 'LHip', 'RKnee', 'LKnee', 'RAnkle', 'LAnkle', 'RHeel', 'LHeel', 'RSmallToe', 'LSmallToe', 'RBigToe', 'LBigToe']
     marker_indices_upper = [18, 6, 5, 8, 7, 10, 9] #['Neck', 'RShoulder', 'LShoulder', 'RElbow', 'LElbow', 'RWrist', 'LWrist']
 
-    
-    # marker_indices_lower = [0, 1, 4, 8, 11, 9, 12, 10, 13, 19, 16, 18, 15, 17, 14] #['Neck', 'RShoulder', 'LShoulder', 'RHip', 'LHip', 'RKnee', 'LKnee', 'RAnkle', 'LAnkle', 'RHeel', 'LHeel', 'RSmallToe', 'LSmallToe', 'RBigToe', 'LBigToe']
-    # marker_indices_upper = [0, 1, 4, 2, 5, 3, 6]
     # Loop over augmenter types to handle separate augmenters for lower and
     # upper bodies.
     augmenterModelType_all = [f'{augmenter_model}_lower', f'{augmenter_model}_upper']
 
- # Loop over augmenter types to handle separate augmenters for lower and upper bodies
+    # Loop over augmenter types to handle separate augmenters for lower and upper bodies
     for augmenterModelType in augmenterModelType_all:
         if 'lower' in augmenterModelType:
             feature_markers = marker_indices_lower
@@ -138,8 +161,6 @@ def augmentTRC(keypoints_buffer, subject_mass, subject_height,
 
         # Flatten the keypoints data
         inputs = norm2_buffer[:, feature_markers, :].reshape(norm2_buffer.shape[0], -1)
-        print("augmenterModelType", augmenterModelType)
-        print("inputs.shape",inputs.shape)
 
         # Add height and weight as features
         if featureHeight:
@@ -155,8 +176,6 @@ def augmentTRC(keypoints_buffer, subject_mass, subject_height,
 
         if os.path.isfile(pathMean):
             trainFeatures_mean = np.load(pathMean, allow_pickle=True)
-            #print(inputs.shape)
-            #print(trainFeatures_mean.shape)
             inputs -= trainFeatures_mean
 
         if os.path.isfile(pathSTD):
@@ -168,17 +187,10 @@ def augmentTRC(keypoints_buffer, subject_mass, subject_height,
 
         # pre-warmed model
         model = models.get(augmenterModelType)
-        #print("model", model)
 
         # inference
-        t1 = time.time()
-        #outputs = model.predict(inputs)
-        # print("input.shape", inputs)
         input_name = model.get_inputs()[0].name
         outputs = model.run(None, {input_name: inputs.astype(np.float32)})
-        t2 = time.time()
-        print(f"Inference time for {augmenterModelType}: {t2 - t1} seconds")
-        #print("outputs", outputs[0])
 
         outputs = outputs[0]
         #Post-process the outputs
@@ -197,15 +209,12 @@ def augmentTRC(keypoints_buffer, subject_mass, subject_height,
             y = unnorm2_outputs[:,c*3+1]
             z = unnorm2_outputs[:,c*3+2]
         
-
         outputs_all[augmenterModelType] = unnorm2_outputs
         last_output = unnorm2_outputs[-1, :]
         outputs_all[augmenterModelType] = last_output
 
 
-        # Check for existence of each key and concatenate if present
-      
-
+    # Check for existence of each key and concatenate if present
     if 'v0.3_lower' in outputs_all:
         v0_3_lower = outputs_all['v0.3_lower']
 
@@ -214,19 +223,10 @@ def augmentTRC(keypoints_buffer, subject_mass, subject_height,
 
 
     responses_all_conc = np.concatenate((v0_3_lower, v0_3_upper))
-    #print("responses_all_conc", responses_all_conc)
-    # min_y_pos = np.min(responses_all_conc[:,1::3])
-
-    # responses_all_conc[:,1::3] = responses_all_conc[:,1::3] - min_y_pos
-
-    # headers=['r.ASIS_study','L.ASIS_study','r.PSIS_study','L.PSIS_study','r_knee_study','r_mknee_study','r_ankle_study','r_mankle_study','r_toe_study','r_5meta_study','r_calc_study','L_knee_study','L_mknee_study','L_ankle_study','L_mankle_study','L_toe_study','L_calc_study','L_5meta_study','r_shoulder_study','L_shoulder_study','C7_study','r_thigh1_study','r_thigh2_study','r_thigh3_study','L_thigh1_study','L_thigh2_study','L_thigh3_study','r_sh1_study','r_sh2_study','r_sh3_study','L_sh1_study','L_sh2_study','L_sh3_study','RHJC_study','LHJC_study','r_lelbow_study','r_melbow_study','r_lwrist_study','r_mwrist_study','L_lelbow_study','L_melbow_study','L_lwrist_study','L_mwrist_study']		
-    # expanded_headers = [f"{name}_{axis}" for name in headers for axis in ['x', 'y', 'z']]
 
     # # Convert responses_all_conc to a pandas DataFrame
     # df = pd.DataFrame([responses_all_conc])
 
     # df.to_csv("responses_all_conc_rt.csv", mode='a',header= False, index=False)
-
-    
     return responses_all_conc
 

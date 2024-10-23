@@ -62,6 +62,22 @@ class Robot(RobotWrapper):
         self.geom_model = self.collision_model
     
 def model_scaling_df(model, keypoints_df):
+    """
+    Scales the model based on the distances between keypoints provided in the keypoints DataFrame.
+    Parameters:
+    model (object): The model object that contains joint and frame information.
+    keypoints_df (DataFrame): A pandas DataFrame containing keypoints with columns 'Keypoint', 'X', 'Y', and 'Z'.
+    Returns:
+    tuple: A tuple containing the scaled model and the created data object.
+    The function calculates the Euclidean distances between specific keypoints to determine the lengths of various body segments:
+    - Lower leg length (Right Ankle to Right Knee)
+    - Upper leg length (Right Knee to Right Hip)
+    - Trunk length (Right Hip to Right Shoulder)
+    - Upper arm length (Right Shoulder to Right Elbow)
+    - Lower arm length (Right Elbow to Right Wrist)
+    These lengths are then used to update the translations of the corresponding joints and frames in the model.
+    """
+
     lowerleg_l = np.linalg.norm(np.array([keypoints_df[(keypoints_df['Keypoint'] == 'Right Ankle')]['X'],keypoints_df[(keypoints_df['Keypoint'] == 'Right Ankle')]['Y'],keypoints_df[(keypoints_df['Keypoint'] == 'Right Ankle')]['Z']])-np.array([keypoints_df[(keypoints_df['Keypoint'] == 'Right Knee')]['X'],keypoints_df[(keypoints_df['Keypoint'] == 'Right Knee')]['Y'],keypoints_df[(keypoints_df['Keypoint'] == 'Right Knee')]['Z']]))
     upperleg_l = np.linalg.norm(np.array([keypoints_df[(keypoints_df['Keypoint'] == 'Right Knee')]['X'],keypoints_df[(keypoints_df['Keypoint'] == 'Right Knee')]['Y'],keypoints_df[(keypoints_df['Keypoint'] == 'Right Knee')]['Z']])-np.array([keypoints_df[(keypoints_df['Keypoint'] == 'Right Hip')]['X'],keypoints_df[(keypoints_df['Keypoint'] == 'Right Hip')]['Y'],keypoints_df[(keypoints_df['Keypoint'] == 'Right Hip')]['Z']]))
     trunk_l = np.linalg.norm(np.array([keypoints_df[(keypoints_df['Keypoint'] == 'Right Hip')]['X'],keypoints_df[(keypoints_df['Keypoint'] == 'Right Hip')]['Y'],keypoints_df[(keypoints_df['Keypoint'] == 'Right Hip')]['Z']])-np.array([keypoints_df[(keypoints_df['Keypoint'] == 'Right Shoulder')]['X'],keypoints_df[(keypoints_df['Keypoint'] == 'Right Shoulder')]['Y'],keypoints_df[(keypoints_df['Keypoint'] == 'Right Shoulder')]['Z']]))
@@ -80,6 +96,17 @@ def model_scaling_df(model, keypoints_df):
     return model, data
 
 def model_scaling(model, keypoints):
+    """
+    Scales the given model based on the provided keypoints.
+    Parameters:
+    model (object): The model object that contains joint and frame information.
+    keypoints (numpy.ndarray): An array of keypoints representing body parts. 
+                               The keypoints should be in the order of:
+                               ["Nose", "Left Eye", "Right Eye", "Left Ear", "Right Ear", 
+    Returns:
+    tuple: A tuple containing the scaled model and the created data object.
+    """
+
 
     keypoint_names = [
     "Nose", "Left Eye", "Right Eye", "Left Ear", "Right Ear", 

@@ -369,7 +369,6 @@ def main():
                         for jj in range(len(augmented_markers)):
                             # Write to CSV
                             csv_writer.writerow([frame_idx, formatted_timestamp,marker_names[jj], augmented_markers[jj][0], augmented_markers[jj][1], augmented_markers[jj][2]])
-                
 
                     publish_augmented_markers(augmented_markers, augmented_markers_pub, marker_names)                
                 
