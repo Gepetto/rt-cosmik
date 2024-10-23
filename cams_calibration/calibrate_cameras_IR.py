@@ -5,6 +5,11 @@ from utils.calib_utils import calibrate_camera, save_cam_params, load_cam_params
 import os
 import sys
 
+# Get the directory where the script is located
+script_directory = os.path.dirname(os.path.abspath(__file__))
+# Go one folder back
+parent_directory = os.path.dirname(script_directory)
+
 # Checking if at least two arguments are passed (including the script name)
 if len(sys.argv) > 2:
     arg1 = sys.argv[1]  # First argument
@@ -47,15 +52,15 @@ config.enable_stream(rs.stream.infrared, 2)  # Enable IR2 (right)
 pipeline.start(config)
 
 # Use os.makedirs() to create your directory; exist_ok=True means it won't throw an error if the directory already exists
-os.makedirs("./images_calib_cam_1/" + expe_no + "_" + trial_no + "/ir", exist_ok=True)
-os.makedirs("./images_calib_cam_2/" + expe_no + "_" + trial_no + "/ir", exist_ok=True)
-os.makedirs("./cam_params", exist_ok=True)
+os.makedirs(os.path.join(parent_directory,"cams_calibration/images_calib_cam_1/" + expe_no + "_" + trial_no + "/ir"), exist_ok=True)
+os.makedirs(os.path.join(parent_directory,"cams_calibration/images_calib_cam_2/" + expe_no + "_" + trial_no + "/ir"), exist_ok=True)
+os.makedirs(os.path.join(parent_directory,"cams_calibration/cam_params"), exist_ok=True)
 
-c1_ir_imgs_path = "./images_calib_cam_1/" + expe_no + "_" + trial_no + "/ir/*"
-c2_ir_imgs_path = "./images_calib_cam_2/" + expe_no + "_" + trial_no + "/ir/*"
-c1_ir_params_path = "./cam_params/c1_params_ir_" + expe_no + "_" + trial_no + ".yml"
-c2_ir_params_path = "./cam_params/c2_params_ir_" + expe_no + "_" + trial_no + ".yml"
-c1_to_c2_ir_params_path = "./cam_params/c1_to_c2_params_ir_" + expe_no + "_" + trial_no + ".yml"
+c1_ir_imgs_path = os.path.join(parent_directory,"cams_calibration/images_calib_cam_1/" + expe_no + "_" + trial_no + "/ir/*")
+c2_ir_imgs_path = os.path.join(parent_directory,"cams_calibration/images_calib_cam_2/" + expe_no + "_" + trial_no + "/ir/*")
+c1_ir_params_path = os.path.join(parent_directory,"cams_calibration/cam_params/c1_params_ir_" + expe_no + "_" + trial_no + ".yml")
+c2_ir_params_path = os.path.join(parent_directory,"cams_calibration/cam_params/c2_params_ir_" + expe_no + "_" + trial_no + ".yml")
+c1_to_c2_ir_params_path = os.path.join(parent_directory,"cams_calibration/cam_params/c1_to_c2_params_ir_" + expe_no + "_" + trial_no + ".yml")
 
 img_idx = 0
 try:
@@ -93,8 +98,8 @@ try:
         c = cv2.waitKey(10)
         if c == ord('s'):
             print("s pressed")
-            cv2.imwrite("./images_calib_cam_1/" + expe_no + "_" + trial_no + "/ir/img_" + str(img_idx) + ".png", ir_image_1)
-            cv2.imwrite("./images_calib_cam_2/" + expe_no + "_" + trial_no + "/ir/img_" + str(img_idx) + ".png", ir_image_2)
+            cv2.imwrite(os.path.join(parent_directory,"cams_calibration/images_calib_cam_1/" + expe_no + "_" + trial_no + "/ir/img_" + str(img_idx) + ".png"), ir_image_1)
+            cv2.imwrite(os.path.join(parent_directory,"cams_calibration/images_calib_cam_2/" + expe_no + "_" + trial_no + "/ir/img_" + str(img_idx) + ".png"), ir_image_2)
             img_idx = img_idx + 1
         if c == ord('q'):
             print("q pressed")

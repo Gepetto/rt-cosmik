@@ -7,19 +7,24 @@ import cv2
 import numpy as np
 import pyrealsense2 as rs
 from mmdeploy_runtime import PoseTracker
-import time 
 import csv
-import pinocchio as pin
 from collections import deque
 from utils.lstm_v2 import augmentTRC, loadModel
 from datetime import datetime
 
-
 from utils.calib_utils import load_cam_params, load_cam_to_cam_params, load_cam_pose
 from utils.triangulation_utils import triangulate_points
+from utils.viz_utils import visualize, VISUALIZATION_CFG
 
-keypoints_buffer = deque(maxlen=2)
-warmed_models= loadModel( augmenterDir="/home/kahina/mmdeploy-1.0.0-linux-x86_64-cxx11abi-cuda11.3/augmentation_model", augmenterModelName="LSTM",augmenter_model='v0.3')
+# Get the directory where the script is located
+script_directory = os.path.dirname(os.path.abspath(__file__))
+# Go one folder back
+parent_directory = os.path.dirname(script_directory)
+
+augmenter_path = os.path.join(parent_directory, 'augmentation_model')
+
+keypoints_buffer = deque(maxlen=30)
+warmed_models= loadModel(augmenterDir=augmenter_path, augmenterModelName="LSTM",augmenter_model='v0.3')
 
 def parse_args():
     parser = argparse.ArgumentParser(
@@ -40,125 +45,6 @@ def parse_args():
 
     args = parser.parse_args()
     return args
-
-VISUALIZATION_CFG = dict(
-    coco=dict(
-        skeleton= [
-    (0, 1), (0, 2), (1, 3), (2, 4), (3, 5), (4, 6), (17, 18), (1, 2), (5, 18),(6, 18), # Head, shoulders, and neck connections
-
-    (5, 7), (7, 9),                                                              # Right arm connections
-
-    (6, 8), (8, 10),                                                             # Left arm connections
-
-    (18, 19), (19, 11), (19, 12),                                                      # Shoulders to hips connections
-
-    (11, 13), (13, 15), (15, 20), (15, 22), (15, 24),                            # Left leg and foot connections
-
-    (12, 14), (14, 16), (16, 21), (16, 23), (16, 25),                            # Right leg and foot connections
-                                                      # Hip connection
-],
-        palette=[[51, 153, 255], [0, 255, 0], [255, 128, 0], [255, 255, 255],
-               [255, 153, 255], [102, 178, 255], [255, 51, 51]],
-        link_color=[
-        1, 1, 2, 2, 0, 0, 0, 0, 1, 2, 1, 2, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 2, 2,
-        2, 2, 2, 2, 2, 4, 4, 4, 4, 5, 5, 5, 5, 6, 6, 6, 6, 1, 1, 1, 1, 2, 2, 2,
-        2, 4, 4, 4, 4, 5, 5, 5, 5, 6, 6, 6, 6, 1, 1, 1, 1
-    ],
-        point_color=[
-        0, 0, 0, 0, 0, 1, 2, 1, 2, 1, 2, 1, 2, 1, 2, 1, 2, 2, 2, 2, 2, 2, 2, 3,
-        3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3,
-        3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3,
-        3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 2, 2, 2, 2, 4, 4, 4, 4,
-        5, 5, 5, 5, 6, 6, 6, 6, 1, 1, 1, 1, 3, 2, 2, 2, 2, 4, 4, 4, 4, 5, 5, 5,
-        5, 6, 6, 6, 6, 1, 1, 1, 1
-    ],
-        sigmas=[0.026] * 26),
-
-    coco_wholebody=dict(
-        skeleton=[(15, 13), (13, 11), (16, 14), (14, 12), (11, 12), (5, 11),
-                  (6, 12), (5, 6), (5, 7), (6, 8), (7, 9), (8, 10), (1, 2),
-                  (0, 1), (0, 2), (1, 3), (2, 4), (3, 5), (4, 6), (15, 17),
-                  (15, 18), (15, 19), (16, 20), (16, 21), (16, 22), (91, 92),
-                  (92, 93), (93, 94), (94, 95), (91, 96), (96, 97), (97, 98),
-                  (98, 99), (91, 100), (100, 101), (101, 102), (102, 103),
-                  (91, 104), (104, 105), (105, 106), (106, 107), (91, 108),
-                  (108, 109), (109, 110), (110, 111), (112, 113), (113, 114),
-                  (114, 115), (115, 116), (112, 117), (117, 118), (118, 119),
-                  (119, 120), (112, 121), (121, 122), (122, 123), (123, 124),
-                  (112, 125), (125, 126), (126, 127), (127, 128), (112, 129),
-                  (129, 130), (130, 131), (131, 132)],
-        palette=[(51, 153, 255), (0, 255, 0), (255, 128, 0), (255, 255, 255),
-                 (255, 153, 255), (102, 178, 255), (255, 51, 51)],
-        link_color=[
-            1, 1, 2, 2, 0, 0, 0, 0, 1, 2, 1, 2, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1,
-            2, 2, 2, 2, 2, 2, 2, 4, 4, 4, 4, 5, 5, 5, 5, 6, 6, 6, 6, 1, 1, 1,
-            1, 2, 2, 2, 2, 4, 4, 4, 4, 5, 5, 5, 5, 6, 6, 6, 6, 1, 1, 1, 1
-        ],
-        point_color=[
-            0, 0, 0, 0, 0, 1, 2, 1, 2, 1, 2, 1, 2, 1, 2, 1, 2, 2, 2, 2, 2, 2,
-            2, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3,
-            3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3,
-            3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3,
-            3, 3, 3, 3, 2, 2, 2, 2, 4, 4, 4, 4, 5, 5, 5, 5, 6, 6, 6, 6, 1, 1,
-            1, 1, 3, 2, 2, 2, 2, 4, 4, 4, 4, 5, 5, 5, 5, 6, 6, 6, 6, 1, 1, 1, 1
-        ],
-        sigmas=[
-            0.026, 0.025, 0.025, 0.035, 0.035, 0.079, 0.079, 0.072, 0.072,
-            0.062, 0.062, 0.107, 0.107, 0.087, 0.087, 0.089, 0.089, 0.068,
-            0.066, 0.066, 0.092, 0.094, 0.094, 0.042, 0.043, 0.044, 0.043,
-            0.040, 0.035, 0.031, 0.025, 0.020, 0.023, 0.029, 0.032, 0.037,
-            0.038, 0.043, 0.041, 0.045, 0.013, 0.012, 0.011, 0.011, 0.012,
-            0.012, 0.011, 0.011, 0.013, 0.015, 0.009, 0.007, 0.007, 0.007,
-            0.012, 0.009, 0.008, 0.016, 0.010, 0.017, 0.011, 0.009, 0.011,
-            0.009, 0.007, 0.013, 0.008, 0.011, 0.012, 0.010, 0.034, 0.008,
-            0.008, 0.009, 0.008, 0.008, 0.007, 0.010, 0.008, 0.009, 0.009,
-            0.009, 0.007, 0.007, 0.008, 0.011, 0.008, 0.008, 0.008, 0.01,
-            0.008, 0.029, 0.022, 0.035, 0.037, 0.047, 0.026, 0.025, 0.024,
-            0.035, 0.018, 0.024, 0.022, 0.026, 0.017, 0.021, 0.021, 0.032,
-            0.02, 0.019, 0.022, 0.031, 0.029, 0.022, 0.035, 0.037, 0.047,
-            0.026, 0.025, 0.024, 0.035, 0.018, 0.024, 0.022, 0.026, 0.017,
-            0.021, 0.021, 0.032, 0.02, 0.019, 0.022, 0.031
-        ]))
-
-def visualize(frame,
-              results,
-              output_dir,
-              idx,
-              frame_id,
-              out_vid,
-              thr=0.5,
-              resize=1280,
-              skeleton_type='coco'):
-
-    skeleton = VISUALIZATION_CFG[skeleton_type]['skeleton']
-    palette = VISUALIZATION_CFG[skeleton_type]['palette']
-    link_color = VISUALIZATION_CFG[skeleton_type]['link_color']
-    point_color = VISUALIZATION_CFG[skeleton_type]['point_color']
-
-    scale = resize / max(frame.shape[0], frame.shape[1])
-    keypoints, bboxes, _ = results
-    scores = keypoints[..., 2]
-    keypoints = (keypoints[..., :2] * scale).astype(int)
-    bboxes *= scale
-    img = cv2.resize(frame, (0, 0), fx=scale, fy=scale)
-    for kpts, score, bbox in zip(keypoints, scores, bboxes):
-        show = [1] * len(kpts)
-        for (u, v), color in zip(skeleton, link_color):
-            if score[u] > thr and score[v] > thr:
-                cv2.line(img, kpts[u], tuple(kpts[v]), palette[color], 1,
-                         cv2.LINE_AA)
-            else:
-                show[u] = show[v] = 0
-        for kpt, show, color in zip(kpts, show, point_color):
-            if show:
-                cv2.circle(img, kpt, 1, palette[color], 2, cv2.LINE_AA)
-    if output_dir:
-        cv2.imwrite(f'{output_dir}/{str(frame_id).zfill(6)}.jpg', img)
-    else:
-        cv2.imshow('pose_tracker'+str(idx), img)
-        # out_vid.write(img)
-        return cv2.waitKey(1) != 'q'
-    return True
 
 def get_device_serial_numbers():
     """Get a list of serial numbers for connected RealSense devices."""
@@ -263,10 +149,6 @@ def main():
     #     # Write the header row
     #     csv_writer.writerow(['Frame', 'Time','Keypoint', 'X', 'Y', 'Z'])
 
-
-
-  
-
     width = 1920
     height = 1080
     resize=1280
@@ -275,9 +157,6 @@ def main():
 
     # Initialize RealSense pipelines
     pipelines = configure_realsense_pipeline(width,height)
-
-
-
 
     first_sample = True 
     frame_idx = 0
@@ -397,11 +276,8 @@ def main():
                     
                     #call augmentTrc
                     augmentTRC(keypoints_buffer_array, subject_mass=60, subject_height=1.57, models = warmed_models,
-                               augmenterDir="/home/kahina/mmdeploy-1.0.0-linux-x86_64-cxx11abi-cuda11.3/augmentation_model"
+                               augmenterDir=augmenter_path
                                ,augmenter_model='v0.3', offset=True)
-                    
-
-                
                 
     finally :
         # Stop the RealSense pipelines

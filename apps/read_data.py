@@ -1,15 +1,24 @@
+import os
+import sys
+# Get the directory where the script is located
+script_directory = os.path.dirname(os.path.abspath(__file__))
+# Go one folder back
+rt_cosmik_path = os.path.dirname(script_directory)
+# Append it to sys.path
+sys.path.append(str(rt_cosmik_path))
+
 import pandas as pd 
 import pinocchio as pin 
 from pinocchio.visualize import GepettoVisualizer
 import sys 
 import numpy as np
 from utils.viz_utils import place, Rquat
-from utils.calib_utils import load_cam_pose
-from utils.model_utils import Robot, model_scaling_df
+from utils.model_utils import Robot
 import matplotlib.pyplot as plt 
+import time
 
 # Loading human urdf
-human = Robot('models/human_urdf/urdf/human.urdf','models') 
+human = Robot(os.path.join(rt_cosmik_path,'models/human_urdf/urdf/human.urdf'),os.path.join(rt_cosmik_path,'models')) 
 human_model = human.model
 human_data = human_model.createData()
 human_visual_model = human.visual_model
@@ -59,8 +68,8 @@ color = dict(zip(keypoint_names,color_values))
 for keypoint in keypoint_names:
     viz.viewer.gui.addSphere('world/'+keypoint,0.01,color[keypoint])
 
-data = pd.read_csv('output/keypoints_3d_positions.csv')
-q=pd.read_csv('output/q.csv').to_numpy()[:,-5:].astype(float)
+data = pd.read_csv(os.path.join(rt_cosmik_path,'output/keypoints_3d_positions.csv'))
+q=pd.read_csv(os.path.join(rt_cosmik_path,'output/q.csv')).to_numpy()[:,-5:].astype(float)
 
 # # Convert X, Y, Z columns to a numpy array
 # keypoints = data[['X', 'Y', 'Z']].values  # Shape: (3, N) where N is the number of keypoints
@@ -80,30 +89,34 @@ q=pd.read_csv('output/q.csv').to_numpy()[:,-5:].astype(float)
 # # Update the DataFrame with the transformed points, replacing the old X, Y, Z values
 # data['X'], data['Y'], data['Z'] = keypoints_transformed[:, 0], keypoints_transformed[:, 1], keypoints_transformed[:, 2]
 
-hand_frame_tr = np.zeros((601,3))
+# hand_frame_tr = np.zeros((601,3))
 c=0
 
+input()
+
 for ii in range(1,data['Frame'].iloc[-1]+1): 
-    if 400 <= ii<= 1000: 
+    if 200 <= ii<= 1000: 
         for name in keypoint_names:
             # Filter the DataFrame for the specific frame and keypoint
             keypoint_data = data[(data['Frame'] == ii) & (data['Keypoint'] == name)]
             if not keypoint_data.empty:
                 M = pin.SE3(pin.SE3(Rquat(1, 0, 0, 0), np.matrix([keypoint_data.iloc[0]['X'],keypoint_data.iloc[0]['Y'],keypoint_data.iloc[0]['Z']]).T))
-                # place(viz,'world/'+keypoint_data.iloc[0]['Keypoint'],M)
+                place(viz,'world/'+keypoint_data.iloc[0]['Keypoint'],M)
         q_ii = q[ii,:]
-        # viz.display(q_ii)
+        viz.display(q_ii)
         pin.forwardKinematics(human_model,human_data,q_ii)
         pin.updateFramePlacements(human_model,human_data)
-        hand_frame_tr[c,:]=human_data.oMf[human_model.getFrameId('hand')].translation
+        # hand_frame_tr[c,:]=human_data.oMf[human_model.getFrameId('hand')].translation
         c+=1
+        time.sleep(0.033)
+        
 
-fig, ax = plt.subplots(3,1)
-ax[0].plot(hand_frame_tr[:,0])
-ax[0].set_ylabel('x')
-ax[1].plot(hand_frame_tr[:,1])
-ax[1].set_ylabel('y')
-ax[2].plot(hand_frame_tr[:,2])
-ax[2].set_ylabel('z')
-plt.title('Hand translation')
-plt.show()
+# fig, ax = plt.subplots(3,1)
+# ax[0].plot(hand_frame_tr[:,0])
+# ax[0].set_ylabel('x')
+# ax[1].plot(hand_frame_tr[:,1])
+# ax[1].set_ylabel('y')
+# ax[2].plot(hand_frame_tr[:,2])
+# ax[2].set_ylabel('z')
+# plt.title('Hand translation')
+# plt.show()

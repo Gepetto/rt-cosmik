@@ -1,10 +1,9 @@
 import os
 import sys
-from pathlib import Path
-# Get the current working directory
-script_dir = Path.cwd()
-# Construct the path to mpc_utils
-rt_cosmik_path = script_dir.parent / 'rt-cosmik'
+# Get the directory where the script is located
+script_directory = os.path.dirname(os.path.abspath(__file__))
+# Go one folder back
+rt_cosmik_path = os.path.dirname(script_directory)
 # Append it to sys.path
 sys.path.append(str(rt_cosmik_path))
 
@@ -15,13 +14,13 @@ import numpy as np
 from utils.model_utils import Robot
 
 # Loading human urdf
-human = Robot('models/human_urdf/urdf/human.urdf','models') 
+human = Robot(os.path.join(rt_cosmik_path,'models/human_urdf/urdf/human.urdf'),os.path.join(rt_cosmik_path,'models')) 
 human_model = human.model
 human_data = human_model.createData()
 human_visual_model = human.visual_model
 human_collision_model = human.collision_model
 
-q=pd.read_csv('output/q.csv').to_numpy()[:,-5:].astype(float)
+q=pd.read_csv(os.path.join(rt_cosmik_path,'output/q.csv')).to_numpy()[:,-5:].astype(float)
 q = q[200:1000,:]
 
 dt = 1/30
