@@ -1,6 +1,8 @@
 # To run the code : python3 apps/rt_cosmik_rgbcams.py cuda /root/workspace/mmdeploy/rtmpose-trt/rtmdet-nano /root/workspace/mmdeploy/rtmpose-trt/rtmpose-m
 # or python3 -m apps.rt_cosmik_rgbcams cuda /root/workspace/mmdeploy/rtmpose-trt/rtmdet-nano /root/workspace/mmdeploy/rtmpose-trt/rtmpose-m
 
+# rosrun tf static_transform_publisher 0 0 0 0 0 0 1 map world 5
+
 import argparse
 import os
 import cv2
@@ -24,6 +26,7 @@ from utils.model_utils import Robot, model_scaling
 from utils.calib_utils import load_cam_params, load_cam_to_cam_params, load_cam_pose
 from utils.triangulation_utils import triangulate_points
 from utils.ik_utils import RT_Quadprog
+from utils.iir import IIR
 
 # Get the directory where the script is located
 script_directory = os.path.dirname(os.path.abspath(__file__))
@@ -336,7 +339,7 @@ def main():
         dists.append(dict_cam[cam]["dist"])
         mtxs.append(dict_cam[cam]["mtx"])
 
-    # Loading camera pose 
+    ### Loading camera pose 
     R1_global, T1_global = load_cam_pose(os.path.join(parent_directory,'cams_calibration/cam_params/camera1_pose_test_test.yml'))
     # R1_global = R1_global@pin.utils.rotate('z', np.pi) # aligns measurements to human model definition
     
@@ -361,7 +364,7 @@ def main():
 
     mapping = dict(zip(keypoint_names,[i for i in range(len(keypoint_names))]))
 
-    # Initialize CSV files
+    ### Initialize CSV files
     with open(keypoints_csv_file_path, mode='w', newline='') as file:
         csv_writer = csv.writer(file)
         # Write the header row
@@ -377,7 +380,7 @@ def main():
         # Write the header row
         csv3_writer.writerow(['Frame','Time','q0', 'q1','q2','q3','q4'])
 
-    # Initialize ROS node 
+    ### Initialize ROS node 
     rospy.init_node('human_rt_ik', anonymous=True)
     
     # pub = rospy.Publisher('/human_RT_joint_angles', JointState, queue_size=10)
@@ -390,7 +393,7 @@ def main():
 
     # kpt_thr = 0.7
 
-    # Initialize cams stream
+    ### Initialize cams stream
     camera_indices = list_available_cameras()
     # print(camera_indices)
 
@@ -398,7 +401,7 @@ def main():
     # captures = [cv2.VideoCapture(idx) for idx in camera_indices]
 
     # if webcam remove it 
-    captures = [cv2.VideoCapture(idx) for idx in camera_indices if idx !=4]
+    captures = [cv2.VideoCapture(idx) for idx in camera_indices if idx !=2]
     
     width_vids = []
     height_vids = []
@@ -417,18 +420,31 @@ def main():
             print(f"Error: Camera {i} not opened.")
             return
 
-    # Loading human urdf
+    ### Loading human urdf
     human = Robot(os.path.join(parent_directory,'models/human_urdf/urdf/human.urdf'),os.path.join(parent_directory,'models')) 
     human_model = human.model
 
     subject_height = 1.81
     subject_mass = 73.0
 
-    # IK calculations 
+    ### IK calculations 
     q = np.array([np.pi/2,0,0,-np.pi,0]) # init pos
     dt = 1/30
     keys_to_track_list = ["Right Knee","Right Hip","Right Shoulder","Right Elbow","Right Wrist"]
     dict_dof_to_keypoints = dict(zip(keys_to_track_list,['knee_Z', 'lumbar_Z', 'shoulder_Z', 'elbow_Z', 'hand_fixed']))
+
+    ### Set up real time filter 
+    # Constant
+    fs = 40
+    num_channel = 3*len(keypoint_names)
+
+    # Creating IIR instance
+    iir_filter = IIR(
+        num_channel=num_channel,
+        sampling_frequency=fs
+    )
+
+    iir_filter.add_filter(order=4, cutoff=5, filter_type='lowpass')
     
     first_sample = True 
     frame_idx = 0
@@ -509,9 +525,10 @@ def main():
 
                 # Apply the rotation matrix to align the points
                 keypoints_in_world = np.dot(keypoints_shifted,R1_global)
-                print(keypoints_in_world)
+                # print(keypoints_in_world)
+
+                # publish_keypoints_as_marker_array(keypoints_in_world, keypoints_pub, keypoint_names)
                 
-                publish_keypoints_as_marker_array(keypoints_in_world, keypoints_pub, keypoint_names)
                 
             #     # Translate so that the right ankle is at 0 everytime
             #     #keypoints_in_world -= keypoints_in_world[mapping["Right Ankle"],:]
@@ -519,25 +536,32 @@ def main():
             #     #print(flattened_keypoints)
             #     row = flattened_keypoints.tolist()
 
-            #     # Saving keypoints
-            #     with open(keypoints_csv_file_path, mode='a', newline='') as file:
-            #         csv_writer = csv.writer(file)
-            #         for jj in range(len(keypoint_names)):
-            #             # Write to CSV
-            #             csv_writer.writerow([frame_idx, formatted_timestamp,keypoint_names[jj], keypoints_in_world[jj][0], keypoints_in_world[jj][1], keypoints_in_world[jj][2]])
+                # Saving keypoints
+                with open(keypoints_csv_file_path, mode='a', newline='') as file:
+                    csv_writer = csv.writer(file)
+                    for jj in range(len(keypoint_names)):
+                        # Write to CSV
+                        csv_writer.writerow([frame_idx, formatted_timestamp,keypoint_names[jj], keypoints_in_world[jj][0], keypoints_in_world[jj][1], keypoints_in_world[jj][2]])
                 
                 if first_sample:
                     for k in range(30):
                         keypoints_buffer.append(keypoints_in_world)  #add the 1st frame 30 times
                     first_sample = False  #put the flag to false 
                 else:
-                    keypoints_buffer.append(keypoints_in_world) #add the keyponts to the buffer normally 
+                    keypoints_buffer.append(keypoints_in_world) #add the keypoints to the buffer normally 
                 
                 if len(keypoints_buffer) == 30:
                     keypoints_buffer_array = np.array(keypoints_buffer)
+
+                    # Filter keypoints in world to remove noisy artefacts 
+                    filtered_keypoints_buffer = iir_filter.filter(np.reshape(keypoints_buffer_array,(30, 3*len(keypoint_names))))
+
+                    filtered_keypoints_buffer = np.reshape(filtered_keypoints_buffer,(30, len(keypoint_names), 3))
+
+                    publish_keypoints_as_marker_array(filtered_keypoints_buffer[-1], keypoints_pub, keypoint_names)
                     
                     #call augmentTrc
-                    augmented_markers = augmentTRC(keypoints_buffer_array, subject_mass=subject_mass, subject_height=subject_height, models = warmed_models,
+                    augmented_markers = augmentTRC(filtered_keypoints_buffer, subject_mass=subject_mass, subject_height=subject_height, models = warmed_models,
                                augmenterDir=os.path.join(parent_directory,"/augmentation_model")
                                ,augmenter_model='v0.3', offset=True)
 
@@ -547,6 +571,14 @@ def main():
                     augmented_markers = np.array(augmented_markers).reshape(-1, 3) 
     
                     print(augmented_markers)
+
+                    # Saving keypoints
+                    with open(augmented_csv_file_path, mode='a', newline='') as file:
+                        csv_writer = csv.writer(file)
+                        for jj in range(len(augmented_markers)):
+                            # Write to CSV
+                            csv_writer.writerow([frame_idx, formatted_timestamp,marker_names[jj], augmented_markers[jj][0], augmented_markers[jj][1], augmented_markers[jj][2]])
+                
 
                     publish_augmented_markers(augmented_markers, augmented_markers_pub, marker_names)                
                 
