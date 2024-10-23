@@ -4,6 +4,17 @@ from geometry_msgs.msg import Point
 
 
 def publish_keypoints_as_marker_array(keypoints, marker_pub, keypoint_names, frame_id="world"):
+    """
+    Publishes a list of keypoints as a MarkerArray in ROS.
+    Args:
+        keypoints (list of list of float): A list of keypoints, where each keypoint is a list of three floats [x, y, z].
+        marker_pub (rospy.Publisher): ROS publisher to publish the MarkerArray.
+        keypoint_names (list of str): A list of names for the keypoints.
+        frame_id (str, optional): The frame ID to use for the markers. Defaults to "world".
+    Returns:
+        None
+    """
+
     marker_array = MarkerArray()
     marker_template = Marker()
     marker_template.header.frame_id = frame_id
@@ -56,6 +67,17 @@ def publish_keypoints_as_marker_array(keypoints, marker_pub, keypoint_names, fra
     marker_pub.publish(marker_array)
 
 def publish_augmented_markers(keypoints, marker_pub, keypoint_names, frame_id="world"):
+    """
+    Publishes augmented markers for a given set of keypoints.
+    Args:
+        keypoints (list of tuples): A list of augmented markers where each marker is a tuple (x, y, z).
+        marker_pub (rospy.Publisher): ROS publisher to publish the MarkerArray.
+        keypoint_names (list of str): A list of names for each keypoint.
+        frame_id (str, optional): The frame ID to associate with the markers. Defaults to "world".
+    Returns:
+        None
+    """
+
     marker_array = MarkerArray()
     marker_template = Marker()
     marker_template.header.frame_id = frame_id
