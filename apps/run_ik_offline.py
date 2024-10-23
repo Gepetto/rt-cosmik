@@ -10,21 +10,27 @@ from pinocchio.visualize import GepettoVisualizer
 import numpy as np 
 import time 
 import matplotlib.pyplot as plt
+import os 
+
+# Get the directory where the script is located
+script_directory = os.path.dirname(os.path.abspath(__file__))
+# Go one folder back
+parent_directory = os.path.dirname(script_directory)
 
 # Loading human urdf
-human = Robot('models/human_urdf/urdf/human.urdf','models') 
+human = Robot(os.path.join(parent_directory,'models/human_urdf/urdf/human.urdf'),os.path.join(parent_directory,'models')) 
 human_model = human.model
 human_visual_model = human.visual_model
 human_collision_model = human.collision_model
 
 # Loading joint center positions
-data = pd.read_csv('output/keypoints_3D_pos_2RGB_2.csv')
+data = pd.read_csv(os.path.join(parent_directory,'output/keypoints_3D_pos_2RGB_2.csv'))
 
 # Convert X, Y, Z columns to a numpy array
 keypoints = data[['X', 'Y', 'Z']].values  # Shape: (3, N) where N is the number of keypoints
 
 # Loading camera pose 
-R1_global, T1_global = load_cam_pose('cams_calibration/cam_params/camera1_pose_test_test.yml')
+R1_global, T1_global = load_cam_pose(os.path.join(parent_directory,'cams_calibration/cam_params/camera1_pose_test_test.yml'))
 R1_global = R1_global@pin.utils.rotate('z', np.pi) # aligns measurements to human model definition
 
 # Subtract the translation vector (shifting the origin)

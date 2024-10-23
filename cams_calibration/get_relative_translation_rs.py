@@ -8,7 +8,11 @@ import yaml
 import sys
 import os
 import glob
-import pinocchio as pin 
+
+# Get the directory where the script is located
+script_directory = os.path.dirname(os.path.abspath(__file__))
+# Go one folder back
+parent_directory = os.path.dirname(script_directory)
 
 # Checking if at least two arguments are passed (including the script name)
 if len(sys.argv) > 2:
@@ -25,15 +29,15 @@ expe_no = str(arg1)
 trial_no = str(arg2)
 
 # Use os.makedirs() to create your directory; exist_ok=True means it won't throw an error if the directory already exists
-os.makedirs("./cams_calibration/images_robot_base_cam_1/" + expe_no + "_" + trial_no + "/color", exist_ok=True)
-os.makedirs("./cams_calibration/images_robot_base_cam_2/" + expe_no + "_" + trial_no + "/color", exist_ok=True)
-os.makedirs("./cams_calibration/robot_params/", exist_ok=True)
+os.makedirs(os.path.join(parent_directory,"cams_calibration/images_robot_base_cam_1/" + expe_no + "_" + trial_no + "/color"), exist_ok=True)
+os.makedirs(os.path.join(parent_directory,"cams_calibration/images_robot_base_cam_2/" + expe_no + "_" + trial_no + "/color"), exist_ok=True)
+os.makedirs(os.path.join(parent_directory,"cams_calibration/robot_params"), exist_ok=True)
 
-c1_color_imgs_path = "./cams_calibration/images_robot_base_cam_1/" + expe_no + "_" + trial_no + "/color/*"
-c2_color_imgs_path = "./cams_calibration/images_robot_base_cam_2/" + expe_no + "_" + trial_no + "/color/*"
+c1_color_imgs_path = os.path.join(parent_directory,"cams_calibration/images_robot_base_cam_1/" + expe_no + "_" + trial_no + "/color/*")
+c2_color_imgs_path = os.path.join(parent_directory,"cams_calibration/images_robot_base_cam_2/" + expe_no + "_" + trial_no + "/color/*")
 
-c1_color_params_path = "./cams_calibration/robot_params/c1_robot_color_" + expe_no + "_" + trial_no + ".yml"
-c2_color_params_path = "./cams_calibration/robot_params/c2_robot_color_" + expe_no + "_" + trial_no + ".yml"
+c1_color_params_path = os.path.join(parent_directory,"cams_calibration/robot_params/c1_robot_color_" + expe_no + "_" + trial_no + ".yml")
+c2_color_params_path = os.path.join(parent_directory,"cams_calibration/robot_params/c2_robot_color_" + expe_no + "_" + trial_no + ".yml")
 
 # Configure depth and color streams for both cameras
 pipeline_1 = rs.pipeline()
@@ -103,11 +107,11 @@ pipeline_2.start(config_2)
 aruco_dict = cv2.aruco.getPredefinedDictionary(cv2.aruco.DICT_4X4_50)
 marker_size = 0.176  # Marker size in meters (17.6 cm)
 
-K1, D1 = load_cam_params("./cams_calibration/cam_params/c1_params_color_test_test.yml")
-K2, D2 = load_cam_params("./cams_calibration/cam_params/c2_params_color_test_test.yml")
+K1, D1 = load_cam_params(os.path.join(parent_directory,"cams_calibration/cam_params/c1_params_color_test_test.yml"))
+K2, D2 = load_cam_params(os.path.join(parent_directory,"cams_calibration/cam_params/c2_params_color_test_test.yml"))
 
-R1_global, T1_global = load_cam_pose('cams_calibration/cam_params/camera1_pose_test_test.yml')
-R2_global, T2_global = load_cam_pose('cams_calibration/cam_params/camera2_pose_test_test.yml')
+R1_global, T1_global = load_cam_pose(os.path.join(parent_directory,'cams_calibration/cam_params/camera1_pose_test_test.yml'))
+R2_global, T2_global = load_cam_pose(os.path.join(parent_directory,'cams_calibration/cam_params/camera2_pose_test_test.yml'))
 
 # Camera intrinsic parameters (from your YAML file)
 camera_matrix_1 = K1
@@ -284,8 +288,8 @@ try :
         c = cv2.waitKey(10)
         if c == ord('s'):
             print('images taken')
-            cv2.imwrite("./cams_calibration/images_robot_base_cam_1/" + expe_no + "_" + trial_no + "/color/img_" + str(img_idx) + ".png", color_image_1)
-            cv2.imwrite("./cams_calibration/images_robot_base_cam_2/" + expe_no + "_" + trial_no + "/color/img_" + str(img_idx) + ".png", color_image_2)
+            cv2.imwrite(os.path.join(parent_directory,"cams_calibration/images_robot_base_cam_1/" + expe_no + "_" + trial_no + "/color/img_" + str(img_idx) + ".png"), color_image_1)
+            cv2.imwrite(os.path.join(parent_directory,"cams_calibration/images_robot_base_cam_2/" + expe_no + "_" + trial_no + "/color/img_" + str(img_idx) + ".png"), color_image_2)
             img_idx = img_idx + 1
         if c == ord('q'):
             print("quit")
