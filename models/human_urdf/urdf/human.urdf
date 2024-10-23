@@ -78,7 +78,7 @@
             </material>
         </visual>
     </link>
-    <joint name="left_knee" type="revolute">
+    <joint name="left_knee_Z" type="revolute">
         <origin xyz="0 -0.427 0" rpy="0 -0 0" />
         <axis xyz="0 0 -1" />
         <parent link="left_upperleg" />
@@ -590,7 +590,7 @@
             </material>
         </visual>
     </link>
-    <joint name="right_knee" type="revolute">
+    <joint name="right_knee_Z" type="revolute">
         <origin xyz="0 -0.427 0" rpy="0 -0 0" />
         <axis xyz="0 0 -1" />
         <parent link="right_upperleg" />
