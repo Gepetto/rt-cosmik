@@ -44,7 +44,7 @@ camera_indices = available_cameras
 # captures = [cv2.VideoCapture(idx) for idx in camera_indices]
 
 # if webcam remove it 
-captures = [cv2.VideoCapture(idx) for idx in camera_indices if idx !=4]
+captures = [cv2.VideoCapture(idx) for idx in camera_indices if idx !=2]
 
 for cap in captures: 
     cap.set(cv2.CAP_PROP_FRAME_WIDTH, width)  # HD

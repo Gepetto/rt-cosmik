@@ -42,7 +42,7 @@ camera_indices = available_cameras
 # captures = [cv2.VideoCapture(idx) for idx in camera_indices]
 
 # if webcam remove it 
-captures = [cv2.VideoCapture(idx) for idx in camera_indices if idx !=4]
+captures = [cv2.VideoCapture(idx) for idx in camera_indices if idx !=2]
 
 for cap in captures: 
     cap.set(cv2.CAP_PROP_FRAME_WIDTH, width)  # HD
@@ -58,8 +58,6 @@ for i, cap in enumerate(captures):
 # Use os.makedirs() to create your directory; exist_ok=True means it won't throw an error if the directory already exists
 os.makedirs(os.path.join(parent_directory,"cams_calibration/images_calib_cam_1/" + expe_no + "_" + trial_no + "/color"), exist_ok=True)
 os.makedirs(os.path.join(parent_directory,"cams_calibration/images_calib_cam_2/" + expe_no + "_" + trial_no + "/color"), exist_ok=True)
-os.makedirs(os.path.join(parent_directory,"cams_calibration/images_calib_cam_1/" + expe_no + "_" + trial_no + "/ir"), exist_ok=True)
-os.makedirs(os.path.join(parent_directory,"cams_calibration/images_calib_cam_2/" + expe_no + "_" + trial_no + "/ir"), exist_ok=True)
 
 c1_color_imgs_path = os.path.join(parent_directory,"cams_calibration/images_calib_cam_1/" + expe_no + "_" + trial_no + "/color/*")
 c2_color_imgs_path = os.path.join(parent_directory,"cams_calibration/images_calib_cam_2/" + expe_no + "_" + trial_no + "/color/*")
