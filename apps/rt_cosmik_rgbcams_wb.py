@@ -22,7 +22,7 @@ from sensor_msgs.msg import JointState
 from visualization_msgs.msg import MarkerArray
 
 from utils.read_write_utils import formatting_keypoints, set_zero_data
-from utils.model_utils import Robot, model_scaling
+from utils.model_utils import build_model_challenge
 from utils.calib_utils import load_cam_params, load_cam_to_cam_params, load_cam_pose
 from utils.triangulation_utils import triangulate_points
 from utils.ik_utils import RT_Quadprog
@@ -36,6 +36,7 @@ script_directory = os.path.dirname(os.path.abspath(__file__))
 parent_directory = os.path.dirname(script_directory)
 
 augmenter_path = os.path.join(parent_directory, 'augmentation_model')
+meshes_folder_path = os.path.join(parent_directory, 'models/human_urdf/meshes')
 
 keypoints_buffer = deque(maxlen=30)
 warmed_models= loadModel(augmenterDir=augmenter_path, augmenterModelName="LSTM",augmenter_model='v0.3')
@@ -122,7 +123,16 @@ def main():
     R1_global, T1_global = load_cam_pose(os.path.join(parent_directory,'cams_calibration/cam_params/camera1_pose_test_test.yml'))
     # R1_global = R1_global@pin.utils.rotate('z', np.pi) # aligns measurements to human model definition
     
-    dof_names=['ankle_Z', 'knee_Z', 'lumbar_Z', 'shoulder_Z', 'elbow_Z'] 
+    dof_names=['ankle_Z', 'knee_Z', 'lumbar_Z', 'shoulder_Z', 'elbow_Z']
+    subject_height = 1.81
+    subject_mass = 73.0
+
+    ### IK calculations 
+    q = np.array([np.pi/2,0,0,-np.pi,0]) # init pos
+    dt = 1/30
+    keys_to_track_list = ["Right Knee","Right Hip","Right Shoulder","Right Elbow","Right Wrist"]
+    dict_dof_to_keypoints = dict(zip(keys_to_track_list,['knee_Z', 'lumbar_Z', 'shoulder_Z', 'elbow_Z', 'hand_fixed']))
+ 
 
     keypoint_names = [
         "Nose", "Left Eye", "Right Eye", "Left Ear", "Right Ear", 
@@ -162,7 +172,7 @@ def main():
     ### Initialize ROS node 
     rospy.init_node('human_rt_ik', anonymous=True)
     
-    # pub = rospy.Publisher('/human_RT_joint_angles', JointState, queue_size=10)
+    pub = rospy.Publisher('/human_RT_joint_angles', JointState, queue_size=10)
     keypoints_pub = rospy.Publisher('/pose_keypoints', MarkerArray, queue_size=10)
     augmented_markers_pub = rospy.Publisher('/markers_pose', MarkerArray, queue_size=10)
 
@@ -198,20 +208,7 @@ def main():
         if not cap.isOpened():
             print(f"Error: Camera {i} not opened.")
             return
-
-    ### Loading human urdf
-    human = Robot(os.path.join(parent_directory,'models/human_urdf/urdf/human.urdf'),os.path.join(parent_directory,'models')) 
-    human_model = human.model
-
-    subject_height = 1.81
-    subject_mass = 73.0
-
-    ### IK calculations 
-    q = np.array([np.pi/2,0,0,-np.pi,0]) # init pos
-    dt = 1/30
-    keys_to_track_list = ["Right Knee","Right Hip","Right Shoulder","Right Elbow","Right Wrist"]
-    dict_dof_to_keypoints = dict(zip(keys_to_track_list,['knee_Z', 'lumbar_Z', 'shoulder_Z', 'elbow_Z', 'hand_fixed']))
-
+    
     ### Set up real time filter 
     # Constant
     fs = 40
@@ -305,24 +302,6 @@ def main():
 
                 # Apply the rotation matrix to align the points
                 keypoints_in_world = np.dot(keypoints_shifted,R1_global)
-                # print(keypoints_in_world)
-
-                # # For Kahina 
-                # flattened_keypoints = keypoints_in_world.flatten()
-                # #print(flattened_keypoints)
-                # row = flattened_keypoints.tolist()
-                # with open('keypoints_rt_kahina.csv', mode='a') as file:
-                #     csv_writer = csv.writer(file)
-                #     csv_writer.writerow(row)
-
-                # publish_keypoints_as_marker_array(keypoints_in_world, keypoints_pub, keypoint_names)
-                
-                
-            #     # Translate so that the right ankle is at 0 everytime
-            #     #keypoints_in_world -= keypoints_in_world[mapping["Right Ankle"],:]
-            #     flattened_keypoints = keypoints_in_world.flatten()
-            #     #print(flattened_keypoints)
-            #     row = flattened_keypoints.tolist()
 
                 # Saving keypoints
                 with open(keypoints_csv_file_path, mode='a', newline='') as file:
@@ -334,7 +313,6 @@ def main():
                 if first_sample:
                     for k in range(30):
                         keypoints_buffer.append(keypoints_in_world)  #add the 1st frame 30 times
-                    first_sample = False  #put the flag to false 
                 else:
                     keypoints_buffer.append(keypoints_in_world) #add the keypoints to the buffer normally 
                 
@@ -370,7 +348,15 @@ def main():
                             # Write to CSV
                             csv_writer.writerow([frame_idx, formatted_timestamp,marker_names[jj], augmented_markers[jj][0], augmented_markers[jj][1], augmented_markers[jj][2]])
 
-                    publish_augmented_markers(augmented_markers, augmented_markers_pub, marker_names)                
+                    publish_augmented_markers(augmented_markers, augmented_markers_pub, marker_names)
+
+                    if first_sample:
+                        ### Generate human urdf
+                        human_model, human_geom_model, visuals_dict = build_model_challenge(lstm_mks_positions_calib, lstm_mks_positions_calib, meshes_folder_path)
+                        human_data = human_model.createData()
+                        first_sample = False  #put the flag to false     
+
+                    ### IK calculations            
                 
             if cv2.waitKey(1) & 0xFF == ord('q'):
                 print("quit")
