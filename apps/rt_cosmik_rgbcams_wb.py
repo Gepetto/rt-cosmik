@@ -11,6 +11,7 @@ from mmdeploy_runtime import PoseTracker
 import time 
 import csv
 import pinocchio as pin
+from pinocchio.visualize import RVizVisualizer
 from collections import deque
 from utils.lstm_v2 import augmentTRC, loadModel
 from datetime import datetime
@@ -363,6 +364,12 @@ def main():
                     if first_sample:
                         ### Generate human model
                         human_model, human_geom_model, visuals_dict = build_model_challenge(lstm_dict, lstm_dict, meshes_folder_path)
+                        
+                        viz = RVizVisualizer(human_model, human_geom_model, human_geom_model.copy())
+
+                        # Initialize the viewer.
+                        viz.initViewer()
+                        viz.loadViewerModel("pinocchio")
 
                         ### IK init 
                         q = pin.neutral(human_model) # init pos
@@ -370,12 +377,14 @@ def main():
                         ### IK calculations
                         ik_class = RT_IK(human_model, lstm_dict, q, keys_to_track_list, dt)
                         q = ik_class.solve_ik_sample_casadi()
+                        viz.display(q)
                         ik_class._q0=q
                         first_sample = False  #put the flag to false 
                     else:
                         ### IK calculations
                         ik_class._dict_m= lstm_dict
                         q = ik_class.solve_ik_sample_quadprog() 
+                        viz.display(q)
                         ik_class._q0 = q          
                 
             if cv2.waitKey(1) & 0xFF == ord('q'):
@@ -389,6 +398,7 @@ def main():
         out_vid1.release()
         out_vid2.release()
         cv2.destroyAllWindows()
+        viz.clean()
 
 
 if __name__ == '__main__':
