@@ -25,7 +25,7 @@ from utils.read_write_utils import formatting_keypoints, set_zero_data
 from utils.model_utils import build_model_challenge
 from utils.calib_utils import load_cam_params, load_cam_to_cam_params, load_cam_pose
 from utils.triangulation_utils import triangulate_points
-from utils.ik_utils import RT_Quadprog
+from utils.ik_utils import RT_IK
 from utils.iir import IIR
 from utils.viz_utils import visualize, VISUALIZATION_CFG
 from utils.ros_utils import publish_keypoints_as_marker_array, publish_augmented_markers
@@ -123,16 +123,33 @@ def main():
     R1_global, T1_global = load_cam_pose(os.path.join(parent_directory,'cams_calibration/cam_params/camera1_pose_test_test.yml'))
     # R1_global = R1_global@pin.utils.rotate('z', np.pi) # aligns measurements to human model definition
     
-    dof_names=['ankle_Z', 'knee_Z', 'lumbar_Z', 'shoulder_Z', 'elbow_Z']
+    fs = 40
+    dt = 1/fs
+
+    keys_to_track_list = ['C7_study',
+                        'r.ASIS_study', 'L.ASIS_study', 
+                        'r.PSIS_study', 'L.PSIS_study', 
+                        
+                        'r_shoulder_study',
+                        'r_lelbow_study', 'r_melbow_study',
+                        'r_lwrist_study', 'r_mwrist_study',
+                        'r_ankle_study', 'r_mankle_study',
+                        'r_toe_study','r_5meta_study', 'r_calc_study',
+                        'r_knee_study', 'r_mknee_study',
+                        'r_thigh1_study', 'r_thigh2_study', 'r_thigh3_study',
+                        'r_sh1_study', 'r_sh2_study', 'r_sh3_study',
+                        
+                        'L_shoulder_study', 
+                        'L_lelbow_study', 'L_melbow_study',
+                        'L_lwrist_study','L_mwrist_study',
+                        'L_ankle_study', 'L_mankle_study', 
+                        'L_toe_study','L_5meta_study', 'L_calc_study',
+                        'L_knee_study', 'L_mknee_study',
+                        'L_thigh1_study', 'L_thigh2_study', 'L_thigh3_study',
+                        'L_sh1_study', 'L_sh2_study', 'L_sh3_study']
+    
     subject_height = 1.81
     subject_mass = 73.0
-
-    ### IK calculations 
-    q = np.array([np.pi/2,0,0,-np.pi,0]) # init pos
-    dt = 1/30
-    keys_to_track_list = ["Right Knee","Right Hip","Right Shoulder","Right Elbow","Right Wrist"]
-    dict_dof_to_keypoints = dict(zip(keys_to_track_list,['knee_Z', 'lumbar_Z', 'shoulder_Z', 'elbow_Z', 'hand_fixed']))
- 
 
     keypoint_names = [
         "Nose", "Left Eye", "Right Eye", "Left Ear", "Right Ear", 
@@ -150,8 +167,6 @@ def main():
            'L_sh1_study','L_sh2_study','L_sh3_study','RHJC_study','LHJC_study','r_lelbow_study',
            'r_melbow_study','r_lwrist_study','r_mwrist_study','L_lelbow_study','L_melbow_study',
            'L_lwrist_study','L_mwrist_study']
-
-    mapping = dict(zip(keypoint_names,[i for i in range(len(keypoint_names))]))
 
     ### Initialize CSV files
     with open(keypoints_csv_file_path, mode='w', newline='') as file:
@@ -211,7 +226,6 @@ def main():
     
     ### Set up real time filter 
     # Constant
-    fs = 40
     num_channel = 3*len(keypoint_names)
 
     # Creating IIR instance
@@ -229,7 +243,6 @@ def main():
     fourcc = cv2.VideoWriter_fourcc(*'mp4v')  # Codec for AVI files
     out_vid1 = cv2.VideoWriter(os.path.join(parent_directory,'output/cam1.mp4'), fourcc, 30.0, (int(width_vids[0]), int(height_vids[0])), True)
     out_vid2 = cv2.VideoWriter(os.path.join(parent_directory,'output/cam2.mp4'), fourcc, 30.0, (int(width_vids[1]), int(height_vids[1])), True)
-    out_vid = [out_vid1, out_vid2]
 
     tracker = PoseTracker(
         det_model=args.det_model,
@@ -330,11 +343,6 @@ def main():
                     augmented_markers = augmentTRC(keypoints_buffer_array, subject_mass=subject_mass, subject_height=subject_height, models = warmed_models,
                                augmenterDir=augmenter_path, augmenter_model='v0.3', offset=True)
 
-                    # # Save for kahina 
-                    # # Convert responses_all_conc to a pandas DataFrame
-                    # df = pd.DataFrame([augmented_markers])
-                    # df.to_csv("markers_rt_kahina.csv", mode='a',header= False, index=False)
-
 
                     if len(augmented_markers) % 3 != 0:
                         raise ValueError("The length of the list must be divisible by 3.")
@@ -350,13 +358,25 @@ def main():
 
                     publish_augmented_markers(augmented_markers, augmented_markers_pub, marker_names)
 
-                    if first_sample:
-                        ### Generate human urdf
-                        human_model, human_geom_model, visuals_dict = build_model_challenge(lstm_mks_positions_calib, lstm_mks_positions_calib, meshes_folder_path)
-                        human_data = human_model.createData()
-                        first_sample = False  #put the flag to false     
+                    lstm_dict = dict(zip(marker_names, augmented_markers))
 
-                    ### IK calculations            
+                    if first_sample:
+                        ### Generate human model
+                        human_model, human_geom_model, visuals_dict = build_model_challenge(lstm_dict, lstm_dict, meshes_folder_path)
+
+                        ### IK init 
+                        q = pin.neutral(human_model) # init pos
+
+                        ### IK calculations
+                        ik_class = RT_IK(human_model, lstm_dict, q, keys_to_track_list, dt)
+                        q = ik_class.solve_ik_sample_casadi()
+                        ik_class._q0=q
+                        first_sample = False  #put the flag to false 
+                    else:
+                        ### IK calculations
+                        ik_class._dict_m= lstm_dict
+                        q = ik_class.solve_ik_sample_quadprog() 
+                        ik_class._q0 = q          
                 
             if cv2.waitKey(1) & 0xFF == ord('q'):
                 print("quit")
