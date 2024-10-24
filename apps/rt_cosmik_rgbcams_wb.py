@@ -196,8 +196,6 @@ def main():
     height = 720
     resize=1280
 
-    # kpt_thr = 0.7
-
     ### Initialize cams stream
     camera_indices = list_available_cameras()
     # print(camera_indices)
