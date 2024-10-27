@@ -160,7 +160,8 @@ class RT_IK:
     def solve_ik_sample_quadprog(self)->np.ndarray:
         """_Solve the ik optimisation problem : q* = argmin(||P_m - P_e||^2 + lambda|q_init - q|) st to q_min <= q <= q_max for a given sample _
         """
-        q0=self._q0
+
+        q0=pin.normalize(self._model,self._q0)
 
         G=np.concatenate((np.eye(self._nv),-np.eye(self._nv)),axis=0) # Inequality matrix size number of inequalities (=nv) \times nv
 
@@ -170,6 +171,7 @@ class RT_IK:
         Delta_q_min = pin.difference(
             self._model, q0, self._model.lowerPositionLimit
         )
+        print('after pin diff')
         p_max = self._K_lim * Delta_q_max
         p_min = self._K_lim * Delta_q_min
         h = np.hstack([p_max, -p_min])
@@ -180,9 +182,10 @@ class RT_IK:
         nb_iter = 0
 
         rmse = self.calculate_RMSE_dicts(self._dict_m,self._dict_m_est)
+        print(rmse)
 
         while rmse > self._threshold and nb_iter<self._max_iter:
-            # print(nb_iter)
+            print(nb_iter)
             # Set QP matrices 
             P=np.zeros((self._nv,self._nv)) # Hessian matrix size nv \times nv
             q=np.zeros((self._nv,)) # Gradient vector size nv
