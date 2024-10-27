@@ -165,6 +165,7 @@ class RT_IK:
 
         G=np.concatenate((np.eye(self._nv),-np.eye(self._nv)),axis=0) # Inequality matrix size number of inequalities (=nv) \times nv
 
+        #TODO : Refacto code for taking freeflyer into account (see with_freeflyer)
         Delta_q_max = pin.difference(
             self._model, q0, self._model.upperPositionLimit
         )
