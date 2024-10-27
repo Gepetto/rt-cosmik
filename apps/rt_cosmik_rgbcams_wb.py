@@ -153,11 +153,11 @@ def main():
     subject_mass = 73.0
 
     keypoint_names = [
-        "Nose", "Left Eye", "Right Eye", "Left Ear", "Right Ear", 
-        "Left Shoulder", "Right Shoulder", "Left Elbow", "Right Elbow", 
-        "Left Wrist", "Right Wrist", "Left Hip", "Right Hip", 
-        "Left Knee", "Right Knee", "Left Ankle", "Right Ankle", "Head",
-        "Neck", "Hip", "LBigToe", "RBigToe", "LSmallToe", "RSmallToe", "LHeel", "RHeel"]
+        "Nose", "LEye", "REye", "LEar", "REar", 
+        "LShoulder", "RShoulder", "LElbow", "RElbow", 
+        "LWrist", "RWrist", "LHip", "RHip", 
+        "LKnee", "RKnee", "LAnkle", "RAnkle", "Head",
+        "Neck", "midHip", "LBigToe", "RBigToe", "LSmallToe", "RSmallToe", "LHeel", "RHeel"]
 
     marker_names = ['r.ASIS_study','L.ASIS_study','r.PSIS_study','L.PSIS_study','r_knee_study',
            'r_mknee_study','r_ankle_study','r_mankle_study','r_toe_study','r_5meta_study',
@@ -357,9 +357,9 @@ def main():
 
                     publish_augmented_markers(augmented_markers, augmented_markers_pub, marker_names)
 
-                    lstm_dict = dict(zip(marker_names, augmented_markers))
 
                     if first_sample:
+                        lstm_dict = dict(zip(keypoint_names+marker_names, np.concatenate((filtered_keypoints_buffer[-1],augmented_markers),axis=0)))
                         ### Generate human model
                         human_model, human_geom_model, visuals_dict = build_model_challenge(lstm_dict, lstm_dict, meshes_folder_path)
                         
@@ -379,6 +379,7 @@ def main():
                         ik_class._q0=q
                         first_sample = False  #put the flag to false 
                     else:
+                        lstm_dict = dict(zip(marker_names, augmented_markers))
                         ### IK calculations
                         ik_class._dict_m= lstm_dict
                         q = ik_class.solve_ik_sample_quadprog() 
