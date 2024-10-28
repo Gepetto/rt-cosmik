@@ -46,6 +46,8 @@ class RT_IK:
             with_freeflyer (boolean): _tells if the pinocchio model has a ff or not. Default to True.
         """
         self._model = model
+        self._nq = self._model.nq
+        self._nv = self._model.nv
         self._data = self._model.createData()
         self._dict_m = dict_m
         self._q0 = q0
@@ -58,8 +60,6 @@ class RT_IK:
         # Casadi framework 
         self._cmodel = cpin.Model(self._model)
         self._cdata = self._cmodel.createData()
-        self._nq = self._cmodel.nq
-        self._nv = self._cmodel.nv
 
         cq = casadi.SX.sym("q",self._nq,1)
         cdq = casadi.SX.sym("dq",self._nv,1)
@@ -162,17 +162,23 @@ class RT_IK:
         """
 
         q0=pin.normalize(self._model,self._q0)
+        
+        if self._with_freeflyer:
+            G= np.concatenate((np.zeros((2*(self._nv-6),6)),np.concatenate((np.eye(self._nv-6),-np.eye(self._nv-6)),axis=0)),axis=1)
 
-        G=np.concatenate((np.eye(self._nv),-np.eye(self._nv)),axis=0) # Inequality matrix size number of inequalities (=nv) \times nv
+            Delta_q_max = (-q0[7:]+ self._model.upperPositionLimit[7:])
+            Delta_q_min = (-q0[7:]+ self._model.lowerPositionLimit[7:])
 
-        #TODO : Refacto code for taking freeflyer into account (see with_freeflyer)
-        Delta_q_max = pin.difference(
-            self._model, q0, self._model.upperPositionLimit
-        )
-        Delta_q_min = pin.difference(
-            self._model, q0, self._model.lowerPositionLimit
-        )
-        print('after pin diff')
+        else:
+            G=np.concatenate((np.eye(self._nv),-np.eye(self._nv)),axis=0) # Inequality matrix size number of inequalities (=nv) \times nv
+
+            Delta_q_max = pin.difference(
+                self._model, q0, self._model.upperPositionLimit
+            )
+            Delta_q_min = pin.difference(
+                self._model, q0, self._model.lowerPositionLimit
+            )
+
         p_max = self._K_lim * Delta_q_max
         p_min = self._K_lim * Delta_q_min
         h = np.hstack([p_max, -p_min])
@@ -183,10 +189,8 @@ class RT_IK:
         nb_iter = 0
 
         rmse = self.calculate_RMSE_dicts(self._dict_m,self._dict_m_est)
-        print(rmse)
 
         while rmse > self._threshold and nb_iter<self._max_iter:
-            print(nb_iter)
             # Set QP matrices 
             P=np.zeros((self._nv,self._nv)) # Hessian matrix size nv \times nv
             q=np.zeros((self._nv,)) # Gradient vector size nv
@@ -196,7 +200,7 @@ class RT_IK:
 
             for marker_name in self._keys_to_track_list:
 
-                v_ii=(self._dict_m[marker_name]-self._dict_m_est[marker_name])/self._dt
+                v_ii=(self._dict_m[marker_name].reshape((3,))-self._dict_m_est[marker_name].reshape((3,)))/self._dt
 
                 mu_ii=self._damping*np.dot(v_ii.T,v_ii)
 
