@@ -1123,7 +1123,7 @@ def build_model_challenge(mocap_mks_positions: Dict, lstm_mks_positions: Dict, m
     geom_model.addGeometryObject(upperarm_visual_L)
     visuals_dict["upperarm_L"] = upperarm_visual_L
 
-    # Coude gauche ZY
+    # Left Elbow ZY
     IDX_EL_Z_JF_L = model.addJoint(IDX_SH_Y_JF_L, pin.JointModelRZ(), pin.SE3(np.eye(3), np.matrix(local_segments_positions['lowerarmL']).T), 'left_elbow_Z')
     lowerarmL = pin.Frame('lowerarm_z_L', IDX_EL_Z_JF_L, idx_frame, pin.SE3(np.eye(3), np.matrix([0,0,0]).T), pin.FrameType.OP_FRAME, inertia)
     IDX_LOA_SF_L = model.addFrame(lowerarmL, False)
