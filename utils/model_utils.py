@@ -985,7 +985,7 @@ def build_model_challenge(mocap_mks_positions: Dict, lstm_mks_positions: Dict, m
         Tuple[pin.Model,pin.GeomModel, Dict]: _returns the pinocchio model, geometry model, and a dictionnary with visuals._
     """
 
-    body_color = np.array([0.005, 0.005, 0.005, 0.6])
+    body_color = np.array([0.5, 0.5, 0.5, 0.6])
 
     # TODO: Check that this model match the one in the urdf human.urdf and add abdomen joints ??
     sgts_poses = construct_segments_frames_challenge(mocap_mks_positions)
