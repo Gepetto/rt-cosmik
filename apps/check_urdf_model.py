@@ -18,10 +18,7 @@ import pandas as pd
 import pinocchio as pin 
 from pinocchio.visualize import GepettoVisualizer
 import numpy as np
-from utils.model_utils import build_model_challenge, get_segments_lstm_mks_dict_challenge, get_subset_challenge_mks_names
-from utils.ik_utils import RT_IK
-from utils.viz_utils import place, Rquat
-import time
+from utils.model_utils import Robot
 
 data_markers = pd.read_csv(os.path.join(rt_cosmik_path,'output/augmented_markers_positions.csv'))
 data_keypoints = pd.read_csv(os.path.join(rt_cosmik_path,'output/keypoints_3d_positions.csv'))
@@ -41,15 +38,18 @@ for frame, group in data_keypoints.groupby("Frame"):
 
 lstm_dict = {**result_keypoints[ii], **result_markers[ii]}
 
-t1 =time.time()
-human_model, human_geom_model, visuals_dict = build_model_challenge(lstm_dict, lstm_dict, meshes_folder_path)
-t2 = time.time()
+human = Robot(os.path.join(rt_cosmik_path,'models/human_urdf/urdf/human.urdf'),os.path.join(rt_cosmik_path,'models'),True,np.array([[1,0,0],[0,0,-1],[0,1,0]])) 
+human_model = human.model
+human_collision_model = human.collision_model
+human_visual_model = human.visual_model
 
-print("Time to build the human_model: ", t2-t1)
+list_index_urdf = [24,25,26,27,28,7,8,14,15,16,17,18,9,10,11,12,13,19,20,21,22,23]
+mapping_pin_model_to_urdf_model = dict(zip(np.arange(7,human_model.nq),list_index_urdf))
+print(mapping_pin_model_to_urdf_model)
 
 # VISUALIZATION
 
-viz = GepettoVisualizer(human_model,human_geom_model.copy(),human_geom_model)
+viz = GepettoVisualizer(human_model,human_collision_model,human_visual_model)
 try:
     viz.initViewer()
 except ImportError as err:
@@ -68,8 +68,6 @@ except AttributeError as err:
     print(err)
     sys.exit(0)
 
-seg_names_mks = get_segments_lstm_mks_dict_challenge()
-mks_names = get_subset_challenge_mks_names()
 
 #Display model frames, mks, and mesh in neutral pose
 q = pin.neutral(human_model) # init pos
@@ -77,16 +75,15 @@ data = pin.Data(human_model)
 pin.forwardKinematics(human_model, data, q)
 pin.updateFramePlacements(human_model, data)
 viz.display(q)
-for seg_name, mks in seg_names_mks.items():
-    #Display markers from human_model
-    for mk_name in mks:
-        mk_name_gui = f'world/{mk_name}'
-        viz.viewer.gui.addSphere(mk_name_gui,0.01,[0,0,1,1])
-        mk_position = data.oMf[human_model.getFrameId(mk_name)].translation
-        place(viz, mk_name_gui, pin.SE3(np.eye(3), np.matrix(mk_position.reshape(3,)).T))
-    
-    #Display frames from human_model
-    frame_name = f'world/{seg_name}'
-    viz.viewer.gui.addXYZaxis(frame_name, [255, 0., 0, 1.], 0.008, 0.08)
-    frame_se3= data.oMf[human_model.getFrameId(seg_name)]
-    place(viz, frame_name, frame_se3)
+
+q[:] = np.array([[-0.23757297,  1.08821576,  0.19000075, -0.0235671,   0.1025104,  -0.08211563,
+  0.99105662,  0.02738802,  0.09087933, -0.13369843, -0.10353136, -0.35257774,
+  0.81207362,  1.27408774,  0.0947939 ,  0.10503749, -0.35360598,  0.51428541,
+ -1.27408329,  0.08053271, -0.02890399,  0.01561397, -0.0752474,  -0.39091311,
+  0.07275684,  0.11844548, -0.02800828,  0.00789671,  0.17154332]])
+
+q_reordered = pin.neutral(human_model)
+q_reordered[:7]=q[:7]
+for ii in range(7,human_model.nq):
+    q_reordered[ii] = q[list_index_urdf.index(ii)]
+viz.display(q_reordered)

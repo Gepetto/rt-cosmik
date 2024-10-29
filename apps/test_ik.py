@@ -102,6 +102,9 @@ q = ik_class.solve_ik_sample_casadi()
 viz.display(q)
 ik_class._q0=q
 
+print(q)
+input()
+
 for ii in range(100,len(result_markers)): 
     lstm_dict = result_markers[ii]
     ik_class._dict_m= lstm_dict
