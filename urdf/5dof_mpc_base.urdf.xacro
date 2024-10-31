@@ -1,0 +1,437 @@
+<?xml version="1.0" encoding="utf-8"?>
+<robot xmlns:xacro="http://wiki.ros.org/xacro" name="human_5dof">
+  <joint name="world_to_human" type="fixed">
+    <origin rpy="1.57 -0 1.57" xyz="0.7 -1.25 0."/>
+    <axis xyz="0 0 1"/>
+    <parent link="world"/>
+    <child link="foot"/>
+  </joint>
+  <material name="body_color">
+    <texture />
+    <color rgba="0.005 0.005 0.005 0.6" />
+  </material>
+  <link name="foot">
+    <inertial>
+      <mass value="0.9" />
+      <origin xyz="0.068 -0.027 0.005" rpy="0 0 0" />
+      <inertia ixx="0.000815" ixy="0.000477" ixz="-0.00018" iyy="0.00386" iyz="0.0"
+        izz="0.003654" />
+    </inertial>
+    <visual>
+      <origin xyz="-0.05 0 0" rpy="0 1.57 0" />
+      <geometry>
+        <mesh filename="package://rt-cosmik/meshes/foot_mesh.STL"
+          scale="0.0060 0.0060 0.0060" />
+      </geometry>
+      <material name="body_color">
+        <texture />
+        <color rgba="0 1 1 0.5" />
+      </material>
+    </visual>
+    <visual>
+      <origin xyz="-0.05 0 0.15" rpy="0 1.57 0" />
+      <geometry>
+        <mesh filename="package://rt-cosmik/meshes/foot_mesh.STL"
+          scale="0.0060 0.0060 0.0060" />
+      </geometry>
+      <material name="body_color">
+        <texture />
+        <color rgba="0 1 1 0.5" />
+      </material>
+    </visual>
+  </link>
+  <joint name="ankle_Z" type="revolute">
+    <origin xyz="0.0 0.0 0.0" rpy="0 0 0" />
+    <axis xyz="0 0 1" />
+    <parent link="foot" />
+    <child link="lowerleg" />
+    <limit effort="500.0" velocity="200.0" lower="-0.785398" upper="3.14159" />
+  </joint>
+  <!-- TRANSMITION DEFINITION -->
+  <transmission name="ankle_transmition">
+    <type>transmission_interface/SimpleTransmission</type>
+    <joint name="ankle_Z">
+      <hardwareInterface>hardware_interface/EffortJointInterface</hardwareInterface>
+    </joint>
+    <actuator name="ankle_actuator">
+      <hardwareInterface>hardware_interface/EffortJointInterface</hardwareInterface>
+      <mechanicalReduction>1</mechanicalReduction>
+    </actuator>
+  </transmission>
+  <link name="lowerleg">
+    <inertial>
+      <mass value="3.6" />
+      <origin xyz="0.171 0.02 0.003" rpy="0 0 0" />
+      <inertia ixx="0.049314" ixy="-0.001006" ixz="-0.000252" iyy="0.00629" iyz="0.001573"
+        izz="0.049314" />
+    </inertial>
+    <visual>
+      <origin xyz="-0.0 0.06 0.0" rpy="1.57 1.57 0" />
+      <geometry>
+        <mesh
+          filename="package://rt-cosmik/meshes/lowerleg_mesh.STL"
+          scale="0.0063 0.0065 0.007" />
+      </geometry>
+      <material name="body_color">
+        <texture />
+        <color rgba="0 1 1 0.5" />
+      </material>
+    </visual>
+    <visual>
+      <origin xyz="-0.0 0.06 0.155" rpy="1.57 1.57 0" />
+      <geometry>
+        <mesh
+          filename="package://rt-cosmik/meshes/lowerleg_mesh.STL"
+          scale="0.0063 0.0065 0.007" />
+      </geometry>
+      <material name="body_color">
+        <texture />
+        <color rgba="0 1 1 0.5" />
+      </material>
+    </visual>
+  </link>
+  <joint name="knee_Z" type="revolute">
+    <origin rpy="0 -0 0" xyz="0.38 0.0 0.0" />
+    <axis xyz="0 0 1" />
+    <parent link="lowerleg" />
+    <child link="upperleg" />
+    <limit effort="500.0" velocity="200.0" lower="-2.74889" upper="2.74889" />
+  </joint>
+  <!-- TRANSMITION DEFINITION -->
+  <transmission name="knee_transmition">
+    <type>transmission_interface/SimpleTransmission</type>
+    <joint name="knee_Z">
+      <hardwareInterface>hardware_interface/EffortJointInterface</hardwareInterface>
+    </joint>
+    <actuator name="knee_actuator">
+      <hardwareInterface>hardware_interface/EffortJointInterface</hardwareInterface>
+      <mechanicalReduction>1</mechanicalReduction>
+    </actuator>
+  </transmission>
+  <link name="upperleg">
+    <inertial>
+      <mass value="9.22" />
+      <origin xyz="0.179 0.017 0.014" rpy="0 0 0" />
+      <inertia ixx="0.134834" ixy="0.007856" ixz="-0.000641" iyy="0.036073" iyz="-0.007856"
+        izz="0.144293" />
+    </inertial>
+    <visual>
+      <origin xyz="-0.06 -0.05 -0.12" rpy="0.0 0 0" />
+      <geometry>
+        <mesh filename="package://rt-cosmik/meshes/knee_mesh.STL"
+          scale="0.006 0.006 0.006" />
+      </geometry>
+      <material name="body_color">
+        <texture />
+        <color rgba="0 1 1 0.5" />
+      </material>
+    </visual>
+    <visual>
+      <origin xyz="-0.06 -0.05 0.03" rpy="0.0 0 0" />
+      <geometry>
+        <mesh filename="package://rt-cosmik/meshes/knee_mesh.STL"
+          scale="0.006 0.006 0.006" />
+      </geometry>
+      <material name="body_color">
+        <texture />
+        <color rgba="0 1 1 0.5" />
+      </material>
+    </visual>
+    <visual>
+      <origin xyz="0.02 0.07 0" rpy="1.57 1.57 0" />
+      <geometry>
+        <mesh
+          filename="package://rt-cosmik/meshes/upperleg_mesh.STL"
+          scale="0.0063 0.0065 0.007" />
+      </geometry>
+      <material name="body_color">
+        <texture />
+        <color rgba="0 1 1 0.5" />
+      </material>
+    </visual>
+    <visual>
+      <origin xyz="0.02 0.07 0.155" rpy="1.57 1.57 0" />
+      <geometry>
+        <mesh
+          filename="package://rt-cosmik/meshes/upperleg_mesh.STL"
+          scale="0.0063 0.0065 0.007" />
+      </geometry>
+      <material name="body_color">
+        <texture />
+        <color rgba="0 1 1 0.5" />
+      </material>
+    </visual>
+  </link>
+  <joint name="lumbar_Z" type="revolute">
+    <origin rpy="0 -0 0" xyz="0.48 0.0 0.0" />
+    <axis xyz="0 0 1" />
+    <parent link="upperleg" />
+    <child link="trunk" />
+    <limit effort="500.0" velocity="200.0" lower="-3.14" upper="0" />
+  </joint>
+  <!-- TRANSMITION DEFINITION -->
+  <transmission name="lumbar_transmition">
+    <type>transmission_interface/SimpleTransmission</type>
+    <joint name="lumbar_Z">
+      <hardwareInterface>hardware_interface/EffortJointInterface</hardwareInterface>
+    </joint>
+    <actuator name="lumbar_actuator">
+      <hardwareInterface>hardware_interface/EffortJointInterface</hardwareInterface>
+      <mechanicalReduction>1</mechanicalReduction>
+    </actuator>
+  </transmission>
+  <link name="trunk">
+    <inertial>
+      <mass value="35.47" />
+      <origin xyz="0.116 0.007 -0.001" rpy="0 0 0" />
+      <inertia ixx="2.592457" ixy="7.005900e-02" ixz="-3.523000e-04" iyy="2.448720e-01"
+        iyz="-4.236600e-03" izz="2.594914" />
+    </inertial>
+    <visual>
+      <origin xyz="-0.043 0.105 0.125" rpy="1.57 1.57 0" />
+      <geometry>
+        <mesh
+          filename="package://rt-cosmik/meshes/pelvis_mesh.STL"
+          scale="0.006 0.0055 0.0055" />
+      </geometry>
+      <material name="body_color">
+        <texture />
+        <color rgba="0 1 1 0.5" />
+      </material>
+    </visual>
+    <visual>
+      <origin xyz="0.10 -0.085 -0.085" rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://rt-cosmik/meshes/abdomen_mesh.STL"
+          scale="0.0055 0.0055 0.0055" />
+
+      </geometry>
+      <material name="body_color">
+        <texture />
+        <color rgba="0 1 1 0.5" />
+      </material>
+    </visual>
+    <visual>
+      <origin xyz="0.22 0.13 0.125" rpy="1.57 1.57 0" />
+      <geometry>
+
+        <mesh filename="package://rt-cosmik/meshes/torso_mesh.STL"
+          scale="0.0065 0.0065 0.0065" />
+      </geometry>
+      <material name="body_color">
+        <texture />
+        <color rgba="0.2 0.2 0.2 0.2" />
+      </material>
+    </visual>
+    <visual>
+      <origin xyz="0.57 0.085 0.085" rpy="1.57 1.57 0" />
+      <geometry>
+        <mesh filename="package://rt-cosmik/meshes/head_mesh.STL"
+          scale="0.0055 0.0055 0.0055" />
+      </geometry>
+      <material name="body_color">
+        <texture />
+        <color rgba="0.2 0.2 0.2 0.5" />
+      </material>
+    </visual>
+    <visual>
+      <origin xyz="0.51 -0.05 -0.05" rpy="0 0.0 0" />
+      <geometry>
+        <mesh filename="package://rt-cosmik/meshes/neck_mesh.STL"
+          scale="0.005 0.005 0.005" />
+      </geometry>
+      <material name="body_color">
+        <texture />
+        <color rgba="0.2 0.2 0.2 0.7" />
+      </material>
+    </visual>
+  </link>
+  <joint name="shoulder_Z" type="revolute">
+    <origin rpy="0 -0 0" xyz="0.45 0.0 0.0" />
+    <axis xyz="0 0 1" />
+    <parent link="trunk" />
+    <child link="upperarm" />
+    <limit effort="500.0" velocity="200.0" lower="-3.14" upper="1.54" />
+  </joint>
+  <!-- TRANSMITION DEFINITION -->
+  <transmission name="shoulder_transmition">
+    <type>transmission_interface/SimpleTransmission</type>
+    <joint name="shoulder_Z">
+      <hardwareInterface>hardware_interface/EffortJointInterface</hardwareInterface>
+    </joint>
+    <actuator name="shoulder_actuator">
+      <hardwareInterface>hardware_interface/EffortJointInterface</hardwareInterface>
+      <mechanicalReduction>1</mechanicalReduction>
+    </actuator>
+  </transmission>
+  <link name="upperarm">
+    <inertial>
+      <mass value="1.8" />
+      <origin xyz="0.118 -0.004 -0.007" rpy="0 0 0" />
+      <inertia ixx="0.011874" ixy="0.000445" ixz="0.000309" iyy="0.002422" iyz="4.9e-05"
+        izz="0.012652" />
+    </inertial>
+    <visual>
+      <origin xyz="-0.15 -0.05 0.12" rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://rt-cosmik/meshes/shoulder_mesh.STL"
+          scale="0.0055 0.0055 0.0055" />
+      </geometry>
+      <material name="body_color">
+        <texture />
+        <color rgba="0 1 1 0.5" />
+      </material>
+    </visual>
+    <visual>
+      <origin xyz="-0.02 -0.065 -0.355" rpy="1.57 -1.57 3.14" />
+      <geometry>
+        <mesh
+          filename="package://rt-cosmik/meshes/upperarm_mesh.STL"
+          scale="0.0063 0.0060 0.007" />
+      </geometry>
+      <material name="body_color" />
+    </visual>
+    <visual>
+      <origin xyz="-0.15 -0.05 -0.225" rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://rt-cosmik/meshes/shoulder_mesh.STL"
+          scale="0.0055 0.0055 0.0055" />
+      </geometry>
+      <material name="body_color">
+        <texture />
+        <color rgba="0 1 1 0.5" />
+      </material>
+    </visual>
+    <visual>
+      <origin xyz="-0.02 -0.065 -0.01" rpy="1.57 -1.57 3.14" />
+      <geometry>
+        <mesh
+          filename="package://rt-cosmik/meshes/upperarm_mesh.STL"
+          scale="0.0063 0.0060 0.007" />
+      </geometry>
+      <material name="body_color" />
+    </visual>
+  </link>
+  <joint name="elbow_Z" type="revolute">
+    <origin rpy="0 -0 0" xyz="0.29 0.0 0.0" />
+    <axis xyz="0 0 1" />
+    <parent link="upperarm" />
+    <child link="lowerarm" />
+    <limit effort="500.0" velocity="200.0" lower="0" upper="2.74889" />
+  </joint>
+  <!-- TRANSMITION DEFINITION -->
+  <transmission name="elbow_transmition">
+    <type>transmission_interface/SimpleTransmission</type>
+    <joint name="elbow_Z">
+      <hardwareInterface>hardware_interface/EffortJointInterface</hardwareInterface>
+    </joint>
+    <actuator name="elbow_actuator">
+      <hardwareInterface>hardware_interface/EffortJointInterface</hardwareInterface>
+      <mechanicalReduction>1</mechanicalReduction>
+    </actuator>
+  </transmission>
+  <link name="lowerarm">
+    <inertial>
+      <mass value="1.28" />
+      <origin xyz="0.114 -0.003 0.004" rpy="0 0 0" />
+      <inertia ixx="0.007479" ixy="8.6e-05" ixz="3.8e-05" iyy="0.001154" iyz="-0.000611"
+        izz="0.006954" />
+    </inertial>
+    <visual>
+      <origin xyz="-0.165 -0.035 -0.21" rpy="0 0 0" />
+      <geometry>
+        <mesh filename="package://rt-cosmik/meshes/elbow_mesh.STL"
+          scale="0.0055 0.0055 0.0055" />
+      </geometry>
+      <material name="body_color">
+        <texture />
+        <color rgba="0 1 1 0.5" />
+      </material>
+    </visual>
+    <visual>
+      <origin xyz="-0.005 -0.05 -0.345" rpy="1.57 -1.57 3.14" />
+      <geometry>
+        <mesh
+          filename="package://rt-cosmik/meshes/lowerarm_mesh.STL"
+          scale="0.0060 0.0060 0.0060" />
+      </geometry>
+      <material name="body_color">
+        <texture />
+        <color rgba="0 1 1 0.5" />
+      </material>
+    </visual>
+    <visual>
+      <origin xyz="-0.165 -0.035 0.135" rpy="0 0 0" />
+      <geometry>
+        <mesh filename="package://rt-cosmik/meshes/elbow_mesh.STL"
+          scale="0.0055 0.0055 0.0055" />
+      </geometry>
+      <material name="body_color">
+        <texture />
+        <color rgba="0 1 1 0.5" />
+      </material>
+    </visual>
+    <visual>
+      <origin xyz="-0.005 -0.05 -0.0" rpy="1.57 -1.57 3.14" />
+      <geometry>
+        <mesh
+          filename="package://rt-cosmik/meshes/lowerarm_mesh.STL"
+          scale="0.0060 0.0060 0.0060" />
+      </geometry>
+      <material name="body_color">
+        <texture />
+        <color rgba="0 1 1 0.5" />
+      </material>
+    </visual>
+  </link>
+  <joint name="hand_fixed" type="fixed">
+    <origin rpy="0 -0 0" xyz="0.24 0.0 0.0" />
+    <axis xyz="0 0 1" />
+    <parent link="lowerarm" />
+    <child link="hand" />
+    <limit effort="500.0" velocity="200.0" lower="-1.5708" upper="1.5708" />
+  </joint>
+  <link name="hand">
+    <inertial>
+      <mass value="0.45" />
+      <origin xyz="0.015 -0.154 0.014" rpy="0 0 0" />
+      <inertia ixx="0.005608" ixy="0.000729" ixz="0.000339" iyy="0.002176" iyz="-0.000603"
+        izz="0.004726" />
+    </inertial>
+    <visual>
+      <origin xyz="0.15 -0.05 -0.005" rpy="-1.57 1.57 0" />
+      <geometry>
+        <mesh filename="package://rt-cosmik/meshes/hand_mesh.STL"
+          scale="0.0060 0.0060 0.0060" />
+
+      </geometry>
+      <material name="body_color">
+        <texture />
+        <color rgba="0 1 1 0.5" />
+      </material>
+    </visual>
+    <visual>
+      <origin xyz="0.15 0.05 0.0" rpy="1.57 -1.57 0" />
+      <geometry>
+        <mesh filename="package://rt-cosmik/meshes/hand_mesh.STL"
+          scale="0.0060 0.0060 0.0060" />
+
+      </geometry>
+      <material name="body_color">
+        <texture />
+        <color rgba="0 1 1 0.5" />
+      </material>
+    </visual>
+  </link>
+  <gazebo>
+    <plugin name="gazebo_ros_control_human" filename="libgazebo_ros_control.so">
+      <controlPeriod>0.01</controlPeriod>
+      <robotNamespace>/human</robotNamespace>
+      <robotSimType>panda_torque_mpc/HumanGazeboHW</robotSimType>
+    </plugin>
+    <!-- <self_collide>true</self_collide> -->
+  </gazebo>
+</robot>
