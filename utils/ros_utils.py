@@ -2,7 +2,8 @@ import rospy
 from visualization_msgs.msg import Marker, MarkerArray
 from geometry_msgs.msg import Point, TransformStamped
 from sensor_msgs.msg import JointState
-
+import pinocchio as pin
+import numpy as np 
 
 def publish_keypoints_as_marker_array(keypoints, marker_pub, keypoint_names, frame_id="world"):
     """
@@ -116,17 +117,27 @@ def publish_augmented_markers(keypoints, marker_pub, keypoint_names, frame_id="w
     marker_pub.publish(marker_array)
 
 def publish_kinematics(q, br, pub, dof_names):
+    q_trans = np.array([q[0], q[1], q[2]])
+    q_quat = pin.Quaternion(q[3:7])
+    pose = pin.SE3(q_quat, q_trans)
+
+    universe = pin.SE3(pin.utils.rotate('x', np.pi/2), np.array([0, 0, 0]))
+
+    good_pose = pin.SE3ToXYZQUAT(pose*universe)
+    print("good_pose",good_pose)
+
     t = TransformStamped()
     t.header.stamp = rospy.Time.now()
     t.header.frame_id = "world"
     t.child_frame_id = "pelvis"
-    t.transform.translation.x = q[0]
-    t.transform.translation.y = q[1]
-    t.transform.translation.z = q[2]
-    t.transform.rotation.x = q[3]
-    t.transform.rotation.y = q[4]
-    t.transform.rotation.z = q[5]
-    t.transform.rotation.w = q[6]
+    t.transform.translation.x = good_pose[0]
+    t.transform.translation.y = good_pose[1]
+    t.transform.translation.z = good_pose[2] 
+
+    t.transform.rotation.y = good_pose[3]
+    t.transform.rotation.x = good_pose[4]
+    t.transform.rotation.z = good_pose[5]
+    t.transform.rotation.w = good_pose[6]
     br.sendTransform(t)
 
     q_to_send=q[7:]
