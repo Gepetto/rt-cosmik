@@ -21,6 +21,7 @@ import pandas as pd
 import rospy
 from sensor_msgs.msg import JointState
 from visualization_msgs.msg import MarkerArray
+import tf2_ros
 
 from utils.read_write_utils import formatting_keypoints, set_zero_data
 from utils.model_utils import build_model_challenge
@@ -29,7 +30,7 @@ from utils.triangulation_utils import triangulate_points
 from utils.ik_utils import RT_IK
 from utils.iir import IIR
 from utils.viz_utils import visualize, VISUALIZATION_CFG
-from utils.ros_utils import publish_keypoints_as_marker_array, publish_augmented_markers
+from utils.ros_utils import publish_keypoints_as_marker_array, publish_augmented_markers, publish_kinematics
 
 # Get the directory where the script is located
 script_directory = os.path.dirname(os.path.abspath(__file__))
@@ -152,7 +153,7 @@ def main():
     subject_height = 1.81
     subject_mass = 73.0
 
-    dof_names=['FFX','FFY', 'FFZ', 'FFQUAT0', 'FFQUAT1', 'FFQUAT2','FFQUAT3', 'middle_lumbar_Z', 'middle_lumbar_Y', 'right_shoulder_Z', 'right_shoulder_X', 'right_shoulder_Y', 'right_elbow_Z', 'right_elbow_Y', 'left_shoulder_Z', 'left_shoulder_X', 'left_shoulder_Y', 'left_elbow_Z', 'left_elbow_Y', 'right_hip_Z', 'right_hip_X', 'right_hip_Y', 'right_knee_Z', 'right_ankle_Z','left_hip_Z', 'left_hip_X', 'left_hip_Y', 'left_knee_Z', 'left_ankle_Z'] 
+    dof_names=['middle_lumbar_Z', 'middle_lumbar_Y', 'right_shoulder_Z', 'right_shoulder_X', 'right_shoulder_Y', 'right_elbow_Z', 'right_elbow_Y', 'left_shoulder_Z', 'left_shoulder_X', 'left_shoulder_Y', 'left_elbow_Z', 'left_elbow_Y', 'right_hip_Z', 'right_hip_X', 'right_hip_Y', 'right_knee_Z', 'right_ankle_Z','left_hip_Z', 'left_hip_X', 'left_hip_Y', 'left_knee_Z', 'left_ankle_Z'] 
 
     keypoint_names = [
         "Nose", "LEye", "REye", "LEar", "REar", 
@@ -193,6 +194,7 @@ def main():
     pub = rospy.Publisher('/human_RT_joint_angles', JointState, queue_size=10)
     keypoints_pub = rospy.Publisher('/pose_keypoints', MarkerArray, queue_size=10)
     augmented_markers_pub = rospy.Publisher('/markers_pose', MarkerArray, queue_size=10)
+    br = tf2_ros.TransformBroadcaster()
 
     width = 1280
     height = 720
@@ -374,13 +376,7 @@ def main():
                         viz.display(q)
                         ik_class._q0=q
 
-                        # Publish joint angles 
-                        joint_state_msg=JointState()
-                        joint_state_msg.header.stamp=rospy.Time.now()
-                        joint_state_msg.name = dof_names
-                        joint_state_msg.position = q.tolist()
-                        pub.publish(joint_state_msg)
-                        print("kinematics published")
+                        publish_kinematics(q, br,pub,dof_names)
 
                         first_sample = False  #put the flag to false 
                     else:
@@ -391,13 +387,7 @@ def main():
                         viz.display(q)
                         ik_class._q0 = q
 
-                        # Publish joint angles 
-                        joint_state_msg=JointState()
-                        joint_state_msg.header.stamp=rospy.Time.now()
-                        joint_state_msg.name = dof_names
-                        joint_state_msg.position = q.tolist()
-                        pub.publish(joint_state_msg)
-                        print("kinematics published")      
+                        publish_kinematics(q, br,pub,dof_names)     
                 
             if cv2.waitKey(1) & 0xFF == ord('q'):
                 print("quit")

@@ -1,6 +1,7 @@
 import rospy
 from visualization_msgs.msg import Marker, MarkerArray
-from geometry_msgs.msg import Point
+from geometry_msgs.msg import Point, TransformStamped
+from sensor_msgs.msg import JointState
 
 
 def publish_keypoints_as_marker_array(keypoints, marker_pub, keypoint_names, frame_id="world"):
@@ -113,3 +114,27 @@ def publish_augmented_markers(keypoints, marker_pub, keypoint_names, frame_id="w
         marker_array.markers.append(marker)
 
     marker_pub.publish(marker_array)
+
+def publish_kinematics(q, br, pub, dof_names):
+    t = TransformStamped()
+    t.header.stamp = rospy.Time.now()
+    t.header.frame_id = "world"
+    t.child_frame_id = "pelvis"
+    t.transform.translation.x = q[0]
+    t.transform.translation.y = q[1]
+    t.transform.translation.z = q[2]
+    t.transform.rotation.x = q[3]
+    t.transform.rotation.y = q[4]
+    t.transform.rotation.z = q[5]
+    t.transform.rotation.w = q[6]
+    br.sendTransform(t)
+
+    q_to_send=q[7:]
+
+    # Publish joint angles 
+    joint_state_msg=JointState()
+    joint_state_msg.header.stamp=rospy.Time.now()
+    joint_state_msg.name = dof_names
+    joint_state_msg.position = q_to_send.tolist()
+    pub.publish(joint_state_msg)
+    print("kinematics published")
