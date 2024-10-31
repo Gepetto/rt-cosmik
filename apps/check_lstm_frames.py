@@ -13,7 +13,7 @@ script_directory = os.path.dirname(os.path.abspath(__file__))
 rt_cosmik_path = os.path.dirname(script_directory)
 # Append it to sys.path
 sys.path.append(str(rt_cosmik_path))
-meshes_folder_path = os.path.join(rt_cosmik_path, 'models/human_urdf/meshes')
+meshes_folder_path = os.path.join(rt_cosmik_path, 'meshes')
 
 import pandas as pd 
 import pinocchio as pin 
