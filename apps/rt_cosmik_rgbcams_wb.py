@@ -37,7 +37,7 @@ script_directory = os.path.dirname(os.path.abspath(__file__))
 parent_directory = os.path.dirname(script_directory)
 
 augmenter_path = os.path.join(parent_directory, 'augmentation_model')
-meshes_folder_path = os.path.join(parent_directory, 'models/human_urdf/meshes')
+meshes_folder_path = os.path.join(parent_directory, 'meshes')
 
 keypoints_buffer = deque(maxlen=30)
 warmed_models= loadModel(augmenterDir=augmenter_path, augmenterModelName="LSTM",augmenter_model='v0.3')

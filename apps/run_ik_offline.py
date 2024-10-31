@@ -18,7 +18,7 @@ script_directory = os.path.dirname(os.path.abspath(__file__))
 parent_directory = os.path.dirname(script_directory)
 
 # Loading human urdf
-human = Robot(os.path.join(parent_directory,'models/human_urdf/urdf/human.urdf'),os.path.join(parent_directory,'models')) 
+human = Robot(os.path.join(parent_directory,'urdf/human.urdf'),os.path.join(parent_directory,'meshes')) 
 human_model = human.model
 human_visual_model = human.visual_model
 human_collision_model = human.collision_model

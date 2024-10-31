@@ -18,7 +18,7 @@ import matplotlib.pyplot as plt
 import time
 
 # Loading human urdf
-human = Robot(os.path.join(rt_cosmik_path,'models/human_urdf/urdf/human.urdf'),os.path.join(rt_cosmik_path,'models')) 
+human = Robot(os.path.join(rt_cosmik_path,'urdf/human.urdf'),os.path.join(rt_cosmik_path,'meshes')) 
 human_model = human.model
 human_data = human_model.createData()
 human_visual_model = human.visual_model
