@@ -4,4 +4,11 @@
 
     <!-- Launch RViz with a preconfigured view -->
     <node name="rviz" pkg="rviz" type="rviz" args="-d $(find rt-cosmik)/rviz/your_rviz_config.rviz" required="true" />
+
+    <node name="robot_state_publisher" pkg="robot_state_publisher" type="robot_state_publisher" output="screen"/>
+    <node name="joint_state_publisher" type="joint_state_publisher" pkg="joint_state_publisher" output="screen">
+      <rosparam param="source_list">[/human_RT_joint_angles] </rosparam>
+      <param name="rate" value="40"/>
+    </node>
+    
 </launch>
