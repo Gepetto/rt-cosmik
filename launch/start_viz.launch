@@ -1,0 +1,7 @@
+<launch>
+    <!-- Load the URDF file -->
+    <param name="robot_description" command="$(find xacro)/xacro $(find rt-cosmik)/urdf/human.urdf.xacro" />
+
+    <!-- Launch RViz with a preconfigured view -->
+    <node name="rviz" pkg="rviz" type="rviz" args="-d $(find rt-cosmik)/rviz/your_rviz_config.rviz" required="true" />
+</launch>

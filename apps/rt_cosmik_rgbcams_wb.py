@@ -152,6 +152,8 @@ def main():
     subject_height = 1.81
     subject_mass = 73.0
 
+    dof_names=['middle_lumbar_Z', 'middle_lumbar_Y', 'right_shoulder_Z', 'right_shoulder_X', 'right_shoulder_Y', 'right_elbow_Z', 'right_elbow_Y', 'left_shoulder_Z', 'left_shoulder_X', 'left_shoulder_Y', 'left_elbow_Z', 'left_elbow_Y', 'right_hip_Z', 'right_hip_X', 'right_hip_Y', 'right_knee_Z', 'right_ankle_Z','left_hip_Z', 'left_hip_X', 'left_hip_Y', 'left_knee_Z', 'left_ankle_Z'] 
+
     keypoint_names = [
         "Nose", "LEye", "REye", "LEar", "REar", 
         "LShoulder", "RShoulder", "LElbow", "RElbow", 
@@ -362,12 +364,6 @@ def main():
                         lstm_dict = dict(zip(keypoint_names+marker_names, np.concatenate((filtered_keypoints_buffer[-1],augmented_markers),axis=0)))
                         ### Generate human model
                         human_model, human_geom_model, visuals_dict = build_model_challenge(lstm_dict, lstm_dict, meshes_folder_path)
-                        
-                        viz = RVizVisualizer(human_model, human_geom_model, human_geom_model.copy())
-
-                        # Initialize the viewer.
-                        viz.initViewer()
-                        viz.loadViewerModel("pinocchio")
 
                         ### IK init 
                         q = pin.neutral(human_model) # init pos
@@ -377,6 +373,15 @@ def main():
                         q = ik_class.solve_ik_sample_casadi()
                         viz.display(q)
                         ik_class._q0=q
+
+                        # Publish joint angles 
+                        joint_state_msg=JointState()
+                        joint_state_msg.header.stamp=rospy.Time.now()
+                        joint_state_msg.name = dof_names
+                        joint_state_msg.position = q.tolist()
+                        pub.publish(joint_state_msg)
+                        print("kinematics published")
+
                         first_sample = False  #put the flag to false 
                     else:
                         lstm_dict = dict(zip(marker_names, augmented_markers))
@@ -384,7 +389,15 @@ def main():
                         ik_class._dict_m= lstm_dict
                         q = ik_class.solve_ik_sample_quadprog() 
                         viz.display(q)
-                        ik_class._q0 = q          
+                        ik_class._q0 = q
+
+                        # Publish joint angles 
+                        joint_state_msg=JointState()
+                        joint_state_msg.header.stamp=rospy.Time.now()
+                        joint_state_msg.name = dof_names
+                        joint_state_msg.position = q.tolist()
+                        pub.publish(joint_state_msg)
+                        print("kinematics published")      
                 
             if cv2.waitKey(1) & 0xFF == ord('q'):
                 print("quit")

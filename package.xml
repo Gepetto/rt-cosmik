@@ -1,0 +1,21 @@
+<?xml version="1.0"?>
+<package format="2">
+  <name>rt-cosmik</name>
+  <version>0.1.0</version>
+  <description>Human Pose Kinematics estimator with minimal set of cameras</description>
+
+  <maintainer email="msabbah@laas.fr">Your Name</maintainer>
+  <license>Apache-2.0</license>
+
+  <!-- Required dependencies -->
+  <buildtool_depend>catkin</buildtool_depend>
+  <build_depend>rospy</build_depend>
+  <build_depend>xacro</build_depend>
+
+  <exec_depend>rospy</exec_depend>
+  <exec_depend>xacro</exec_depend>
+  <exec_depend>urdf</exec_depend>
+  <exec_depend>rviz</exec_depend>
+
+  <export></export>
+</package>

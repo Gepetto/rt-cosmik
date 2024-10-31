@@ -10,7 +10,7 @@ meshes_folder_path = os.path.join(rt_cosmik_path, 'models/human_urdf/meshes')
 
 import pandas as pd 
 import pinocchio as pin 
-from pinocchio.visualize import GepettoVisualizer
+from pinocchio.visualize import GepettoVisualizer, RVizVisualizer
 import numpy as np
 from utils.model_utils import build_model_challenge
 from utils.ik_utils import RT_IK
@@ -33,7 +33,8 @@ for frame, group in data_keypoints.groupby("Frame"):
     result_keypoints.append(frame_dict)
 
 
-lstm_dict = result_keypoints[100] | result_markers[100]
+# lstm_dict = result_keypoints[100] | result_markers[100]
+lstm_dict = {**result_keypoints[100], **result_markers[100]}
 
 t1 =time.time()
 human_model, human_geom_model, visuals_dict = build_model_challenge(lstm_dict, lstm_dict, meshes_folder_path)
@@ -62,14 +63,13 @@ except AttributeError as err:
     print(err)
     sys.exit(0)
 
-# for ii in range(len(result_markers)):
-#     print(ii)
-ii=100
-for marker in result_markers[ii].keys():
-    viz.viewer.gui.addSphere('world/'+marker,0.01,[0,0,1,1])
-    M = pin.SE3(pin.SE3(Rquat(1, 0, 0, 0), np.matrix([result_markers[ii][marker][0],result_markers[ii][marker][1],result_markers[ii][marker][2]]).T))
-    place(viz,'world/'+marker,M)
-    # input("Press Enter to continue...")
+for ii in range(len(result_markers)):
+    print(ii)
+    for marker in result_markers[ii].keys():
+        viz.viewer.gui.addSphere('world/'+marker,0.01,[0,0,1,1])
+        M = pin.SE3(pin.SE3(Rquat(1, 0, 0, 0), np.matrix([result_markers[ii][marker][0],result_markers[ii][marker][1],result_markers[ii][marker][2]]).T))
+        place(viz,'world/'+marker,M)
+        # input("Press Enter to continue...")
 
 ### IK init 
 q = pin.neutral(human_model) # init pos
