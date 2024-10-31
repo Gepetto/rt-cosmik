@@ -24,7 +24,7 @@
     <visual>
       <origin rpy="0 1.57 0" xyz="-0.08 -0.13 0.125"/>
       <geometry>
-        <mesh filename="package://rt_cosmik/meshes/pelvis_mesh.STL" scale="0.006 0.0055 0.0055"/>
+        <mesh filename="package://rt-cosmik/meshes/pelvis_mesh.STL" scale="0.006 0.0055 0.0055"/>
       </geometry>
       <material name="body_color">
         <texture/>
@@ -56,7 +56,7 @@
     <visual>
       <origin rpy="0 -0 0" xyz="-0.05 0.05 -0.085"/>
       <geometry>
-        <mesh filename="package://rt_cosmik/meshes/abdomen_mesh.STL" scale="0.0055 0.0055 0.0055"/>
+        <mesh filename="package://rt-cosmik/meshes/abdomen_mesh.STL" scale="0.0055 0.0055 0.0055"/>
         <!--<box size="0.15 0.161217 0.198658" />-->
       </geometry>
       <material name="body_color">
@@ -68,7 +68,7 @@
       <origin rpy="0 1.57 0" xyz="-0.115 0.17 0.125"/>
       <geometry>
         <!--<box size="0.15 0.356643 0.329994" />-->
-        <mesh filename="package://rt_cosmik/meshes/torso_mesh.STL" scale="0.0065 0.0065 0.0065"/>
+        <mesh filename="package://rt-cosmik/meshes/torso_mesh.STL" scale="0.0065 0.0065 0.0065"/>
       </geometry>
       <material name="body_color">
         <texture/>
@@ -87,7 +87,7 @@
     <visual>
       <origin rpy="0 0 0" xyz="-0.15 -0.04 -0.05"/>
       <geometry>
-        <mesh filename="package://rt_cosmik/meshes/shoulder_mesh.STL" scale="0.0055 0.0055 0.0055"/>
+        <mesh filename="package://rt-cosmik/meshes/shoulder_mesh.STL" scale="0.0055 0.0055 0.0055"/>
       </geometry>
       <material name="body_color">
         <texture/>
@@ -119,7 +119,7 @@
     <visual>
       <origin rpy="0.0 1.57 0" xyz="-0.065 -0.27 0.18"/>
       <geometry>
-        <mesh filename="package://rt_cosmik/meshes/upperarm_mesh.STL" scale="0.0063 0.0060 0.007"/>
+        <mesh filename="package://rt-cosmik/meshes/upperarm_mesh.STL" scale="0.0063 0.0060 0.007"/>
       </geometry>
       <material name="body_color">
         <texture/>
@@ -138,7 +138,7 @@
     <visual>
       <origin rpy="0 0 0" xyz="-0.15 -0.04 -0.035"/>
       <geometry>
-        <mesh filename="package://rt_cosmik/meshes/elbow_mesh.STL" scale="0.0055 0.0055 0.0055"/>
+        <mesh filename="package://rt-cosmik/meshes/elbow_mesh.STL" scale="0.0055 0.0055 0.0055"/>
       </geometry>
       <material name="body_color">
         <texture/>
@@ -162,7 +162,7 @@
     <visual>
       <origin rpy="0.0 -1.57 0" xyz="0.052 -0.26 -0.17"/>
       <geometry>
-        <mesh filename="package://rt_cosmik/meshes/lowerarm_mesh.STL" scale="0.0060 0.0060 0.0060"/>
+        <mesh filename="package://rt-cosmik/meshes/lowerarm_mesh.STL" scale="0.0060 0.0060 0.0060"/>
       </geometry>
       <material name="body_color">
         <texture/>
@@ -181,7 +181,7 @@
     <visual>
       <origin rpy="0 0 0" xyz="-0.16 -0.045 -0.045"/>
       <geometry>
-        <mesh filename="package://rt_cosmik/meshes/shoulder_mesh.STL" scale="0.0055 0.0055 0.0055"/>
+        <mesh filename="package://rt-cosmik/meshes/shoulder_mesh.STL" scale="0.0055 0.0055 0.0055"/>
       </geometry>
       <material name="body_color">
         <texture/>
@@ -213,7 +213,7 @@
     <visual>
       <origin rpy="0.0 1.57 0" xyz="-0.065 -0.27 0.18"/>
       <geometry>
-        <mesh filename="package://rt_cosmik/meshes/upperarm_mesh.STL" scale="0.0063 0.0060 0.007"/>
+        <mesh filename="package://rt-cosmik/meshes/upperarm_mesh.STL" scale="0.0063 0.0060 0.007"/>
       </geometry>
       <material name="body_color"/>
     </visual>
@@ -229,7 +229,7 @@
     <visual>
       <origin rpy="0 0 0" xyz="-0.15 -0.04 -0.035"/>
       <geometry>
-        <mesh filename="package://rt_cosmik/meshes/elbow_mesh.STL" scale="0.0055 0.0055 0.0055"/>
+        <mesh filename="package://rt-cosmik/meshes/elbow_mesh.STL" scale="0.0055 0.0055 0.0055"/>
       </geometry>
       <material name="body_color">
         <texture/>
@@ -253,7 +253,7 @@
     <visual>
       <origin rpy="0.0 -1.57 0" xyz="0.052 -0.26 -0.17"/>
       <geometry>
-        <mesh filename="package://rt_cosmik/meshes/lowerarm_mesh.STL" scale="0.0060 0.0060 0.0060"/>
+        <mesh filename="package://rt-cosmik/meshes/lowerarm_mesh.STL" scale="0.0060 0.0060 0.0060"/>
       </geometry>
       <material name="body_color">
         <texture/>
@@ -280,7 +280,7 @@
     <visual>
       <origin rpy="0.0 1.57 0" xyz="-0.04 -0.48 0.07"/>
       <geometry>
-        <mesh filename="package://rt_cosmik/meshes/knee_mesh.STL" scale="0.006 0.006 0.006"/>
+        <mesh filename="package://rt-cosmik/meshes/knee_mesh.STL" scale="0.006 0.006 0.006"/>
       </geometry>
       <material name="body_color">
         <texture/>
@@ -304,7 +304,7 @@
     <visual>
       <origin rpy="0.0 1.57 0" xyz="-0.1 -0.42 0.07"/>
       <geometry>
-        <mesh filename="package://rt_cosmik/meshes/upperleg_mesh.STL" scale="0.0063 0.0065 0.007"/>
+        <mesh filename="package://rt-cosmik/meshes/upperleg_mesh.STL" scale="0.0063 0.0065 0.007"/>
       </geometry>
       <material name="body_color">
         <texture/>
@@ -328,7 +328,7 @@
     <visual>
       <origin rpy="0.0 1.57 0" xyz="-0.06 -0.43 0.07"/>
       <geometry>
-        <mesh filename="package://rt_cosmik/meshes/lowerleg_mesh.STL" scale="0.0063 0.0065 0.007"/>
+        <mesh filename="package://rt-cosmik/meshes/lowerleg_mesh.STL" scale="0.0063 0.0065 0.007"/>
       </geometry>
       <material name="body_color">
         <texture/>
@@ -352,7 +352,7 @@
     <visual>
       <origin rpy="0 1.57 0" xyz="-0.05 -0.055 0.065"/>
       <geometry>
-        <mesh filename="package://rt_cosmik/meshes/foot_mesh.STL" scale="0.0060 0.0060 0.0060"/>
+        <mesh filename="package://rt-cosmik/meshes/foot_mesh.STL" scale="0.0060 0.0060 0.0060"/>
         <!--<box size="0.03 0.085239 0.06" />-->
       </geometry>
       <material name="body_color">
@@ -380,7 +380,7 @@
     <visual>
       <origin rpy="0.0 1.57 0" xyz="-0.04 -0.48 0.080"/>
       <geometry>
-        <mesh filename="package://rt_cosmik/meshes/knee_mesh.STL" scale="0.006 0.006 0.006"/>
+        <mesh filename="package://rt-cosmik/meshes/knee_mesh.STL" scale="0.006 0.006 0.006"/>
       </geometry>
       <material name="body_color">
         <texture/>
@@ -404,7 +404,7 @@
     <visual>
       <origin rpy="0.0 1.57 0" xyz="-0.1 -0.42 0.085"/>
       <geometry>
-        <mesh filename="package://rt_cosmik/meshes/upperleg_mesh.STL" scale="0.0063 0.0065 0.007"/>
+        <mesh filename="package://rt-cosmik/meshes/upperleg_mesh.STL" scale="0.0063 0.0065 0.007"/>
       </geometry>
       <material name="body_color">
         <texture/>
@@ -428,7 +428,7 @@
     <visual>
       <origin rpy="0.0 1.57 0" xyz="-0.06 -0.43 0.08"/>
       <geometry>
-        <mesh filename="package://rt_cosmik/meshes/lowerleg_mesh.STL" scale="0.0063 0.0065 0.007"/>
+        <mesh filename="package://rt-cosmik/meshes/lowerleg_mesh.STL" scale="0.0063 0.0065 0.007"/>
       </geometry>
       <material name="body_color">
         <texture/>
@@ -452,7 +452,7 @@
     <visual>
       <origin rpy="0 1.57 0" xyz="-0.05 -0.055 0.075"/>
       <geometry>
-        <mesh filename="package://rt_cosmik/meshes/foot_mesh.STL" scale="0.0060 0.0060 0.0060"/>
+        <mesh filename="package://rt-cosmik/meshes/foot_mesh.STL" scale="0.0060 0.0060 0.0060"/>
         <!--<box size="0.03 0.085239 0.06" />-->
       </geometry>
       <material name="body_color">
