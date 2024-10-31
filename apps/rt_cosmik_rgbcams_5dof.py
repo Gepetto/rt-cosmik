@@ -200,7 +200,7 @@ def main():
             return
 
     ### Loading human urdf
-    human = Robot(os.path.join(parent_directory,'models/human_urdf/urdf/human_5dof.urdf'),os.path.join(parent_directory,'models')) 
+    human = Robot(os.path.join(parent_directory,'urdf/human_5dof.urdf'),os.path.join(parent_directory,'meshes')) 
     human_model = human.model
 
     subject_height = 1.81

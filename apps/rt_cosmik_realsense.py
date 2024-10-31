@@ -347,7 +347,7 @@ def main():
     pipelines = configure_realsense_pipeline(width,height)
 
     # Loading human urdf
-    human = Robot('models/human_urdf/urdf/human.urdf','models') 
+    human = Robot(os.path.join(parent_directory,'urdf/human.urdf'),os.path.join(parent_directory,'models')) 
     human_model = human.model
 
     # IK calculations 
