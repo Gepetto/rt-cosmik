@@ -15,9 +15,11 @@ import numpy as np
 from utils.model_utils import build_model_challenge
 from utils.ik_utils import RT_IK
 from utils.viz_utils import place, Rquat
+from utils.ros_utils import publish_kinematics
 import time
 import rospy
 from sensor_msgs.msg import JointState
+import tf2_ros
 
 data_markers = pd.read_csv(os.path.join(rt_cosmik_path,'output/augmented_markers_positions.csv'))
 data_keypoints = pd.read_csv(os.path.join(rt_cosmik_path,'output/keypoints_3d_positions.csv'))
@@ -44,7 +46,7 @@ t2 = time.time()
 
 print("Time to build the model: ", t2-t1)
 
-dof_names=['FFX','FFY', 'FFZ', 'FFQUAT0', 'FFQUAT1', 'FFQUAT2','FFQUAT3', 'middle_lumbar_Z', 'middle_lumbar_Y', 'right_shoulder_Z', 'right_shoulder_X', 'right_shoulder_Y', 'right_elbow_Z', 'right_elbow_Y', 'left_shoulder_Z', 'left_shoulder_X', 'left_shoulder_Y', 'left_elbow_Z', 'left_elbow_Y', 'right_hip_Z', 'right_hip_X', 'right_hip_Y', 'right_knee_Z', 'right_ankle_Z','left_hip_Z', 'left_hip_X', 'left_hip_Y', 'left_knee_Z', 'left_ankle_Z'] 
+dof_names=['middle_lumbar_Z', 'middle_lumbar_Y', 'right_shoulder_Z', 'right_shoulder_X', 'right_shoulder_Y', 'right_elbow_Z', 'right_elbow_Y', 'left_shoulder_Z', 'left_shoulder_X', 'left_shoulder_Y', 'left_elbow_Z', 'left_elbow_Y', 'right_hip_Z', 'right_hip_X', 'right_hip_Y', 'right_knee_Z', 'right_ankle_Z','left_hip_Z', 'left_hip_X', 'left_hip_Y', 'left_knee_Z', 'left_ankle_Z'] 
 
 rospy.init_node('human_rt_ik', anonymous=True)
 pub = rospy.Publisher('/human_RT_joint_angles', JointState, queue_size=10)
@@ -79,17 +81,9 @@ ik_class = RT_IK(human_model, lstm_dict, q, keys_to_track_list, dt)
 q = ik_class.solve_ik_sample_casadi()
 ik_class._q0=q
 
-# Publish joint angles 
-joint_state_msg=JointState()
-joint_state_msg.header.stamp=rospy.Time.now()
-joint_state_msg.name = dof_names
-joint_state_msg.position = q.tolist()
-pub.publish(joint_state_msg)
-print("kinematics published")
+br = tf2_ros.TransformBroadcaster()
+publish_kinematics(q, br,pub,dof_names)
 
-q_to_send=q[7:]
-
-print(q)
 input()
 
 for ii in range(100,len(result_markers)): 
@@ -98,13 +92,6 @@ for ii in range(100,len(result_markers)):
     q = ik_class.solve_ik_sample_quadprog() 
     ik_class._q0 = q 
 
-    q_to_send=q[7:]
+    publish_kinematics(q, br,pub,dof_names)
 
-    # Publish joint angles 
-    joint_state_msg=JointState()
-    joint_state_msg.header.stamp=rospy.Time.now()
-    joint_state_msg.name = dof_names
-    joint_state_msg.position = q_to_send.tolist()
-    pub.publish(joint_state_msg)
-    print("kinematics published")
     input()

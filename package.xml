@@ -17,5 +17,11 @@
   <exec_depend>urdf</exec_depend>
   <exec_depend>rviz</exec_depend>
 
+  <!-- Add the following dependencies -->
+  <exec_depend>geometry_msgs</exec_depend>
+  <exec_depend>tf</exec_depend>
+  <exec_depend>tf2_ros</exec_depend> <!-- Optional, for using tf2 -->
+  <exec_depend>std_msgs</exec_depend> <!-- Useful for standard message types -->
+
   <export></export>
 </package>

@@ -1007,7 +1007,7 @@ def build_model_challenge(mocap_mks_positions: Dict, lstm_mks_positions: Dict, m
     geom_model = pin.GeometryModel() #Modèle pour l'affichage
 
     # pelvis with Freeflyer
-    IDX_PELV_JF = model.addJoint(0,pin.JointModelFreeFlyer(),pin.SE3(np.array([[1,0,0],[0,0,-1],[0,1,0]]), np.matrix([0,0,0]).T),'root_joint')
+    IDX_PELV_JF = model.addJoint(0,pin.JointModelFreeFlyer(),pin.SE3(np.eye(3), np.matrix([0,0,0]).T),'root_joint')
     pelvis = pin.Frame('pelvis',IDX_PELV_JF,0,pin.SE3(np.eye(3), np.matrix([0,0,0]).T),pin.FrameType.OP_FRAME, inertia)
     IDX_PELV_SF = model.addFrame(pelvis,False)
     # Add markers data
@@ -1021,7 +1021,7 @@ def build_model_challenge(mocap_mks_positions: Dict, lstm_mks_positions: Dict, m
     visuals_dict["pelvis"] = pelvis_visual
 
     # Lumbar L5-S1 flexion/extension
-    IDX_L5S1_JF = model.addJoint(IDX_PELV_JF,pin.JointModelRZ(),pin.SE3(np.eye(3), np.matrix([0, 0, 0]).T),'middle_lumbar_Z') 
+    IDX_L5S1_JF = model.addJoint(IDX_PELV_JF,pin.JointModelRZ(),pin.SE3(np.array([[1,0,0],[0,0,-1],[0,1,0]]), np.matrix([0, 0, 0]).T),'middle_lumbar_Z') 
     torso = pin.Frame('torso_z',IDX_L5S1_JF,idx_frame,pin.SE3(np.eye(3),np.matrix([0,0,0]).T),pin.FrameType.OP_FRAME, inertia)
     IDX_TORSO_SF = model.addFrame(torso,False)
     idx_frame = IDX_TORSO_SF
