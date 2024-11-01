@@ -1,5 +1,5 @@
-# To run the code : python3 apps/rt_cosmik_rgbcams.py cuda /root/workspace/mmdeploy/rtmpose-trt/rtmdet-nano /root/workspace/mmdeploy/rtmpose-trt/rtmpose-m
-# or python3 -m apps.rt_cosmik_rgbcams cuda /root/workspace/mmdeploy/rtmpose-trt/rtmdet-nano /root/workspace/mmdeploy/rtmpose-trt/rtmpose-m
+# To run the code : python3 apps/rt_cosmik_rgbcams_wb.py cuda /root/workspace/mmdeploy/rtmpose-trt/rtmdet-nano /root/workspace/mmdeploy/rtmpose-trt/rtmpose-m
+# or python3 -m apps.rt_cosmik_rgbcams_wb cuda /root/workspace/mmdeploy/rtmpose-trt/rtmdet-nano /root/workspace/mmdeploy/rtmpose-trt/rtmpose-m
 
 # rosrun tf static_transform_publisher 0 0 0 0 0 0 1 map world 5
 
@@ -125,7 +125,7 @@ def main():
     R1_global, T1_global = load_cam_pose(os.path.join(parent_directory,'cams_calibration/cam_params/camera1_pose_test_test.yml'))
     # R1_global = R1_global@pin.utils.rotate('z', np.pi) # aligns measurements to human model definition
     
-    fs = 40
+    fs = 30
     dt = 1/fs
 
     keys_to_track_list = ['C7_study',
@@ -205,10 +205,10 @@ def main():
     # print(camera_indices)
 
     # if no webcam
-    # captures = [cv2.VideoCapture(idx) for idx in camera_indices]
+    captures = [cv2.VideoCapture(idx) for idx in camera_indices]
 
     # if webcam remove it 
-    captures = [cv2.VideoCapture(idx) for idx in camera_indices if idx !=2]
+    # captures = [cv2.VideoCapture(idx) for idx in camera_indices if idx !=2]
     
     width_vids = []
     height_vids = []
@@ -216,7 +216,7 @@ def main():
     for cap in captures: 
         cap.set(cv2.CAP_PROP_FRAME_WIDTH, width)  # HD
         cap.set(cv2.CAP_PROP_FRAME_HEIGHT, height)  # HD
-        cap.set(cv2.CAP_PROP_FPS, 40)  # Set frame rate to 40fps
+        cap.set(cv2.CAP_PROP_FPS, 30)  # Set frame rate to x fps
         width_vids.append(width)
         height_vids.append(height)
 
@@ -373,7 +373,6 @@ def main():
                         ### IK calculations
                         ik_class = RT_IK(human_model, lstm_dict, q, keys_to_track_list, dt)
                         q = ik_class.solve_ik_sample_casadi()
-                        viz.display(q)
                         ik_class._q0=q
 
                         publish_kinematics(q, br,pub,dof_names)
@@ -384,7 +383,6 @@ def main():
                         ### IK calculations
                         ik_class._dict_m= lstm_dict
                         q = ik_class.solve_ik_sample_quadprog() 
-                        viz.display(q)
                         ik_class._q0 = q
 
                         publish_kinematics(q, br,pub,dof_names)     

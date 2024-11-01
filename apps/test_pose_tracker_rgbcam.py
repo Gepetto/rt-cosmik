@@ -50,17 +50,18 @@ def main():
 
     # Initialize cams stream
     camera_indices = list_available_cameras()
+    # print("camera indices = ", camera_indices)
 
     # if no webcam
-    # captures = [cv2.VideoCapture(idx) for idx in camera_indices]
+    captures = [cv2.VideoCapture(idx) for idx in camera_indices]
 
     # if webcam remove it 
-    captures = [cv2.VideoCapture(idx) for idx in camera_indices if idx !=2]
+    # captures = [cv2.VideoCapture(idx) for idx in camera_indices if idx !=2]
     
     for cap in captures: 
         cap.set(cv2.CAP_PROP_FRAME_WIDTH, width)  # HD
         cap.set(cv2.CAP_PROP_FRAME_HEIGHT, height)  # HD
-        cap.set(cv2.CAP_PROP_FPS, 40)  # Set frame rate to 40fps
+        cap.set(cv2.CAP_PROP_FPS, 30)  # Set frame rate to x fps
 
     
     # Check if cameras opened successfully
