@@ -119,25 +119,32 @@ def publish_augmented_markers(keypoints, marker_pub, keypoint_names, frame_id="w
 def publish_kinematics(q, br, pub, dof_names):
     q_trans = np.array([q[0], q[1], q[2]])
     q_quat = pin.Quaternion(q[3:7])
-    pose = pin.SE3(q_quat, q_trans)
+    T_current = pin.SE3(q_quat, q_trans)
 
-    universe = pin.SE3(pin.utils.rotate('x', np.pi/2), np.array([0, 0, 0]))
+    #Correction matrix
+    R_FF = pin.utils.rotate('x', np.pi/2)
+    t_FF = np.zeros(3)  # Assuming initial translation is zero
+    T_correction = pin.SE3(R_FF, t_FF)
 
-    good_pose = pin.SE3ToXYZQUAT(pose*universe)
-    print("good_pose",good_pose)
+    # Apply the correction
+    T_corrected = T_correction*T_current
+    # Resulting rotation and translation
+    corrected_rotation = pin.Quaternion(T_corrected.rotation)
+    corrected_translation = T_corrected.translation
 
     t = TransformStamped()
     t.header.stamp = rospy.Time.now()
     t.header.frame_id = "world"
     t.child_frame_id = "pelvis"
-    t.transform.translation.x = good_pose[0]
-    t.transform.translation.y = good_pose[1]
-    t.transform.translation.z = good_pose[2] 
+    t.transform.translation.x = corrected_translation[0]
+    t.transform.translation.y = corrected_translation[1]
+    t.transform.translation.z = corrected_translation[2] 
 
-    t.transform.rotation.y = good_pose[3]
-    t.transform.rotation.x = good_pose[4]
-    t.transform.rotation.z = good_pose[5]
-    t.transform.rotation.w = good_pose[6]
+    
+    t.transform.rotation.x = corrected_rotation[0]
+    t.transform.rotation.y = corrected_rotation[1]
+    t.transform.rotation.z = corrected_rotation[2]
+    t.transform.rotation.w = corrected_rotation[3]
     br.sendTransform(t)
 
     q_to_send=q[7:]
