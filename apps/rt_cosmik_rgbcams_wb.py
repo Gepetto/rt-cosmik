@@ -196,8 +196,10 @@ def main():
     augmented_markers_pub = rospy.Publisher('/markers_pose', MarkerArray, queue_size=10)
     br = tf2_ros.TransformBroadcaster()
 
-    width = 1280
-    height = 720
+    # width = 1280
+    # height = 720
+    width = 640
+    height = 480
     resize=1280
 
     ### Initialize cams stream
@@ -214,9 +216,9 @@ def main():
     height_vids = []
 
     for cap in captures: 
-        cap.set(cv2.CAP_PROP_FRAME_WIDTH, width)  # HD
-        cap.set(cv2.CAP_PROP_FRAME_HEIGHT, height)  # HD
-        cap.set(cv2.CAP_PROP_FPS, 30)  # Set frame rate to x fps
+        # cap.set(cv2.CAP_PROP_FRAME_WIDTH, width)  # HD
+        # cap.set(cv2.CAP_PROP_FRAME_HEIGHT, height)  # HD
+        # cap.set(cv2.CAP_PROP_FPS, 30)  # Set frame rate to x fps
         width_vids.append(width)
         height_vids.append(height)
 

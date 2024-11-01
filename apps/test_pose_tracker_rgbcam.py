@@ -49,11 +49,11 @@ def main():
     # kpt_thr = 0.7
 
     # Initialize cams stream
-    camera_indices = list_available_cameras()
+    camera_indices = list_available_cameras(2)
     # print("camera indices = ", camera_indices)
 
     # if no webcam
-    captures = [cv2.VideoCapture(idx) for idx in camera_indices]
+    captures = [cv2.VideoCapture(idx, cv2.CAP_V4L2) for idx in camera_indices]
 
     # if webcam remove it 
     # captures = [cv2.VideoCapture(idx) for idx in camera_indices if idx !=2]

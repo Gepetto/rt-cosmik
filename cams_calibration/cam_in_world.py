@@ -46,10 +46,10 @@ captures = [cv2.VideoCapture(idx) for idx in camera_indices]
 # if webcam remove it 
 # captures = [cv2.VideoCapture(idx) for idx in camera_indices if idx !=2]
 
-for cap in captures: 
-    cap.set(cv2.CAP_PROP_FRAME_WIDTH, width)  # HD
-    cap.set(cv2.CAP_PROP_FRAME_HEIGHT, height)  # HD
-    cap.set(cv2.CAP_PROP_FPS, 30)  # Set frame rate to x fps
+# for cap in captures: 
+#     cap.set(cv2.CAP_PROP_FRAME_WIDTH, width)  # HD
+#     cap.set(cv2.CAP_PROP_FRAME_HEIGHT, height)  # HD
+#     cap.set(cv2.CAP_PROP_FPS, 30)  # Set frame rate to x fps
 
 
 # Check if cameras opened successfully
