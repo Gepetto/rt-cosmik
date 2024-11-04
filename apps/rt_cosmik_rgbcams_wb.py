@@ -125,7 +125,7 @@ def main():
     R1_global, T1_global = load_cam_pose(os.path.join(parent_directory,'cams_calibration/cam_params/camera1_pose_test_test.yml'))
     # R1_global = R1_global@pin.utils.rotate('z', np.pi) # aligns measurements to human model definition
     
-    fs = 30
+    fs = 40
     dt = 1/fs
 
     keys_to_track_list = ['C7_study',
@@ -196,33 +196,24 @@ def main():
     augmented_markers_pub = rospy.Publisher('/markers_pose', MarkerArray, queue_size=10)
     br = tf2_ros.TransformBroadcaster()
 
-    # width = 1280
-    # height = 720
-    width = 640
-    height = 480
+    width = 1280
+    height = 720
     resize=1280
 
     ### Initialize cams stream
     camera_indices = list_available_cameras()
-    # print(camera_indices)
-
-    # if no webcam
     captures = [cv2.VideoCapture(idx) for idx in camera_indices]
-
-    # if webcam remove it 
-    # captures = [cv2.VideoCapture(idx) for idx in camera_indices if idx !=2]
     
     width_vids = []
     height_vids = []
 
     for cap in captures: 
-        # cap.set(cv2.CAP_PROP_FRAME_WIDTH, width)  # HD
-        # cap.set(cv2.CAP_PROP_FRAME_HEIGHT, height)  # HD
-        # cap.set(cv2.CAP_PROP_FPS, 30)  # Set frame rate to x fps
+        cap.set(cv2.CAP_PROP_FRAME_WIDTH, width)  # HD
+        cap.set(cv2.CAP_PROP_FRAME_HEIGHT, height)  # HD
+        cap.set(cv2.CAP_PROP_FPS, fs)  # Set frame rate to x fps
         width_vids.append(width)
         height_vids.append(height)
 
-    
     # Check if cameras opened successfully
     for i, cap in enumerate(captures):
         if not cap.isOpened():
@@ -400,7 +391,6 @@ def main():
         out_vid1.release()
         out_vid2.release()
         cv2.destroyAllWindows()
-        viz.clean()
 
 
 if __name__ == '__main__':

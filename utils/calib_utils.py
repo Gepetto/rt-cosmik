@@ -167,7 +167,7 @@ def stereo_calibrate(mtx1, dist1, mtx2, dist2, frames_folder_1, frames_folder_2)
  
             cv.drawChessboardCorners(frame2, (rows, columns), corners2, c_ret2)
             cv.imshow('img2', frame2)
-            k = cv.waitKey(1)
+            k = cv.waitKey(50)
  
             objpoints.append(objp)
             imgpoints_left.append(corners1)
