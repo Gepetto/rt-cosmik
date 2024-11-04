@@ -121,6 +121,9 @@ def main():
     ### Loading camera pose 
     R1_global, T1_global = load_cam_pose(os.path.join(parent_directory,'cams_calibration/cam_params/camera1_pose_test_test.yml'))
     # R1_global = R1_global@pin.utils.rotate('z', np.pi) # aligns measurements to human model definition
+
+    fs = 40
+    dt = 1/fs
     
     dof_names=['ankle_Z', 'knee_Z', 'lumbar_Z', 'shoulder_Z', 'elbow_Z'] 
 
@@ -188,7 +191,7 @@ def main():
     for cap in captures: 
         cap.set(cv2.CAP_PROP_FRAME_WIDTH, width)  # HD
         cap.set(cv2.CAP_PROP_FRAME_HEIGHT, height)  # HD
-        cap.set(cv2.CAP_PROP_FPS, 40)  # Set frame rate to 40fps
+        cap.set(cv2.CAP_PROP_FPS, fs)  # Set frame rate to 40fps
         width_vids.append(width)
         height_vids.append(height)
 
@@ -208,13 +211,11 @@ def main():
 
     ### IK calculations 
     q = np.array([np.pi/2,0,0,-np.pi,0]) # init pos
-    dt = 1/30
     keys_to_track_list = ["Right Knee","Right Hip","Right Shoulder","Right Elbow","Right Wrist"]
     dict_dof_to_keypoints = dict(zip(keys_to_track_list,['knee_Z', 'lumbar_Z', 'shoulder_Z', 'elbow_Z', 'hand_fixed']))
 
     ### Set up real time filter 
     # Constant
-    fs = 40
     num_channel = 3*len(keypoint_names)
 
     # Creating IIR instance
