@@ -38,9 +38,9 @@ def calibrate_camera(images_folder):
     # world_scaling = 0.108 #change this to the real world square size.
 
     # BIGGER CHECKERBOARD AT NUS RLS
-    rows = 4 #number of checkerboard rows.
-    columns = 6 #number of checkerboard columns.
-    world_scaling = 0.106 #change this to the real world square size.
+    rows = 5 #number of checkerboard rows.
+    columns = 7 #number of checkerboard columns.
+    world_scaling = 0.107 #change this to the real world square size.
  
     #coordinates of squares in the checkerboard world space
     objp = np.zeros((rows*columns,3), np.float32)
@@ -88,6 +88,27 @@ def calibrate_camera(images_folder):
  
     return ret, mtx, dist
 
+def is_order_consistent(corners1, corners2):
+    """
+    Checks if the corner order is consistent between two sets of detected corners.
+    Args:
+        corners1 (numpy.ndarray): Detected corners in the first camera image.
+        corners2 (numpy.ndarray): Detected corners in the second camera image.
+    Returns:
+        bool: True if the order is consistent, False otherwise.
+    """
+    # Get the relative position of the first and last corners in each image
+    top_left_1, bottom_right_1 = corners1[0][0], corners1[-1][0]
+    top_left_2, bottom_right_2 = corners2[0][0], corners2[-1][0]
+    
+    # Compute the direction vectors
+    vector_1 = bottom_right_1 - top_left_1
+    vector_2 = bottom_right_2 - top_left_2
+    
+    # Check if the vectors have the same orientation
+    angle_diff = np.dot(vector_1, vector_2) / (np.linalg.norm(vector_1) * np.linalg.norm(vector_2))
+    return angle_diff > 0.9  # Adjust threshold as needed to ensure similar orientation
+
 def stereo_calibrate(mtx1, dist1, mtx2, dist2, frames_folder_1, frames_folder_2):
     """
     Perform stereo calibration using images from two cameras.
@@ -132,9 +153,9 @@ def stereo_calibrate(mtx1, dist1, mtx2, dist2, frames_folder_1, frames_folder_2)
     # world_scaling = 0.108 #change this to the real world square size.
 
     # BIGGER CHECKERBOARD AT NUS RLS
-    rows = 4 #number of checkerboard rows.
-    columns = 6 #number of checkerboard columns.
-    world_scaling = 0.106 #change this to the real world square size.
+    rows = 5 #number of checkerboard rows.
+    columns = 7 #number of checkerboard columns.
+    world_scaling = 0.107 #change this to the real world square size.
  
     #coordinates of squares in the checkerboard world space
     objp = np.zeros((rows*columns,3), np.float32)
@@ -161,18 +182,20 @@ def stereo_calibrate(mtx1, dist1, mtx2, dist2, frames_folder_1, frames_folder_2)
         if c_ret1 == True and c_ret2 == True:
             corners1 = cv.cornerSubPix(gray1, corners1, (11, 11), (-1, -1), criteria)
             corners2 = cv.cornerSubPix(gray2, corners2, (11, 11), (-1, -1), criteria)
+
+            if is_order_consistent(corners1, corners2):
  
-            cv.drawChessboardCorners(frame1, (rows, columns), corners1, c_ret1)
-            cv.imshow('img', frame1)
- 
-            cv.drawChessboardCorners(frame2, (rows, columns), corners2, c_ret2)
-            cv.imshow('img2', frame2)
-            k = cv.waitKey(50)
- 
-            objpoints.append(objp)
-            imgpoints_left.append(corners1)
-            imgpoints_right.append(corners2)
- 
+                cv.drawChessboardCorners(frame1, (rows, columns), corners1, c_ret1)
+                cv.imshow('img', frame1)
+
+                cv.drawChessboardCorners(frame2, (rows, columns), corners2, c_ret2)
+                cv.imshow('img2', frame2)
+                k = cv.waitKey(0)
+
+                objpoints.append(objp)
+                imgpoints_left.append(corners1)
+                imgpoints_right.append(corners2)
+
     stereocalibration_flags = cv.CALIB_FIX_INTRINSIC
     ret, CM1, dist1, CM2, dist2, R, T, E, F = cv.stereoCalibrate(objpoints, imgpoints_left, imgpoints_right, mtx1, dist1,
                                                                  mtx2, dist2, (width, height), criteria = criteria, flags = stereocalibration_flags)
