@@ -230,7 +230,7 @@ def main():
         sampling_frequency=fs
     )
 
-    iir_filter.add_filter(order=4, cutoff=7, filter_type='lowpass')
+    iir_filter.add_filter(order=4, cutoff=15, filter_type='lowpass')
     
     first_sample = True 
     frame_idx = 0
