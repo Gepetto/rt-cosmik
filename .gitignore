@@ -3,3 +3,12 @@ cams_calibration/images_calib_cam_1/
 cams_calibration/images_calib_cam_2/
 cams_calibration/images_robot_base_cam_1/
 cams_calibration/images_robot_base_cam_2/
+debug_fatrop_A.mtx
+debug_fatrop_actual.mtx
+debug_fatrop_B.mtx
+debug_fatrop_C.mtx
+debug_fatrop_D.mtx
+debug_fatrop_errors.mtx
+debug_fatrop_expected.mtx
+debug_fatrop_I.mtx
+nlp_hess_l.casadi
