@@ -283,10 +283,10 @@ def main():
                 keypoints = (keypoints[..., :2] ).astype(float)
                 bboxes *= scale
                 t1 =time.time()
-                print("Time of inference for one image",t1-t0)
+                # print("Time of inference for one image",t1-t0)
 
                 if keypoints.size == 0 or keypoints.flatten().shape != (52,):
-                    print('i')
+                    pass
                     
                 else :
                     keypoints_list.append(keypoints.reshape((26,2)).flatten())
