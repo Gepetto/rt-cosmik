@@ -178,15 +178,15 @@ def main():
         # Write the header row
         csv_writer.writerow(['Frame', 'Time','Keypoint', 'X', 'Y', 'Z'])
 
-    with open(augmented_csv_file_path, mode='w', newline='') as file2:
-        csv2_writer = csv.writer(file2)
+    with open(augmented_csv_file_path, mode='w', newline='') as file:
+        csv_writer = csv.writer(file)
         # Write the header row
-        csv2_writer.writerow(['Frame', 'Time','Marker', 'X', 'Y', 'Z'])
+        csv_writer.writerow(['Frame', 'Time','Marker', 'X', 'Y', 'Z'])
 
-    with open(q_csv_file_path, mode='w', newline='') as file3:
-        csv3_writer = csv.writer(file3)
+    with open(q_csv_file_path, mode='w', newline='') as file:
+        csv_writer = csv.writer(file)
         # Write the header row
-        csv3_writer.writerow(['Frame','Time','q0', 'q1','q2','q3','q4'])
+        csv_writer.writerow(['Frame','Time'] + ['FF_X', 'FF_Y', 'FF_Z', 'FF_QUAT_X', 'FF_QUAT_Y', 'FF_QUAT_Z','FF_QUAT_W' ] + dof_names)
 
     ### Initialize ROS node 
     rospy.init_node('human_rt_ik', anonymous=True)
@@ -369,6 +369,12 @@ def main():
                         ik_class._q0=q
 
                         publish_kinematics(q, br,pub,dof_names)
+                        
+                        # Saving kinematics
+                        with open(q_csv_file_path, mode='a', newline='') as file:
+                            csv_writer = csv.writer(file)
+                            # Write to CSV
+                            csv_writer.writerow([frame_idx, formatted_timestamp]+q.tolist())
 
                         first_sample = False  #put the flag to false 
                     else:
@@ -379,6 +385,12 @@ def main():
                         ik_class._q0 = q
 
                         publish_kinematics(q, br,pub,dof_names)     
+
+                        # Saving kinematics
+                        with open(q_csv_file_path, mode='a', newline='') as file:
+                            csv_writer = csv.writer(file)
+                            # Write to CSV
+                            csv_writer.writerow([frame_idx, formatted_timestamp]+q.tolist())
                 
             if cv2.waitKey(1) & 0xFF == ord('q'):
                 print("quit")
