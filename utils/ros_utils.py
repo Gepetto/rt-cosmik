@@ -155,4 +155,3 @@ def publish_kinematics(q, br, pub, dof_names):
     joint_state_msg.name = dof_names
     joint_state_msg.position = q_to_send.tolist()
     pub.publish(joint_state_msg)
-    print("kinematics published")
