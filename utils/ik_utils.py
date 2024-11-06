@@ -283,7 +283,8 @@ class RT_IK:
             "ipopt.print_level": 0,
             "ipopt.sb": "yes",
             "ipopt.max_iter": 50,
-            "ipopt.linear_solver": "mumps"
+            "ipopt.linear_solver": "mumps",
+            "expand": True
         }
 
         opti.solver("ipopt", opts)
@@ -343,7 +344,7 @@ class RT_SWIKA:
         u = ddq
 
         # ODE rhs
-        ode = casadi.vertcat(dq,ddq)
+        ode = casadi.vertcat(x[self._nv:],u)
 
         # Discretize system
         sys = {}
@@ -386,8 +387,6 @@ class RT_SWIKA:
             X.append(opti.variable(self._nx))
             Q.append(self._integrate(q_list[k],X[k][:self._nv]))
             U.append(opti.variable(self._nu))
-        X.append(opti.variable(self._nx))
-        Q.append(self._integrate(q_list[-1],X[-1][:self._nv]))
 
         X0 = x_list
 
@@ -397,30 +396,20 @@ class RT_SWIKA:
             for key in self._cfunction_dict.keys():
                 cost+=1*casadi.sumsqr(lstm_dict_list[k][key]-self._cfunction_dict[key](Q[k]))
 
-            # Multiple shooting gap-closing constraint
-            opti.subject_to(X[k+1]==self._Fdyn(X[k],U[k],self._dt))
+            if k != self._T-1:
+                # Multiple shooting gap-closing constraint
+                opti.subject_to(X[k+1]==self._Fdyn(X[k],U[k],self._dt))
                 
             # joint limits 
             # Set the constraint for the joint limits
             if self._with_freeflyer:
-                for i in range(7,self._nq):
+                for i in range(6,self._nv):
                     opti.subject_to(opti.bounded(self._model.lowerPositionLimit[i],X[k][i],self._model.upperPositionLimit[i]))
             else : 
-                for i in range(self._nq):
+                for i in range(self._nv):
                     opti.subject_to(opti.bounded(self._model.lowerPositionLimit[i],X[k][i],self._model.upperPositionLimit[i]))
                 
             opti.set_initial(X[k],X0[k])
-        
-        cost+=1*casadi.sumsqr(lstm_dict_list[-1][key]-self._cfunction_dict[key](Q[-1]))
-        # joint limits 
-        # Set the constraint for the joint limits
-        if self._with_freeflyer:
-            for i in range(7,self._nq):
-                opti.subject_to(opti.bounded(self._model.lowerPositionLimit[i],X[-1][i],self._model.upperPositionLimit[i]))
-        else : 
-            for i in range(self._nq):
-                opti.subject_to(opti.bounded(self._model.lowerPositionLimit[i],X[-1][i],self._model.upperPositionLimit[i]))
-        opti.set_initial(X[-1],X0[-1])
 
         X = casadi.hcat(X)
         
@@ -440,5 +429,10 @@ class RT_SWIKA:
         opti.solver("fatrop",options)
 
         sol = opti.solve()
-        print(sol.value(X).T)
-        return sol.value(X).T #X with Dq but also Q with ff quat 
+
+        new_X = sol.value(X).T
+        solved_x_list = [new_X[i] for i in range(new_X.shape[0])] 
+
+        solved_q_list = [pin.integrate(self._model, q_list[i],solved_x_list[i][:self._nv]) for i in range(len(q_list))] 
+
+        return sol, solved_x_list, solved_q_list #X with Dq but also Q with ff quat 

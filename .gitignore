@@ -12,3 +12,4 @@ debug_fatrop_errors.mtx
 debug_fatrop_expected.mtx
 debug_fatrop_I.mtx
 nlp_hess_l.casadi
+debug_fatrop.py
