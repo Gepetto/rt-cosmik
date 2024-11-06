@@ -49,7 +49,6 @@ for frame, group in data_keypoints.groupby("Frame"):
 publish_keypoints_as_marker_array(list(result_keypoints[0].values()), keypoints_pub, list(result_keypoints[0].keys()))
 publish_augmented_markers(list(result_markers[0].values()), augmented_markers_pub, list(result_markers[0].keys()))
 
-
 lstm_dict = {**result_keypoints[0], **result_markers[0]}
 
 t1 =time.time()
@@ -72,7 +71,7 @@ marker_names = ['r.ASIS_study','L.ASIS_study','r.PSIS_study','L.PSIS_study','r_k
 
 ### IK init 
 dt = 1/40
-T=30
+T=10
 keys_to_track_list = ['C7_study',
                         'r.ASIS_study', 'L.ASIS_study', 
                         'r.PSIS_study', 'L.PSIS_study', 
@@ -97,11 +96,28 @@ keys_to_track_list = ['C7_study',
 
 x0 = np.zeros(human_model.nv + human_model.nv)
 q0 = np.zeros(human_model.nq)
-for ii in range(T+1):
+for ii in range(T):
     deque_x.append(x0)
     deque_q.append(q0)
     deque_lstm_dict.append(lstm_dict)
 
 ### IK calculations
 ik_class = RT_SWIKA(human_model, deque_lstm_dict, deque_x, deque_q, keys_to_track_list, T, dt)
-X = ik_class.solve_swika_casadi()
+sol, new_x_list, new_q_list = ik_class.solve_swika_casadi()
+
+br = tf2_ros.TransformBroadcaster()
+
+deque_q = deque(new_q_list, maxlen=30)
+deque_x = deque(new_x_list, maxlen=30)
+
+publish_keypoints_as_marker_array(list(result_keypoints[1].values()), keypoints_pub, list(result_keypoints[1].keys()))
+publish_augmented_markers(list(result_markers[1].values()), augmented_markers_pub, list(result_markers[1].keys()))
+
+lstm_dict = {**result_keypoints[1], **result_markers[1]}
+deque_lstm_dict.append(lstm_dict)
+
+ik_class._deque_q = deque_q
+ik_class._deque_x = deque_x
+ik_class._deque_dict_m = deque_lstm_dict
+
+sol, new_x_list, new_q_list = ik_class.solve_swika_casadi()
