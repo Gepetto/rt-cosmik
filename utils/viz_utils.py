@@ -1,7 +1,7 @@
 import pinocchio as pin
 import numpy as np
 import time 
-# import cv2
+import cv2
 
 def Rquat(x, y, z, w):
     q = pin.Quaternion(x, y, z, w)
