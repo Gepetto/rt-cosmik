@@ -1,7 +1,7 @@
 #This script uses the ii-th frame of the video to construct the model, then,
 #displays the pinocchio model in neutral pose with frames, mks, and meshes
 
-ii = 100 #Video frame used for calibration
+ii = 0 #Video frame used for calibration
 
 
 import os
