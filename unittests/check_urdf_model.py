@@ -1,7 +1,7 @@
 #This script uses the ii-th frame of the video to construct the model, then,
 #displays the pinocchio model in neutral pose with frames, mks, and meshes
 
-ii = 100 #Video frame used for calibration
+ii = 0 #Video frame used for calibration
 
 
 import os
@@ -38,7 +38,7 @@ for frame, group in data_keypoints.groupby("Frame"):
 
 lstm_dict = {**result_keypoints[ii], **result_markers[ii]}
 
-human = Robot(os.path.join(rt_cosmik_path,'models/human_urdf/urdf/human.urdf'),os.path.join(rt_cosmik_path,'models'),True,np.array([[1,0,0],[0,0,-1],[0,1,0]])) 
+human = Robot(os.path.join(rt_cosmik_path,'urdf/human.urdf'),rt_cosmik_path,True,np.array([[1,0,0],[0,0,-1],[0,1,0]])) 
 human_model = human.model
 human_collision_model = human.collision_model
 human_visual_model = human.visual_model
@@ -75,6 +75,8 @@ data = pin.Data(human_model)
 pin.forwardKinematics(human_model, data, q)
 pin.updateFramePlacements(human_model, data)
 viz.display(q)
+
+input()
 
 q[:] = np.array([[-0.23757297,  1.08821576,  0.19000075, -0.0235671,   0.1025104,  -0.08211563,
   0.99105662,  0.02738802,  0.09087933, -0.13369843, -0.10353136, -0.35257774,
