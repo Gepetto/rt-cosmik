@@ -71,9 +71,8 @@ except AttributeError as err:
 dof_names=['middle_lumbar_Z', 'middle_lumbar_Y', 'right_shoulder_Z', 'right_shoulder_X', 'right_shoulder_Y', 'right_elbow_Z', 'right_elbow_Y', 'left_shoulder_Z', 'left_shoulder_X', 'left_shoulder_Y', 'left_elbow_Z', 'left_elbow_Y', 'right_hip_Z', 'right_hip_X', 'right_hip_Y', 'right_knee_Z', 'right_ankle_Z','left_hip_Z', 'left_hip_X', 'left_hip_Y', 'left_knee_Z', 'left_ankle_Z'] 
 
 model_frames=human_model.frames.tolist()
-for frame in model_frames:
-    if frame.name in dof_names:
-        viz.viewer.gui.addSphere('world/'+frame.name,0.01,[1,0,0,1])
+for dof in dof_names:
+    viz.viewer.gui.addXYZaxis('world/'+dof,[1,0,0,1],0.01,0.1)
 
 marker_names = ['r.ASIS_study','L.ASIS_study','r.PSIS_study','L.PSIS_study','r_knee_study',
            'r_mknee_study','r_ankle_study','r_mankle_study','r_toe_study','r_5meta_study',
@@ -124,12 +123,12 @@ for ii in range(T):
 ik_class = RT_SWIKA(human_model, deque_lstm_dict, x_list, q_list, keys_to_track_list, T, dt)
 sol, new_x_list, new_q_list = ik_class.solve_swika_casadi()
 
-viz.display(new_q_list[-1])
+viz.display(new_q_list[0])
 
-pin.forwardKinematics(human_model, human_data, new_q_list[-1])
+pin.forwardKinematics(human_model, human_data, new_q_list[0])
 pin.updateFramePlacements(human_model, human_data)
-for frame_name in dof_names:
-    place(viz,'world/'+frame_name,human_data.oMf[human_model.getFrameId(frame_name)])
+for dof in dof_names:
+    place(viz,'world/'+dof,human_data.oMi[human_model.getJointId(dof)])
 
 #Blue markers
 for marker in result_markers[ii].keys():
@@ -138,13 +137,45 @@ for marker in result_markers[ii].keys():
     place(viz,'world/'+marker,M)
     # input("Press Enter to continue...")
 
+#Red estimated markers
+for marker in result_markers[ii].keys():
+    viz.viewer.gui.addSphere('world/estimated'+marker,0.01,[1,0,0,1])
+    M = human_data.oMf[human_model.getFrameId(marker)]
+    place(viz,'world/estimated'+marker,M)
+
 input()
 
-lstm_dict = {**result_keypoints[1], **result_markers[1]}
-deque_lstm_dict.append(lstm_dict)
+while ii < len(result_markers):
+    ii+=1
+    print(ii)
 
-ik_class._x_list = new_x_list
-ik_class._q_list = new_q_list
-ik_class._deque_dict_m = deque_lstm_dict
+    lstm_dict = {**result_keypoints[ii], **result_markers[ii]}
+    deque_lstm_dict.append(lstm_dict)
 
-sol, new_x_list, new_q_list = ik_class.solve_swika_casadi()
+    ik_class._x_list = new_x_list
+    ik_class._q_list = new_q_list
+    ik_class._deque_dict_m = deque_lstm_dict
+
+    sol, new_x_list, new_q_list = ik_class.solve_swika_casadi()
+
+    viz.display(new_q_list[-1])
+
+    pin.forwardKinematics(human_model, human_data, new_q_list[-1])
+    pin.updateFramePlacements(human_model, human_data)
+    for dof in dof_names:
+        place(viz,'world/'+dof,human_data.oMi[human_model.getJointId(dof)])
+
+    #Blue markers
+    for marker in result_markers[ii].keys():
+        viz.viewer.gui.addSphere('world/'+marker,0.01,[0,0,1,1])
+        M = pin.SE3(pin.SE3(Rquat(1, 0, 0, 0), np.matrix([result_markers[ii][marker][0],result_markers[ii][marker][1],result_markers[ii][marker][2]]).T))
+        place(viz,'world/'+marker,M)
+        # input("Press Enter to continue...")
+
+    #Red estimated markers
+    for marker in result_markers[ii].keys():
+        viz.viewer.gui.addSphere('world/estimated'+marker,0.01,[1,0,0,1])
+        M = human_data.oMf[human_model.getFrameId(marker)]
+        place(viz,'world/estimated'+marker,M)
+
+    # input()
