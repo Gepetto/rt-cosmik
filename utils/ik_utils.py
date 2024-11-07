@@ -420,10 +420,12 @@ class RT_SWIKA:
 
         options = {}
         options["expand"] = True
-        options["fatrop"] = {"mu_init": 0.1}
+        options["fatrop"] = {"mu_init": 0.01}
+        options["fatrop"]={"max_iter":50}
+        options["fatrop"]={"tol":1e-3}
         options["structure_detection"] = "auto"
-        options["debug"] = True
-
+        options["debug"] = False
+        
         # (codegen of helper functions)
         # options["jit"] = True
         # options["jit_temp_suffix"] = False
