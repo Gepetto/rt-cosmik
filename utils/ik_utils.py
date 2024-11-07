@@ -297,26 +297,29 @@ class RT_IK:
 class RT_SWIKA:
     """_Class to manage multi body Sliding Window IK problem using fatrop solver_
     """
-    def __init__(self,model: pin.Model, deque_dict_m: deque, deque_x: deque, deque_q: deque, keys_to_track_list: List, T: int, dt: float, dict_dof_to_keypoints=None, with_freeflyer=True) -> None:
-        """_Init of the class _
+    def __init__(self,model: pin.Model, deque_dict_m: deque, x_list: List, q_list: List, keys_to_track_list: List, T: int, dt: float, dict_dof_to_keypoints=None, with_freeflyer=True) -> None:
+       
+        """ _Init of the class _
 
         Args:
             model (pin.Model): _Pinocchio biomechanical model_
-            deque_dict_m (deque): _a deque containing dictionnary of measures of the landmarks for T given consecutive measurements_
-            deque_q (deque): _a deque containing joint configuration and velocities for T given consecutive measurements_
+            deque_dict_m (deque): _a deque containing the measures of the landmarks_
+            x_list (List): _list of states_
+            q_list (List): _list of joint angles (include the freeflyer if there is one)_
             keys_to_track_list (List): _name of the points to track from the dictionnary_
-            T (int): _number of sample of the sliding window_
-            dt (float): _sampling time of the data_
+            T (int): _Size of the window_
+            dt (float): _Sampling rate of the data_
             dict_dof_to_keypoints (Dict): _a dictionnary linking frame of pinocchio model to measurements. Default to None if the pinocchio model has the same frame naming than the measurements_
             with_freeflyer (boolean): _tells if the pinocchio model has a ff or not. Default to True.
         """
+        
         self._model = model
         self._nq = self._model.nq
         self._nv = self._model.nv
         self._data = self._model.createData()
         self._deque_dict_m = deque_dict_m
-        self._deque_x = deque_x
-        self._deque_q = deque_q
+        self._x_list = x_list
+        self._q_list = q_list
         self._keys_to_track_list = keys_to_track_list
         self._T = T
         self._dt = dt # TO SET UP : FRAMERATE OF THE DATA
@@ -372,8 +375,8 @@ class RT_SWIKA:
         self._cfunction_dict=dict(zip(self._new_key_list,cfunction_list))
 
     def solve_swika_casadi(self)->np.ndarray:
-        x_list = list(self._deque_x)
-        q_list = list(self._deque_q)
+        x_list = self._x_list
+        q_list = self._q_list
         lstm_dict_list = list(self._deque_dict_m)
         
         # Casadi optimization class

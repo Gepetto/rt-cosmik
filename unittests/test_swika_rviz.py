@@ -10,17 +10,26 @@ meshes_folder_path = os.path.join(rt_cosmik_path, 'meshes')
 
 import pandas as pd 
 import pinocchio as pin 
-from pinocchio.visualize import GepettoVisualizer
 import numpy as np
 from utils.model_utils import build_model_challenge
 from utils.ik_utils import RT_SWIKA
 from utils.viz_utils import place, Rquat
+from utils.ros_utils import publish_kinematics, publish_augmented_markers, publish_keypoints_as_marker_array
 import time
+import rospy
+from sensor_msgs.msg import JointState
+from visualization_msgs.msg import MarkerArray
+import tf2_ros
 from collections import deque
 
-ii=0
-
+deque_x = deque(maxlen=30)
+deque_q = deque(maxlen=30)
 deque_lstm_dict = deque(maxlen=30)
+
+rospy.init_node('human_rt_ik', anonymous=True)
+pub = rospy.Publisher('/human_RT_joint_angles', JointState, queue_size=10)
+augmented_markers_pub = rospy.Publisher('/markers_pose', MarkerArray, queue_size=10)
+keypoints_pub = rospy.Publisher('/pose_keypoints', MarkerArray, queue_size=10)
     
 data_markers = pd.read_csv(os.path.join(rt_cosmik_path,'output/augmented_markers_positions.csv'))
 data_keypoints = pd.read_csv(os.path.join(rt_cosmik_path,'output/keypoints_3d_positions.csv'))
@@ -37,43 +46,18 @@ for frame, group in data_keypoints.groupby("Frame"):
         frame_dict["midHip"] = frame_dict.pop("Hip")
     result_keypoints.append(frame_dict)
 
-lstm_dict = {**result_keypoints[ii], **result_markers[ii]}
+publish_keypoints_as_marker_array(list(result_keypoints[0].values()), keypoints_pub, list(result_keypoints[0].keys()))
+publish_augmented_markers(list(result_markers[0].values()), augmented_markers_pub, list(result_markers[0].keys()))
+
+lstm_dict = {**result_keypoints[0], **result_markers[0]}
 
 t1 =time.time()
 human_model, human_geom_model, visuals_dict = build_model_challenge(lstm_dict, lstm_dict, meshes_folder_path)
 t2 = time.time()
+
 print("Time to build the model: ", t2-t1)
 
-human_data = human_model.createData()
-
-# VISUALIZATION
-
-viz = GepettoVisualizer(human_model,human_geom_model.copy(),human_geom_model)
-try:
-    viz.initViewer()
-except ImportError as err:
-    print(
-        "Error while initializing the viewer. It seems you should install gepetto-viewer"
-    )
-    print(err)
-    sys.exit(0)
-
-try:
-    viz.loadViewerModel("pinocchio")
-except AttributeError as err:
-    print(
-        "Error while loading the viewer model. It seems you should start gepetto-viewer"
-    )
-    print(err)
-    sys.exit(0)
-
-
 dof_names=['middle_lumbar_Z', 'middle_lumbar_Y', 'right_shoulder_Z', 'right_shoulder_X', 'right_shoulder_Y', 'right_elbow_Z', 'right_elbow_Y', 'left_shoulder_Z', 'left_shoulder_X', 'left_shoulder_Y', 'left_elbow_Z', 'left_elbow_Y', 'right_hip_Z', 'right_hip_X', 'right_hip_Y', 'right_knee_Z', 'right_ankle_Z','left_hip_Z', 'left_hip_X', 'left_hip_Y', 'left_knee_Z', 'left_ankle_Z'] 
-
-model_frames=human_model.frames.tolist()
-for frame in model_frames:
-    if frame.name in dof_names:
-        viz.viewer.gui.addSphere('world/'+frame.name,0.01,[1,0,0,1])
 
 marker_names = ['r.ASIS_study','L.ASIS_study','r.PSIS_study','L.PSIS_study','r_knee_study',
            'r_mknee_study','r_ankle_study','r_mankle_study','r_toe_study','r_5meta_study',
@@ -110,41 +94,30 @@ keys_to_track_list = ['C7_study',
                         'L_thigh1_study', 'L_thigh2_study', 'L_thigh3_study',
                         'L_sh1_study', 'L_sh2_study', 'L_sh3_study']
 
-x_list = []
-q_list = []
-
 x0 = np.zeros(human_model.nv + human_model.nv)
 q0 = np.zeros(human_model.nq)
 for ii in range(T):
-    x_list.append(x0)
-    q_list.append(q0)
+    deque_x.append(x0)
+    deque_q.append(q0)
     deque_lstm_dict.append(lstm_dict)
 
 ### IK calculations
-ik_class = RT_SWIKA(human_model, deque_lstm_dict, x_list, q_list, keys_to_track_list, T, dt)
+ik_class = RT_SWIKA(human_model, deque_lstm_dict, deque_x, deque_q, keys_to_track_list, T, dt)
 sol, new_x_list, new_q_list = ik_class.solve_swika_casadi()
 
-viz.display(new_q_list[-1])
+br = tf2_ros.TransformBroadcaster()
 
-pin.forwardKinematics(human_model, human_data, new_q_list[-1])
-pin.updateFramePlacements(human_model, human_data)
-for frame_name in dof_names:
-    place(viz,'world/'+frame_name,human_data.oMf[human_model.getFrameId(frame_name)])
+deque_q = deque(new_q_list, maxlen=30)
+deque_x = deque(new_x_list, maxlen=30)
 
-#Blue markers
-for marker in result_markers[ii].keys():
-    viz.viewer.gui.addSphere('world/'+marker,0.01,[0,0,1,1])
-    M = pin.SE3(pin.SE3(Rquat(1, 0, 0, 0), np.matrix([result_markers[ii][marker][0],result_markers[ii][marker][1],result_markers[ii][marker][2]]).T))
-    place(viz,'world/'+marker,M)
-    # input("Press Enter to continue...")
-
-input()
+publish_keypoints_as_marker_array(list(result_keypoints[1].values()), keypoints_pub, list(result_keypoints[1].keys()))
+publish_augmented_markers(list(result_markers[1].values()), augmented_markers_pub, list(result_markers[1].keys()))
 
 lstm_dict = {**result_keypoints[1], **result_markers[1]}
 deque_lstm_dict.append(lstm_dict)
 
-ik_class._x_list = new_x_list
-ik_class._q_list = new_q_list
+ik_class._deque_q = deque_q
+ik_class._deque_x = deque_x
 ik_class._deque_dict_m = deque_lstm_dict
 
 sol, new_x_list, new_q_list = ik_class.solve_swika_casadi()
