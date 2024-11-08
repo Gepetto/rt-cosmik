@@ -1253,52 +1253,52 @@ def build_model_challenge(mocap_mks_positions: Dict, lstm_mks_positions: Dict, m
     geom_model.addGeometryObject(foot_visual_L)
     visuals_dict["foot_L"] = foot_visual_L
 
-    model.upperPositionLimit[7:] = np.array([np.deg2rad(25),     #L5S1_FE + 
-                                            np.deg2rad(45),      #L5S1_R_EXT_INT +
-                                            np.deg2rad(124),     #Shoulder_Z_R +
-                                            np.deg2rad(91),      #Shoulder_X_R +
-                                            np.deg2rad(76),      #Shoulder_Y_R +
-                                            np.deg2rad(145),     #Elbow_Z_R +
-                                            np.deg2rad(73),      #Elbow_Y_R + 
-                                            np.deg2rad(124),     #Shoulder_Z_L +
-                                            np.deg2rad(126),     #Shoulder_X_L +
-                                            np.deg2rad(76),      #Shoulder_Y_L +
-                                            np.deg2rad(145),     #Elbow_Z_L +
-                                            np.deg2rad(90),      #Elbow_Y_L +
-                                            np.deg2rad(134),     #Hip_Z_R +
-                                            np.deg2rad(38),      #Hip_X_R +
-                                            np.deg2rad(40) ,     #Hip_Y_R +
-                                            np.deg2rad(5),       #Knee_Z_R +
-                                            np.deg2rad(21),      #Ankle_Z_R +
-                                            np.deg2rad(134),     #Hip_Z_L +
-                                            np.deg2rad(45),      #Hip_X_L +
-                                            np.deg2rad(40),      #Hip_Y_L +
-                                            np.deg2rad(5),       #Knee_Z_L +
-                                            np.deg2rad(21),      #Ankle_Z_L +
+    model.upperPositionLimit[7:] = np.array([5*np.pi/36,         #L5S1_FE + 
+                                            np.pi/3,             #L5S1_R_EXT_INT +
+                                            np.pi,               #Shoulder_Z_R +
+                                            np.pi,               #Shoulder_X_R +
+                                            np.pi/2,             #Shoulder_Y_R +
+                                            5*np.pi/6,           #Elbow_Z_R +
+                                            4*np.pi/9,           #Elbow_Y_R + 
+                                            np.pi,               #Shoulder_Z_L +
+                                            np.pi,               #Shoulder_X_L +
+                                            np.pi/2,             #Shoulder_Y_L +
+                                            5*np.pi/6,           #Elbow_Z_L +
+                                            4*np.pi/9,           #Elbow_Y_L +
+                                            5*np.pi/9,           #Hip_Z_R +
+                                            2*np.pi/9,           #Hip_X_R +
+                                            5*np.pi/18,          #Hip_Y_R +
+                                            0,                   #Knee_Z_R +
+                                            np.pi/9,             #Ankle_Z_R +
+                                            5*np.pi/9,           #Hip_Z_L +
+                                            2*np.pi/9,           #Hip_X_L +
+                                            5*np.pi/18,          #Hip_Y_L +
+                                            0,                   #Knee_Z_L +
+                                            np.pi/9,             #Ankle_Z_L +
                                             ]) 
     
-    model.lowerPositionLimit[7:] = np.array([np.deg2rad(-66),    #L5S1_FE -
-                                            np.deg2rad(-45),     #L5S1_R_EXT_INT -
-                                            np.deg2rad(-55),     #Shoulder_Z_R -
-                                            np.deg2rad(-126),    #Shoulder_X_R -
-                                            np.deg2rad(-117),    #Shoulder_Y_R -
-                                            np.deg2rad(0),       #Elbow_Z_R -
-                                            np.deg2rad(-90),     #Elbow_Y_R -
-                                            np.deg2rad(-55),     #Shoulder_Z_L -
-                                            np.deg2rad(-91),     #Shoulder_X_L -
-                                            np.deg2rad(-117),    #Shoulder_Y_L -
-                                            np.deg2rad(0),       #Elbow_Z_L -
-                                            np.deg2rad(-73),     #Elbow_Y_L -
-                                            np.deg2rad(-27),     #Hip_Z_R -
-                                            np.deg2rad(-45),     #Hip_X_R -
-                                            np.deg2rad(-40),     #Hip_Y_R -
-                                            np.deg2rad(-142),    #Knee_Z_R -
-                                            np.deg2rad(-47),     #Ankle_Z_R -
-                                            np.deg2rad(-27),     #Hip_Z_L -
-                                            np.deg2rad(-38),     #Hip_X_L -
-                                            np.deg2rad(-40),     #Hip_Y_L -
-                                            np.deg2rad(-142),    #Knee_Z_L -
-                                            np.deg2rad(-47),     #Ankle_Z_L -
+    model.lowerPositionLimit[7:] = np.array([-np.pi/2,           #L5S1_FE -
+                                            -np.pi/3,            #L5S1_R_EXT_INT -
+                                            -np.pi,              #Shoulder_Z_R -
+                                            -np.pi,              #Shoulder_X_R -
+                                            -np.pi/2,            #Shoulder_Y_R -
+                                            0,                   #Elbow_Z_R -
+                                            -4*np.pi/9,          #Elbow_Y_R -
+                                            -np.pi,              #Shoulder_Z_L -
+                                            -np.pi,              #Shoulder_X_L -
+                                            -np.pi/2,            #Shoulder_Y_L -
+                                            0,                   #Elbow_Z_L -
+                                            -4*np.pi/9,          #Elbow_Y_L -
+                                            -np.pi/6,            #Hip_Z_R -
+                                            -np.pi/9,            #Hip_X_R -
+                                            -2*np.pi/9,          #Hip_Y_R -
+                                            -5*np.pi/6,          #Knee_Z_R -
+                                            -2*np.pi/9,          #Ankle_Z_R -
+                                            -np.pi/6,            #Hip_Z_L -
+                                            -np.pi/9,            #Hip_X_L -
+                                            -2*np.pi/9,          #Hip_Y_L -
+                                            -5*np.pi/6,          #Knee_Z_L -
+                                            -2*np.pi/9,          #Ankle_Z_L -
                                             ])
     
     return model, geom_model, visuals_dict
@@ -1325,3 +1325,51 @@ def build_model_challenge(mocap_mks_positions: Dict, lstm_mks_positions: Dict, m
 # #   Joint 21 Hip_Y_L: parent=20
 # #   Joint 22 Knee_Z_L: parent=21
 # #   Joint 23 Ankle_Z_L: parent=22
+
+# model.upperPositionLimit[7:] = np.array([np.deg2rad(25),     #L5S1_FE + 
+#                                         np.deg2rad(45),      #L5S1_R_EXT_INT +
+#                                         np.deg2rad(124),     #Shoulder_Z_R +
+#                                         np.deg2rad(91),      #Shoulder_X_R +
+#                                         np.deg2rad(76),      #Shoulder_Y_R +
+#                                         np.deg2rad(145),     #Elbow_Z_R +
+#                                         np.deg2rad(73),      #Elbow_Y_R + 
+#                                         np.deg2rad(124),     #Shoulder_Z_L +
+#                                         np.deg2rad(126),     #Shoulder_X_L +
+#                                         np.deg2rad(76),      #Shoulder_Y_L +
+#                                         np.deg2rad(145),     #Elbow_Z_L +
+#                                         np.deg2rad(90),      #Elbow_Y_L +
+#                                         np.deg2rad(134),     #Hip_Z_R +
+#                                         np.deg2rad(38),      #Hip_X_R +
+#                                         np.deg2rad(40) ,     #Hip_Y_R +
+#                                         np.deg2rad(5),       #Knee_Z_R +
+#                                         np.deg2rad(21),      #Ankle_Z_R +
+#                                         np.deg2rad(134),     #Hip_Z_L +
+#                                         np.deg2rad(45),      #Hip_X_L +
+#                                         np.deg2rad(40),      #Hip_Y_L +
+#                                         np.deg2rad(5),       #Knee_Z_L +
+#                                         np.deg2rad(21),      #Ankle_Z_L +
+#                                         ]) 
+
+# model.lowerPositionLimit[7:] = np.array([np.deg2rad(-66),    #L5S1_FE -
+#                                         np.deg2rad(-45),     #L5S1_R_EXT_INT -
+#                                         np.deg2rad(-55),     #Shoulder_Z_R -
+#                                         np.deg2rad(-126),    #Shoulder_X_R -
+#                                         np.deg2rad(-117),    #Shoulder_Y_R -
+#                                         np.deg2rad(0),       #Elbow_Z_R -
+#                                         np.deg2rad(-90),     #Elbow_Y_R -
+#                                         np.deg2rad(-55),     #Shoulder_Z_L -
+#                                         np.deg2rad(-91),     #Shoulder_X_L -
+#                                         np.deg2rad(-117),    #Shoulder_Y_L -
+#                                         np.deg2rad(0),       #Elbow_Z_L -
+#                                         np.deg2rad(-73),     #Elbow_Y_L -
+#                                         np.deg2rad(-27),     #Hip_Z_R -
+#                                         np.deg2rad(-45),     #Hip_X_R -
+#                                         np.deg2rad(-40),     #Hip_Y_R -
+#                                         np.deg2rad(-142),    #Knee_Z_R -
+#                                         np.deg2rad(-47),     #Ankle_Z_R -
+#                                         np.deg2rad(-27),     #Hip_Z_L -
+#                                         np.deg2rad(-38),     #Hip_X_L -
+#                                         np.deg2rad(-40),     #Hip_Y_L -
+#                                         np.deg2rad(-142),    #Knee_Z_L -
+#                                         np.deg2rad(-47),     #Ankle_Z_L -
+#                                         ])
