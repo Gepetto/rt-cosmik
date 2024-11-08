@@ -396,8 +396,15 @@ class RT_SWIKA:
         cost = 0
 
         for k in range(self._T):
+            # Markers tracking cost function
             for key in self._cfunction_dict.keys():
                 cost+=1*casadi.sumsqr(lstm_dict_list[k][key]-self._cfunction_dict[key](Q[k]))
+
+            # Control regul
+            cost += 1e-5*casadi.sumsqr(U[k])
+
+            # State regul
+            cost += 1e-3*casadi.sumsqr(X[k]-X0[k])
 
             if k != self._T-1:
                 # Multiple shooting gap-closing constraint
