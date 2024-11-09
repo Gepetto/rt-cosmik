@@ -272,6 +272,7 @@ class RT_IK:
         if self._with_freeflyer:
             for i in range(7,self._nq):
                 opti.subject_to(opti.bounded(self._model.lowerPositionLimit[i],Q[i],self._model.upperPositionLimit[i]))
+                opti.subject_to(casadi.sumsqr(Q[3:7])==1)
         else : 
             for i in range(self._nq):
                 opti.subject_to(opti.bounded(self._model.lowerPositionLimit[i],Q[i],self._model.upperPositionLimit[i]))
@@ -297,7 +298,7 @@ class RT_IK:
 class RT_SWIKA:
     """_Class to manage multi body Sliding Window IK problem using fatrop solver_
     """
-    def __init__(self,model: pin.Model, deque_dict_m: deque, x_list: List, q_list: List, keys_to_track_list: List, T: int, dt: float, dict_dof_to_keypoints=None, with_freeflyer=True) -> None:
+    def __init__(self,model: pin.Model, deque_dict_m: deque, x_list: List, keys_to_track_list: List, T: int, dt: float, dict_dof_to_keypoints=None, with_freeflyer=True) -> None:
        
         """ _Init of the class _
 
@@ -319,10 +320,10 @@ class RT_SWIKA:
         self._data = self._model.createData()
         self._deque_dict_m = deque_dict_m
         self._x_list = x_list
-        self._q_list = q_list
         self._keys_to_track_list = keys_to_track_list
         self._T = T
         self._dt = dt # TO SET UP : FRAMERATE OF THE DATA
+
         # Ensure dict_dof_to_keypoints is either a valid dictionary or None
         self._dict_dof_to_keypoints = dict_dof_to_keypoints if dict_dof_to_keypoints is not None else None
         self._with_freeflyer = with_freeflyer
@@ -332,35 +333,23 @@ class RT_SWIKA:
         self._cdata = self._cmodel.createData()
 
         q = casadi.SX.sym("q",self._nq) # q
-        Dq = casadi.SX.sym("Dq", self._nv) # variation of q 
         dq = casadi.SX.sym("dq",self._nv) # dq
         ddq = casadi.SX.sym("ddq",self._nv) # ddq
-        cdt = casadi.SX.sym("dt")
-
-        # integrate_q(q,dq) = pin.integrate(q,dq)
-        self._integrate = casadi.Function('integrate',[ q,Dq ],[cpin.integrate(self._cmodel,q,Dq) ])
-        cpin.framesForwardKinematics(self._cmodel, self._cdata, q)
 
         # States
-        x = casadi.vertcat(Dq,dq)
+        x = casadi.vertcat(q,dq)
         # Controls
         u = ddq
 
-        # ODE rhs
-        ode = casadi.vertcat(x[self._nv:],u)
+        self._integrate = casadi.Function('integrate',[ q,dq ],[cpin.integrate(self._cmodel,q,dq) ])
 
-        # Discretize system
-        sys = {}
-        sys["x"] = x
-        sys["u"] = u
-        sys["p"] = cdt
-        sys["ode"] = ode*cdt # Time scaling
-
-        intg = casadi.integrator('intg','rk',sys,0,1,{"simplify":True, "number_of_finite_elements": 4})
-        self._Fdyn = casadi.Function('Fdyn',[x,u,cdt],[intg(x0=x,u=u,p=cdt)["xf"]],["x","u","dt"],["xnext"])
+        # The self.xdot will be a casadi function mapping:  state,control -> [velocity,acceleration]
+        self._xdot = casadi.Function('xdot', [x,u], [casadi.vertcat(x[self._nq:], u)])
 
         self._nx = x.numel()
         self._nu = u.numel()
+
+        cpin.framesForwardKinematics(self._cmodel, self._cdata, q)
 
         self._new_key_list = []
         cfunction_list = []
@@ -376,19 +365,16 @@ class RT_SWIKA:
 
     def solve_swika_casadi(self)->np.ndarray:
         x_list = self._x_list
-        q_list = self._q_list
         lstm_dict_list = list(self._deque_dict_m)
         
         # Casadi optimization class
         opti = casadi.Opti()
 
-        Q = []
         X = []
         U = []
 
         for k in range(self._T):
             X.append(opti.variable(self._nx))
-            Q.append(self._integrate(q_list[k],X[k][:self._nv]))
             U.append(opti.variable(self._nu))
 
         X0 = x_list
@@ -398,7 +384,7 @@ class RT_SWIKA:
         for k in range(self._T):
             # Markers tracking cost function
             for key in self._cfunction_dict.keys():
-                cost+=1*casadi.sumsqr(lstm_dict_list[k][key]-self._cfunction_dict[key](Q[k]))
+                cost+=10*casadi.sumsqr(lstm_dict_list[k][key]-self._cfunction_dict[key](X[k][:self._nq]))
 
             # Control regul
             cost += 1e-5*casadi.sumsqr(U[k])
@@ -407,14 +393,20 @@ class RT_SWIKA:
             cost += 1e-3*casadi.sumsqr(X[k]-X0[k])
 
             if k != self._T-1:
+                # Euler integration
+                qnext=self._integrate(X[k][:self._nq],X[k][self._nq:]*self._dt)
+                dqnext=X[k][self._nq:]+U[k]*self._dt
+
+                xnext = casadi.vertcat(qnext,dqnext)
+
                 # Multiple shooting gap-closing constraint
-                opti.subject_to(X[k+1]==self._Fdyn(X[k],U[k],self._dt))
+                opti.subject_to(X[k+1]==xnext)
                 
-            # joint limits 
             # Set the constraint for the joint limits
             if self._with_freeflyer:
-                for i in range(6,self._nv):
+                for i in range(7,self._nv):
                     opti.subject_to(opti.bounded(self._model.lowerPositionLimit[i],X[k][i],self._model.upperPositionLimit[i]))
+                    # opti.subject_to(casadi.sumsqr(X[k][3:7])==1)
             else : 
                 for i in range(self._nv):
                     opti.subject_to(opti.bounded(self._model.lowerPositionLimit[i],X[k][i],self._model.upperPositionLimit[i]))
@@ -431,12 +423,12 @@ class RT_SWIKA:
         options["fatrop"]={"max_iter":50}
         options["fatrop"]={"tol":1e-3}
         options["structure_detection"] = "auto"
-        options["debug"] = False
+        options["debug"] = True
         
         # (codegen of helper functions)
         # options["jit"] = True
         # options["jit_temp_suffix"] = False
-        # options["jit_options"] = {"flags": ["-O3"],"compiler": "ccache gcc"}
+        # options["jit_options"] = {"flags": ["-O3"],"compiler": "shell"}
 
         opti.solver("fatrop",options)
 
@@ -445,6 +437,4 @@ class RT_SWIKA:
         new_X = sol.value(X).T
         solved_x_list = [new_X[i] for i in range(new_X.shape[0])] 
 
-        solved_q_list = [pin.integrate(self._model, q_list[i],solved_x_list[i][:self._nv]) for i in range(len(q_list))] 
-
-        return sol, solved_x_list, solved_q_list #X with Dq but also Q with ff quat 
+        return sol, solved_x_list #X with Dq but also Q with ff quat 
