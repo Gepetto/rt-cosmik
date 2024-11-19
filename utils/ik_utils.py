@@ -285,6 +285,7 @@ class RT_IK:
             "ipopt.sb": "yes",
             "ipopt.max_iter": 50,
             "ipopt.linear_solver": "mumps",
+            "print_time":0,
             "expand": True
         }
 
