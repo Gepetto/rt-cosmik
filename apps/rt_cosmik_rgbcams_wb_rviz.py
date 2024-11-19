@@ -381,7 +381,9 @@ def main():
                         lstm_dict = dict(zip(marker_names, augmented_markers))
                         ### IK calculations
                         ik_class._dict_m= lstm_dict
-                        q = ik_class.solve_ik_sample_quadprog() 
+                        # q = ik_class.solve_ik_sample_quadprog() 
+                        q = ik_class.solve_ik_sample_casadi()
+
                         ik_class._q0 = q
 
                         publish_kinematics(q, br,pub,dof_names)     
