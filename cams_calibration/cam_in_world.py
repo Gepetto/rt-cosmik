@@ -6,6 +6,7 @@ import pyrealsense2 as rs
 from utils.calib_utils import load_cam_params, save_pose_matrix_to_yaml, get_camera_pose, get_relative_pose_world_in_cam
 import sys
 import os 
+from scipy.spatial.transform import Rotation
 
 # Get the directory where the script is located
 script_directory = os.path.dirname(os.path.abspath(__file__))
@@ -140,4 +141,37 @@ cam_T2_world, cam_R2_world = get_relative_pose_world_in_cam(c2_color_imgs_path,K
 
 # Save the rotation matrix and translation vector to a YAML file for Camera 2
 save_pose_matrix_to_yaml(cam_R2_world, cam_T2_world, c2_color_params_path)
+
+# Camera transformations 
+camera_data = [
+    {   "K": K1, "D": D1,
+        "cam_T_world": cam_T1_world, "cam_R_world": cam_R1_world,
+        "image": cv2.imread(os.path.join(parent_directory,"cams_calibration/images_world_cam_1/" + expe_no + "_" + trial_no + "/color/img_0.png"))
+    },
+    {
+        "K": K2, "D": D2,
+        "cam_T_world": cam_T2_world, "cam_R_world": cam_R2_world,
+        "image": cv2.imread(os.path.join(parent_directory,"cams_calibration/images_world_cam_2/" + expe_no + "_" + trial_no + "/color/img_0.png"))
+    }
+]
+
+for cam_data in camera_data:
+    cam_R_world = cam_data["cam_R_world"]
+    cam_rodrigues_world = cv2.Rodrigues(cam_R_world)[0]
+    cam_T_world = cam_data["cam_T_world"]
+
+    image = cam_data["image"]
+    K= cam_data["K"]
+    D= cam_data["D"]
+
+    cv2.drawFrameAxes(image, K, D, cam_rodrigues_world, cam_T_world, 0.1)
+
+    # Save or display the updated image
+    cv2.imshow('Reprojected Image', image)
+    cv2.waitKey(0)
+
+    if c == ord('a'):
+        break
+
+cv2.destroyAllWindows()
 

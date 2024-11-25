@@ -5,6 +5,8 @@ cams_calibration/images_robot_base_cam_1/
 cams_calibration/images_robot_base_cam_2/
 cams_calibration/images_world_cam_1/
 cams_calibration/images_world_cam_2/
+cams_calibration/images_human_base_cam_1/
+cams_calibration/images_human_base_cam_2/
 debug_fatrop_A.mtx
 debug_fatrop_actual.mtx
 debug_fatrop_B.mtx

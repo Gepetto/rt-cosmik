@@ -1,14 +1,10 @@
 # To run the code from RT-COSMIK root : python3 -m cams_calibration.get_human_base_frame
 
-
 import cv2
 import numpy as np
-import pyrealsense2 as rs
-from utils.calib_utils import load_cam_params, load_cam_pose
-import yaml
+from utils.calib_utils import load_cam_params, load_cam_pose, get_aruco_pose, get_relative_pose_human_in_cam, save_pose_rpy_to_yaml
 import sys
 import os
-import glob
 from scipy.spatial.transform import Rotation
 
 # Get the directory where the script is located
@@ -70,11 +66,20 @@ for i, cap in enumerate(captures):
 aruco_dict = cv2.aruco.getPredefinedDictionary(cv2.aruco.DICT_4X4_50)
 marker_size = 0.176  # Marker size in meters (17.6 cm)
 
-K1, D1 = load_cam_params(os.path.join(parent_directory,"cams_calibration/cam_params/c1_params_color_test_test.yml"))
-K2, D2 = load_cam_params(os.path.join(parent_directory,"cams_calibration/cam_params/c2_params_color_test_test.yml"))
+K1, D1 = load_cam_params(os.path.join(parent_directory,"cams_calibration/cam_params/c1_params_color_"+ expe_no + "_" + trial_no +".yml"))
+K2, D2 = load_cam_params(os.path.join(parent_directory,"cams_calibration/cam_params/c2_params_color_"+ expe_no + "_" + trial_no +".yml"))
 
-R1_global, T1_global = load_cam_pose(os.path.join(parent_directory,'cams_calibration/cam_params/camera1_pose_test_test.yml'))
-R2_global, T2_global = load_cam_pose(os.path.join(parent_directory,'cams_calibration/cam_params/camera2_pose_test_test.yml'))
+cam_R1_world, cam_T1_world = load_cam_pose(os.path.join(parent_directory,"cams_calibration/cam_params/camera1_pose_"+ expe_no + "_" + trial_no +".yml"))
+cam_R2_world, cam_T2_world = load_cam_pose(os.path.join(parent_directory,"cams_calibration/cam_params/camera2_pose_"+ expe_no + "_" + trial_no +".yml"))
+
+# Inverse the pose to get cam in world frame 
+world_R1_cam = cam_R1_world.T
+world_T1_cam = -cam_R1_world.T@cam_T1_world
+world_T1_cam = world_T1_cam.reshape((3,))
+
+world_R2_cam = cam_R2_world.T
+world_T2_cam = -cam_R2_world.T@cam_T2_world
+world_T2_cam = world_T2_cam.reshape((3,))
 
 # Camera intrinsic parameters (from your YAML file)
 camera_matrix_1 = K1
@@ -87,128 +92,6 @@ dist_coeffs_2 = D2
 # Initialize the ArUco detection parameters
 parameters = cv2.aruco.DetectorParameters()
 detector = cv2.aruco.ArucoDetector(aruco_dict, parameters)
-
-# Function to detect the ArUco marker and estimate the camera pose
-def get_aruco_pose(frame, camera_matrix, dist_coeffs):
-    # Convert the frame to grayscale
-    gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
-
-    marker_points = np.array([[-marker_size / 2, marker_size / 2, 0],
-                              [marker_size / 2, marker_size / 2, 0],
-                              [marker_size / 2, -marker_size / 2, 0],
-                              [-marker_size / 2, -marker_size / 2, 0]], dtype=np.float32)
-    
-    # Detect the markers in the image
-    corners, ids, _ = detector.detectMarkers(gray)
-    
-    if ids is not None and len(corners) > 0:
-        # Extract the corners of the first detected marker for pose estimation
-        # Reshape the first marker's corners for solvePnP
-        corners_for_solvePnP = corners[0].reshape(-1, 2)
-        
-        # Estimate the pose of each marker
-        _, R, t = cv2.solvePnP(marker_points, corners_for_solvePnP, camera_matrix, dist_coeffs, False, cv2.SOLVEPNP_IPPE_SQUARE)
-        
-        # Convert the rotation vector to a rotation matrix
-        rotation_matrix, _ = cv2.Rodrigues(R)
-        
-        # Now we can form the transformation matrix
-        transformation_matrix = np.eye(4)
-        transformation_matrix[:3, :3] = rotation_matrix
-        transformation_matrix[:3, 3] = t.flatten()
-        
-        return transformation_matrix, corners[0], R, t
-    else:
-        return None, None, None, None
-    
-def get_relative_pose(images_folder,camera_matrix,dist_coeffs, T_cam, R_cam):
-    images_names = sorted(glob.glob(images_folder))
-    images = []
-    for imname in images_names:
-        im = cv2.imread(imname, 1)
-        images.append(im)
-
-    assert len(images)==3, "number of images to get human base must be 3"
-    
-    wand_local = np.array([[-0.00004],[0.262865],[-0.000009]])
-
-    wand_pos_global = []
-    for ii, frame in enumerate(images):
-        # Convert the frame to grayscale
-        gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
-
-        marker_points = np.array([[-marker_size / 2, marker_size / 2, 0],
-                                [marker_size / 2, marker_size / 2, 0],
-                                [marker_size / 2, -marker_size / 2, 0],
-                                [-marker_size / 2, -marker_size / 2, 0]], dtype=np.float32)
-        
-        # Detect the markers in the image
-        corners, ids, _ = detector.detectMarkers(gray)
-        
-        if ids is not None and len(corners) > 0:
-            # Extract the corners of the first detected marker for pose estimation
-            # Reshape the first marker's corners for solvePnP
-            corners_for_solvePnP = corners[0].reshape(-1, 2)
-            
-            # Estimate the pose of each marker
-            _, R, t = cv2.solvePnP(marker_points, corners_for_solvePnP, camera_matrix, dist_coeffs, False, cv2.SOLVEPNP_IPPE_SQUARE)
-            
-            # Convert the rotation vector to a rotation matrix
-            rotation_matrix, _ = cv2.Rodrigues(R)
-            
-            # Now we can form the transformation matrix
-            transformation_matrix = np.eye(4)
-            transformation_matrix[:3, :3] = rotation_matrix
-            transformation_matrix[:3, 3] = t.flatten()
-        
-            wand_pos_cam_frame = (t+rotation_matrix@wand_local).flatten()
-            wand_pos_global.append((R_cam@wand_pos_cam_frame + T_cam.flatten()).flatten())
-
-    human_center = wand_pos_global[0]
-
-    x_axis = wand_pos_global[1]-wand_pos_global[0]
-    x_axis = x_axis/np.linalg.norm(x_axis)
-
-    y_axis = wand_pos_global[2]-wand_pos_global[0]
-    y_axis = y_axis/np.linalg.norm(y_axis)
-
-    z_axis = np.cross(x_axis, y_axis)
-
-    # 1. Construct the rotation matrix
-    R_robot = np.column_stack((x_axis, y_axis, z_axis))
-
-    # 2. Convert the rotation matrix to RPY Euler angles
-    r = Rotation.from_matrix(R_robot)
-    relative_rpy = r.as_euler('xyz', degrees=False)  # Adjust 'xyz' for your URDF convention
-
-    return human_center, relative_rpy
-    
-# Function to save the translation vector to a YAML file
-def save_pose_to_yaml(translation_vector, rotation_sequence, filename):
-
-    # Ensure inputs are 1D or column vectors of correct shape
-    assert translation_vector.shape in [(3,), (3, 1)], "Translation vector must have shape (3,) or (3, 1)"
-    assert rotation_sequence.shape in [(3,), (3, 1)], "Rotation sequence must have shape (3,) or (3, 1)"
-    
-    # Prepare the data to be saved in YAML format
-    data = {
-        'translation_vector': {
-            'rows': 3,
-            'cols': 1,
-            'dt': 'd',
-            'data': translation_vector.flatten().tolist()
-        },
-        'rotation_rpy': {
-            'rows': 3,
-            'cols': 1,
-            'dt': 'd',
-            'data': rotation_sequence.flatten().tolist()
-        }
-    }
-    
-    # Write to the YAML file
-    with open(filename, 'w') as file:
-        yaml.dump(data, file, default_flow_style=False)  # Use block style for readability
 
 wand_local = np.array([[-0.00004],[0.262865],[-0.000009]])
 img_idx=0
@@ -224,12 +107,12 @@ try :
         color_frame_2 = frames[1]
 
         # Convert images to numpy arrays
-        frame_1 = np.asanyarray(color_frame_1)
-        frame_2 = np.asanyarray(color_frame_2)
+        frame_1 = np.asanyarray(color_frame_1.copy())
+        frame_2 = np.asanyarray(color_frame_2.copy())
 
         # Get the camera pose relative to the global frame defined by the ArUco marker
-        transformation_matrix_1, corners_1, rvec_1, tvec_1 = get_aruco_pose(frame_1, K1, D1)
-        transformation_matrix_2, corners_2, rvec_2, tvec_2 = get_aruco_pose(frame_2, K2, D2)
+        transformation_matrix_1, corners_1, rvec_1, tvec_1 = get_aruco_pose(frame_1, K1, D1, detector, marker_size)
+        transformation_matrix_2, corners_2, rvec_2, tvec_2 = get_aruco_pose(frame_2, K2, D2, detector, marker_size)
 
         if transformation_matrix_1 is not None:
             print("Camera 1 Pose (Transformation Matrix):")
@@ -285,18 +168,71 @@ finally :
     cv2.destroyAllWindows()
 
 
-T_color1, R_color1 = get_relative_pose(c1_color_imgs_path,K1,D1,T1_global,R1_global)
+cam_T1_human, cam_R1_human = get_relative_pose_human_in_cam(c1_color_imgs_path,K1,D1,detector, marker_size)
+
+world_T1_human = world_R1_cam@cam_T1_human + world_T1_cam
+world_R1_human = world_R1_cam@cam_R1_human 
+
+world_rpy1_human = Rotation.from_matrix(world_R1_human).as_euler('xyz', degrees=False)
+
 print("computed translation RGB cam 1 : ")
-print(T_color1)
-print("computed rotation RGB cam 1 : ")
-print(R_color1)
+print(world_T1_human)
+print("computed rpy RGB cam 1 : ")
+print(world_rpy1_human)
 
-save_pose_to_yaml(T_color1, R_color1, c1_color_params_path)
+save_pose_rpy_to_yaml(world_T1_human, world_rpy1_human, c1_color_params_path)
 
-T_color2, R_color2 = get_relative_pose(c2_color_imgs_path,K2,D2,T2_global,R2_global)
+cam_T2_human, cam_R2_human = get_relative_pose_human_in_cam(c2_color_imgs_path,K2,D2,detector, marker_size)
+
+world_T2_human = world_R2_cam@cam_T2_human + world_T2_cam
+world_R2_human = world_R2_cam@cam_R2_human 
+
+world_rpy2_human = Rotation.from_matrix(world_R2_human).as_euler('xyz', degrees=False)
+
 print("computed translation RGB cam 2 : ")
-print(T_color2)
-print("computed rotation RGB cam 2 : ")
-print(R_color2)
+print(world_T2_human)
+print("computed rpy RGB cam 2 : ")
+print(world_rpy2_human)
 
-save_pose_to_yaml(T_color2, R_color2, c2_color_params_path)
+save_pose_rpy_to_yaml(world_T2_human, world_rpy2_human, c2_color_params_path)
+
+# Camera transformations 
+camera_data = [
+    {   "K": K1, "D": D1,
+        "cam_T_world": cam_T1_world, "cam_R_world": cam_R1_world,
+        "cam_T_human": cam_T1_human, "cam_R_human": cam_R1_human,
+        "image": cv2.imread(os.path.join(parent_directory,"cams_calibration/images_robot_base_cam_1/" + expe_no + "_" + trial_no + "/color/img_0.png"))
+    },
+    {
+        "K": K2, "D": D2,
+        "cam_T_world": cam_T2_world, "cam_R_world": cam_R2_world,
+        "cam_T_human": cam_T2_human, "cam_R_human": cam_R2_human,
+        "image": cv2.imread(os.path.join(parent_directory,"cams_calibration/images_robot_base_cam_2/" + expe_no + "_" + trial_no + "/color/img_0.png"))
+    }
+]
+
+for cam_data in camera_data:
+
+    cam_R_human = cam_data["cam_R_human"]
+    cam_rodrigues_human = cv2.Rodrigues(cam_R_human)[0]
+    cam_T_human = cam_data["cam_T_human"]
+
+    cam_R_world = cam_data["cam_R_world"]
+    cam_rodrigues_world = cv2.Rodrigues(cam_R_world)[0]
+    cam_T_world = cam_data["cam_T_world"]
+
+    image = cam_data["image"]
+    K= cam_data["K"]
+    D= cam_data["D"]
+
+    cv2.drawFrameAxes(image, K, D, cam_rodrigues_world, cam_T_world, 0.1)
+    cv2.drawFrameAxes(image, K, D, cam_rodrigues_human, cam_T_human, 0.1)
+
+    # Save or display the updated image
+    cv2.imshow('Reprojected Image', image)
+    cv2.waitKey(0)
+
+    if c == ord('a'):
+        break
+
+cv2.destroyAllWindows()

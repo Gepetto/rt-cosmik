@@ -10,7 +10,7 @@
 
 import cv2
 import numpy as np
-from utils.calib_utils import load_cam_params, load_cam_pose, get_aruco_pose, get_relative_pose_in_cam, save_pose_rpy_to_yaml
+from utils.calib_utils import load_cam_params, load_cam_pose, get_aruco_pose, get_relative_pose_robot_in_cam, save_pose_rpy_to_yaml
 import sys
 import os
 from scipy.spatial.transform import Rotation
@@ -175,7 +175,7 @@ finally :
     cv2.destroyAllWindows()
 
 
-cam_T1_robot, cam_R1_robot = get_relative_pose_in_cam(c1_color_imgs_path,K1,D1,detector, marker_size)
+cam_T1_robot, cam_R1_robot = get_relative_pose_robot_in_cam(c1_color_imgs_path,K1,D1,detector, marker_size)
 
 world_T1_robot = world_R1_cam@cam_T1_robot + world_T1_cam
 world_R1_robot = world_R1_cam@cam_R1_robot 
@@ -189,7 +189,7 @@ print(world_rpy1_robot)
 
 save_pose_rpy_to_yaml(world_T1_robot, world_rpy1_robot, c1_color_params_path)
 
-cam_T2_robot, cam_R2_robot = get_relative_pose_in_cam(c2_color_imgs_path,K2,D2,detector, marker_size)
+cam_T2_robot, cam_R2_robot = get_relative_pose_robot_in_cam(c2_color_imgs_path,K2,D2,detector, marker_size)
 
 world_T2_robot = world_R2_cam@cam_T2_robot + world_T2_cam
 world_R2_robot = world_R2_cam@cam_R2_robot 
@@ -206,11 +206,13 @@ save_pose_rpy_to_yaml(world_T2_robot, world_rpy2_robot, c2_color_params_path)
 # Camera transformations 
 camera_data = [
     {   "K": K1, "D": D1,
+        "cam_T_world": cam_T1_world, "cam_R_world": cam_R1_world,
         "cam_T_robot": cam_T1_robot, "cam_R_robot": cam_R1_robot,
         "image": cv2.imread(os.path.join(parent_directory,"cams_calibration/images_robot_base_cam_1/" + expe_no + "_" + trial_no + "/color/img_0.png"))
     },
     {
         "K": K2, "D": D2,
+        "cam_T_world": cam_T2_world, "cam_R_world": cam_R2_world,
         "cam_T_robot": cam_T2_robot, "cam_R_robot": cam_R2_robot,
         "image": cv2.imread(os.path.join(parent_directory,"cams_calibration/images_robot_base_cam_2/" + expe_no + "_" + trial_no + "/color/img_0.png"))
     }
@@ -219,13 +221,19 @@ camera_data = [
 for cam_data in camera_data:
 
     cam_R_robot = cam_data["cam_R_robot"]
-    cam_rpy_robot = Rotation.from_matrix(cam_R_robot).as_euler('xyz', degrees=False)
+    cam_rodrigues_robot = cv2.Rodrigues(cam_R_robot)[0]
     cam_T_robot = cam_data["cam_T_robot"]
+
+    cam_R_world = cam_data["cam_R_world"]
+    cam_rodrigues_world = cv2.Rodrigues(cam_R_world)[0]
+    cam_T_world = cam_data["cam_T_world"]
+
     image = cam_data["image"]
     K= cam_data["K"]
     D= cam_data["D"]
 
-    cv2.drawFrameAxes(image, K, D, cam_rpy_robot, cam_T_robot, 0.1)
+    cv2.drawFrameAxes(image, K, D, cam_rodrigues_world, cam_T_world, 0.1)
+    cv2.drawFrameAxes(image, K, D, cam_rodrigues_robot, cam_T_robot, 0.1)
 
     # Save or display the updated image
     cv2.imshow('Reprojected Image', image)
