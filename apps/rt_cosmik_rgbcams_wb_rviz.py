@@ -368,7 +368,7 @@ def main():
                         q = ik_class.solve_ik_sample_casadi()
                         ik_class._q0=q
 
-                        publish_kinematics(q, br,pub,dof_names)
+                        publish_kinematics(q, pub,dof_names,br)
                         
                         # Saving kinematics
                         with open(q_csv_file_path, mode='a', newline='') as file:
@@ -386,7 +386,7 @@ def main():
 
                         ik_class._q0 = q
 
-                        publish_kinematics(q, br,pub,dof_names)     
+                        publish_kinematics(q, pub,dof_names, br )     
 
                         # Saving kinematics
                         with open(q_csv_file_path, mode='a', newline='') as file:

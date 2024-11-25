@@ -116,42 +116,53 @@ def publish_augmented_markers(keypoints, marker_pub, keypoint_names, frame_id="w
 
     marker_pub.publish(marker_array)
 
-def publish_kinematics(q, br, pub, dof_names):
-    q_trans = np.array([q[0], q[1], q[2]])
-    q_quat = pin.Quaternion(q[3:7])
-    T_current = pin.SE3(q_quat, q_trans)
+def publish_kinematics(q, pub, dof_names, br=None):
+    if br is not None :
+        q_trans = np.array([q[0], q[1], q[2]])
+        q_quat = pin.Quaternion(q[3:7])
+        T_current = pin.SE3(q_quat, q_trans)
 
-    #Correction matrix
-    R_FF = pin.utils.rotate('x', np.pi/2)
-    t_FF = np.zeros(3)  # Assuming initial translation is zero
-    T_correction = pin.SE3(R_FF, t_FF)
+        #Correction matrix
+        R_FF = pin.utils.rotate('x', np.pi/2)
+        t_FF = np.zeros(3)  # Assuming initial translation is zero
+        T_correction = pin.SE3(R_FF, t_FF)
 
-    # Apply the correction
-    T_corrected = T_correction*T_current
-    # Resulting rotation and translation
-    corrected_rotation = pin.Quaternion(T_corrected.rotation)
-    corrected_translation = T_corrected.translation
+        # Apply the correction
+        T_corrected = T_correction*T_current
+        # Resulting rotation and translation
+        corrected_rotation = pin.Quaternion(T_corrected.rotation)
+        corrected_translation = T_corrected.translation
 
-    t = TransformStamped()
-    t.header.stamp = rospy.Time.now()
-    t.header.frame_id = "world"
-    t.child_frame_id = "pelvis"
-    t.transform.translation.x = corrected_translation[0]
-    t.transform.translation.y = corrected_translation[1]
-    t.transform.translation.z = corrected_translation[2] 
+        t = TransformStamped()
+        t.header.stamp = rospy.Time.now()
+        t.header.frame_id = "world"
+        t.child_frame_id = "pelvis"
+        t.transform.translation.x = corrected_translation[0]
+        t.transform.translation.y = corrected_translation[1]
+        t.transform.translation.z = corrected_translation[2] 
 
-    
-    t.transform.rotation.x = corrected_rotation[0]
-    t.transform.rotation.y = corrected_rotation[1]
-    t.transform.rotation.z = corrected_rotation[2]
-    t.transform.rotation.w = corrected_rotation[3]
-    br.sendTransform(t)
+        
+        t.transform.rotation.x = corrected_rotation[0]
+        t.transform.rotation.y = corrected_rotation[1]
+        t.transform.rotation.z = corrected_rotation[2]
+        t.transform.rotation.w = corrected_rotation[3]
+        br.sendTransform(t)
 
-    q_to_send=q[7:]
+        q_to_send=q[7:]
 
-    # Publish joint angles 
-    joint_state_msg=JointState()
-    joint_state_msg.header.stamp=rospy.Time.now()
-    joint_state_msg.name = dof_names
-    joint_state_msg.position = q_to_send.tolist()
-    pub.publish(joint_state_msg)
+        # Publish joint angles 
+        joint_state_msg=JointState()
+        joint_state_msg.header.stamp=rospy.Time.now()
+        joint_state_msg.name = dof_names
+        joint_state_msg.position = q_to_send.tolist()
+        pub.publish(joint_state_msg)
+
+    else : # no FF
+        q_to_send=q
+
+        # Publish joint angles 
+        joint_state_msg=JointState()
+        joint_state_msg.header.stamp=rospy.Time.now()
+        joint_state_msg.name = dof_names
+        joint_state_msg.position = q_to_send.tolist()
+        pub.publish(joint_state_msg)
