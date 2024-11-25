@@ -3,8 +3,7 @@
 import cv2
 import numpy as np
 import pyrealsense2 as rs
-from utils.calib_utils import load_cam_params
-import yaml
+from utils.calib_utils import load_cam_params, save_pose_matrix_to_yaml, get_camera_pose, get_relative_pose_world_in_cam
 import sys
 import os 
 
@@ -26,6 +25,17 @@ else:
 
 expe_no = str(arg1)
 trial_no = str(arg2)
+
+# Use os.makedirs() to create your directory; exist_ok=True means it won't throw an error if the directory already exists
+os.makedirs(os.path.join(parent_directory,"cams_calibration/images_world_cam_1/" + expe_no + "_" + trial_no + "/color"), exist_ok=True)
+os.makedirs(os.path.join(parent_directory,"cams_calibration/images_world_cam_2/" + expe_no + "_" + trial_no + "/color"), exist_ok=True)
+os.makedirs(os.path.join(parent_directory,"cams_calibration/cam_params"), exist_ok=True)
+
+c1_color_imgs_path = os.path.join(parent_directory,"cams_calibration/images_world_cam_1/" + expe_no + "_" + trial_no + "/color/*")
+c2_color_imgs_path = os.path.join(parent_directory,"cams_calibration/images_world_cam_2/" + expe_no + "_" + trial_no + "/color/*")
+
+c1_color_params_path = os.path.join(parent_directory,"cams_calibration/cam_params/camera1_pose_" + expe_no + "_" + trial_no + ".yml")
+c2_color_params_path = os.path.join(parent_directory,"cams_calibration/cam_params/camera2_pose_" + expe_no + "_" + trial_no + ".yml")
 
 width = 1280
 height = 720
@@ -57,8 +67,8 @@ for i, cap in enumerate(captures):
 aruco_dict = cv2.aruco.getPredefinedDictionary(cv2.aruco.DICT_4X4_50)
 marker_size = 0.176  # Marker size in meters (17.6 cm)
 
-K1, D1 = load_cam_params(os.path.join(parent_directory,"cams_calibration/cam_params/c1_params_color_test_test.yml"))
-K2, D2 = load_cam_params(os.path.join(parent_directory,"cams_calibration/cam_params/c2_params_color_test_test.yml"))
+K1, D1 = load_cam_params(os.path.join(parent_directory,"cams_calibration/cam_params/c1_params_color_"+ expe_no + "_" + trial_no +".yml"))
+K2, D2 = load_cam_params(os.path.join(parent_directory,"cams_calibration/cam_params/c2_params_color_"+ expe_no + "_" + trial_no +".yml"))
 
 # Camera intrinsic parameters (from your YAML file)
 camera_matrix_1 = K1
@@ -72,114 +82,62 @@ dist_coeffs_2 = D2
 parameters = cv2.aruco.DetectorParameters()
 detector = cv2.aruco.ArucoDetector(aruco_dict, parameters)
 
-# Function to detect the ArUco marker and estimate the camera pose
-def get_camera_pose(frame, camera_matrix, dist_coeffs):
-    # Convert the frame to grayscale
-    gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+img_idx=0
+try :
+    while True:
+        frames = [cap.read()[1] for cap in captures]
+                
+        if not all(frame is not None for frame in frames):
+            continue
 
-    marker_points = np.array([[-marker_size / 2, marker_size / 2, 0],
-                              [marker_size / 2, marker_size / 2, 0],
-                              [marker_size / 2, -marker_size / 2, 0],
-                              [-marker_size / 2, -marker_size / 2, 0]], dtype=np.float32)
-    
-    # Detect the markers in the image
-    corners, ids, _ = detector.detectMarkers(gray)
-    
-    if ids is not None and len(corners) > 0:
-        # Extract the corners of the first detected marker for pose estimation
-        # Reshape the first marker's corners for solvePnP
-        corners_for_solvePnP = corners[0].reshape(-1, 2)
-        
-        # Estimate the pose of each marker
-        _, R, t = cv2.solvePnP(marker_points, corners_for_solvePnP, camera_matrix, dist_coeffs, False, cv2.SOLVEPNP_IPPE_SQUARE)
-        
-        # Convert the rotation vector to a rotation matrix
-        rotation_matrix, _ = cv2.Rodrigues(R)
-        
-        # Now we can form the transformation matrix
-        transformation_matrix = np.eye(4)
-        transformation_matrix[:3, :3] = rotation_matrix
-        transformation_matrix[:3, 3] = t.flatten()
-        
-        return transformation_matrix, corners[0], R, t
-    else:
-        return None, None, None, None
-    
-# Function to save the rotation matrix and translation vector to a YAML file
-def save_pose_to_yaml(rotation_matrix, translation_vector, filename):
-    # Prepare the data to be saved in YAML format
-    data = {
-        'rotation_matrix': {
-            'rows': 3,
-            'cols': 3,
-            'dt': 'd',
-            'data': rotation_matrix.flatten().tolist()
-        },
-        'translation_vector': {
-            'rows': 3,
-            'cols': 1,
-            'dt': 'd',
-            'data': translation_vector.flatten().tolist()
-        }
-    }
-    
-    # Write to the YAML file
-    with open(filename, 'w') as file:
-        yaml.dump(data, file)
+        color_frame_1 = frames[0]
+        color_frame_2 = frames[1]
 
-# Example usage with RealSense D435
-saved_1 = False
-saved_2 = False
+        # Convert images to numpy arrays
+        frame_1 = np.asanyarray(color_frame_1.copy())
+        frame_2 = np.asanyarray(color_frame_2.copy())
 
-while True:
-    frames = [cap.read()[1] for cap in captures]
-            
-    if not all(frame is not None for frame in frames):
-        continue
+        # Get the the global frame defined by the ArUco marker in the camera frame 
+        transformation_matrix_1, corners_1, rvec_1, tvec_1 = get_camera_pose(frame_1, K1, D1, detector, marker_size)
+        transformation_matrix_2, corners_2, rvec_2, tvec_2 = get_camera_pose(frame_2, K2, D2, detector, marker_size)
 
-    # Get images
-    frame_1 = frames[0]
-    frame_2 = frames[1]
+        if transformation_matrix_1 is not None:
+            # Draw the marker and its pose on the frame for Camera 1
+            cv2.aruco.drawDetectedMarkers(frame_1, [corners_1])
+            cv2.drawFrameAxes(frame_1, K1, D1, rvec_1, tvec_1, 0.1)
 
-    # Get the camera pose relative to the global frame defined by the ArUco marker
-    transformation_matrix_1, corners_1, rvec_1, tvec_1 = get_camera_pose(frame_1, K1, D1)
-    transformation_matrix_2, corners_2, rvec_2, tvec_2 = get_camera_pose(frame_2, K2, D2)
+        if transformation_matrix_2 is not None:
+            # Draw the marker and its pose on the frame for Camera 2
+            cv2.aruco.drawDetectedMarkers(frame_2, [corners_2])
+            cv2.drawFrameAxes(frame_2, K2, D2, rvec_2, tvec_2, 0.1)
 
-    if transformation_matrix_1 is not None:
-        print("Camera 1 Pose (Transformation Matrix):")
-        print(transformation_matrix_1)
-    
-        # Draw the marker and its pose on the frame for Camera 1
-        cv2.aruco.drawDetectedMarkers(frame_1, [corners_1])
-        cv2.drawFrameAxes(frame_1, K1, D1, rvec_1, tvec_1, 0.1)
+        # Display the frames for both cameras
+        cv2.imshow('Camera 1 Pose Estimation', frame_1)
+        cv2.imshow('Camera 2 Pose Estimation', frame_2)
 
-        if not(saved_1):
-            # Save the rotation matrix and translation vector to a YAML file for Camera 1
-            save_pose_to_yaml(transformation_matrix_1[:3, :3], transformation_matrix_1[:3, 3], os.path.join(parent_directory,f'cams_calibration/cam_params/camera1_pose_{expe_no}_{trial_no}.yml'))
-            saved_1 = True  # Ensure we save only once for Camera 1
+        c = cv2.waitKey(10)
+        if c == ord('s'):
+            print('images taken')
+            cv2.imwrite(os.path.join(parent_directory,"cams_calibration/images_world_cam_1/" + expe_no + "_" + trial_no + "/color/img_" + str(img_idx) + ".png"), color_frame_1)
+            cv2.imwrite(os.path.join(parent_directory,"cams_calibration/images_world_cam_2/" + expe_no + "_" + trial_no + "/color/img_" + str(img_idx) + ".png"), color_frame_2)
+            img_idx = img_idx + 1
+        if c == ord('q'):
+            print("quit")
+            break
+finally : 
+    # Release the camera captures
+    for cap in captures:
+        cap.release()
+    cv2.destroyAllWindows()
 
-    if transformation_matrix_2 is not None:
-        print("Camera 2 Pose (Transformation Matrix):")
-        print(transformation_matrix_2)
-    
-        # Draw the marker and its pose on the frame for Camera 2
-        cv2.aruco.drawDetectedMarkers(frame_2, [corners_2])
-        cv2.drawFrameAxes(frame_2, K2, D2, rvec_2, tvec_2, 0.1)
+cam_T1_world, cam_R1_world = get_relative_pose_world_in_cam(c1_color_imgs_path,K1,D1,detector, marker_size)
 
-        if not(saved_2):
-            # Save the rotation matrix and translation vector to a YAML file for Camera 2
-            save_pose_to_yaml(transformation_matrix_2[:3, :3], transformation_matrix_2[:3, 3], os.path.join(parent_directory,f'./cams_calibration/cam_params/camera2_pose_{expe_no}_{trial_no}.yml'))
-            saved_2 = True  # Ensure we save only once for Camera 2
+# Save the rotation matrix and translation vector to a YAML file for Camera 1
+save_pose_matrix_to_yaml(cam_R1_world, cam_T1_world, c1_color_params_path)
 
-    # Display the frames for both cameras
-    cv2.imshow('Camera 1 Pose Estimation', frame_1)
-    cv2.imshow('Camera 2 Pose Estimation', frame_2)
 
-    if cv2.waitKey(1) & 0xFF == ord('q'):
-        print("quit")
-        break
+cam_T2_world, cam_R2_world = get_relative_pose_world_in_cam(c2_color_imgs_path,K2,D2,detector, marker_size)
 
-# Release the camera captures
-for cap in captures:
-    cap.release()
-cv2.destroyAllWindows()
+# Save the rotation matrix and translation vector to a YAML file for Camera 2
+save_pose_matrix_to_yaml(cam_R2_world, cam_T2_world, c2_color_params_path)
+

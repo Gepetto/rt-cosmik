@@ -3,7 +3,7 @@ import cv2 as cv
 import yaml
 import glob
 import numpy as np
-
+from scipy.spatial.transform import Rotation
 
 def calibrate_camera(images_folder):
     """
@@ -311,3 +311,216 @@ def load_cam_to_cam_params(path):
 
     cv_file.release()
     return R, T
+
+# Function to detect the ArUco marker and estimate the camera pose
+def get_aruco_pose(frame, camera_matrix, dist_coeffs, detector, marker_size):
+    # Convert the frame to grayscale
+    gray = cv.cvtColor(frame, cv.COLOR_BGR2GRAY)
+
+    marker_points = np.array([[-marker_size / 2, marker_size / 2, 0],
+                              [marker_size / 2, marker_size / 2, 0],
+                              [marker_size / 2, -marker_size / 2, 0],
+                              [-marker_size / 2, -marker_size / 2, 0]], dtype=np.float32)
+    
+    # Detect the markers in the image
+    corners, ids, _ = detector.detectMarkers(gray)
+    
+    if ids is not None and len(corners) > 0:
+        # Extract the corners of the first detected marker for pose estimation
+        # Reshape the first marker's corners for solvePnP
+        corners_for_solvePnP = corners[0].reshape(-1, 2)
+        
+        # Estimate the pose of each marker
+        _, R, t = cv.solvePnP(marker_points, corners_for_solvePnP, camera_matrix, dist_coeffs, False, cv.SOLVEPNP_IPPE_SQUARE)
+        
+        # Convert the rotation vector to a rotation matrix
+        rotation_matrix, _ = cv.Rodrigues(R)
+        
+        # Now we can form the transformation matrix
+        transformation_matrix = np.eye(4)
+        transformation_matrix[:3, :3] = rotation_matrix
+        transformation_matrix[:3, 3] = t.flatten()
+        
+        return transformation_matrix, corners[0], R, t
+    else:
+        return None, None, None, None
+    
+def get_relative_pose_in_cam(images_folder,camera_matrix,dist_coeffs, detector, marker_size):
+    images_names = sorted(glob.glob(images_folder))
+    images = []
+    for imname in images_names:
+        im = cv.imread(imname, 1)
+        images.append(im)
+
+    assert len(images)==4, "number of images to get robot base must be 4"
+    
+    wand_local = np.array([[-0.00004],[0.262865],[-0.000009]])
+
+    wand_pos_cam_frame = []
+    for ii, frame in enumerate(images):
+        # Convert the frame to grayscale
+        gray = cv.cvtColor(frame, cv.COLOR_BGR2GRAY)
+
+        marker_points = np.array([[-marker_size / 2, marker_size / 2, 0],
+                                [marker_size / 2, marker_size / 2, 0],
+                                [marker_size / 2, -marker_size / 2, 0],
+                                [-marker_size / 2, -marker_size / 2, 0]], dtype=np.float32)
+        
+        # Detect the markers in the image
+        corners, ids, _ = detector.detectMarkers(gray)
+        
+        if ids is not None and len(corners) > 0:
+            # Extract the corners of the first detected marker for pose estimation
+            # Reshape the first marker's corners for solvePnP
+            corners_for_solvePnP = corners[0].reshape(-1, 2)
+            
+            # Estimate the pose of each marker
+            _, R, t = cv.solvePnP(marker_points, corners_for_solvePnP, camera_matrix, dist_coeffs, False, cv.SOLVEPNP_IPPE_SQUARE)
+            
+            # Convert the rotation vector to a rotation matrix
+            rotation_matrix, _ = cv.Rodrigues(R)
+            
+            # Now we can form the transformation matrix
+            transformation_matrix = np.eye(4)
+            transformation_matrix[:3, :3] = rotation_matrix
+            transformation_matrix[:3, 3] = t.flatten()
+        
+            wand_pos_cam_frame.append((t+rotation_matrix@wand_local).flatten())
+
+    cam_center_robot = (wand_pos_cam_frame[0]+wand_pos_cam_frame[1])/2
+
+    x_axis = wand_pos_cam_frame[3]-wand_pos_cam_frame[2]
+    x_axis = x_axis/np.linalg.norm(x_axis)
+
+    y_axis = wand_pos_cam_frame[0]-wand_pos_cam_frame[1]
+    y_axis = y_axis/np.linalg.norm(y_axis)
+
+    z_axis = np.cross(x_axis, y_axis)
+
+    # 1. Construct the rotation matrix
+    cam_R_robot = np.column_stack((x_axis, y_axis, z_axis))
+
+    return cam_center_robot, cam_R_robot
+
+def get_relative_pose_world_in_cam(images_folder,camera_matrix,dist_coeffs, detector, marker_size):
+    images_names = sorted(glob.glob(images_folder))
+    images = []
+    for imname in images_names:
+        im = cv.imread(imname, 1)
+        images.append(im)
+
+    translation_vectors = []
+    rotation_vectors = []
+
+    for ii, frame in enumerate(images):
+        # Convert the frame to grayscale
+        gray = cv.cvtColor(frame, cv.COLOR_BGR2GRAY)
+
+        marker_points = np.array([[-marker_size / 2, marker_size / 2, 0],
+                                [marker_size / 2, marker_size / 2, 0],
+                                [marker_size / 2, -marker_size / 2, 0],
+                                [-marker_size / 2, -marker_size / 2, 0]], dtype=np.float32)
+        
+        # Detect the markers in the image
+        corners, ids, _ = detector.detectMarkers(gray)
+        
+        if ids is not None and len(corners) > 0:
+            # Extract the corners of the first detected marker for pose estimation
+            # Reshape the first marker's corners for solvePnP
+            corners_for_solvePnP = corners[0].reshape(-1, 2)
+            
+            # Estimate the pose of each marker
+            _, R, t = cv.solvePnP(marker_points, corners_for_solvePnP, camera_matrix, dist_coeffs, False, cv.SOLVEPNP_IPPE_SQUARE)
+            
+            translation_vectors.append(t)
+            rotation_vectors.append(R)
+
+    mean_translation = np.mean(np.array(translation_vectors),axis=0)
+    mean_R = np.mean(np.array(rotation_vectors),axis=0)
+
+    # Convert the rotation vector to a rotation matrix
+    mean_Rmatrix, _ = cv.Rodrigues(mean_R)
+
+    return mean_translation, mean_Rmatrix
+    
+# Function to save the translation vector to a YAML file
+def save_pose_rpy_to_yaml(translation_vector, rotation_sequence, filename):
+
+    # Ensure inputs are 1D or column vectors of correct shape
+    assert translation_vector.shape in [(3,), (3, 1)], "Translation vector must have shape (3,) or (3, 1)"
+    assert rotation_sequence.shape in [(3,), (3, 1)], "Rotation sequence must have shape (3,) or (3, 1)"
+    
+    # Prepare the data to be saved in YAML format
+    data = {
+        'translation_vector': {
+            'rows': 3,
+            'cols': 1,
+            'dt': 'd',
+            'data': translation_vector.flatten().tolist()
+        },
+        'rotation_rpy': {
+            'rows': 3,
+            'cols': 1,
+            'dt': 'd',
+            'data': rotation_sequence.flatten().tolist()
+        }
+    }
+    
+    # Write to the YAML file
+    with open(filename, 'w') as file:
+        yaml.dump(data, file, default_flow_style=False)  # Use block style for readability
+
+# Function to detect the ArUco marker and estimate the camera pose
+def get_camera_pose(frame, camera_matrix, dist_coeffs, detector, marker_size):
+    # Convert the frame to grayscale
+    gray = cv.cvtColor(frame, cv.COLOR_BGR2GRAY)
+
+    marker_points = np.array([[-marker_size / 2, marker_size / 2, 0],
+                              [marker_size / 2, marker_size / 2, 0],
+                              [marker_size / 2, -marker_size / 2, 0],
+                              [-marker_size / 2, -marker_size / 2, 0]], dtype=np.float32)
+    
+    # Detect the markers in the image
+    corners, ids, _ = detector.detectMarkers(gray)
+    
+    if ids is not None and len(corners) > 0:
+        # Extract the corners of the first detected marker for pose estimation
+        # Reshape the first marker's corners for solvePnP
+        corners_for_solvePnP = corners[0].reshape(-1, 2)
+        
+        # Estimate the pose of each marker
+        _, R, t = cv.solvePnP(marker_points, corners_for_solvePnP, camera_matrix, dist_coeffs, False, cv.SOLVEPNP_IPPE_SQUARE)
+        
+        # Convert the rotation vector to a rotation matrix
+        rotation_matrix, _ = cv.Rodrigues(R)
+        
+        # Now we can form the transformation matrix
+        transformation_matrix = np.eye(4)
+        transformation_matrix[:3, :3] = rotation_matrix
+        transformation_matrix[:3, 3] = t.flatten()
+        
+        return transformation_matrix, corners[0], R, t
+    else:
+        return None, None, None, None
+
+# Function to save the rotation matrix and translation vector to a YAML file
+def save_pose_matrix_to_yaml(rotation_matrix, translation_vector, filename):
+    # Prepare the data to be saved in YAML format
+    data = {
+        'rotation_matrix': {
+            'rows': 3,
+            'cols': 3,
+            'dt': 'd',
+            'data': rotation_matrix.flatten().tolist()
+        },
+        'translation_vector': {
+            'rows': 3,
+            'cols': 1,
+            'dt': 'd',
+            'data': translation_vector.flatten().tolist()
+        }
+    }
+    
+    # Write to the YAML file
+    with open(filename, 'w') as file:
+        yaml.dump(data, file)
