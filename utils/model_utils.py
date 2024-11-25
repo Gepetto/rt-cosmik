@@ -1388,6 +1388,13 @@ def get_jcp_global_pos(mocap_mks_positions):
     elbow_center = ((mocap_mks_positions['L_melbow_study'] + mocap_mks_positions['L_lelbow_study']).reshape(3,1)/2.0 +  (mocap_mks_positions['r_melbow_study'] + mocap_mks_positions['r_lelbow_study']).reshape(3,1)/2.0)/2
     wrist_center = ((mocap_mks_positions['L_mwrist_study'] + mocap_mks_positions['L_lwrist_study']).reshape(3,1)/2.0 + (mocap_mks_positions['r_mwrist_study'] + mocap_mks_positions['r_lwrist_study']).reshape(3,1)/2.0)/2
     
+    # Set the ankle joint center to zero in global frame
+    knee_center -= ankle_center
+    midhip -= ankle_center
+    shoulder_center -= ankle_center
+    elbow_center -= ankle_center
+    wrist_center -= ankle_center
+
     jcp = [ankle_center, knee_center, midhip, shoulder_center, elbow_center, wrist_center]
 
     return dict(zip(names,jcp))
