@@ -22,13 +22,13 @@ from sensor_msgs.msg import JointState
 from visualization_msgs.msg import MarkerArray
 
 from utils.read_write_utils import formatting_keypoints, set_zero_data
-from utils.model_utils import Robot, model_scaling
+from utils.model_utils import Robot, get_jcp_global_pos
 from utils.calib_utils import load_cam_params, load_cam_to_cam_params, load_cam_pose
 from utils.triangulation_utils import triangulate_points
-from utils.ik_utils import RT_Quadprog
+from utils.ik_utils import RT_IK
 from utils.iir import IIR
 from utils.viz_utils import visualize, VISUALIZATION_CFG
-from utils.ros_utils import publish_keypoints_as_marker_array, publish_augmented_markers
+from utils.ros_utils import publish_keypoints_as_marker_array, publish_augmented_markers, publish_kinematics
 
 # Get the directory where the script is located
 script_directory = os.path.dirname(os.path.abspath(__file__))
@@ -144,8 +144,6 @@ def main():
            'r_melbow_study','r_lwrist_study','r_mwrist_study','L_lelbow_study','L_melbow_study',
            'L_lwrist_study','L_mwrist_study']
 
-    mapping = dict(zip(keypoint_names,[i for i in range(len(keypoint_names))]))
-
     ### Initialize CSV files
     with open(keypoints_csv_file_path, mode='w', newline='') as file:
         csv_writer = csv.writer(file)
@@ -177,14 +175,8 @@ def main():
 
     ### Initialize cams stream
     camera_indices = list_available_cameras()
-    # print(camera_indices)
+    captures = [cv2.VideoCapture(idx) for idx in camera_indices]
 
-    # if no webcam
-    # captures = [cv2.VideoCapture(idx) for idx in camera_indices]
-
-    # if webcam remove it 
-    captures = [cv2.VideoCapture(idx) for idx in camera_indices if idx !=2]
-    
     width_vids = []
     height_vids = []
 
@@ -211,7 +203,7 @@ def main():
 
     ### IK calculations 
     q = np.array([np.pi/2,0,0,-np.pi,0]) # init pos
-    keys_to_track_list = ["Right Knee","Right Hip","Right Shoulder","Right Elbow","Right Wrist"]
+    keys_to_track_list = ['Knee', 'midHip', 'Shoulder', 'Elbow', 'Wrist']
     dict_dof_to_keypoints = dict(zip(keys_to_track_list,['knee_Z', 'lumbar_Z', 'shoulder_Z', 'elbow_Z', 'hand_fixed']))
 
     ### Set up real time filter 
@@ -224,7 +216,7 @@ def main():
         sampling_frequency=fs
     )
 
-    iir_filter.add_filter(order=4, cutoff=7, filter_type='lowpass')
+    iir_filter.add_filter(order=4, cutoff=15, filter_type='lowpass')
     
     first_sample = True 
     frame_idx = 0
@@ -233,7 +225,6 @@ def main():
     fourcc = cv2.VideoWriter_fourcc(*'mp4v')  # Codec for AVI files
     out_vid1 = cv2.VideoWriter(os.path.join(parent_directory,'output/cam1.mp4'), fourcc, 30.0, (int(width_vids[0]), int(height_vids[0])), True)
     out_vid2 = cv2.VideoWriter(os.path.join(parent_directory,'output/cam2.mp4'), fourcc, 30.0, (int(width_vids[1]), int(height_vids[1])), True)
-    out_vid = [out_vid1, out_vid2]
 
     tracker = PoseTracker(
         det_model=args.det_model,
@@ -278,10 +269,10 @@ def main():
                 keypoints = (keypoints[..., :2] ).astype(float)
                 bboxes *= scale
                 t1 =time.time()
-                print("Time of inference for one image",t1-t0)
+                # print("Time of inference for one image",t1-t0)
 
                 if keypoints.size == 0 or keypoints.flatten().shape != (52,):
-                    print('i')
+                    pass
                     
                 else :
                     keypoints_list.append(keypoints.reshape((26,2)).flatten())
@@ -297,6 +288,7 @@ def main():
 
             if len(keypoints_list)!=2: #number of cams
                 pass
+
             else :
                 p3d_frame = triangulate_points(keypoints_list, mtxs, dists, projections)
                 keypoints_in_world = p3d_frame
@@ -306,25 +298,7 @@ def main():
 
                 # Apply the rotation matrix to align the points
                 keypoints_in_world = np.dot(keypoints_shifted,R1_global)
-                # print(keypoints_in_world)
-
-                # # For Kahina 
-                # flattened_keypoints = keypoints_in_world.flatten()
-                # #print(flattened_keypoints)
-                # row = flattened_keypoints.tolist()
-                # with open('keypoints_rt_kahina.csv', mode='a') as file:
-                #     csv_writer = csv.writer(file)
-                #     csv_writer.writerow(row)
-
-                # publish_keypoints_as_marker_array(keypoints_in_world, keypoints_pub, keypoint_names)
                 
-                
-            #     # Translate so that the right ankle is at 0 everytime
-            #     #keypoints_in_world -= keypoints_in_world[mapping["Right Ankle"],:]
-            #     flattened_keypoints = keypoints_in_world.flatten()
-            #     #print(flattened_keypoints)
-            #     row = flattened_keypoints.tolist()
-
                 # Saving keypoints
                 with open(keypoints_csv_file_path, mode='a', newline='') as file:
                     csv_writer = csv.writer(file)
@@ -335,7 +309,6 @@ def main():
                 if first_sample:
                     for k in range(30):
                         keypoints_buffer.append(keypoints_in_world)  #add the 1st frame 30 times
-                    first_sample = False  #put the flag to false 
                 else:
                     keypoints_buffer.append(keypoints_in_world) #add the keypoints to the buffer normally 
                 
@@ -353,11 +326,6 @@ def main():
                     augmented_markers = augmentTRC(keypoints_buffer_array, subject_mass=subject_mass, subject_height=subject_height, models = warmed_models,
                                augmenterDir=augmenter_path, augmenter_model='v0.3', offset=True)
 
-                    # # Save for kahina 
-                    # # Convert responses_all_conc to a pandas DataFrame
-                    # df = pd.DataFrame([augmented_markers])
-                    # df.to_csv("markers_rt_kahina.csv", mode='a',header= False, index=False)
-
 
                     if len(augmented_markers) % 3 != 0:
                         raise ValueError("The length of the list must be divisible by 3.")
@@ -371,7 +339,35 @@ def main():
                             # Write to CSV
                             csv_writer.writerow([frame_idx, formatted_timestamp,marker_names[jj], augmented_markers[jj][0], augmented_markers[jj][1], augmented_markers[jj][2]])
 
-                    publish_augmented_markers(augmented_markers, augmented_markers_pub, marker_names)                
+                    publish_augmented_markers(augmented_markers, augmented_markers_pub, marker_names)
+
+                    if first_sample:
+                        lstm_dict = dict(zip(keypoint_names+marker_names, np.concatenate((filtered_keypoints_buffer[-1],augmented_markers),axis=0)))
+                        jcp_dict = get_jcp_global_pos(lstm_dict)
+
+                        ### IK calculations
+                        ik_class = RT_IK(human_model, lstm_dict, q, keys_to_track_list, dt)
+                        q = ik_class.solve_ik_sample_casadi()
+                        ik_class._q0=q
+
+                    else :
+                        lstm_dict = dict(zip(marker_names, augmented_markers))
+                        jcp_dict = get_jcp_global_pos(lstm_dict)
+
+
+                        ### IK calculations
+                        ik_class._dict_m= jcp_dict
+                        q = ik_class.solve_ik_sample_casadi()
+
+                        ik_class._q0 = q
+
+                    publish_kinematics(q,pub,dof_names)     
+
+                    # Saving kinematics
+                    with open(q_csv_file_path, mode='a', newline='') as file:
+                        csv_writer = csv.writer(file)
+                        # Write to CSV
+                        csv_writer.writerow([frame_idx, formatted_timestamp]+q.tolist())
                 
             if cv2.waitKey(1) & 0xFF == ord('q'):
                 print("quit")

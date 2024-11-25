@@ -1373,3 +1373,23 @@ def build_model_challenge(mocap_mks_positions: Dict, lstm_mks_positions: Dict, m
 #                                         np.deg2rad(-142),    #Knee_Z_L -
 #                                         np.deg2rad(-47),     #Ankle_Z_L -
 #                                         ])
+
+def get_jcp_global_pos(mocap_mks_positions):
+    names = ['Ankle', 'Knee', 'midHip', 'Shoulder', 'Elbow', 'Wrist']
+
+    ankle_center = ((mocap_mks_positions['L_mankle_study'] + mocap_mks_positions['L_ankle_study']).reshape(3,1)/2.0 + (mocap_mks_positions['r_mankle_study'] + mocap_mks_positions['r_ankle_study']).reshape(3,1)/2.0)/2
+    knee_center = ((mocap_mks_positions['L_knee_study'] + mocap_mks_positions['L_mknee_study']).reshape(3,1)/2.0 + (mocap_mks_positions['r_knee_study'] + mocap_mks_positions['r_mknee_study']).reshape(3,1)/2.0)/2
+    midhip = (mocap_mks_positions['r.ASIS_study'] + mocap_mks_positions['L.ASIS_study'] + mocap_mks_positions['r.PSIS_study'] + mocap_mks_positions['L.PSIS_study'] )/4.0
+    torso_pose = get_torso_pose(mocap_mks_positions)
+    bi_acromial_dist = np.linalg.norm(mocap_mks_positions['L_shoulder_study'] - mocap_mks_positions['r_shoulder_study'])
+    Rshoulder_center = mocap_mks_positions['r_shoulder_study'].reshape(3,1) + torso_pose[:3, :3] @ col_vector_3D(0., -0.17*bi_acromial_dist, 0)
+    Lshoulder_center = mocap_mks_positions['L_shoulder_study'].reshape(3,1) + (torso_pose[:3, :3].reshape(3,3) @ col_vector_3D(0., -0.17*bi_acromial_dist, 0)).reshape(3,1)
+    shoulder_center = (Rshoulder_center + Lshoulder_center)/2
+    elbow_center = ((mocap_mks_positions['L_melbow_study'] + mocap_mks_positions['L_lelbow_study']).reshape(3,1)/2.0 +  (mocap_mks_positions['r_melbow_study'] + mocap_mks_positions['r_lelbow_study']).reshape(3,1)/2.0)/2
+    wrist_center = ((mocap_mks_positions['L_mwrist_study'] + mocap_mks_positions['L_lwrist_study']).reshape(3,1)/2.0 + (mocap_mks_positions['r_mwrist_study'] + mocap_mks_positions['r_lwrist_study']).reshape(3,1)/2.0)/2
+    
+    jcp = [ankle_center, knee_center, midhip, shoulder_center, elbow_center, wrist_center]
+
+    return dict(zip(names,jcp))
+
+
