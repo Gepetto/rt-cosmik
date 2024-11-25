@@ -345,7 +345,7 @@ def get_aruco_pose(frame, camera_matrix, dist_coeffs, detector, marker_size):
     else:
         return None, None, None, None
     
-def get_relative_pose_in_cam(images_folder,camera_matrix,dist_coeffs, detector, marker_size):
+def get_relative_pose_robot_in_cam(images_folder,camera_matrix,dist_coeffs, detector, marker_size):
     images_names = sorted(glob.glob(images_folder))
     images = []
     for imname in images_names:
@@ -387,20 +387,87 @@ def get_relative_pose_in_cam(images_folder,camera_matrix,dist_coeffs, detector, 
         
             wand_pos_cam_frame.append((t+rotation_matrix@wand_local).flatten())
 
-    cam_center_robot = (wand_pos_cam_frame[0]+wand_pos_cam_frame[1])/2
+    P1 = cam_center_robot = (wand_pos_cam_frame[0]+wand_pos_cam_frame[1])/2
+    P2 = wand_pos_cam_frame[3]
+    P3 = wand_pos_cam_frame[0]
 
-    x_axis = wand_pos_cam_frame[3]-wand_pos_cam_frame[2]
-    x_axis = x_axis/np.linalg.norm(x_axis)
+    P1P2 = P2-P1
+    P1P3 = P3-P1
 
-    y_axis = wand_pos_cam_frame[0]-wand_pos_cam_frame[1]
-    y_axis = y_axis/np.linalg.norm(y_axis)
+    Vz = np.cross(P1P2, P1P3)
+    Vy = np.cross(Vz,P1P2)
+    Vx = P1P2
 
-    z_axis = np.cross(x_axis, y_axis)
+    x_axis = Vx/np.linalg.norm(Vx)
+    y_axis = Vy/np.linalg.norm(Vy)
+    z_axis = Vz/np.linalg.norm(Vz)
 
     # 1. Construct the rotation matrix
     cam_R_robot = np.column_stack((x_axis, y_axis, z_axis))
 
     return cam_center_robot, cam_R_robot
+
+def get_relative_pose_human_in_cam(images_folder,camera_matrix,dist_coeffs, detector, marker_size):
+    images_names = sorted(glob.glob(images_folder))
+    images = []
+    for imname in images_names:
+        im = cv.imread(imname, 1)
+        images.append(im)
+
+    assert len(images)==3, "number of images to get robot base must be 4"
+    
+    wand_local = np.array([[-0.00004],[0.262865],[-0.000009]])
+
+    wand_pos_cam_frame = []
+    for ii, frame in enumerate(images):
+        # Convert the frame to grayscale
+        gray = cv.cvtColor(frame, cv.COLOR_BGR2GRAY)
+
+        marker_points = np.array([[-marker_size / 2, marker_size / 2, 0],
+                                [marker_size / 2, marker_size / 2, 0],
+                                [marker_size / 2, -marker_size / 2, 0],
+                                [-marker_size / 2, -marker_size / 2, 0]], dtype=np.float32)
+        
+        # Detect the markers in the image
+        corners, ids, _ = detector.detectMarkers(gray)
+        
+        if ids is not None and len(corners) > 0:
+            # Extract the corners of the first detected marker for pose estimation
+            # Reshape the first marker's corners for solvePnP
+            corners_for_solvePnP = corners[0].reshape(-1, 2)
+            
+            # Estimate the pose of each marker
+            _, R, t = cv.solvePnP(marker_points, corners_for_solvePnP, camera_matrix, dist_coeffs, False, cv.SOLVEPNP_IPPE_SQUARE)
+            
+            # Convert the rotation vector to a rotation matrix
+            rotation_matrix, _ = cv.Rodrigues(R)
+            
+            # Now we can form the transformation matrix
+            transformation_matrix = np.eye(4)
+            transformation_matrix[:3, :3] = rotation_matrix
+            transformation_matrix[:3, 3] = t.flatten()
+        
+            wand_pos_cam_frame.append((t+rotation_matrix@wand_local).flatten())
+
+    P1 = cam_center_human = wand_pos_cam_frame[0]
+    P2 = wand_pos_cam_frame[1]
+    P3 = wand_pos_cam_frame[2]
+
+    P1P2 = P2-P1
+    P1P3 = P3-P1
+
+    Vy = np.cross(P1P2,P1P3)
+    Vz = np.cross(P1P2,Vy)
+    Vx = P1P2
+
+    x_axis = Vx/np.linalg.norm(Vx)
+    y_axis = Vy/np.linalg.norm(Vy)
+    z_axis = Vz/np.linalg.norm(Vz)
+
+    # 1. Construct the rotation matrix
+    cam_R_human = np.column_stack((x_axis, y_axis, z_axis))
+
+    return cam_center_human, cam_R_human
 
 def get_relative_pose_world_in_cam(images_folder,camera_matrix,dist_coeffs, detector, marker_size):
     images_names = sorted(glob.glob(images_folder))
@@ -410,7 +477,7 @@ def get_relative_pose_world_in_cam(images_folder,camera_matrix,dist_coeffs, dete
         images.append(im)
 
     translation_vectors = []
-    rotation_vectors = []
+    quaternions = []
 
     for ii, frame in enumerate(images):
         # Convert the frame to grayscale
@@ -432,16 +499,29 @@ def get_relative_pose_world_in_cam(images_folder,camera_matrix,dist_coeffs, dete
             # Estimate the pose of each marker
             _, R, t = cv.solvePnP(marker_points, corners_for_solvePnP, camera_matrix, dist_coeffs, False, cv.SOLVEPNP_IPPE_SQUARE)
             
+            rotation_matrix = cv.Rodrigues(R)[0]
+
             translation_vectors.append(t)
-            rotation_vectors.append(R)
+            quaternions.append(Rotation.from_matrix(rotation_matrix).as_quat())
 
     mean_translation = np.mean(np.array(translation_vectors),axis=0)
-    mean_R = np.mean(np.array(rotation_vectors),axis=0)
 
-    # Convert the rotation vector to a rotation matrix
-    mean_Rmatrix, _ = cv.Rodrigues(mean_R)
+    for i in range(1, len(quaternions)):
+        if np.dot(quaternions[0], quaternions[i]) < 0:
+            quaternions[i] = -quaternions[i]
+    
+    # Normalize the quaternions (if not already normalized)
+    quaternions = np.array(quaternions)
+    quaternions /= np.linalg.norm(quaternions, axis=1, keepdims=True)
 
-    return mean_translation, mean_Rmatrix
+    # Compute the mean quaternion
+    mean_quaternion = np.mean(quaternions, axis=0)
+    mean_quaternion /= np.linalg.norm(mean_quaternion)  # Normalize the result
+
+    # Step 4: Convert the averaged quaternion back to a rotation matrix
+    mean_rotation_matrix = Rotation.from_quat(mean_quaternion).as_matrix()
+
+    return mean_translation, mean_rotation_matrix
     
 # Function to save the translation vector to a YAML file
 def save_pose_rpy_to_yaml(translation_vector, rotation_sequence, filename):
@@ -490,7 +570,7 @@ def get_camera_pose(frame, camera_matrix, dist_coeffs, detector, marker_size):
         
         # Estimate the pose of each marker
         _, R, t = cv.solvePnP(marker_points, corners_for_solvePnP, camera_matrix, dist_coeffs, False, cv.SOLVEPNP_IPPE_SQUARE)
-        
+
         # Convert the rotation vector to a rotation matrix
         rotation_matrix, _ = cv.Rodrigues(R)
         
