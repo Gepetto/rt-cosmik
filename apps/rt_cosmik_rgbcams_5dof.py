@@ -298,7 +298,7 @@ def main():
                 keypoints_in_cam = p3d_frame
 
                 # Apply the rotation matrix to align the points
-                keypoints_in_world = world_R1_cam@keypoints_in_cam + world_T1_cam
+                keypoints_in_world = np.array([np.dot(world_R1_cam,point) + world_T1_cam for point in keypoints_in_cam])
                 
                 # Saving keypoints
                 with open(keypoints_csv_file_path, mode='a', newline='') as file:
