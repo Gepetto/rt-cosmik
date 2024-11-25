@@ -11,7 +11,6 @@ from mmdeploy_runtime import PoseTracker
 import time 
 import csv
 import pinocchio as pin
-from pinocchio.visualize import RVizVisualizer
 from collections import deque
 from utils.lstm_v2 import augmentTRC, loadModel
 from datetime import datetime
@@ -122,9 +121,13 @@ def main():
         mtxs.append(dict_cam[cam]["mtx"])
 
     ### Loading camera pose 
-    R1_global, T1_global = load_cam_pose(os.path.join(parent_directory,'cams_calibration/cam_params/camera1_pose_test_test.yml'))
-    # R1_global = R1_global@pin.utils.rotate('z', np.pi) # aligns measurements to human model definition
+    cam_R1_world, cam_T1_world = load_cam_pose(os.path.join(parent_directory,'cams_calibration/cam_params/camera1_pose_test_test.yml'))
     
+    # Inverse the pose to get cam in world frame 
+    world_R1_cam = cam_R1_world.T
+    world_T1_cam = -cam_R1_world.T@cam_T1_world
+    world_T1_cam = world_T1_cam.reshape((3,))
+
     fs = 40
     dt = 1/fs
 
@@ -304,14 +307,11 @@ def main():
                 pass
             else :
                 p3d_frame = triangulate_points(keypoints_list, mtxs, dists, projections)
-                keypoints_in_world = p3d_frame
-
-                # Subtract the translation vector (shifting the origin)
-                keypoints_shifted = p3d_frame - T1_global.T
+                keypoints_in_cam = p3d_frame
 
                 # Apply the rotation matrix to align the points
-                keypoints_in_world = np.dot(keypoints_shifted,R1_global)
-
+                keypoints_in_world = world_R1_cam@keypoints_in_cam + world_T1_cam
+                
                 # Saving keypoints
                 with open(keypoints_csv_file_path, mode='a', newline='') as file:
                     csv_writer = csv.writer(file)
