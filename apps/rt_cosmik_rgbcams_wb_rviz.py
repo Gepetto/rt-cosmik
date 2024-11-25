@@ -9,7 +9,7 @@ import cv2
 import numpy as np
 from mmdeploy_runtime import PoseTracker
 import time 
-time.sleep(15)
+# time.sleep(15)
 import csv
 import pinocchio as pin
 from collections import deque
