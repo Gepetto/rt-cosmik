@@ -327,7 +327,7 @@ def main():
                             # Write to CSV
                             csv_writer.writerow([frame_idx, formatted_timestamp,marker_names[jj], augmented_markers[jj][0], augmented_markers[jj][1], augmented_markers[jj][2]])
                     
-                    if (len(segment_lengths)!=100):
+                    if (len(segment_lengths)<100):
                         if first_sample:
                             lstm_dict = dict(zip(keypoint_names+marker_names, np.concatenate((filtered_keypoints_buffer[-1],augmented_markers),axis=0)))
                             jcp_dict = get_jcp_global_pos(lstm_dict,pos_ankle_calib)
@@ -338,12 +338,11 @@ def main():
                             jcp_dict = get_jcp_global_pos(lstm_dict,pos_ankle_calib)
                             seg_lengths = calculate_segment_lengths_from_dict(jcp_dict)
                             segment_lengths.append(seg_lengths)
-
                     else :
                         if not_calibrated:
-                            segment_lengths = np.array(segment_lengths)
+                            segment_lengths_array = np.array(segment_lengths)
 
-                            dict_mean_segment_lengths = dict(zip(['Knee', 'Hip', 'Shoulder', 'Elbow', 'Wrist'], np.mean(segment_lengths,axis=0))) 
+                            dict_mean_segment_lengths = dict(zip(['Knee', 'Hip', 'Shoulder', 'Elbow', 'Wrist'], np.mean(segment_lengths_array,axis=0))) 
                             # Convert NumPy types to native Python types
                             dict_mean_segment_lengths = {key: float(value) for key, value in dict_mean_segment_lengths.items()}
                             
@@ -378,7 +377,6 @@ def main():
                             for frame in human_model.frames.tolist():
                                 viz.viewer.gui.addXYZaxis('world/'+frame.name,[1,0,0,1],0.01,0.1)
 
-
                             lstm_dict = dict(zip(marker_names, augmented_markers))
                             jcp_dict = get_jcp_global_pos(lstm_dict,pos_ankle_calib)
                             
@@ -387,28 +385,33 @@ def main():
                                 place(viz, 'world/'+key, pin.SE3(np.eye(3), np.array([jcp_dict[key][0],jcp_dict[key][1],jcp_dict[key][2]])))
 
                             ### IK calculations
+                            t1 =time.time()
                             ik_class = RT_IK(human_model, jcp_dict, q, keys_to_track_list, dt, dict_dof_to_keypoints, False)
                             q = ik_class.solve_ik_sample_casadi()
-                            pin.framesForwardKinematics(human_model,human_data, q)
+                            t2 = time.time()
+                            # print("Time for IK",t2-t1)
 
+                            pin.framesForwardKinematics(human_model,human_data, q)
                             for frame in human_model.frames.tolist():
                                 place(viz,'world/'+frame.name,human_data.oMf[human_model.getFrameId(frame.name)])
                             
                             viz.display(q)
                             ik_class._q0=q
                             not_calibrated=False
-                        else :
 
+                        else :
                             lstm_dict = dict(zip(marker_names, augmented_markers))
                             jcp_dict = get_jcp_global_pos(lstm_dict,pos_ankle_calib)
 
                             for key in jcp_dict.keys():
                                 place(viz, 'world/'+key, pin.SE3(np.eye(3), np.array([jcp_dict[key][0],jcp_dict[key][1],jcp_dict[key][2]])))
 
-
                             ### IK calculations
                             ik_class._dict_m= jcp_dict
+                            t1 = time.time()
                             q = ik_class.solve_ik_sample_casadi()
+                            t2 = time.time()
+                            # print("Time for IK",t2-t1)
 
                             pin.framesForwardKinematics(human_model,human_data, q)
 

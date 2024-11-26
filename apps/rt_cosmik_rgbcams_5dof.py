@@ -1,5 +1,5 @@
 # To run the code : python3 apps/rt_cosmik_rgbcams.py cuda /root/workspace/mmdeploy/rtmpose-trt/rtmdet-nano /root/workspace/mmdeploy/rtmpose-trt/rtmpose-m
-# or python3 -m apps.rt_cosmik_rgbcams cuda /root/workspace/mmdeploy/rtmpose-trt/rtmdet-nano /root/workspace/mmdeploy/rtmpose-trt/rtmpose-m
+# or python3 -m apps.rt_cosmik_rgbcams_5dof cuda /root/workspace/mmdeploy/rtmpose-trt/rtmdet-nano /root/workspace/mmdeploy/rtmpose-trt/rtmpose-m
 
 # rosrun tf static_transform_publisher 0 0 0 0 0 0 1 map world 5
 
@@ -191,6 +191,11 @@ def main():
     ### Loading human urdf
     human = Robot(os.path.join(parent_directory,'urdf/human_5dof.urdf'),os.path.join(parent_directory,'meshes')) 
     human_model = human.model
+    human_data= human.data
+
+    pin.framesForwardKinematics(human_model,human_data, pin.neutral(human_model))
+    pos_ankle_calib = human_data.oMi[human_model.getJointId('ankle_Z')].translation
+
 
     subject_height = 1.81
     subject_mass = 73.0
@@ -198,8 +203,8 @@ def main():
     ### IK calculations 
     q = np.array([np.pi/2,0,0,-np.pi,0]) # init pos
     keys_to_track_list = ['Knee', 'midHip', 'Shoulder', 'Elbow', 'Wrist']
-    dict_dof_to_keypoints = dict(zip(keys_to_track_list,['knee_Z', 'lumbar_Z', 'shoulder_Z', 'elbow_Z', 'hand_fixed']))
-
+    dict_dof_to_keypoints = dict(zip(['knee_Z', 'lumbar_Z', 'shoulder_Z', 'elbow_Z', 'hand_fixed'],keys_to_track_list))
+    
     ### Set up real time filter 
     # Constant
     num_channel = 3*len(keypoint_names)
@@ -334,8 +339,8 @@ def main():
 
                     if first_sample:
                         lstm_dict = dict(zip(keypoint_names+marker_names, np.concatenate((filtered_keypoints_buffer[-1],augmented_markers),axis=0)))
-                        jcp_dict = get_jcp_global_pos(lstm_dict)
-
+                        jcp_dict = get_jcp_global_pos(lstm_dict,pos_ankle_calib)
+                            
                         ### IK calculations
                         ik_class = RT_IK(human_model, jcp_dict, q, keys_to_track_list, dt, dict_dof_to_keypoints, False)
                         q = ik_class.solve_ik_sample_casadi()
@@ -343,7 +348,7 @@ def main():
 
                     else :
                         lstm_dict = dict(zip(marker_names, augmented_markers))
-                        jcp_dict = get_jcp_global_pos(lstm_dict)
+                        jcp_dict = get_jcp_global_pos(lstm_dict,pos_ankle_calib)
 
 
                         ### IK calculations
