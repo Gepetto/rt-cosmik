@@ -604,3 +604,12 @@ def save_pose_matrix_to_yaml(rotation_matrix, translation_vector, filename):
     # Write to the YAML file
     with open(filename, 'w') as file:
         yaml.dump(data, file)
+
+def list_available_cameras(max_cameras=10):
+    available_cameras = []
+    for index in range(max_cameras):
+        cap = cv.VideoCapture(index)
+        if cap.isOpened():
+            available_cameras.append(index)
+            cap.release()  # Release the camera after checking
+    return available_cameras

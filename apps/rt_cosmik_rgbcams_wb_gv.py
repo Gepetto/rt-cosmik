@@ -15,14 +15,12 @@ from utils.lstm_v2 import augmentTRC, loadModel
 from datetime import datetime
 import sys
 
-from utils.read_write_utils import formatting_keypoints, set_zero_data
 from utils.model_utils import build_model_challenge
-from utils.calib_utils import load_cam_params, load_cam_to_cam_params, load_cam_pose
+from utils.calib_utils import load_cam_params, load_cam_to_cam_params, load_cam_pose, list_available_cameras
 from utils.triangulation_utils import triangulate_points
 from utils.ik_utils import RT_IK
 from utils.iir import IIR
 from utils.viz_utils import visualize, VISUALIZATION_CFG, place, Rquat
-from utils.ros_utils import publish_keypoints_as_marker_array, publish_augmented_markers, publish_kinematics
 
 # Get the directory where the script is located
 script_directory = os.path.dirname(os.path.abspath(__file__))
@@ -55,15 +53,6 @@ def parse_args():
 
     args = parser.parse_args()
     return args
-
-def list_available_cameras(max_cameras=10):
-    available_cameras = []
-    for index in range(max_cameras):
-        cap = cv2.VideoCapture(index)
-        if cap.isOpened():
-            available_cameras.append(index)
-            cap.release()  # Release the camera after checking
-    return available_cameras
 
 def main():
     args = parse_args()
