@@ -1,7 +1,6 @@
-# To run the code : python3 apps/rt_cosmik_rgbcams.py cuda /root/workspace/mmdeploy/rtmpose-trt/rtmdet-nano /root/workspace/mmdeploy/rtmpose-trt/rtmpose-m
-# or python3 -m apps.rt_cosmik_rgbcams cuda /root/workspace/mmdeploy/rtmpose-trt/rtmdet-nano /root/workspace/mmdeploy/rtmpose-trt/rtmpose-m
-
-# rosrun tf static_transform_publisher 0 0 0 0 0 0 1 map world 5
+# Launch gepetto-gui then 
+# To run the code : python3 apps/get_AT_and_q0.py cuda /root/workspace/mmdeploy/rtmpose-trt/rtmdet-nano /root/workspace/mmdeploy/rtmpose-trt/rtmpose-m
+# or python3 -m apps.get_AT_and_q0 cuda /root/workspace/mmdeploy/rtmpose-trt/rtmdet-nano /root/workspace/mmdeploy/rtmpose-trt/rtmpose-m
 
 import argparse
 import os
@@ -11,23 +10,19 @@ from mmdeploy_runtime import PoseTracker
 import time 
 import csv
 import pinocchio as pin
+from pinocchio.visualize import GepettoVisualizer
+import sys
 from collections import deque
-from utils.lstm_v2 import augmentTRC, loadModel
 from datetime import datetime
-import pandas as pd
+import yaml
 
-# don't forget to source dependancies
-import rospy
-from sensor_msgs.msg import JointState
-from visualization_msgs.msg import MarkerArray
-
-from utils.model_utils import Robot, get_jcp_global_pos
+from utils.lstm_v2 import augmentTRC, loadModel
+from utils.model_utils import Robot, get_jcp_global_pos, calculate_segment_lengths_from_dict, model_scaling_from_dict
 from utils.calib_utils import load_cam_params, load_cam_to_cam_params, load_cam_pose, list_available_cameras
 from utils.triangulation_utils import triangulate_points
 from utils.ik_utils import RT_IK
 from utils.iir import IIR
-from utils.viz_utils import visualize, VISUALIZATION_CFG
-from utils.ros_utils import publish_keypoints_as_marker_array, publish_augmented_markers, publish_kinematics
+from utils.viz_utils import visualize, VISUALIZATION_CFG, place
 
 # Get the directory where the script is located
 script_directory = os.path.dirname(os.path.abspath(__file__))
@@ -60,13 +55,16 @@ def parse_args():
     args = parser.parse_args()
     return args
 
+
 def main():
     args = parse_args()
     np.set_printoptions(precision=4, suppress=True)
 
-    keypoints_csv_file_path = os.path.join(parent_directory,'output/keypoints_3d_positions.csv')
-    augmented_csv_file_path = os.path.join(parent_directory, 'output/augmented_markers_positions.csv')
-    q_csv_file_path = os.path.join(parent_directory,'output/q.csv')
+    keypoints_csv_file_path = os.path.join(parent_directory,'output/calib_keypoints_3d_positions.csv')
+    augmented_csv_file_path = os.path.join(parent_directory, 'output/calib_augmented_markers_positions.csv')
+    q_csv_file_path = os.path.join(parent_directory,'output/calib_q.csv')
+
+    calib_human_path = os.path.join(parent_directory, "cams_calibration/human_params/human_anthropometry.yaml")
 
     K1, D1 = load_cam_params(os.path.join(parent_directory,"cams_calibration/cam_params/c1_params_color_test_test.yml"))
     K2, D2 = load_cam_params(os.path.join(parent_directory,"cams_calibration/cam_params/c2_params_color_test_test.yml"))
@@ -154,13 +152,6 @@ def main():
         # Write the header row
         csv3_writer.writerow(['Frame','Time','q0', 'q1','q2','q3','q4'])
 
-    ### Initialize ROS node 
-    rospy.init_node('human_rt_ik', anonymous=True)
-    
-    pub = rospy.Publisher('/human_RT_joint_angles', JointState, queue_size=10)
-    keypoints_pub = rospy.Publisher('/pose_keypoints', MarkerArray, queue_size=10)
-    augmented_markers_pub = rospy.Publisher('/markers_pose', MarkerArray, queue_size=10)
-
     width = 1280
     height = 720
     resize=1280
@@ -191,6 +182,10 @@ def main():
     ### Loading human urdf
     human = Robot(os.path.join(parent_directory,'urdf/human_5dof.urdf'),os.path.join(parent_directory,'meshes')) 
     human_model = human.model
+    human_data = human.data
+
+    pin.framesForwardKinematics(human_model,human_data, pin.neutral(human_model))
+    pos_ankle_calib = human_data.oMi[human_model.getJointId('ankle_Z')].translation
 
     subject_height = 1.81
     subject_mass = 73.0
@@ -198,7 +193,7 @@ def main():
     ### IK calculations 
     q = np.array([np.pi/2,0,0,-np.pi,0]) # init pos
     keys_to_track_list = ['Knee', 'midHip', 'Shoulder', 'Elbow', 'Wrist']
-    dict_dof_to_keypoints = dict(zip(keys_to_track_list,['knee_Z', 'lumbar_Z', 'shoulder_Z', 'elbow_Z', 'hand_fixed']))
+    dict_dof_to_keypoints = dict(zip(['knee_Z', 'lumbar_Z', 'shoulder_Z', 'elbow_Z', 'hand_fixed'],keys_to_track_list))
 
     ### Set up real time filter 
     # Constant
@@ -213,6 +208,7 @@ def main():
     iir_filter.add_filter(order=4, cutoff=15, filter_type='lowpass')
     
     first_sample = True 
+    not_calibrated = True
     frame_idx = 0
 
     # Define the codec and create VideoWriter objects for both RGB streams
@@ -233,8 +229,10 @@ def main():
     if args.output_dir:
         os.makedirs(args.output_dir, exist_ok=True)
 
+    segment_lengths = []
+
     try : 
-        while not rospy.is_shutdown():
+        while True:
             timestamp=datetime.now()
             formatted_timestamp = timestamp.strftime("%Y-%m-%d %H:%M:%S.%f ")
             
@@ -311,7 +309,6 @@ def main():
 
                     filtered_keypoints_buffer = np.reshape(filtered_keypoints_buffer,(30, len(keypoint_names), 3))
 
-                    publish_keypoints_as_marker_array(filtered_keypoints_buffer[-1], keypoints_pub, keypoint_names)
                     
                     #call augmentTrc
                     augmented_markers = augmentTRC(keypoints_buffer_array, subject_mass=subject_mass, subject_height=subject_height, models = warmed_models,
@@ -329,36 +326,104 @@ def main():
                         for jj in range(len(augmented_markers)):
                             # Write to CSV
                             csv_writer.writerow([frame_idx, formatted_timestamp,marker_names[jj], augmented_markers[jj][0], augmented_markers[jj][1], augmented_markers[jj][2]])
-
-                    publish_augmented_markers(augmented_markers, augmented_markers_pub, marker_names)
-
-                    if first_sample:
-                        lstm_dict = dict(zip(keypoint_names+marker_names, np.concatenate((filtered_keypoints_buffer[-1],augmented_markers),axis=0)))
-                        jcp_dict = get_jcp_global_pos(lstm_dict)
-
-                        ### IK calculations
-                        ik_class = RT_IK(human_model, jcp_dict, q, keys_to_track_list, dt, dict_dof_to_keypoints, False)
-                        q = ik_class.solve_ik_sample_casadi()
-                        ik_class._q0=q
+                    
+                    if (len(segment_lengths)!=100):
+                        if first_sample:
+                            lstm_dict = dict(zip(keypoint_names+marker_names, np.concatenate((filtered_keypoints_buffer[-1],augmented_markers),axis=0)))
+                            jcp_dict = get_jcp_global_pos(lstm_dict,pos_ankle_calib)
+                            seg_lengths = calculate_segment_lengths_from_dict(jcp_dict)
+                            segment_lengths.append(seg_lengths)
+                        else :
+                            lstm_dict = dict(zip(marker_names, augmented_markers))
+                            jcp_dict = get_jcp_global_pos(lstm_dict,pos_ankle_calib)
+                            seg_lengths = calculate_segment_lengths_from_dict(jcp_dict)
+                            segment_lengths.append(seg_lengths)
 
                     else :
-                        lstm_dict = dict(zip(marker_names, augmented_markers))
-                        jcp_dict = get_jcp_global_pos(lstm_dict)
+                        if not_calibrated:
+                            segment_lengths = np.array(segment_lengths)
+
+                            dict_mean_segment_lengths = dict(zip(['Knee', 'Hip', 'Shoulder', 'Elbow', 'Wrist'], np.mean(segment_lengths,axis=0))) 
+                            # Convert NumPy types to native Python types
+                            dict_mean_segment_lengths = {key: float(value) for key, value in dict_mean_segment_lengths.items()}
+                            
+                            # Dump the dictionary to a YAML file
+                            with open(calib_human_path, 'w') as file:
+                                yaml.dump(dict_mean_segment_lengths, file, default_flow_style=False)
+
+                            print(f"Dictionary successfully dumped to {calib_human_path}")
+
+                            human_model = model_scaling_from_dict(human_model, dict_mean_segment_lengths)
+
+                            # VISUALIZATION
+                            viz = GepettoVisualizer(human_model,human.collision_model,human.visual_model)
+                            try:
+                                viz.initViewer()
+                            except ImportError as err:
+                                print(
+                                    "Error while initializing the viewer. It seems you should install gepetto-viewer"
+                                )
+                                print(err)
+                                sys.exit(0)
+
+                            try:
+                                viz.loadViewerModel("pinocchio")
+                            except AttributeError as err:
+                                print(
+                                    "Error while loading the viewer human_model. It seems you should start gepetto-viewer"
+                                )
+                                print(err)
+                                sys.exit(0)
+
+                            for frame in human_model.frames.tolist():
+                                viz.viewer.gui.addXYZaxis('world/'+frame.name,[1,0,0,1],0.01,0.1)
 
 
-                        ### IK calculations
-                        ik_class._dict_m= jcp_dict
-                        q = ik_class.solve_ik_sample_casadi()
+                            lstm_dict = dict(zip(marker_names, augmented_markers))
+                            jcp_dict = get_jcp_global_pos(lstm_dict,pos_ankle_calib)
+                            
+                            for key in jcp_dict.keys():
+                                viz.viewer.gui.addSphere('world/'+key,0.01,[0,0,1,1])
+                                place(viz, 'world/'+key, pin.SE3(np.eye(3), np.array([jcp_dict[key][0],jcp_dict[key][1],jcp_dict[key][2]])))
 
-                        ik_class._q0 = q
+                            ### IK calculations
+                            ik_class = RT_IK(human_model, jcp_dict, q, keys_to_track_list, dt, dict_dof_to_keypoints, False)
+                            q = ik_class.solve_ik_sample_casadi()
+                            pin.framesForwardKinematics(human_model,human_data, q)
 
-                    publish_kinematics(q,pub,dof_names)     
+                            for frame in human_model.frames.tolist():
+                                place(viz,'world/'+frame.name,human_data.oMf[human_model.getFrameId(frame.name)])
+                            
+                            viz.display(q)
+                            ik_class._q0=q
+                            not_calibrated=False
+                        else :
 
-                    # Saving kinematics
-                    with open(q_csv_file_path, mode='a', newline='') as file:
-                        csv_writer = csv.writer(file)
-                        # Write to CSV
-                        csv_writer.writerow([frame_idx, formatted_timestamp]+q.tolist())
+                            lstm_dict = dict(zip(marker_names, augmented_markers))
+                            jcp_dict = get_jcp_global_pos(lstm_dict,pos_ankle_calib)
+
+                            for key in jcp_dict.keys():
+                                place(viz, 'world/'+key, pin.SE3(np.eye(3), np.array([jcp_dict[key][0],jcp_dict[key][1],jcp_dict[key][2]])))
+
+
+                            ### IK calculations
+                            ik_class._dict_m= jcp_dict
+                            q = ik_class.solve_ik_sample_casadi()
+
+                            pin.framesForwardKinematics(human_model,human_data, q)
+
+                            for frame in human_model.frames.tolist():
+                                place(viz,'world/'+frame.name,human_data.oMf[human_model.getFrameId(frame.name)])
+
+                            viz.display(q)
+
+                            ik_class._q0 = q
+
+                        # Saving kinematics
+                        with open(q_csv_file_path, mode='a', newline='') as file:
+                            csv_writer = csv.writer(file)
+                            # Write to CSV
+                            csv_writer.writerow([frame_idx, formatted_timestamp]+q.tolist())
                 
             if cv2.waitKey(1) & 0xFF == ord('q'):
                 print("quit")

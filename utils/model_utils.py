@@ -139,6 +139,23 @@ def model_scaling(model, keypoints):
 
     return model, data
 
+def model_scaling_from_dict(model, dict):
+
+    lowerleg_l = dict['Knee']
+    upperleg_l = dict['Hip']   
+    trunk_l = dict['Shoulder']
+    upperarm_l = dict['Elbow']
+    lowerarm_l = dict['Wrist']
+
+    model.jointPlacements[model.getJointId('knee_Z')].translation=np.array([lowerleg_l,0,0])
+    model.jointPlacements[model.getJointId('lumbar_Z')].translation=np.array([upperleg_l,0,0])
+    model.jointPlacements[model.getJointId('shoulder_Z')].translation=np.array([trunk_l,0,0])
+    model.jointPlacements[model.getJointId('elbow_Z')].translation=np.array([upperarm_l,0,0])
+    model.frames[model.getFrameId('hand_fixed')].translation=np.array([lowerarm_l,0,0])
+    model.frames[model.getFrameId('hand')].translation=np.array([lowerarm_l,0,0])
+
+    return model
+
 def check_orthogonality(matrix: np.ndarray):
     # Vecteurs colonnes
     X = matrix[:3, 0]
@@ -1374,29 +1391,58 @@ def build_model_challenge(mocap_mks_positions: Dict, lstm_mks_positions: Dict, m
 #                                         np.deg2rad(-47),     #Ankle_Z_L -
 #                                         ])
 
-def get_jcp_global_pos(mocap_mks_positions):
+def get_jcp_global_pos(mocap_mks_positions, pos_ankle_calib):
     names = ['Ankle', 'Knee', 'midHip', 'Shoulder', 'Elbow', 'Wrist']
 
     ankle_center = ((mocap_mks_positions['L_mankle_study'] + mocap_mks_positions['L_ankle_study']).reshape(3,1)/2.0 + (mocap_mks_positions['r_mankle_study'] + mocap_mks_positions['r_ankle_study']).reshape(3,1)/2.0)/2
+    ankle_offset = ankle_center - pos_ankle_calib.reshape(3,1)
     knee_center = ((mocap_mks_positions['L_knee_study'] + mocap_mks_positions['L_mknee_study']).reshape(3,1)/2.0 + (mocap_mks_positions['r_knee_study'] + mocap_mks_positions['r_mknee_study']).reshape(3,1)/2.0)/2
-    midhip = (mocap_mks_positions['r.ASIS_study'] + mocap_mks_positions['L.ASIS_study'] + mocap_mks_positions['r.PSIS_study'] + mocap_mks_positions['L.PSIS_study'] )/4.0
-    torso_pose = get_torso_pose(mocap_mks_positions)
-    bi_acromial_dist = np.linalg.norm(mocap_mks_positions['L_shoulder_study'] - mocap_mks_positions['r_shoulder_study'])
-    Rshoulder_center = mocap_mks_positions['r_shoulder_study'].reshape(3,1) + torso_pose[:3, :3] @ col_vector_3D(0., -0.17*bi_acromial_dist, 0)
+    midhip = (mocap_mks_positions['r.ASIS_study'] + mocap_mks_positions['L.ASIS_study'] + mocap_mks_positions['r.PSIS_study'] + mocap_mks_positions['L.PSIS_study']).reshape(3,1)/4.0
+
+    trunk_center = (mocap_mks_positions['r_shoulder_study'] + mocap_mks_positions['L_shoulder_study']).reshape(3,1)/2.0 
+
+    Y = (trunk_center - midhip).reshape(3,1)
+    Y = Y/np.linalg.norm(Y)
+    X = (trunk_center - mocap_mks_positions['C7_study'].reshape(3,1)).reshape(3,1)
+    X = X/np.linalg.norm(X)
+    Z = np.cross(X, Y, axis=0)
+    X = np.cross(Y, Z, axis=0)
+
+    pose = np.eye(4,4)
+    pose[:3,0] = X.reshape(3,)
+    pose[:3,1] = Y.reshape(3,)
+    pose[:3,2] = Z.reshape(3,)
+    pose[:3,3] = trunk_center.reshape(3,)
+    pose[:3,:3] = orthogonalize_matrix(pose[:3,:3])
+
+    torso_pose = pose
+
+    bi_acromial_dist = np.linalg.norm(mocap_mks_positions['L_shoulder_study'].reshape(3,1) - mocap_mks_positions['r_shoulder_study'].reshape(3,1))
+    Rshoulder_center = mocap_mks_positions['r_shoulder_study'].reshape(3,1) + torso_pose[:3, :3] @ col_vector_3D(0., -0.17*bi_acromial_dist, 0).reshape(3,1)
     Lshoulder_center = mocap_mks_positions['L_shoulder_study'].reshape(3,1) + (torso_pose[:3, :3].reshape(3,3) @ col_vector_3D(0., -0.17*bi_acromial_dist, 0)).reshape(3,1)
-    shoulder_center = (Rshoulder_center + Lshoulder_center)/2
-    elbow_center = ((mocap_mks_positions['L_melbow_study'] + mocap_mks_positions['L_lelbow_study']).reshape(3,1)/2.0 +  (mocap_mks_positions['r_melbow_study'] + mocap_mks_positions['r_lelbow_study']).reshape(3,1)/2.0)/2
+    shoulder_center = (Rshoulder_center.reshape(3,1) + Lshoulder_center.reshape(3,1))/2
+    elbow_center = ((mocap_mks_positions['L_melbow_study'] + mocap_mks_positions['L_lelbow_study']).reshape(3,1)/2.0 +  (mocap_mks_positions['r_melbow_study']+ mocap_mks_positions['r_lelbow_study']).reshape(3,1)/2.0)/2
     wrist_center = ((mocap_mks_positions['L_mwrist_study'] + mocap_mks_positions['L_lwrist_study']).reshape(3,1)/2.0 + (mocap_mks_positions['r_mwrist_study'] + mocap_mks_positions['r_lwrist_study']).reshape(3,1)/2.0)/2
     
     # Set the ankle joint center to zero in global frame
-    knee_center -= ankle_center
-    midhip -= ankle_center
-    shoulder_center -= ankle_center
-    elbow_center -= ankle_center
-    wrist_center -= ankle_center
+    ankle_center -= ankle_offset
+    knee_center -= ankle_offset
+    midhip -= ankle_offset
+    shoulder_center -= ankle_offset
+    elbow_center -= ankle_offset
+    wrist_center -= ankle_offset
 
     jcp = [ankle_center, knee_center, midhip, shoulder_center, elbow_center, wrist_center]
 
     return dict(zip(names,jcp))
+
+def calculate_segment_lengths_from_dict(dict):
+    lowerleg_l = np.linalg.norm(dict['Knee']-dict['Ankle'])
+    upperleg_l = np.linalg.norm(dict['midHip']-dict['Knee'])
+    trunk_l = np.linalg.norm(dict['Shoulder']-dict['midHip'])
+    upperarm_l = np.linalg.norm(dict['Elbow']-dict['Shoulder'])
+    lowerarm_l = np.linalg.norm(dict['Wrist']-dict['Elbow'])
+
+    return np.array([lowerleg_l, upperleg_l, trunk_l, upperarm_l, lowerarm_l])
 
 

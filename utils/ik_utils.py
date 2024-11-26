@@ -265,8 +265,12 @@ class RT_IK:
 
         cost = 0
 
-        for key in self._cfunction_dict.keys():
-            cost+=1*casadi.sumsqr(self._dict_m[key]-self._cfunction_dict[key](Q))
+        if self._dict_dof_to_keypoints:
+            for key in self._cfunction_dict.keys():
+                cost+=1*casadi.sumsqr(self._dict_m[self._dict_dof_to_keypoints[key]]-self._cfunction_dict[key](Q))
+        else:
+            for key in self._cfunction_dict.keys():
+                cost+=1*casadi.sumsqr(self._dict_m[key]-self._cfunction_dict[key](Q))
 
         # Set the constraint for the joint limits
         if self._with_freeflyer:
