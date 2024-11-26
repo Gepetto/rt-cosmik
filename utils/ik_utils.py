@@ -58,6 +58,8 @@ class RT_IK:
         self._keys_to_track_list = keys_to_track_list
         # Ensure dict_dof_to_keypoints is either a valid dictionary or None
         self._dict_dof_to_keypoints = dict_dof_to_keypoints if dict_dof_to_keypoints is not None else None
+        # Reverse keys and values
+        self._dict_keypoints_to_dof = {value: key for key, value in dict_dof_to_keypoints.items()} if dict_dof_to_keypoints is not None else None
 
         # Casadi framework 
         self._cmodel = cpin.Model(self._model)
@@ -71,13 +73,29 @@ class RT_IK:
 
         self._new_key_list = []
         cfunction_list = []
-        for key in self._keys_to_track_list:
-            index_mk = self._cmodel.getFrameId(key)
-            if index_mk < len(self._model.frames.tolist()): # Check that the frame is in the model
-                new_key = key.replace('.','')
-                self._new_key_list.append(key)
-                function_mk = casadi.Function(f'f_{new_key}',[cq],[self._cdata.oMf[index_mk].translation])
-                cfunction_list.append(function_mk)
+
+        if self._dict_dof_to_keypoints:
+            for key in self._keys_to_track_list:
+                index_mk = self._cmodel.getFrameId(key)
+                if index_mk >= len(self._model.frames.tolist()): # Check that the frame is in the model
+                    new_index_mk = self._cmodel.getFrameId(self._dict_keypoints_to_dof[key])
+                    new_key = self._dict_keypoints_to_dof[key].replace('.','')
+                    self._new_key_list.append(new_key)
+                    function_mk = casadi.Function(f'f_{new_key}',[cq],[self._cdata.oMf[new_index_mk].translation])
+                    cfunction_list.append(function_mk)
+                elif index_mk < len(self._model.frames.tolist()): # Check that the frame is in the model
+                    new_key = key.replace('.','')
+                    self._new_key_list.append(key)
+                    function_mk = casadi.Function(f'f_{new_key}',[cq],[self._cdata.oMf[index_mk].translation])
+                    cfunction_list.append(function_mk)
+        else:
+            for key in self._keys_to_track_list:
+                index_mk = self._cmodel.getFrameId(key)
+                if index_mk < len(self._model.frames.tolist()): # Check that the frame is in the model
+                    new_key = key.replace('.','')
+                    self._new_key_list.append(key)
+                    function_mk = casadi.Function(f'f_{new_key}',[cq],[self._cdata.oMf[index_mk].translation])
+                    cfunction_list.append(function_mk)
 
         self._cfunction_dict=dict(zip(self._new_key_list,cfunction_list))
 
@@ -290,7 +308,15 @@ class RT_IK:
             "ipopt.max_iter": 50,
             "ipopt.linear_solver": "mumps",
             "print_time":0,
-            "expand": True
+            "expand": True,
+
+            # Tolerance options
+            "ipopt.tol": 1e-3,  # Overall tolerance for the optimization problem
+            "ipopt.constr_viol_tol": 1e-6,  # Constraint violation tolerance
+            "ipopt.compl_inf_tol": 1e-6,  # Complementarity tolerance
+            "ipopt.dual_inf_tol": 1e-6,  # Dual infeasibility tolerance
+            "ipopt.acceptable_tol": 1e-3,  # Less strict tolerance for acceptable solutions
+            "ipopt.acceptable_constr_viol_tol": 1e-5  # Acceptable constraint violation tolerance
         }
 
         opti.solver("ipopt", opts)
