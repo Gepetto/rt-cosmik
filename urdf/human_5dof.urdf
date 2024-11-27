@@ -10,7 +10,7 @@
   </material>
   <link name = "world"/>
   <joint name="world_to_human" type="fixed">
-    <origin rpy="1.5478 0.1048 0.908" xyz="0.00056 -0.0133 0.1036"/>  
+    <origin rpy="1.5647 0.0780 0.8973" xyz="0.0287 0.004 0.0225"/>  
     <axis xyz="0 0 1"/>
     <parent link="world"/>
     <child link="foot"/>
