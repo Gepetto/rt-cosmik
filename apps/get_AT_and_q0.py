@@ -269,7 +269,7 @@ def main():
                         frame_idx + idx,
                         skeleton_type=args.skeleton):
                     break
-                elapsed = time.perf_counter()
+                elapsed = time.perf_counter() - start_time()
                 print(f"Time for cam visu one image: {elapsed:.4f} seconds")
 
             elapsed_mmpose_all = time.perf_counter()-start_time_mmpose_all
@@ -439,8 +439,8 @@ def main():
                         
                         elapsed =time.perf_counter()-start_time
                         print(f"Time for ik saving block: {elapsed:.4f} seconds")
-                        
-            elapsed_all = start_time_all - time.perf_counter()
+
+            elapsed_all = time.perf_counter() - start_time_all
             print(f"Time for while block: {elapsed_all:.4f} seconds")
     finally:
         # Release the camera captures
