@@ -3,7 +3,7 @@
 # For the pinpointing when facing the robot by the long side (behind the x axis): 
 # - First image should be the top left screw at the base of the panda
 # - Second image should be the top right screw at the base of the panda
-# - Third image should be at the ;iddle of the bottom screws at the base of the panda
+# - Third image should be at the middle of the bottom screws at the base of the panda
 # - Fourth image should be under the QR code at the base of the panda (front side)
 
 # At NUS for third and fourth images, screws on the box mount can be used
