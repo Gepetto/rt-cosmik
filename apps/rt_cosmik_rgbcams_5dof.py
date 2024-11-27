@@ -22,7 +22,7 @@ from sensor_msgs.msg import JointState
 from visualization_msgs.msg import MarkerArray
 
 from utils.model_utils import Robot, get_jcp_global_pos
-from utils.calib_utils import load_cam_params, load_cam_to_cam_params, load_cam_pose, list_available_cameras
+from utils.calib_utils import load_cam_params, load_cam_to_cam_params, load_cam_pose, list_cameras_with_v4l2
 from utils.triangulation_utils import triangulate_points
 from utils.ik_utils import RT_IK
 from utils.iir import IIR
@@ -165,28 +165,25 @@ def main():
     height = 720
     resize=1280
 
-    # kpt_thr = 0.7
-
     ### Initialize cams stream
-    camera_indices = list_available_cameras()
-    captures = [cv2.VideoCapture(idx) for idx in camera_indices]
+    camera_dict = list_cameras_with_v4l2()
+    captures = [cv2.VideoCapture(idx, cv2.CAP_V4L2) for idx in camera_dict.keys()]
 
     width_vids = []
     height_vids = []
 
-    for cap in captures: 
-        cap.set(cv2.CAP_PROP_FRAME_WIDTH, width)  # HD
-        cap.set(cv2.CAP_PROP_FRAME_HEIGHT, height)  # HD
-        cap.set(cv2.CAP_PROP_FPS, fs)  # Set frame rate to 40fps
+    for idx, cap in enumerate(captures):
+        if not cap.isOpened():
+            continue
+
+        # Apply settings
+        cap.set(cv2.CAP_PROP_FOURCC, cv2.VideoWriter_fourcc(*'MJPG'))
+        cap.set(cv2.CAP_PROP_FRAME_WIDTH, width)
+        cap.set(cv2.CAP_PROP_FRAME_HEIGHT, height)
+        cap.set(cv2.CAP_PROP_FPS, fs)
+
         width_vids.append(width)
         height_vids.append(height)
-
-    
-    # Check if cameras opened successfully
-    for i, cap in enumerate(captures):
-        if not cap.isOpened():
-            print(f"Error: Camera {i} not opened.")
-            return
 
     ### Loading human urdf
     human = Robot(os.path.join(parent_directory,'urdf/human_5dof.urdf'),os.path.join(parent_directory,'meshes')) 

@@ -16,7 +16,7 @@ from datetime import datetime
 import sys
 
 from utils.model_utils import build_model_challenge
-from utils.calib_utils import load_cam_params, load_cam_to_cam_params, load_cam_pose, list_available_cameras
+from utils.calib_utils import load_cam_params, load_cam_to_cam_params, load_cam_pose, list_cameras_with_v4l2
 from utils.triangulation_utils import triangulate_points
 from utils.ik_utils import RT_IK
 from utils.iir import IIR
@@ -178,24 +178,24 @@ def main():
     resize=1280
 
     ### Initialize cams stream
-    camera_indices = list_available_cameras()
-    captures = [cv2.VideoCapture(idx) for idx in camera_indices]
-    
+    camera_dict = list_cameras_with_v4l2()
+    captures = [cv2.VideoCapture(idx, cv2.CAP_V4L2) for idx in camera_dict.keys()]
+
     width_vids = []
     height_vids = []
 
-    for cap in captures: 
-        cap.set(cv2.CAP_PROP_FRAME_WIDTH, width)  # HD
-        cap.set(cv2.CAP_PROP_FRAME_HEIGHT, height)  # HD
-        cap.set(cv2.CAP_PROP_FPS, fs)  # Set frame rate to x fps
+    for idx, cap in enumerate(captures):
+        if not cap.isOpened():
+            continue
+
+        # Apply settings
+        cap.set(cv2.CAP_PROP_FOURCC, cv2.VideoWriter_fourcc(*'MJPG'))
+        cap.set(cv2.CAP_PROP_FRAME_WIDTH, width)
+        cap.set(cv2.CAP_PROP_FRAME_HEIGHT, height)
+        cap.set(cv2.CAP_PROP_FPS, fs)
+
         width_vids.append(width)
         height_vids.append(height)
-
-    # Check if cameras opened successfully
-    for i, cap in enumerate(captures):
-        if not cap.isOpened():
-            print(f"Error: Camera {i} not opened.")
-            return
     
     ### Set up real time filter 
     # Constant
@@ -351,7 +351,6 @@ def main():
                             print(err)
                             sys.exit(0)
 
-                        model_frames=human_model.frames.tolist()
                         for dof in dof_names:
                             viz.viewer.gui.addXYZaxis('world/'+dof,[1,0,0,1],0.01,0.1)
 

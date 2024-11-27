@@ -606,15 +606,6 @@ def save_pose_matrix_to_yaml(rotation_matrix, translation_vector, filename):
     with open(filename, 'w') as file:
         yaml.dump(data, file)
 
-def list_available_cameras(max_cameras=10):
-    available_cameras = []
-    for index in range(max_cameras):
-        cap = cv.VideoCapture(index)
-        if cap.isOpened():
-            available_cameras.append(index)
-            cap.release()  # Release the camera after checking
-    return available_cameras
-
 def list_cameras_with_v4l2():
     """
     Use v4l2-ctl to list all connected cameras and their device paths.

@@ -156,13 +156,9 @@ def main():
     height = 720
     resize=1280
 
-    # kpt_thr = 0.7
-
     ### Initialize cams stream
-    camera_dict = list_cameras_with_v4l2
+    camera_dict = list_cameras_with_v4l2()
     captures = [cv2.VideoCapture(idx, cv2.CAP_V4L2) for idx in camera_dict.keys()]
-    print(captures)
-    input()
 
     width_vids = []
     height_vids = []
@@ -179,20 +175,6 @@ def main():
 
         width_vids.append(width)
         height_vids.append(height)
-
-        # Verify settings
-        print(f"Camera {camera_indices[idx]} Settings:")
-        print("FOURCC:", "".join([chr(int(cap.get(cv2.CAP_PROP_FOURCC)) >> (i * 8) & 0xFF) for i in range(4)]))
-        print("Width:", cap.get(cv2.CAP_PROP_FRAME_WIDTH))
-        print("Height:", cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
-        print("FPS:", cap.get(cv2.CAP_PROP_FPS))
-
-    
-    # Check if cameras opened successfully
-    for i, cap in enumerate(captures):
-        if not cap.isOpened():
-            print(f"Error: Camera {i} not opened.")
-            return
 
     ### Loading human urdf
     human = Robot(os.path.join(parent_directory,'urdf/human_5dof.urdf'),os.path.join(parent_directory,'meshes')) 
@@ -220,7 +202,7 @@ def main():
         sampling_frequency=fs
     )
 
-    iir_filter.add_filter(order=4, cutoff=15, filter_type='lowpass')
+    iir_filter.add_filter(order=4, cutoff=10, filter_type='lowpass')
     
     first_sample = True 
     not_calibrated = True
@@ -256,8 +238,6 @@ def main():
 
             # Process each frame individually
             for idx, frame in enumerate(frames):
-
-                t0 = time.time()
                 results = tracker(state, frame, detect=-1)
                 scale = resize / max(frame.shape[0], frame.shape[1])
                 keypoints, bboxes, _ = results
@@ -265,8 +245,6 @@ def main():
                 # keypoints = (keypoints[..., :2] * scale).astype(float)
                 keypoints = (keypoints[..., :2] ).astype(float)
                 bboxes *= scale
-                t1 =time.time()
-                # print("Time of inference for one image",t1-t0)
 
                 if keypoints.size == 0 or keypoints.flatten().shape != (52,):
                     pass
@@ -390,11 +368,8 @@ def main():
                                 place(viz, 'world/'+key, pin.SE3(np.eye(3), np.array([jcp_dict[key][0],jcp_dict[key][1],jcp_dict[key][2]])))
 
                             ### IK calculations
-                            t1 =time.time()
                             ik_class = RT_IK(human_model, jcp_dict, q, keys_to_track_list, dt, dict_dof_to_keypoints, False)
                             q = ik_class.solve_ik_sample_casadi()
-                            t2 = time.time()
-                            # print("Time for IK",t2-t1)
 
                             pin.framesForwardKinematics(human_model,human_data, q)
                             for frame in human_model.frames.tolist():
@@ -413,10 +388,7 @@ def main():
 
                             ### IK calculations
                             ik_class._dict_m= jcp_dict
-                            t1 = time.time()
                             q = ik_class.solve_ik_sample_casadi()
-                            t2 = time.time()
-                            # print("Time for IK",t2-t1)
 
                             pin.framesForwardKinematics(human_model,human_data, q)
 

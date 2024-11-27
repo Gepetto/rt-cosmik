@@ -10,7 +10,7 @@
 
 import cv2
 import numpy as np
-from utils.calib_utils import load_cam_params, load_cam_pose, get_aruco_pose, get_relative_pose_robot_in_cam, save_pose_rpy_to_yaml
+from utils.calib_utils import load_cam_params, load_cam_pose, get_aruco_pose, get_relative_pose_robot_in_cam, save_pose_rpy_to_yaml, list_cameras_with_v4l2
 import sys
 import os
 from scipy.spatial.transform import Rotation
@@ -47,28 +47,28 @@ c2_color_params_path = os.path.join(parent_directory,"cams_calibration/robot_par
 
 width = 1280
 height = 720
+resize=1280
+fs =40
 
-max_cameras = 10
-available_cameras = []
-for index in range(max_cameras):
-    cap = cv2.VideoCapture(index)
-    if cap.isOpened():
-        available_cameras.append(index)
-        cap.release()  # Release the camera after checking
+### Initialize cams stream
+camera_dict = list_cameras_with_v4l2()
+captures = [cv2.VideoCapture(idx, cv2.CAP_V4L2) for idx in camera_dict.keys()]
 
-camera_indices = available_cameras
-captures = [cv2.VideoCapture(idx) for idx in camera_indices]
+width_vids = []
+height_vids = []
 
-for cap in captures: 
-    cap.set(cv2.CAP_PROP_FRAME_WIDTH, width)  # HD
-    cap.set(cv2.CAP_PROP_FRAME_HEIGHT, height)  # HD
-    cap.set(cv2.CAP_PROP_FPS, 40)  # Set frame rate to x fps
-
-
-# Check if cameras opened successfully
-for i, cap in enumerate(captures):
+for idx, cap in enumerate(captures):
     if not cap.isOpened():
-        print(f"Error: Camera {i} not opened.")
+        continue
+
+    # Apply settings
+    cap.set(cv2.CAP_PROP_FOURCC, cv2.VideoWriter_fourcc(*'MJPG'))
+    cap.set(cv2.CAP_PROP_FRAME_WIDTH, width)
+    cap.set(cv2.CAP_PROP_FRAME_HEIGHT, height)
+    cap.set(cv2.CAP_PROP_FPS, fs)
+
+    width_vids.append(width)
+    height_vids.append(height)
 
 # Define the ArUco dictionary and marker size
 aruco_dict = cv2.aruco.getPredefinedDictionary(cv2.aruco.DICT_4X4_50)
