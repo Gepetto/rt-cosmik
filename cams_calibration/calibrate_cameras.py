@@ -2,7 +2,7 @@
 
 import numpy as np
 import cv2
-from utils.calib_utils import calibrate_camera, save_cam_params, load_cam_params, stereo_calibrate, save_cam_to_cam_params
+from utils.calib_utils import calibrate_camera, save_cam_params, load_cam_params, stereo_calibrate, save_cam_to_cam_params, list_cameras_with_v4l2
 import os
 import sys
 
@@ -27,28 +27,28 @@ trial_no = str(arg2)
 
 width = 1280
 height = 720
+resize=1280
+fs =40
 
-max_cameras = 10
-available_cameras = []
-for index in range(max_cameras):
-    cap = cv2.VideoCapture(index)
-    if cap.isOpened():
-        available_cameras.append(index)
-        cap.release()  # Release the camera after checking
+### Initialize cams stream
+camera_dict = list_cameras_with_v4l2()
+captures = [cv2.VideoCapture(idx, cv2.CAP_V4L2) for idx in camera_dict.keys()]
 
-camera_indices = available_cameras
-captures = [cv2.VideoCapture(idx) for idx in camera_indices]
+width_vids = []
+height_vids = []
 
-for cap in captures: 
-    cap.set(cv2.CAP_PROP_FRAME_WIDTH, width)  # HD
-    cap.set(cv2.CAP_PROP_FRAME_HEIGHT, height)  # HD
-    cap.set(cv2.CAP_PROP_FPS, 40)  # Set frame rate to x fps
-
-
-# Check if cameras opened successfully
-for i, cap in enumerate(captures):
+for idx, cap in enumerate(captures):
     if not cap.isOpened():
-        print(f"Error: Camera {i} not opened.")
+        continue
+
+    # Apply settings
+    cap.set(cv2.CAP_PROP_FOURCC, cv2.VideoWriter_fourcc(*'MJPG'))
+    cap.set(cv2.CAP_PROP_FRAME_WIDTH, width)
+    cap.set(cv2.CAP_PROP_FRAME_HEIGHT, height)
+    cap.set(cv2.CAP_PROP_FPS, fs)
+
+    width_vids.append(width)
+    height_vids.append(height)
 
 # Use os.makedirs() to create your directory; exist_ok=True means it won't throw an error if the directory already exists
 os.makedirs(os.path.join(parent_directory,"cams_calibration/images_calib_cam_1/" + expe_no + "_" + trial_no + "/color"), exist_ok=True)
