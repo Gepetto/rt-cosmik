@@ -269,7 +269,7 @@ def main():
                         frame_idx + idx,
                         skeleton_type=args.skeleton):
                     break
-                elapsed = time.perf_counter() - start_time()
+                elapsed = time.perf_counter() - start_time
                 print(f"Time for cam visu one image: {elapsed:.4f} seconds")
 
             elapsed_mmpose_all = time.perf_counter()-start_time_mmpose_all
