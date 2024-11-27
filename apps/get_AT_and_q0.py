@@ -18,7 +18,7 @@ import yaml
 
 from utils.lstm_v2 import augmentTRC, loadModel
 from utils.model_utils import Robot, get_jcp_global_pos, calculate_segment_lengths_from_dict, model_scaling_from_dict
-from utils.calib_utils import load_cam_params, load_cam_to_cam_params, load_cam_pose, list_available_cameras
+from utils.calib_utils import load_cam_params, load_cam_to_cam_params, load_cam_pose, list_cameras_with_v4l2
 from utils.triangulation_utils import triangulate_points
 from utils.ik_utils import RT_IK
 from utils.iir import IIR
@@ -159,18 +159,33 @@ def main():
     # kpt_thr = 0.7
 
     ### Initialize cams stream
-    camera_indices = list_available_cameras()
-    captures = [cv2.VideoCapture(idx) for idx in camera_indices]
+    camera_dict = list_cameras_with_v4l2
+    captures = [cv2.VideoCapture(idx, cv2.CAP_V4L2) for idx in camera_dict.keys()]
+    print(captures)
+    input()
 
     width_vids = []
     height_vids = []
 
-    for cap in captures: 
-        cap.set(cv2.CAP_PROP_FRAME_WIDTH, width)  # HD
-        cap.set(cv2.CAP_PROP_FRAME_HEIGHT, height)  # HD
-        cap.set(cv2.CAP_PROP_FPS, fs)  # Set frame rate to 40fps
+    for idx, cap in enumerate(captures):
+        if not cap.isOpened():
+            continue
+
+        # Apply settings
+        cap.set(cv2.CAP_PROP_FOURCC, cv2.VideoWriter_fourcc(*'MJPG'))
+        cap.set(cv2.CAP_PROP_FRAME_WIDTH, width)
+        cap.set(cv2.CAP_PROP_FRAME_HEIGHT, height)
+        cap.set(cv2.CAP_PROP_FPS, fs)
+
         width_vids.append(width)
         height_vids.append(height)
+
+        # Verify settings
+        print(f"Camera {camera_indices[idx]} Settings:")
+        print("FOURCC:", "".join([chr(int(cap.get(cv2.CAP_PROP_FOURCC)) >> (i * 8) & 0xFF) for i in range(4)]))
+        print("Width:", cap.get(cv2.CAP_PROP_FRAME_WIDTH))
+        print("Height:", cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
+        print("FPS:", cap.get(cv2.CAP_PROP_FPS))
 
     
     # Check if cameras opened successfully
@@ -211,11 +226,6 @@ def main():
     not_calibrated = True
     frame_idx = 0
 
-    # Define the codec and create VideoWriter objects for both RGB streams
-    fourcc = cv2.VideoWriter_fourcc(*'mp4v')  # Codec for AVI files
-    out_vid1 = cv2.VideoWriter(os.path.join(parent_directory,'output/cam1.mp4'), fourcc, 30.0, (int(width_vids[0]), int(height_vids[0])), True)
-    out_vid2 = cv2.VideoWriter(os.path.join(parent_directory,'output/cam2.mp4'), fourcc, 30.0, (int(width_vids[1]), int(height_vids[1])), True)
-
     tracker = PoseTracker(
         det_model=args.det_model,
         pose_model=args.pose_model,
@@ -246,11 +256,6 @@ def main():
 
             # Process each frame individually
             for idx, frame in enumerate(frames):
-                #Videos savings
-                if idx == 0 : 
-                    out_vid1.write(frame)
-                elif idx == 1 : 
-                    out_vid2.write(frame)
 
                 t0 = time.time()
                 results = tracker(state, frame, detect=-1)
@@ -436,8 +441,6 @@ def main():
         # Release the camera captures
         for cap in captures:
             cap.release()
-        out_vid1.release()
-        out_vid2.release()
         cv2.destroyAllWindows()
 
 
