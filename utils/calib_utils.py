@@ -4,6 +4,7 @@ import yaml
 import glob
 import numpy as np
 from scipy.spatial.transform import Rotation
+import subprocess
 
 def calibrate_camera(images_folder):
     """
@@ -613,3 +614,25 @@ def list_available_cameras(max_cameras=10):
             available_cameras.append(index)
             cap.release()  # Release the camera after checking
     return available_cameras
+
+def list_cameras_with_v4l2():
+    """
+    Use v4l2-ctl to list all connected cameras and their device paths.
+    Returns a dictionary of camera indices and associated device names.
+    """
+    cameras = {}
+    try:
+        # Get list of video devices
+        output = subprocess.check_output("v4l2-ctl --list-devices", shell=True).decode("utf-8")
+        devices = output.split("\n\n")  # Separate different devices
+        for device in devices:
+            lines = device.split("\n")
+            if len(lines) > 1:
+                device_name = lines[0].strip()
+                video_path = lines[1].strip()
+                if "/dev/video" in video_path:
+                    index = int(video_path.split("video")[-1])
+                    cameras[index] = device_name
+    except Exception as e:
+        print("Error using v4l2-ctl:", e)
+    return cameras
