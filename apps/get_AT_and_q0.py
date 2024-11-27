@@ -225,19 +225,25 @@ def main():
 
     try : 
         while True:
+            start_time_all = time.perf_counter()
             timestamp=datetime.now()
             formatted_timestamp = timestamp.strftime("%Y-%m-%d %H:%M:%S.%f ")
             
+            start_time = time.perf_counter()
             frames = [cap.read()[1] for cap in captures]
             
             if not all(frame is not None for frame in frames):
                 continue
+            elapsed = time.perf_counter()-start_time
+            print(f"Time for cam readings: {elapsed:.4f} seconds")
             
             keypoints_list = []
             frame_idx += 1  # Increment frame counter
 
+            start_time_mmpose_all = time.perf_counter()
             # Process each frame individually
             for idx, frame in enumerate(frames):
+                start_time = time.perf_counter()
                 results = tracker(state, frame, detect=-1)
                 scale = resize / max(frame.shape[0], frame.shape[1])
                 keypoints, bboxes, _ = results
@@ -251,7 +257,10 @@ def main():
                     
                 else :
                     keypoints_list.append(keypoints.reshape((26,2)).flatten())
-                    
+                elapsed = time.perf_counter()-start_time
+                print(f"Time for mmpose inference on one image: {elapsed:.4f} seconds")
+
+                start_time = time.perf_counter()
                 if not visualize(
                         frame,
                         results,
@@ -260,24 +269,35 @@ def main():
                         frame_idx + idx,
                         skeleton_type=args.skeleton):
                     break
+                elapsed = time.perf_counter()
+                print(f"Time for cam visu one image: {elapsed:.4f} seconds")
+
+            elapsed_mmpose_all = time.perf_counter()-start_time_mmpose_all
+            print(f"Time for mmpose + visu on 2 images: {elapsed_mmpose_all:.4f} seconds")
 
             if len(keypoints_list)!=2: #number of cams
                 pass
 
             else :
+                start_time = time.perf_counter()
                 p3d_frame = triangulate_points(keypoints_list, mtxs, dists, projections)
                 keypoints_in_cam = p3d_frame
 
                 # Apply the rotation matrix to align the points
                 keypoints_in_world = np.array([np.dot(world_R1_cam,point) + world_T1_cam for point in keypoints_in_cam])
-                
+                elapsed =time.perf_counter()-start_time
+                print(f"Time for triangulation block: {elapsed:.4f} seconds")
+
+                start_time =time.perf_counter()
                 # Saving keypoints
                 with open(keypoints_csv_file_path, mode='a', newline='') as file:
                     csv_writer = csv.writer(file)
                     for jj in range(len(keypoint_names)):
                         # Write to CSV
                         csv_writer.writerow([frame_idx, formatted_timestamp,keypoint_names[jj], keypoints_in_world[jj][0], keypoints_in_world[jj][1], keypoints_in_world[jj][2]])
-                
+                elapsed =time.perf_counter()-start_time
+                print(f"Time for keypoints saving block: {elapsed:.4f} seconds")
+
                 if first_sample:
                     for k in range(30):
                         keypoints_buffer.append(keypoints_in_world)  #add the 1st frame 30 times
@@ -285,14 +305,17 @@ def main():
                     keypoints_buffer.append(keypoints_in_world) #add the keypoints to the buffer normally 
                 
                 if len(keypoints_buffer) == 30:
+                    start_time = time.perf_counter()
                     keypoints_buffer_array = np.array(keypoints_buffer)
 
                     # Filter keypoints in world to remove noisy artefacts 
                     filtered_keypoints_buffer = iir_filter.filter(np.reshape(keypoints_buffer_array,(30, 3*len(keypoint_names))))
 
                     filtered_keypoints_buffer = np.reshape(filtered_keypoints_buffer,(30, len(keypoint_names), 3))
-
+                    elapsed = time.perf_counter()-start_time
+                    print(f"Time for filter block: {elapsed:.4f} seconds")
                     
+                    start_time = time.perf_counter()
                     #call augmentTrc
                     augmented_markers = augmentTRC(keypoints_buffer_array, subject_mass=subject_mass, subject_height=subject_height, models = warmed_models,
                                augmenterDir=augmenter_path, augmenter_model='v0.3', offset=True)
@@ -301,15 +324,20 @@ def main():
                     if len(augmented_markers) % 3 != 0:
                         raise ValueError("The length of the list must be divisible by 3.")
 
-                    augmented_markers = np.array(augmented_markers).reshape(-1, 3) 
+                    augmented_markers = np.array(augmented_markers).reshape(-1, 3)
+                    elapsed =time.perf_counter()-start_time
+                    print(f"Time for data augmenter block: {elapsed:.4f} seconds")
 
+                    start_time = time.perf_counter()
                     # Saving keypoints
                     with open(augmented_csv_file_path, mode='a', newline='') as file:
                         csv_writer = csv.writer(file)
                         for jj in range(len(augmented_markers)):
                             # Write to CSV
                             csv_writer.writerow([frame_idx, formatted_timestamp,marker_names[jj], augmented_markers[jj][0], augmented_markers[jj][1], augmented_markers[jj][2]])
-                    
+                    elapsed =time.perf_counter()-start_time
+                    print(f"Time for augmenter data saving block: {elapsed:.4f} seconds")
+
                     if (len(segment_lengths)<100):
                         if first_sample:
                             lstm_dict = dict(zip(keypoint_names+marker_names, np.concatenate((filtered_keypoints_buffer[-1],augmented_markers),axis=0)))
@@ -380,6 +408,7 @@ def main():
                             not_calibrated=False
 
                         else :
+                            start_time = time.perf_counter()
                             lstm_dict = dict(zip(marker_names, augmented_markers))
                             jcp_dict = get_jcp_global_pos(lstm_dict,pos_ankle_calib)
 
@@ -389,6 +418,8 @@ def main():
                             ### IK calculations
                             ik_class._dict_m= jcp_dict
                             q = ik_class.solve_ik_sample_casadi()
+                            elapsed =time.perf_counter()-start_time
+                            print(f"Time for ik block: {elapsed:.4f} seconds")
 
                             pin.framesForwardKinematics(human_model,human_data, q)
 
@@ -399,16 +430,18 @@ def main():
 
                             ik_class._q0 = q
 
+                        start_time = time.perf_counter()
                         # Saving kinematics
                         with open(q_csv_file_path, mode='a', newline='') as file:
                             csv_writer = csv.writer(file)
                             # Write to CSV
-                            csv_writer.writerow([frame_idx, formatted_timestamp]+q.tolist())
-                
-            if cv2.waitKey(1) & 0xFF == ord('q'):
-                print("quit")
-                break    
-            
+                            csv_writer.writerow([frame_idx, formatted_timestamp]+q.tolist())  
+                        
+                        elapsed =time.perf_counter()-start_time
+                        print(f"Time for ik saving block: {elapsed:.4f} seconds")
+                        
+            elapsed_all = start_time_all - time.perf_counter()
+            print(f"Time for while block: {elapsed_all:.4f} seconds")
     finally:
         # Release the camera captures
         for cap in captures:
