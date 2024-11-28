@@ -212,7 +212,7 @@ def main():
         sampling_frequency=fs
     )
 
-    iir_filter.add_filter(order=4, cutoff=15, filter_type='lowpass')
+    iir_filter.add_filter(order=4, cutoff=7, filter_type='lowpass')
     
     first_sample = True 
     frame_idx = 0
@@ -273,14 +273,14 @@ def main():
                 else :
                     keypoints_list.append(keypoints.reshape((26,2)).flatten())
                     
-                if not visualize(
-                        frame,
-                        results,
-                        args.output_dir,
-                        idx,
-                        frame_idx + idx,
-                        skeleton_type=args.skeleton):
-                    break
+                # if not visualize(
+                #         frame,
+                #         results,
+                #         args.output_dir,
+                #         idx,
+                #         frame_idx + idx,
+                #         skeleton_type=args.skeleton):
+                #     break
 
             if len(keypoints_list)!=2: #number of cams
                 pass
@@ -361,10 +361,6 @@ def main():
                         csv_writer = csv.writer(file)
                         # Write to CSV
                         csv_writer.writerow([frame_idx, formatted_timestamp]+q.tolist())
-                
-            if cv2.waitKey(1) & 0xFF == ord('q'):
-                print("quit")
-                break    
             
     finally:
         # Release the camera captures
