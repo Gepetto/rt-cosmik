@@ -1,5 +1,5 @@
-# To run the code : python3 apps/test_pose_tracker_rgbcam.py cuda /root/workspace/mmdeploy/rtmpose-trt/rtmdet-nano /root/workspace/mmdeploy/rtmpose-trt/rtmpose-m
-# or python3 -m apps.test_pose_tracker_rgbcam cuda /root/workspace/mmdeploy/rtmpose-trt/rtmdet-nano /root/workspace/mmdeploy/rtmpose-trt/rtmpose-m
+# To run the code : python3 unittests/test_pose_tracker_rgbcam.py cuda /root/workspace/mmdeploy/rtmpose-trt/rtmdet-nano /root/workspace/mmdeploy/rtmpose-trt/rtmpose-m
+# or python3 -m unittests.test_pose_tracker_rgbcam cuda /root/workspace/mmdeploy/rtmpose-trt/rtmdet-nano /root/workspace/mmdeploy/rtmpose-trt/rtmpose-m
 
 import argparse
 import os
@@ -8,6 +8,7 @@ import numpy as np
 from mmdeploy_runtime import PoseTracker
 import time 
 from utils.viz_utils import visualize, VISUALIZATION_CFG
+from utils.calib_utils import list_cameras_with_v4l2
 
 def parse_args():
     parser = argparse.ArgumentParser(
@@ -29,14 +30,6 @@ def parse_args():
     args = parser.parse_args()
     return args
 
-def list_available_cameras(max_cameras=10):
-    available_cameras = []
-    for index in range(max_cameras):
-        cap = cv2.VideoCapture(index)
-        if cap.isOpened():
-            available_cameras.append(index)
-            cap.release()  # Release the camera after checking
-    return available_cameras
 
 def main():
     args = parse_args()
@@ -45,26 +38,27 @@ def main():
     width = 1280
     height = 720
     resize=1280
+    fs =40
 
-    # kpt_thr = 0.7
+    ### Initialize cams stream
+    camera_dict = list_cameras_with_v4l2()
+    captures = [cv2.VideoCapture(idx, cv2.CAP_V4L2) for idx in camera_dict.keys()]
 
-    # Initialize cams stream
-    camera_indices = list_available_cameras()
-    # print("camera indices = ", camera_indices)
-    
-    captures = [cv2.VideoCapture(idx) for idx in camera_indices]
-    
-    for cap in captures: 
-        cap.set(cv2.CAP_PROP_FRAME_WIDTH, width)  # HD
-        cap.set(cv2.CAP_PROP_FRAME_HEIGHT, height)  # HD
-        cap.set(cv2.CAP_PROP_FPS, 40)  # Set frame rate to x fps
+    width_vids = []
+    height_vids = []
 
-    
-    # Check if cameras opened successfully
-    for i, cap in enumerate(captures):
+    for idx, cap in enumerate(captures):
         if not cap.isOpened():
-            print(f"Error: Camera {i} not opened.")
-            return
+            continue
+
+        # Apply settings
+        cap.set(cv2.CAP_PROP_FOURCC, cv2.VideoWriter_fourcc(*'MJPG'))
+        cap.set(cv2.CAP_PROP_FRAME_WIDTH, width)
+        cap.set(cv2.CAP_PROP_FRAME_HEIGHT, height)
+        cap.set(cv2.CAP_PROP_FPS, fs)
+
+        width_vids.append(width)
+        height_vids.append(height)
         
     frame_idx = 0
 
