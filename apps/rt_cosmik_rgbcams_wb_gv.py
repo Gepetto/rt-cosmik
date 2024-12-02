@@ -308,7 +308,7 @@ def main():
                     filtered_keypoints_buffer = np.reshape(filtered_keypoints_buffer,(30, len(keypoint_names), 3))
 
                     #call augmentTrc
-                    augmented_markers = augmentTRC(keypoints_buffer_array, subject_mass=subject_mass, subject_height=subject_height, models = warmed_models,
+                    augmented_markers = augmentTRC(filtered_keypoints_buffer, subject_mass=subject_mass, subject_height=subject_height, models = warmed_models,
                                augmenterDir=augmenter_path, augmenter_model='v0.3', offset=True)
 
 
