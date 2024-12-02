@@ -8,7 +8,6 @@ rt_cosmik_path = os.path.dirname(script_directory)
 sys.path.append(str(rt_cosmik_path))
 meshes_folder_path = os.path.join(rt_cosmik_path, 'meshes')
 
-import pandas as pd 
 import pinocchio as pin 
 from pinocchio.visualize import GepettoVisualizer
 import numpy as np
