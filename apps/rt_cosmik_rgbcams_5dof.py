@@ -159,6 +159,7 @@ def main():
     
     pub = rospy.Publisher('/human_RT_joint_angles', JointState, queue_size=10)
     keypoints_pub = rospy.Publisher('/pose_keypoints', MarkerArray, queue_size=10)
+    # keypoints_pub_nofilter = rospy.Publisher('/pose_keypoints_nofilter', MarkerArray, queue_size=10)
     augmented_markers_pub = rospy.Publisher('/markers_pose', MarkerArray, queue_size=10)
 
     width = 1280
@@ -212,7 +213,7 @@ def main():
         sampling_frequency=fs
     )
 
-    iir_filter.add_filter(order=4, cutoff=7, filter_type='lowpass')
+    iir_filter.add_filter(order=3, cutoff=3, filter_type='lowpass')
     
     first_sample = True 
     frame_idx = 0
@@ -304,6 +305,7 @@ def main():
                         keypoints_buffer.append(keypoints_in_world)  #add the 1st frame 30 times
                 else:
                     keypoints_buffer.append(keypoints_in_world) #add the keypoints to the buffer normally 
+
                 
                 if len(keypoints_buffer) == 30:
                     keypoints_buffer_array = np.array(keypoints_buffer)
@@ -312,6 +314,8 @@ def main():
                     filtered_keypoints_buffer = iir_filter.filter(np.reshape(keypoints_buffer_array,(30, 3*len(keypoint_names))))
 
                     filtered_keypoints_buffer = np.reshape(filtered_keypoints_buffer,(30, len(keypoint_names), 3))
+
+                    keypoints_buffer_array = np.reshape(keypoints_buffer_array,(30, len(keypoint_names), 3))
 
                     publish_keypoints_as_marker_array(filtered_keypoints_buffer[-1], keypoints_pub, keypoint_names)
                     
@@ -342,6 +346,7 @@ def main():
                         ik_class = RT_IK(human_model, jcp_dict, q, keys_to_track_list, dt, dict_dof_to_keypoints, False)
                         q = ik_class.solve_ik_sample_casadi()
                         ik_class._q0=q
+                        first_sample = False
 
                     else :
                         lstm_dict = dict(zip(marker_names, augmented_markers))

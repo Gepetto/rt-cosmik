@@ -14,7 +14,7 @@ import matplotlib.pyplot as plt
 import pinocchio as pin
 from pinocchio.visualize import GepettoVisualizer
 from utils.model_utils import Robot, get_jcp_global_pos
-from utils.viz_utils import place, Rquat
+from utils.viz_utils import place
 
 q = pd.read_csv(os.path.join(rt_cosmik_path,'output/q.csv'))
 data_markers = pd.read_csv(os.path.join(rt_cosmik_path,'output/augmented_markers_positions.csv'))
