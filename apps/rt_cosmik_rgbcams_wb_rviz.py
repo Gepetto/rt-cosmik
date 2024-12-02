@@ -326,7 +326,7 @@ def main():
                     publish_keypoints_as_marker_array(filtered_keypoints_buffer[-1], keypoints_pub, keypoint_names)
                     
                     #call augmentTrc
-                    augmented_markers = augmentTRC(keypoints_buffer_array, subject_mass=subject_mass, subject_height=subject_height, models = warmed_models,
+                    augmented_markers = augmentTRC(filtered_keypoints_buffer, subject_mass=subject_mass, subject_height=subject_height, models = warmed_models,
                                augmenterDir=augmenter_path, augmenter_model='v0.3', offset=True)
 
 
