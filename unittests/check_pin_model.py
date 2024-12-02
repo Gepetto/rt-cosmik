@@ -19,8 +19,7 @@ import pinocchio as pin
 from pinocchio.visualize import GepettoVisualizer
 import numpy as np
 from utils.model_utils import build_model_challenge, get_segments_lstm_mks_dict_challenge, get_subset_challenge_mks_names
-from utils.ik_utils import RT_IK
-from utils.viz_utils import place, Rquat
+from utils.viz_utils import place
 import time
 
 data_markers = pd.read_csv(os.path.join(rt_cosmik_path,'output/augmented_markers_positions.csv'))

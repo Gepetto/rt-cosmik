@@ -19,8 +19,7 @@ import pandas as pd
 import pinocchio as pin 
 from pinocchio.visualize import GepettoVisualizer
 import numpy as np
-from utils.model_utils import *
-from utils.ik_utils import RT_IK
+from utils.model_utils import build_model_challenge, construct_segments_frames_challenge
 from utils.viz_utils import place, Rquat
 import time
 
