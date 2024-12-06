@@ -5,13 +5,13 @@ class Settings:
     # CAM PARAMS
     fs: int = 40
     dt: float = 1/fs
-    width: int = 1280
-    height: int = 720
+    width: int = 1280 # image resolution
+    height: int = 720 # image resolution
     # CAMS CALIB 
     #checkerboard params
     checkerboard_rows: int = 5 # number of rows on the checkerboard -1 
-    checkerboard_columns: int = 5 # number of columns on the checkerboard -1 
-    checkerboard_scaling: float = 0.107 # size of squares
+    checkerboard_columns: int = 7 # number of columns on the checkerboard -1 
+    checkerboard_scaling: float = 0.107 # size of squares in meters
     # FILTER PARAMS
     order: int = 4
     system_freq: int = 30 # For now the system update time is at around 0.034 ms so around 30 Hz 
