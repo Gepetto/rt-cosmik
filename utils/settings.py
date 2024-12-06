@@ -15,9 +15,10 @@ class Settings:
     # FILTER PARAMS
     order: int = 4
     system_freq: int = 30 # For now the system update time is at around 0.034 ms so around 30 Hz 
-    cutoff_freq: float = 5
+    cutoff_freq: float = 10
     filter_type: str = "lowpass"
     # IK AND DATA HANDLING
+    # For planar case 
     side_to_track: str =  "right" # bilateral (if we want to track both side, i.e., lifting), right or left
     # HUMAN ANTHROPOMETRY
     human_height: float = 1.81
@@ -31,7 +32,8 @@ class Settings:
         "Neck", "midHip", "LBigToe", "RBigToe", "LSmallToe", "RSmallToe", "LHeel", "RHeel"
     ])
     # OPENCAP MARKER SET 
-    marker_names: list = field(default_factory=lambda: ['r.ASIS_study','L.ASIS_study','r.PSIS_study','L.PSIS_study','r_knee_study',
+    marker_names: list = field(default_factory=lambda: [
+           'r.ASIS_study','L.ASIS_study','r.PSIS_study','L.PSIS_study','r_knee_study',
            'r_mknee_study','r_ankle_study','r_mankle_study','r_toe_study','r_5meta_study',
            'r_calc_study','L_knee_study','L_mknee_study','L_ankle_study','L_mankle_study',
            'L_toe_study','L_calc_study','L_5meta_study','r_shoulder_study','L_shoulder_study',
