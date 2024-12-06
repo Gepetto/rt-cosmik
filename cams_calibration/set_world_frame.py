@@ -1,10 +1,11 @@
-# To run the code from RT-COSMIK root : python3 -m cams_calibration.cam_in_world expe trial
+# To run the code from RT-COSMIK root : python3 -m cams_calibration.set_world_frame expe trial
 
 import cv2
 import numpy as np
-from utils.calib_utils import load_cam_params, save_pose_matrix_to_yaml, get_camera_pose, get_relative_pose_world_in_cam, list_cameras_with_v4l2
+from utils.calib_utils import load_cam_params, save_pose_matrix_to_yaml, get_aruco_pose, get_relative_pose_world_in_cam, list_cameras_with_v4l2
 import sys
 import os 
+from utils.settings import Settings
 
 # Get the directory where the script is located
 script_directory = os.path.dirname(os.path.abspath(__file__))
@@ -36,17 +37,12 @@ c2_color_imgs_path = os.path.join(parent_directory,"cams_calibration/images_worl
 c1_color_params_path = os.path.join(parent_directory,"cams_calibration/cam_params/camera1_pose_" + expe_no + "_" + trial_no + ".yml")
 c2_color_params_path = os.path.join(parent_directory,"cams_calibration/cam_params/camera2_pose_" + expe_no + "_" + trial_no + ".yml")
 
-width = 1280
-height = 720
-resize=1280
-fs =40
+# FIRST, PARAM LOADING
+settings = Settings()
 
 ### Initialize cams stream
 camera_dict = list_cameras_with_v4l2()
 captures = [cv2.VideoCapture(idx, cv2.CAP_V4L2) for idx in camera_dict.keys()]
-
-width_vids = []
-height_vids = []
 
 for idx, cap in enumerate(captures):
     if not cap.isOpened():
@@ -54,12 +50,10 @@ for idx, cap in enumerate(captures):
 
     # Apply settings
     cap.set(cv2.CAP_PROP_FOURCC, cv2.VideoWriter_fourcc(*'MJPG'))
-    cap.set(cv2.CAP_PROP_FRAME_WIDTH, width)
-    cap.set(cv2.CAP_PROP_FRAME_HEIGHT, height)
-    cap.set(cv2.CAP_PROP_FPS, fs)
+    cap.set(cv2.CAP_PROP_FRAME_WIDTH, settings.width)
+    cap.set(cv2.CAP_PROP_FRAME_HEIGHT, settings.height)
+    cap.set(cv2.CAP_PROP_FPS, settings.fs)
 
-    width_vids.append(width)
-    height_vids.append(height)
 
 # Define the ArUco dictionary and marker size
 aruco_dict = cv2.aruco.getPredefinedDictionary(cv2.aruco.DICT_4X4_50)
@@ -80,11 +74,13 @@ dist_coeffs_2 = D2
 parameters = cv2.aruco.DetectorParameters()
 detector = cv2.aruco.ArucoDetector(aruco_dict, parameters)
 
+wand_local = np.array([[-0.00004],[0.262865],[-0.000009]])
 img_idx=0
-try :
+
+try : 
     while True:
         frames = [cap.read()[1] for cap in captures]
-                
+            
         if not all(frame is not None for frame in frames):
             continue
 
@@ -95,24 +91,41 @@ try :
         frame_1 = np.asanyarray(color_frame_1.copy())
         frame_2 = np.asanyarray(color_frame_2.copy())
 
-        # Get the the global frame defined by the ArUco marker in the camera frame 
-        transformation_matrix_1, corners_1, rvec_1, tvec_1 = get_camera_pose(frame_1, K1, D1, detector, marker_size)
-        transformation_matrix_2, corners_2, rvec_2, tvec_2 = get_camera_pose(frame_2, K2, D2, detector, marker_size)
+        # Get the camera pose relative to the global frame defined by the ArUco marker
+        transformation_matrix_1, corners_1, rvec_1, tvec_1 = get_aruco_pose(frame_1, K1, D1, detector, marker_size)
+        transformation_matrix_2, corners_2, rvec_2, tvec_2 = get_aruco_pose(frame_2, K2, D2, detector, marker_size)
 
         if transformation_matrix_1 is not None:
+            tip_pos1=tvec_1 + transformation_matrix_1[:3, :3]@wand_local 
+
+            # Project the 3D wand tip position to 2D image coordinates
+            image_points1, _ = cv2.projectPoints(tip_pos1, np.zeros(3,), np.zeros(3,), camera_matrix_1, dist_coeffs_1)
+            image_points1 = image_points1[0][0]
+        
             # Draw the marker and its pose on the frame for Camera 1
             cv2.aruco.drawDetectedMarkers(frame_1, [corners_1])
             cv2.drawFrameAxes(frame_1, K1, D1, rvec_1, tvec_1, 0.1)
 
+            # Draw the reprojected wand tip on the image
+            frame_1 = cv2.circle(frame_1, (int(image_points1[0]), int(image_points1[1])), 5, (0, 0, 255), -1)
+
         if transformation_matrix_2 is not None:
+            tip_pos2=tvec_2 + transformation_matrix_2[:3, :3]@wand_local 
+
+            # Project the 3D wand tip position to 2D image coordinates
+            image_points2, _ = cv2.projectPoints(tip_pos2, np.zeros(3,), np.zeros(3,), camera_matrix_2, dist_coeffs_2)
+            image_points2=image_points2[0][0]
+        
             # Draw the marker and its pose on the frame for Camera 2
             cv2.aruco.drawDetectedMarkers(frame_2, [corners_2])
             cv2.drawFrameAxes(frame_2, K2, D2, rvec_2, tvec_2, 0.1)
 
+            # Draw the reprojected wand tip on the image
+            frame_2 = cv2.circle(frame_2, (int(image_points2[0]), int(image_points2[1])), 5, (0, 0, 255), -1)
+
         # Display the frames for both cameras
         cv2.imshow('Camera 1 Pose Estimation', frame_1)
         cv2.imshow('Camera 2 Pose Estimation', frame_2)
-
         c = cv2.waitKey(10)
         if c == ord('s'):
             print('images taken')
@@ -132,7 +145,6 @@ cam_T1_world, cam_R1_world = get_relative_pose_world_in_cam(c1_color_imgs_path,K
 
 # Save the rotation matrix and translation vector to a YAML file for Camera 1
 save_pose_matrix_to_yaml(cam_R1_world, cam_T1_world, c1_color_params_path)
-
 
 cam_T2_world, cam_R2_world = get_relative_pose_world_in_cam(c2_color_imgs_path,K2,D2,detector, marker_size)
 

@@ -6,6 +6,8 @@ from utils.calib_utils import calibrate_camera, save_cam_params, load_cam_params
 import os
 import sys
 
+from utils.settings import Settings
+
 # Get the directory where the script is located
 script_directory = os.path.dirname(os.path.abspath(__file__))
 # Go one folder back
@@ -25,17 +27,12 @@ else:
 expe_no = str(arg1)
 trial_no = str(arg2)
 
-width = 1280
-height = 720
-resize=1280
-fs =40
+# FIRST, PARAM LOADING
+settings = Settings()
 
-### Initialize cams stream
+## Initialize cams stream
 camera_dict = list_cameras_with_v4l2()
 captures = [cv2.VideoCapture(idx, cv2.CAP_V4L2) for idx in camera_dict.keys()]
-
-width_vids = []
-height_vids = []
 
 for idx, cap in enumerate(captures):
     if not cap.isOpened():
@@ -43,12 +40,10 @@ for idx, cap in enumerate(captures):
 
     # Apply settings
     cap.set(cv2.CAP_PROP_FOURCC, cv2.VideoWriter_fourcc(*'MJPG'))
-    cap.set(cv2.CAP_PROP_FRAME_WIDTH, width)
-    cap.set(cv2.CAP_PROP_FRAME_HEIGHT, height)
-    cap.set(cv2.CAP_PROP_FPS, fs)
+    cap.set(cv2.CAP_PROP_FRAME_WIDTH, settings.width)
+    cap.set(cv2.CAP_PROP_FRAME_HEIGHT, settings.height)
+    cap.set(cv2.CAP_PROP_FPS, settings.fs)
 
-    width_vids.append(width)
-    height_vids.append(height)
 
 # Use os.makedirs() to create your directory; exist_ok=True means it won't throw an error if the directory already exists
 os.makedirs(os.path.join(parent_directory,"cams_calibration/images_calib_cam_1/" + expe_no + "_" + trial_no + "/color"), exist_ok=True)

@@ -1,10 +1,11 @@
-from pydoc import doc
 import cv2 as cv
 import yaml
 import glob
 import numpy as np
-from scipy.spatial.transform import Rotation
 import subprocess
+from utils.settings import Settings
+
+settings = Settings()
 
 def calibrate_camera(images_folder):
     """
@@ -38,11 +39,15 @@ def calibrate_camera(images_folder):
     # columns = 7 #number of checkerboard columns.
     # world_scaling = 0.108 #change this to the real world square size.
 
-    # BIGGER CHECKERBOARD AT NUS RLS
-    rows = 5 #number of checkerboard rows.
-    columns = 7 #number of checkerboard columns.
-    world_scaling = 0.107 #change this to the real world square size.
- 
+    # # BIGGER CHECKERBOARD AT NUS RLS
+    # rows = 5 #number of checkerboard rows.
+    # columns = 7 #number of checkerboard columns.
+    # world_scaling = 0.107 #change this to the real world square size.
+    
+    rows = settings.checkerboard_rows
+    columns = settings.checkerboard_columns
+    world_scaling = settings.checkerboard_scaling
+
     #coordinates of squares in the checkerboard world space
     objp = np.zeros((rows*columns,3), np.float32)
     objp[:,:2] = np.mgrid[0:rows,0:columns].T.reshape(-1,2)
@@ -154,10 +159,14 @@ def stereo_calibrate(mtx1, dist1, mtx2, dist2, frames_folder_1, frames_folder_2)
     # world_scaling = 0.108 #change this to the real world square size.
 
     # BIGGER CHECKERBOARD AT NUS RLS
-    rows = 5 #number of checkerboard rows.
-    columns = 7 #number of checkerboard columns.
-    world_scaling = 0.107 #change this to the real world square size.
- 
+    # rows = 5 #number of checkerboard rows.
+    # columns = 7 #number of checkerboard columns.
+    # world_scaling = 0.107 #change this to the real world square size.
+
+    rows = settings.checkerboard_rows
+    columns = settings.checkerboard_columns
+    world_scaling = settings.checkerboard_scaling
+
     #coordinates of squares in the checkerboard world space
     objp = np.zeros((rows*columns,3), np.float32)
     objp[:,:2] = np.mgrid[0:rows,0:columns].T.reshape(-1,2)
@@ -238,6 +247,24 @@ def load_cam_pose(filename):
     translation_vector = np.array(data['translation_vector']['data']).reshape((3, 1))
     
     return rotation_matrix, translation_vector
+
+def load_cam_pose_rpy(filename):
+    """
+        Load the euler angles and translation vector from a YAML file.
+        Args:
+            filename (str): The path to the YAML file.
+        Returns:
+            euler (np.ndarray): The 3x1 euler sequence.
+            translation_vector (np.ndarray): The 3x1 translation vector.
+    """
+
+    with open(filename, 'r') as file:
+        data = yaml.safe_load(file)
+
+    euler = np.array(data['rotation_rpy']['data']).reshape((3, 1))
+    translation_vector = np.array(data['translation_vector']['data']).reshape((3, 1))
+    
+    return euler, translation_vector
 
 
 def load_cam_params(path):
@@ -477,9 +504,11 @@ def get_relative_pose_world_in_cam(images_folder,camera_matrix,dist_coeffs, dete
         im = cv.imread(imname, 1)
         images.append(im)
 
-    translation_vectors = []
-    quaternions = []
+    assert len(images)==3, "number of images to get world must be 3"
 
+    wand_local = np.array([[-0.00004],[0.262865],[-0.000009]])
+
+    wand_pos_cam_frame = []
     for ii, frame in enumerate(images):
         # Convert the frame to grayscale
         gray = cv.cvtColor(frame, cv.COLOR_BGR2GRAY)
@@ -500,29 +529,35 @@ def get_relative_pose_world_in_cam(images_folder,camera_matrix,dist_coeffs, dete
             # Estimate the pose of each marker
             _, R, t = cv.solvePnP(marker_points, corners_for_solvePnP, camera_matrix, dist_coeffs, False, cv.SOLVEPNP_IPPE_SQUARE)
             
-            rotation_matrix = cv.Rodrigues(R)[0]
+            # Convert the rotation vector to a rotation matrix
+            rotation_matrix, _ = cv.Rodrigues(R)
+            
+            # Now we can form the transformation matrix
+            transformation_matrix = np.eye(4)
+            transformation_matrix[:3, :3] = rotation_matrix
+            transformation_matrix[:3, 3] = t.flatten()
+        
+            wand_pos_cam_frame.append((t+rotation_matrix@wand_local).flatten())
 
-            translation_vectors.append(t)
-            quaternions.append(Rotation.from_matrix(rotation_matrix).as_quat())
+    P1 = cam_center_world = wand_pos_cam_frame[0]
+    P2 = wand_pos_cam_frame[1]
+    P3 = wand_pos_cam_frame[2]
 
-    mean_translation = np.mean(np.array(translation_vectors),axis=0)
+    P1P2 = P2-P1
+    P1P3 = P3-P1
 
-    for i in range(1, len(quaternions)):
-        if np.dot(quaternions[0], quaternions[i]) < 0:
-            quaternions[i] = -quaternions[i]
-    
-    # Normalize the quaternions (if not already normalized)
-    quaternions = np.array(quaternions)
-    quaternions /= np.linalg.norm(quaternions, axis=1, keepdims=True)
+    Vz = np.cross(P1P2, P1P3)
+    Vy = np.cross(Vz,P1P2)
+    Vx = P1P2
 
-    # Compute the mean quaternion
-    mean_quaternion = np.mean(quaternions, axis=0)
-    mean_quaternion /= np.linalg.norm(mean_quaternion)  # Normalize the result
+    x_axis = Vx/np.linalg.norm(Vx)
+    y_axis = Vy/np.linalg.norm(Vy)
+    z_axis = Vz/np.linalg.norm(Vz)
 
-    # Step 4: Convert the averaged quaternion back to a rotation matrix
-    mean_rotation_matrix = Rotation.from_quat(mean_quaternion).as_matrix()
+    # 1. Construct the rotation matrix
+    cam_R_world = np.column_stack((x_axis, y_axis, z_axis))
 
-    return mean_translation, mean_rotation_matrix
+    return cam_center_world, cam_R_world
     
 # Function to save the translation vector to a YAML file
 def save_pose_rpy_to_yaml(translation_vector, rotation_sequence, filename):
@@ -627,3 +662,41 @@ def list_cameras_with_v4l2():
     except Exception as e:
         print("Error using v4l2-ctl:", e)
     return cameras
+
+def get_cameras_params(K1, D1, K2, D2, R, T):
+    dict_cam = {
+        "cam1": {
+            "mtx":np.array(K1),
+            "dist":D1,
+            "rotation":np.eye(3),
+            "translation":[
+                0.,
+                0.,
+                0.,
+            ],
+        },
+        "cam2": {
+            "mtx":np.array(K2),
+            "dist":D2,
+            "rotation":R,
+            "translation":T,
+        },
+    }
+
+    rotations=[]
+    translations=[]
+    dists=[]
+    mtxs=[]
+    projections=[]
+
+    for cam in dict_cam :
+        rotation=np.array(dict_cam[cam]["rotation"])
+        rotations.append(rotation)
+        translation=np.array([dict_cam[cam]["translation"]]).reshape(3,1)
+        translations.append(translation)
+        projection = np.concatenate([rotation, translation], axis=-1)
+        projections.append(projection)
+        dict_cam[cam]["projection"] = projection
+        dists.append(dict_cam[cam]["dist"])
+        mtxs.append(dict_cam[cam]["mtx"])
+    return mtxs, dists, projections, rotations, translations
