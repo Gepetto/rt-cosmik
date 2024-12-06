@@ -14,6 +14,7 @@ from utils.calib_utils import load_cam_params, load_cam_pose, get_aruco_pose, ge
 import sys
 import os
 from scipy.spatial.transform import Rotation
+from utils.settings import Settings
 
 # Get the directory where the script is located
 script_directory = os.path.dirname(os.path.abspath(__file__))
@@ -45,17 +46,12 @@ c2_color_imgs_path = os.path.join(parent_directory,"cams_calibration/images_robo
 c1_color_params_path = os.path.join(parent_directory,"cams_calibration/robot_params/c1_robot_color_" + expe_no + "_" + trial_no + ".yml")
 c2_color_params_path = os.path.join(parent_directory,"cams_calibration/robot_params/c2_robot_color_" + expe_no + "_" + trial_no + ".yml")
 
-width = 1280
-height = 720
-resize=1280
-fs =40
+# FIRST, PARAM LOADING
+settings = Settings()
 
 ### Initialize cams stream
 camera_dict = list_cameras_with_v4l2()
 captures = [cv2.VideoCapture(idx, cv2.CAP_V4L2) for idx in camera_dict.keys()]
-
-width_vids = []
-height_vids = []
 
 for idx, cap in enumerate(captures):
     if not cap.isOpened():
@@ -63,12 +59,9 @@ for idx, cap in enumerate(captures):
 
     # Apply settings
     cap.set(cv2.CAP_PROP_FOURCC, cv2.VideoWriter_fourcc(*'MJPG'))
-    cap.set(cv2.CAP_PROP_FRAME_WIDTH, width)
-    cap.set(cv2.CAP_PROP_FRAME_HEIGHT, height)
-    cap.set(cv2.CAP_PROP_FPS, fs)
-
-    width_vids.append(width)
-    height_vids.append(height)
+    cap.set(cv2.CAP_PROP_FRAME_WIDTH, settings.width)
+    cap.set(cv2.CAP_PROP_FRAME_HEIGHT, settings.height)
+    cap.set(cv2.CAP_PROP_FPS, settings.fs)
 
 # Define the ArUco dictionary and marker size
 aruco_dict = cv2.aruco.getPredefinedDictionary(cv2.aruco.DICT_4X4_50)

@@ -1391,39 +1391,102 @@ def build_model_challenge(mocap_mks_positions: Dict, lstm_mks_positions: Dict, m
 #                                         np.deg2rad(-47),     #Ankle_Z_L -
 #                                         ])
 
-def get_jcp_global_pos(mocap_mks_positions, pos_ankle_calib):
+def get_jcp_global_pos(mocap_mks_positions, pos_ankle_calib, side_to_track):
     names = ['Ankle', 'Knee', 'midHip', 'Shoulder', 'Elbow', 'Wrist']
 
-    ankle_center = ((mocap_mks_positions['L_mankle_study'] + mocap_mks_positions['L_ankle_study']).reshape(3,1)/2.0 + (mocap_mks_positions['r_mankle_study'] + mocap_mks_positions['r_ankle_study']).reshape(3,1)/2.0)/2
-    ankle_offset = ankle_center - pos_ankle_calib.reshape(3,1)
-    knee_center = ((mocap_mks_positions['L_knee_study'] + mocap_mks_positions['L_mknee_study']).reshape(3,1)/2.0 + (mocap_mks_positions['r_knee_study'] + mocap_mks_positions['r_mknee_study']).reshape(3,1)/2.0)/2
-    midhip = (mocap_mks_positions['r.ASIS_study'] + mocap_mks_positions['L.ASIS_study'] + mocap_mks_positions['r.PSIS_study'] + mocap_mks_positions['L.PSIS_study']).reshape(3,1)/4.0
+    if side_to_track == "bilateral":
+        ankle_center = ((mocap_mks_positions['L_mankle_study'] + mocap_mks_positions['L_ankle_study']).reshape(3,1)/2.0 + (mocap_mks_positions['r_mankle_study'] + mocap_mks_positions['r_ankle_study']).reshape(3,1)/2.0)/2
+        ankle_offset = ankle_center - pos_ankle_calib.reshape(3,1)
+        knee_center = ((mocap_mks_positions['L_knee_study'] + mocap_mks_positions['L_mknee_study']).reshape(3,1)/2.0 + (mocap_mks_positions['r_knee_study'] + mocap_mks_positions['r_mknee_study']).reshape(3,1)/2.0)/2
+        midhip = (mocap_mks_positions['r.ASIS_study'] + mocap_mks_positions['L.ASIS_study'] + mocap_mks_positions['r.PSIS_study'] + mocap_mks_positions['L.PSIS_study']).reshape(3,1)/4.0
 
-    trunk_center = (mocap_mks_positions['r_shoulder_study'] + mocap_mks_positions['L_shoulder_study']).reshape(3,1)/2.0 
+        trunk_center = (mocap_mks_positions['r_shoulder_study'] + mocap_mks_positions['L_shoulder_study']).reshape(3,1)/2.0 
 
-    Y = (trunk_center - midhip).reshape(3,1)
-    Y = Y/np.linalg.norm(Y)
-    X = (trunk_center - mocap_mks_positions['C7_study'].reshape(3,1)).reshape(3,1)
-    X = X/np.linalg.norm(X)
-    Z = np.cross(X, Y, axis=0)
-    X = np.cross(Y, Z, axis=0)
+        Y = (trunk_center - midhip).reshape(3,1)
+        Y = Y/np.linalg.norm(Y)
+        X = (trunk_center - mocap_mks_positions['C7_study'].reshape(3,1)).reshape(3,1)
+        X = X/np.linalg.norm(X)
+        Z = np.cross(X, Y, axis=0)
+        X = np.cross(Y, Z, axis=0)
 
-    pose = np.eye(4,4)
-    pose[:3,0] = X.reshape(3,)
-    pose[:3,1] = Y.reshape(3,)
-    pose[:3,2] = Z.reshape(3,)
-    pose[:3,3] = trunk_center.reshape(3,)
-    pose[:3,:3] = orthogonalize_matrix(pose[:3,:3])
+        pose = np.eye(4,4)
+        pose[:3,0] = X.reshape(3,)
+        pose[:3,1] = Y.reshape(3,)
+        pose[:3,2] = Z.reshape(3,)
+        pose[:3,3] = trunk_center.reshape(3,)
+        pose[:3,:3] = orthogonalize_matrix(pose[:3,:3])
 
-    torso_pose = pose
+        torso_pose = pose
 
-    bi_acromial_dist = np.linalg.norm(mocap_mks_positions['L_shoulder_study'].reshape(3,1) - mocap_mks_positions['r_shoulder_study'].reshape(3,1))
-    Rshoulder_center = mocap_mks_positions['r_shoulder_study'].reshape(3,1) + torso_pose[:3, :3] @ col_vector_3D(0., -0.17*bi_acromial_dist, 0).reshape(3,1)
-    Lshoulder_center = mocap_mks_positions['L_shoulder_study'].reshape(3,1) + (torso_pose[:3, :3].reshape(3,3) @ col_vector_3D(0., -0.17*bi_acromial_dist, 0)).reshape(3,1)
-    shoulder_center = (Rshoulder_center.reshape(3,1) + Lshoulder_center.reshape(3,1))/2
-    elbow_center = ((mocap_mks_positions['L_melbow_study'] + mocap_mks_positions['L_lelbow_study']).reshape(3,1)/2.0 +  (mocap_mks_positions['r_melbow_study']+ mocap_mks_positions['r_lelbow_study']).reshape(3,1)/2.0)/2
-    wrist_center = ((mocap_mks_positions['L_mwrist_study'] + mocap_mks_positions['L_lwrist_study']).reshape(3,1)/2.0 + (mocap_mks_positions['r_mwrist_study'] + mocap_mks_positions['r_lwrist_study']).reshape(3,1)/2.0)/2
+        bi_acromial_dist = np.linalg.norm(mocap_mks_positions['L_shoulder_study'].reshape(3,1) - mocap_mks_positions['r_shoulder_study'].reshape(3,1))
+        Rshoulder_center = mocap_mks_positions['r_shoulder_study'].reshape(3,1) + torso_pose[:3, :3] @ col_vector_3D(0., -0.17*bi_acromial_dist, 0).reshape(3,1)
+        Lshoulder_center = mocap_mks_positions['L_shoulder_study'].reshape(3,1) + (torso_pose[:3, :3].reshape(3,3) @ col_vector_3D(0., -0.17*bi_acromial_dist, 0)).reshape(3,1)
+        shoulder_center = (Rshoulder_center.reshape(3,1) + Lshoulder_center.reshape(3,1))/2
+        elbow_center = ((mocap_mks_positions['L_melbow_study'] + mocap_mks_positions['L_lelbow_study']).reshape(3,1)/2.0 +  (mocap_mks_positions['r_melbow_study']+ mocap_mks_positions['r_lelbow_study']).reshape(3,1)/2.0)/2
+        wrist_center = ((mocap_mks_positions['L_mwrist_study'] + mocap_mks_positions['L_lwrist_study']).reshape(3,1)/2.0 + (mocap_mks_positions['r_mwrist_study'] + mocap_mks_positions['r_lwrist_study']).reshape(3,1)/2.0)/2
     
+    elif side_to_track == "right":
+        ankle_center = (mocap_mks_positions['r_mankle_study'] + mocap_mks_positions['r_ankle_study']).reshape(3,1)/2.0
+        ankle_offset = ankle_center - pos_ankle_calib.reshape(3,1)
+        knee_center = (mocap_mks_positions['r_knee_study'] + mocap_mks_positions['r_mknee_study']).reshape(3,1)/2.0
+        midhip = mocap_mks_positions['RHJC_study'].reshape(3,1)
+
+        trunk_center = (mocap_mks_positions['r_shoulder_study'] + mocap_mks_positions['L_shoulder_study']).reshape(3,1)/2.0 
+
+        Y = (trunk_center - midhip).reshape(3,1)
+        Y = Y/np.linalg.norm(Y)
+        X = (trunk_center - mocap_mks_positions['C7_study'].reshape(3,1)).reshape(3,1)
+        X = X/np.linalg.norm(X)
+        Z = np.cross(X, Y, axis=0)
+        X = np.cross(Y, Z, axis=0)
+
+        pose = np.eye(4,4)
+        pose[:3,0] = X.reshape(3,)
+        pose[:3,1] = Y.reshape(3,)
+        pose[:3,2] = Z.reshape(3,)
+        pose[:3,3] = trunk_center.reshape(3,)
+        pose[:3,:3] = orthogonalize_matrix(pose[:3,:3])
+
+        torso_pose = pose
+
+        bi_acromial_dist = np.linalg.norm(mocap_mks_positions['L_shoulder_study'].reshape(3,1) - mocap_mks_positions['r_shoulder_study'].reshape(3,1))
+        Rshoulder_center = mocap_mks_positions['r_shoulder_study'].reshape(3,1) + torso_pose[:3, :3] @ col_vector_3D(0., -0.17*bi_acromial_dist, 0).reshape(3,1)
+        shoulder_center = Rshoulder_center.reshape(3,1)
+
+        elbow_center =  (mocap_mks_positions['r_melbow_study']+ mocap_mks_positions['r_lelbow_study']).reshape(3,1)/2.0
+        wrist_center =  (mocap_mks_positions['r_mwrist_study'] + mocap_mks_positions['r_lwrist_study']).reshape(3,1)/2.0
+    
+    elif side_to_track == "left":
+        ankle_center = (mocap_mks_positions['L_mankle_study'] + mocap_mks_positions['L_ankle_study']).reshape(3,1)/2.0
+        ankle_offset = ankle_center - pos_ankle_calib.reshape(3,1)
+        knee_center = (mocap_mks_positions['L_knee_study'] + mocap_mks_positions['L_mknee_study']).reshape(3,1)/2.0
+        midhip = mocap_mks_positions['LHJC_study'].reshape(3,1)
+
+        trunk_center = (mocap_mks_positions['r_shoulder_study'] + mocap_mks_positions['L_shoulder_study']).reshape(3,1)/2.0 
+
+        Y = (trunk_center - midhip).reshape(3,1)
+        Y = Y/np.linalg.norm(Y)
+        X = (trunk_center - mocap_mks_positions['C7_study'].reshape(3,1)).reshape(3,1)
+        X = X/np.linalg.norm(X)
+        Z = np.cross(X, Y, axis=0)
+        X = np.cross(Y, Z, axis=0)
+
+        pose = np.eye(4,4)
+        pose[:3,0] = X.reshape(3,)
+        pose[:3,1] = Y.reshape(3,)
+        pose[:3,2] = Z.reshape(3,)
+        pose[:3,3] = trunk_center.reshape(3,)
+        pose[:3,:3] = orthogonalize_matrix(pose[:3,:3])
+
+        torso_pose = pose
+
+        bi_acromial_dist = np.linalg.norm(mocap_mks_positions['L_shoulder_study'].reshape(3,1) - mocap_mks_positions['r_shoulder_study'].reshape(3,1))
+        Lshoulder_center = mocap_mks_positions['L_shoulder_study'].reshape(3,1) + torso_pose[:3, :3] @ col_vector_3D(0., -0.17*bi_acromial_dist, 0).reshape(3,1)
+        shoulder_center = Lshoulder_center.reshape(3,1)
+
+        elbow_center =  (mocap_mks_positions['L_melbow_study']+ mocap_mks_positions['L_lelbow_study']).reshape(3,1)/2.0
+        wrist_center =  (mocap_mks_positions['L_mwrist_study'] + mocap_mks_positions['L_lwrist_study']).reshape(3,1)/2.0
+
     # Set the ankle joint center to zero in global frame
     ankle_center -= ankle_offset
     knee_center -= ankle_offset

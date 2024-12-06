@@ -15,6 +15,9 @@ import pinocchio as pin
 from pinocchio.visualize import GepettoVisualizer
 from utils.model_utils import Robot, get_jcp_global_pos
 from utils.viz_utils import place
+from utils.settings import Settings
+
+settings = Settings()
 
 q = pd.read_csv(os.path.join(rt_cosmik_path,'output/q.csv'))
 data_markers = pd.read_csv(os.path.join(rt_cosmik_path,'output/augmented_markers_positions.csv'))
@@ -119,7 +122,7 @@ except AttributeError as err:
     sys.exit(0)
 
 lstm_dict = {**result_keypoints[0], **result_markers[0]}
-jcp_planar = get_jcp_global_pos(lstm_dict, pos_ankle_calib)
+jcp_planar = get_jcp_global_pos(lstm_dict, pos_ankle_calib,settings.side_to_track)
 
 for frame in human_model.frames.tolist():
     viz.viewer.gui.addXYZaxis('world/'+frame.name,[1,0,0,1],0.01,0.1)
@@ -137,7 +140,7 @@ for jcp in jcp_planar.keys():
 for jj in range(q_to_plot.shape[0]):
 
     lstm_dict = {**result_keypoints[jj], **result_markers[jj]}
-    jcp_planar = get_jcp_global_pos(lstm_dict, pos_ankle_calib)
+    jcp_planar = get_jcp_global_pos(lstm_dict, pos_ankle_calib,settings.side_to_track)
 
     for key in jcp_planar.keys():
         M = pin.SE3(np.eye(3), np.array([jcp_planar[key][0],jcp_planar[key][1],jcp_planar[key][2]]))

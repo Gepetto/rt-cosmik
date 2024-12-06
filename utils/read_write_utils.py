@@ -446,3 +446,23 @@ def csv_to_dict_of_dicts(df):
             'z': z_col.tolist()
         }
     return result
+
+def init_csv(csv_path, first_row):
+    with open(csv_path, mode='w', newline='') as file:
+        csv_writer = csv.writer(file)
+        # Write the header row
+        csv_writer.writerow(first_row)
+
+def save_3dpos_to_csv(csv_path, pos_in_world, names, frame_idx, formatted_timestamp):
+    with open(csv_path, mode='a', newline='') as file:
+        csv_writer = csv.writer(file)
+        for jj in range(len(names)):
+            # Write to CSV
+            csv_writer.writerow([frame_idx, formatted_timestamp,names[jj], pos_in_world[jj][0], pos_in_world[jj][1], pos_in_world[jj][2]])
+
+def save_q_to_csv(csv_path, q, frame_idx, formatted_timestamp):
+    # Saving kinematics
+    with open(csv_path, mode='a', newline='') as file:
+        csv_writer = csv.writer(file)
+        # Write to CSV
+        csv_writer.writerow([frame_idx, formatted_timestamp]+q.tolist())  
