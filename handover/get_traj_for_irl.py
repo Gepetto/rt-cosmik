@@ -1,6 +1,9 @@
+# This code allows to run RT-COSMIK to gather shoulder and elbow trajectory on the pointing task
+# to be used with IRL 
+
 # Launch gepetto-gui then 
-# To run the code : python3 apps/get_AT_and_q0.py cuda /root/workspace/mmdeploy/rtmpose-trt/rtmdet-nano /root/workspace/mmdeploy/rtmpose-trt/rtmpose-m
-# or python3 -m apps.get_AT_and_q0 cuda /root/workspace/mmdeploy/rtmpose-trt/rtmdet-nano /root/workspace/mmdeploy/rtmpose-trt/rtmpose-m
+# To run the code : python3 handover/get_traj_for_irl.py cuda /root/workspace/mmdeploy/rtmpose-trt/rtmdet-nano /root/workspace/mmdeploy/rtmpose-trt/rtmpose-m
+# or python3 -m handover.get_traj_for_irl cuda /root/workspace/mmdeploy/rtmpose-trt/rtmdet-nano /root/workspace/mmdeploy/rtmpose-trt/rtmpose-m
 
 import argparse
 import os
@@ -14,7 +17,7 @@ import sys
 from collections import deque
 from datetime import datetime
 import yaml
-import time
+from pynput import keyboard
 
 from utils.lstm_v2 import augmentTRC, loadModel
 from utils.model_utils import Robot, get_jcp_global_pos, calculate_segment_lengths_from_dict, model_scaling_from_dict
@@ -36,6 +39,9 @@ augmenter_path = os.path.join(parent_directory, 'augmentation_model')
 keypoints_buffer = deque(maxlen=30)
 warmed_models= loadModel(augmenterDir=augmenter_path, augmenterModelName="LSTM",augmenter_model='v0.3')
 
+# Flag to control recording and going to next pose 
+is_recording = False
+index_pose_to_track = 0 
 
 def parse_args():
     parser = argparse.ArgumentParser(
@@ -57,17 +63,33 @@ def parse_args():
     args = parser.parse_args()
     return args
 
+def on_press(key):
+    global is_recording
+    global index_pose_to_track
+    try:
+        if key.char == 'r':  # Toggle recording with 'r'
+            is_recording = not is_recording
+            print(f"Recording {'started' if is_recording else 'stopped'}")
+        if key.char == 'n':  # Toggle next pose with 'n'
+            index_pose_to_track += 1 
+            print("Switching to the next init position")
+    except AttributeError:
+        pass  # Handle special keys like function keys if needed
 
 def main():
     # FIRST, PARAM LOADING
     settings = Settings()
     args = parse_args()
 
+    # Start the key listener
+    listener = keyboard.Listener(on_press=on_press)
+    listener.start()
+
     # CSV PATHS
-    keypoints_csv_file_path = os.path.join(parent_directory,'output/calib_keypoints_3d_positions.csv')
-    augmented_csv_file_path = os.path.join(parent_directory, 'output/calib_augmented_markers_positions.csv')
-    q_csv_file_path = os.path.join(parent_directory,'output/calib_q.csv')
-    calib_human_path = os.path.join(parent_directory, "cams_calibration/human_params/human_anthropometry.yaml")
+    keypoints_csv_file_path = os.path.join(parent_directory,'output/handover/calib_keypoints_3d_positions.csv')
+    augmented_csv_file_path = os.path.join(parent_directory, 'output/handover/calib_augmented_markers_positions.csv')
+    q_csv_file_path = os.path.join(parent_directory,'output/handover/irl_trajs.csv')
+    calib_human_path = os.path.join(parent_directory, "handover/human_params/human_arm_anthropometry.yaml")
 
     # TODO : ADJUST WITH THE NUMBER OF CAMERAS
     K1, D1 = load_cam_params(os.path.join(parent_directory,"cams_calibration/cam_params/c1_params_color_test_test.yml"))
@@ -85,7 +107,7 @@ def main():
     ### Initialize CSV files
     init_csv(keypoints_csv_file_path,['Frame', 'Time','Keypoint', 'X', 'Y', 'Z'])
     init_csv(augmented_csv_file_path,['Frame', 'Time','Marker', 'X', 'Y', 'Z'])
-    init_csv(q_csv_file_path,['Frame','Time','q0', 'q1','q2','q3','q4'])
+    init_csv(q_csv_file_path,['Frame','Time','q0', 'q1'])
 
     ### Initialize cams stream
     camera_dict = list_cameras_with_v4l2()
@@ -100,7 +122,6 @@ def main():
         cap.set(cv2.CAP_PROP_FRAME_WIDTH, settings.width)
         cap.set(cv2.CAP_PROP_FRAME_HEIGHT, settings.height)
         cap.set(cv2.CAP_PROP_FPS, settings.fs)
-
 
     ### Loading human urdf
     human = Robot(os.path.join(parent_directory,'urdf/human_5dof.urdf'),os.path.join(parent_directory,'meshes')) 
@@ -146,27 +167,28 @@ def main():
 
     segment_lengths = []
 
+    goal_angles_list = [np.array([np.deg2rad(-90), np.deg2rad(90)]),
+                        np.array([np.deg2rad(-180), np.deg2rad(90)]),
+                        np.array([np.deg2rad(-210), np.deg2rad(120)]),
+                        np.array([np.deg2rad(-180), np.deg2rad(30)]),
+                        np.array([np.deg2rad(-170), np.deg2rad(140)])
+                        ]
+
     try : 
         while True:
-            start_time_all = time.perf_counter()
             timestamp=datetime.now()
             formatted_timestamp = timestamp.strftime("%Y-%m-%d %H:%M:%S.%f ")
             
-            start_time = time.perf_counter()
             frames = [cap.read()[1] for cap in captures]
             
             if not all(frame is not None for frame in frames):
                 continue
-            elapsed = time.perf_counter()-start_time
-            print(f"Time for cam readings: {elapsed:.4f} seconds")
-            
+
             keypoints_list = []
             frame_idx += 1  # Increment frame counter
 
-            start_time_mmpose_all = time.perf_counter()
             # Process each frame individually
             for idx, frame in enumerate(frames):
-                start_time = time.perf_counter()
                 results = tracker(state, frame, detect=-1)
                 keypoints, bboxes, _ = results
                 keypoints = (keypoints[..., :2] ).astype(float)
@@ -176,43 +198,21 @@ def main():
                     
                 else :
                     keypoints_list.append(keypoints.reshape((26,2)).flatten())
-                elapsed = time.perf_counter()-start_time
-                print(f"Time for mmpose inference on one image: {elapsed:.4f} seconds")
-
-                start_time = time.perf_counter()
-                if not visualize(
-                        frame,
-                        results,
-                        args.output_dir,
-                        idx,
-                        frame_idx + idx,
-                        skeleton_type=args.skeleton):
-                    break
-                elapsed = time.perf_counter() - start_time
-                print(f"Time for cam visu one image: {elapsed:.4f} seconds")
-
-            elapsed_mmpose_all = time.perf_counter()-start_time_mmpose_all
-            print(f"Time for mmpose + visu on 2 images: {elapsed_mmpose_all:.4f} seconds")
 
             if len(keypoints_list)!=2: #number of cams
                 pass
 
             else :
-                start_time = time.perf_counter()
                 p3d_frame = triangulate_points(keypoints_list, mtxs, dists, projections)
                 keypoints_in_cam = p3d_frame
 
                 # Apply the rotation matrix to align the points
                 keypoints_in_world = np.array([np.dot(world_R1_cam,point) + world_T1_cam for point in keypoints_in_cam])
-                elapsed =time.perf_counter()-start_time
-                print(f"Time for triangulation block: {elapsed:.4f} seconds")
 
-                start_time =time.perf_counter()
                 # Saving keypoints
-                save_3dpos_to_csv(keypoints_csv_file_path,keypoints_in_world,settings.keypoints_names,frame_idx, formatted_timestamp)
-                elapsed =time.perf_counter()-start_time
-                print(f"Time for keypoints saving block: {elapsed:.4f} seconds")
-
+                if is_recording:
+                    save_3dpos_to_csv(keypoints_csv_file_path,keypoints_in_world,settings.keypoints_names,frame_idx, formatted_timestamp)
+                
                 if first_sample:
                     for k in range(30):
                         keypoints_buffer.append(keypoints_in_world)  #add the 1st frame 30 times
@@ -220,57 +220,50 @@ def main():
                     keypoints_buffer.append(keypoints_in_world) #add the keypoints to the buffer normally 
                 
                 if len(keypoints_buffer) == 30:
-                    start_time = time.perf_counter()
                     keypoints_buffer_array = np.array(keypoints_buffer)
 
                     # Filter keypoints in world to remove noisy artefacts 
                     filtered_keypoints_buffer = iir_filter.filter(np.reshape(keypoints_buffer_array,(30, 3*len(settings.keypoints_names))))
 
                     filtered_keypoints_buffer = np.reshape(filtered_keypoints_buffer,(30, len(settings.keypoints_names), 3))
-                    elapsed = time.perf_counter()-start_time
-                    print(f"Time for filter block: {elapsed:.4f} seconds")
                     
-                    start_time = time.perf_counter()
                     #call augmentTrc
                     augmented_markers = augmentTRC(filtered_keypoints_buffer, subject_mass=settings.human_mass, subject_height=settings.human_height, models = warmed_models,
                                augmenterDir=augmenter_path, augmenter_model='v0.3', offset=True)
-
-
+                    
                     if len(augmented_markers) % 3 != 0:
                         raise ValueError("The length of the list must be divisible by 3.")
 
                     augmented_markers = np.array(augmented_markers).reshape(-1, 3)
-                    elapsed =time.perf_counter()-start_time
-                    print(f"Time for data augmenter block: {elapsed:.4f} seconds")
 
-                    start_time = time.perf_counter()
-                    # Saving markers
-                    save_3dpos_to_csv(augmented_csv_file_path,augmented_markers,settings.marker_names,frame_idx, formatted_timestamp)
-                    print(f"Time for augmenter data saving block: {elapsed:.4f} seconds")
+                    if is_recording:
+                        # Saving markers
+                        save_3dpos_to_csv(augmented_csv_file_path,augmented_markers,settings.marker_names,frame_idx, formatted_timestamp)
 
                     if (len(segment_lengths)<100):
                         if first_sample:
                             lstm_dict = dict(zip(settings.keypoints_names+settings.marker_names, np.concatenate((filtered_keypoints_buffer[-1],augmented_markers),axis=0)))
-                            jcp_dict = get_jcp_global_pos(lstm_dict,pos_ankle_calib, settings.side_to_track)
+                            jcp_dict = get_jcp_global_pos(lstm_dict,pos_ankle_calib,"bilateral")
                             seg_lengths = calculate_segment_lengths_from_dict(jcp_dict)
                             segment_lengths.append(seg_lengths)
                             first_sample = False
                         else :
                             lstm_dict = dict(zip(settings.marker_names, augmented_markers))
-                            jcp_dict = get_jcp_global_pos(lstm_dict,pos_ankle_calib,settings.side_to_track)
+                            jcp_dict = get_jcp_global_pos(lstm_dict,pos_ankle_calib,"bilateral")
                             seg_lengths = calculate_segment_lengths_from_dict(jcp_dict)
                             segment_lengths.append(seg_lengths)
                     else :
                         if not_calibrated:
                             segment_lengths_array = np.array(segment_lengths)
-
                             dict_mean_segment_lengths = dict(zip(['Knee', 'Hip', 'Shoulder', 'Elbow', 'Wrist'], np.mean(segment_lengths_array,axis=0))) 
                             # Convert NumPy types to native Python types
                             dict_mean_segment_lengths = {key: float(value) for key, value in dict_mean_segment_lengths.items()}
+                            # Here we only keep upperarm and lowerarm lengths to save 
+                            dict_mean_segment_lengths_to_save = dict((key, dict_mean_segment_lengths[key]) for key in ["Elbow", "Wrist"])
                             
                             # Dump the dictionary to a YAML file
                             with open(calib_human_path, 'w') as file:
-                                yaml.dump(dict_mean_segment_lengths, file, default_flow_style=False)
+                                yaml.dump(dict_mean_segment_lengths_to_save, file, default_flow_style=False)
 
                             print(f"Dictionary successfully dumped to {calib_human_path}")
 
@@ -297,7 +290,11 @@ def main():
                                 sys.exit(0)
 
                             for frame in human_model.frames.tolist():
-                                viz.viewer.gui.addXYZaxis('world/'+frame.name,[1,0,0,1],0.01,0.1)
+                                viz.viewer.gui.addXYZaxis('world/'+frame.name,[1,0,0,1],0.02,0.1)
+
+                            # Adds incoming goal points for elbow and wrist
+                            viz.viewer.gui.addSphere('world/elbow_goal',0.02,[0,1,0,1])
+                            viz.viewer.gui.addSphere('world/wrist_goal',0.02,[0,1,0,1])
 
                             lstm_dict = dict(zip(settings.marker_names, augmented_markers))
                             jcp_dict = get_jcp_global_pos(lstm_dict,pos_ankle_calib,settings.side_to_track)
@@ -318,8 +315,9 @@ def main():
                             ik_class._q0=q
                             not_calibrated=False
 
+                            print("Calibration done, IK is displayed, we can start the recordings ...")
+
                         else :
-                            start_time = time.perf_counter()
                             lstm_dict = dict(zip(settings.marker_names, augmented_markers))
                             jcp_dict = get_jcp_global_pos(lstm_dict,pos_ankle_calib,settings.side_to_track)
 
@@ -329,26 +327,26 @@ def main():
                             ### IK calculations
                             ik_class._dict_m= jcp_dict
                             q = ik_class.solve_ik_sample_casadi()
-                            elapsed =time.perf_counter()-start_time
-                            print(f"Time for ik block: {elapsed:.4f} seconds")
+                            viz.display(q)
 
                             pin.framesForwardKinematics(human_model,human_data, q)
-
                             for frame in human_model.frames.tolist():
                                 place(viz,'world/'+frame.name,human_data.oMf[human_model.getFrameId(frame.name)])
 
-                            viz.display(q)
+                            q_goal = q.copy()
+                            q_goal[-2:] = goal_angles_list[index_pose_to_track]
+
+                            pin.framesForwardKinematics(human_model,human_data, q_goal)
+                            place(viz, 'world/elbow_goal', human_data.oMi[human_model.getJointId('elbow_Z')])
+                            place(viz, 'world/wrist_goal', human_data.oMf[human_model.getFrameId('hand')])
 
                             ik_class._q0 = q
 
-                        start_time = time.perf_counter()
-                        # Saving kinematics
-                        save_q_to_csv(q_csv_file_path,q,frame_idx, formatted_timestamp)
-                        elapsed =time.perf_counter()-start_time
-                        print(f"Time for ik saving block: {elapsed:.4f} seconds")
+                        if is_recording:
+                            q_to_save = q[-2:]+np.array([np.pi/2,0]) # model retargetting
+                            # Saving kinematics
+                            save_q_to_csv(q_csv_file_path,q_to_save,frame_idx, formatted_timestamp)       
 
-            elapsed_all = time.perf_counter() - start_time_all
-            print(f"Time for while block: {elapsed_all:.4f} seconds")
     finally:
         # Release the camera captures
         for cap in captures:
