@@ -7,27 +7,28 @@ import argparse
 import os
 import cv2
 import numpy as np
+np.set_printoptions(precision=4, suppress=True)
 from mmdeploy_runtime import PoseTracker
 import time 
-import csv
 import pinocchio as pin
 from collections import deque
-from utils.lstm_v2 import augmentTRC, loadModel
 from datetime import datetime
-import pandas as pd
 
 # don't forget to source dependancies
 import rospy
 from sensor_msgs.msg import JointState
 from visualization_msgs.msg import MarkerArray
 
+from utils.lstm_v2 import augmentTRC, loadModel
 from utils.model_utils import Robot, get_jcp_global_pos
-from utils.calib_utils import load_cam_params, load_cam_to_cam_params, load_cam_pose, list_cameras_with_v4l2
+from utils.calib_utils import get_cameras_params, load_cam_params, load_cam_to_cam_params, load_cam_pose, list_cameras_with_v4l2
 from utils.triangulation_utils import triangulate_points
 from utils.ik_utils import RT_IK
 from utils.iir import IIR
 from utils.viz_utils import visualize, VISUALIZATION_CFG
 from utils.ros_utils import publish_keypoints_as_marker_array, publish_augmented_markers, publish_kinematics
+from utils.read_write_utils import init_csv, save_3dpos_to_csv, save_q_to_csv
+from utils.settings import Settings
 
 # Get the directory where the script is located
 script_directory = os.path.dirname(os.path.abspath(__file__))
@@ -61,117 +62,45 @@ def parse_args():
     return args
 
 def main():
+    # FIRST, PARAM LOADING
+    settings = Settings()
     args = parse_args()
-    np.set_printoptions(precision=4, suppress=True)
 
+    # CSV PATHS
     keypoints_csv_file_path = os.path.join(parent_directory,'output/keypoints_3d_positions.csv')
     augmented_csv_file_path = os.path.join(parent_directory, 'output/augmented_markers_positions.csv')
     q_csv_file_path = os.path.join(parent_directory,'output/q.csv')
 
+    # TODO : ADJUST WITH THE NUMBER OF CAMERAS
     K1, D1 = load_cam_params(os.path.join(parent_directory,"cams_calibration/cam_params/c1_params_color_test_test.yml"))
     K2, D2 = load_cam_params(os.path.join(parent_directory,"cams_calibration/cam_params/c2_params_color_test_test.yml"))
     R,T = load_cam_to_cam_params(os.path.join(parent_directory,"cams_calibration/cam_params/c1_to_c2_params_color_test_test.yml"))
-
-    dict_cam = {
-        "cam1": {
-            "mtx":np.array(K1),
-            "dist":D1,
-            "rotation":np.eye(3),
-            "translation":[
-                0.,
-                0.,
-                0.,
-            ],
-        },
-        "cam2": {
-            "mtx":np.array(K2),
-            "dist":D2,
-            "rotation":R,
-            "translation":T,
-        },
-    }
-
-    rotations=[]
-    translations=[]
-    dists=[]
-    mtxs=[]
-    projections=[]
-
-    for cam in dict_cam :
-        rotation=np.array(dict_cam[cam]["rotation"])
-        rotations.append(rotation)
-        translation=np.array([dict_cam[cam]["translation"]]).reshape(3,1)
-        translations.append(translation)
-        projection = np.concatenate([rotation, translation], axis=-1)
-        projections.append(projection)
-        dict_cam[cam]["projection"] = projection
-        dists.append(dict_cam[cam]["dist"])
-        mtxs.append(dict_cam[cam]["mtx"])
+    mtxs, dists, projections, rotations, translations = get_cameras_params(K1, D1, K2, D2, R, T)
 
     ### Loading camera pose 
     cam_R1_world, cam_T1_world = load_cam_pose(os.path.join(parent_directory,'cams_calibration/cam_params/camera1_pose_test_test.yml'))
-    
     # Inverse the pose to get cam in world frame 
     world_R1_cam = cam_R1_world.T
     world_T1_cam = -cam_R1_world.T@cam_T1_world
     world_T1_cam = world_T1_cam.reshape((3,))
 
-    fs = 40
-    dt = 1/fs
-    
     dof_names=['ankle_Z', 'knee_Z', 'lumbar_Z', 'shoulder_Z', 'elbow_Z'] 
 
-    keypoint_names = [
-        "Nose", "Left Eye", "Right Eye", "Left Ear", "Right Ear", 
-        "Left Shoulder", "Right Shoulder", "Left Elbow", "Right Elbow", 
-        "Left Wrist", "Right Wrist", "Left Hip", "Right Hip", 
-        "Left Knee", "Right Knee", "Left Ankle", "Right Ankle", "Head",
-        "Neck", "Hip", "LBigToe", "RBigToe", "LSmallToe", "RSmallToe", "LHeel", "RHeel"]
-
-    marker_names = ['r.ASIS_study','L.ASIS_study','r.PSIS_study','L.PSIS_study','r_knee_study',
-           'r_mknee_study','r_ankle_study','r_mankle_study','r_toe_study','r_5meta_study',
-           'r_calc_study','L_knee_study','L_mknee_study','L_ankle_study','L_mankle_study',
-           'L_toe_study','L_calc_study','L_5meta_study','r_shoulder_study','L_shoulder_study',
-           'C7_study','r_thigh1_study','r_thigh2_study','r_thigh3_study','L_thigh1_study',
-           'L_thigh2_study','L_thigh3_study','r_sh1_study','r_sh2_study','r_sh3_study',
-           'L_sh1_study','L_sh2_study','L_sh3_study','RHJC_study','LHJC_study','r_lelbow_study',
-           'r_melbow_study','r_lwrist_study','r_mwrist_study','L_lelbow_study','L_melbow_study',
-           'L_lwrist_study','L_mwrist_study']
-
     ### Initialize CSV files
-    with open(keypoints_csv_file_path, mode='w', newline='') as file:
-        csv_writer = csv.writer(file)
-        # Write the header row
-        csv_writer.writerow(['Frame', 'Time','Keypoint', 'X', 'Y', 'Z'])
-
-    with open(augmented_csv_file_path, mode='w', newline='') as file2:
-        csv2_writer = csv.writer(file2)
-        # Write the header row
-        csv2_writer.writerow(['Frame', 'Time','Marker', 'X', 'Y', 'Z'])
-
-    with open(q_csv_file_path, mode='w', newline='') as file3:
-        csv3_writer = csv.writer(file3)
-        # Write the header row
-        csv3_writer.writerow(['Frame','Time','q0', 'q1','q2','q3','q4'])
+    init_csv(keypoints_csv_file_path,['Frame', 'Time','Keypoint', 'X', 'Y', 'Z'])
+    init_csv(augmented_csv_file_path,['Frame', 'Time','Marker', 'X', 'Y', 'Z'])
+    init_csv(q_csv_file_path,['Frame','Time','q0', 'q1','q2','q3','q4'])
 
     ### Initialize ROS node 
     rospy.init_node('human_rt_ik', anonymous=True)
-    
     pub = rospy.Publisher('/human_RT_joint_angles', JointState, queue_size=10)
     keypoints_pub = rospy.Publisher('/pose_keypoints', MarkerArray, queue_size=10)
     # keypoints_pub_nofilter = rospy.Publisher('/pose_keypoints_nofilter', MarkerArray, queue_size=10)
     augmented_markers_pub = rospy.Publisher('/markers_pose', MarkerArray, queue_size=10)
 
-    width = 1280
-    height = 720
-    resize=1280
-
     ### Initialize cams stream
     camera_dict = list_cameras_with_v4l2()
     captures = [cv2.VideoCapture(idx, cv2.CAP_V4L2) for idx in camera_dict.keys()]
-
-    width_vids = []
-    height_vids = []
 
     for idx, cap in enumerate(captures):
         if not cap.isOpened():
@@ -179,12 +108,9 @@ def main():
 
         # Apply settings
         cap.set(cv2.CAP_PROP_FOURCC, cv2.VideoWriter_fourcc(*'MJPG'))
-        cap.set(cv2.CAP_PROP_FRAME_WIDTH, width)
-        cap.set(cv2.CAP_PROP_FRAME_HEIGHT, height)
-        cap.set(cv2.CAP_PROP_FPS, fs)
-
-        width_vids.append(width)
-        height_vids.append(height)
+        cap.set(cv2.CAP_PROP_FRAME_WIDTH, settings.width)
+        cap.set(cv2.CAP_PROP_FRAME_HEIGHT, settings.height)
+        cap.set(cv2.CAP_PROP_FPS, settings.fs)
 
     ### Loading human urdf
     human = Robot(os.path.join(parent_directory,'urdf/human_5dof.urdf'),os.path.join(parent_directory,'meshes')) 
@@ -194,10 +120,6 @@ def main():
     pin.framesForwardKinematics(human_model,human_data, pin.neutral(human_model))
     pos_ankle_calib = human_data.oMi[human_model.getJointId('ankle_Z')].translation
 
-
-    subject_height = 1.81
-    subject_mass = 73.0
-
     ### IK calculations 
     q = np.array([np.pi/2,0,0,-np.pi,0]) # init pos
     keys_to_track_list = ['Knee', 'midHip', 'Shoulder', 'Elbow', 'Wrist']
@@ -205,23 +127,23 @@ def main():
     
     ### Set up real time filter 
     # Constant
-    num_channel = 3*len(keypoint_names)
+    num_channel = 3*len(settings.keypoints_names)
 
     # Creating IIR instance
     iir_filter = IIR(
         num_channel=num_channel,
-        sampling_frequency=fs
+        sampling_frequency=settings.system_freq
     )
 
-    iir_filter.add_filter(order=3, cutoff=3, filter_type='lowpass')
+    iir_filter.add_filter(order=settings.order, cutoff=settings.cutoff_freq, filter_type=settings.filter_type)
     
     first_sample = True 
     frame_idx = 0
 
     # Define the codec and create VideoWriter objects for both RGB streams
     fourcc = cv2.VideoWriter_fourcc(*'mp4v')  # Codec for AVI files
-    out_vid1 = cv2.VideoWriter(os.path.join(parent_directory,'output/cam1.mp4'), fourcc, 30.0, (int(width_vids[0]), int(height_vids[0])), True)
-    out_vid2 = cv2.VideoWriter(os.path.join(parent_directory,'output/cam2.mp4'), fourcc, 30.0, (int(width_vids[1]), int(height_vids[1])), True)
+    out_vid1 = cv2.VideoWriter(os.path.join(parent_directory,'output/cam1.mp4'), fourcc, 40.0, (int(settings.width), int(settings.height)), True)
+    out_vid2 = cv2.VideoWriter(os.path.join(parent_directory,'output/cam2.mp4'), fourcc, 40.0, (int(settings.width), int(settings.height)), True)
 
     tracker = PoseTracker(
         det_model=args.det_model,
@@ -259,15 +181,9 @@ def main():
 
                 t0 = time.time()
                 results = tracker(state, frame, detect=-1)
-                scale = resize / max(frame.shape[0], frame.shape[1])
                 keypoints, bboxes, _ = results
-                scores = keypoints[..., 2]
-                # keypoints = (keypoints[..., :2] * scale).astype(float)
                 keypoints = (keypoints[..., :2] ).astype(float)
-                bboxes *= scale
-                t1 =time.time()
-                # print("Time of inference for one image",t1-t0)
-
+                
                 if keypoints.size == 0 or keypoints.flatten().shape != (52,):
                     pass
                     
@@ -292,13 +208,8 @@ def main():
 
                 # Apply the rotation matrix to align the points
                 keypoints_in_world = np.array([np.dot(world_R1_cam,point) + world_T1_cam for point in keypoints_in_cam])
-                
-                # Saving keypoints
-                with open(keypoints_csv_file_path, mode='a', newline='') as file:
-                    csv_writer = csv.writer(file)
-                    for jj in range(len(keypoint_names)):
-                        # Write to CSV
-                        csv_writer.writerow([frame_idx, formatted_timestamp,keypoint_names[jj], keypoints_in_world[jj][0], keypoints_in_world[jj][1], keypoints_in_world[jj][2]])
+                # Save keypoints to csv
+                save_3dpos_to_csv(keypoints_csv_file_path,keypoints_in_world,settings.keypoints_names,frame_idx, formatted_timestamp)
                 
                 if first_sample:
                     for k in range(30):
@@ -311,16 +222,15 @@ def main():
                     keypoints_buffer_array = np.array(keypoints_buffer)
 
                     # Filter keypoints in world to remove noisy artefacts 
-                    filtered_keypoints_buffer = iir_filter.filter(np.reshape(keypoints_buffer_array,(30, 3*len(keypoint_names))))
+                    filtered_keypoints_buffer = iir_filter.filter(np.reshape(keypoints_buffer_array,(30, 3*len(settings.keypoints_names))))
+                    filtered_keypoints_buffer = np.reshape(filtered_keypoints_buffer,(30, len(settings.keypoints_names), 3))
 
-                    filtered_keypoints_buffer = np.reshape(filtered_keypoints_buffer,(30, len(keypoint_names), 3))
+                    keypoints_buffer_array = np.reshape(keypoints_buffer_array,(30, len(settings.keypoints_names), 3))
 
-                    keypoints_buffer_array = np.reshape(keypoints_buffer_array,(30, len(keypoint_names), 3))
-
-                    publish_keypoints_as_marker_array(filtered_keypoints_buffer[-1], keypoints_pub, keypoint_names)
+                    publish_keypoints_as_marker_array(filtered_keypoints_buffer[-1], keypoints_pub, settings.keypoints_names)
                     
                     #call augmentTrc
-                    augmented_markers = augmentTRC(filtered_keypoints_buffer, subject_mass=subject_mass, subject_height=subject_height, models = warmed_models,
+                    augmented_markers = augmentTRC(filtered_keypoints_buffer, subject_mass=settings.human_mass, subject_height=settings.human_height, models = warmed_models,
                                augmenterDir=augmenter_path, augmenter_model='v0.3', offset=True)
 
 
@@ -329,44 +239,34 @@ def main():
 
                     augmented_markers = np.array(augmented_markers).reshape(-1, 3) 
 
-                    # Saving keypoints
-                    with open(augmented_csv_file_path, mode='a', newline='') as file:
-                        csv_writer = csv.writer(file)
-                        for jj in range(len(augmented_markers)):
-                            # Write to CSV
-                            csv_writer.writerow([frame_idx, formatted_timestamp,marker_names[jj], augmented_markers[jj][0], augmented_markers[jj][1], augmented_markers[jj][2]])
-
-                    publish_augmented_markers(augmented_markers, augmented_markers_pub, marker_names)
+                    # Saving markers
+                    save_3dpos_to_csv(augmented_csv_file_path,augmented_markers,settings.marker_names,frame_idx, formatted_timestamp)
+                    
+                    publish_augmented_markers(augmented_markers, augmented_markers_pub, settings.marker_names)
 
                     if first_sample:
-                        lstm_dict = dict(zip(keypoint_names+marker_names, np.concatenate((filtered_keypoints_buffer[-1],augmented_markers),axis=0)))
-                        jcp_dict = get_jcp_global_pos(lstm_dict,pos_ankle_calib)
+                        lstm_dict = dict(zip(settings.keypoints_names+settings.marker_names, np.concatenate((filtered_keypoints_buffer[-1],augmented_markers),axis=0)))
+                        jcp_dict = get_jcp_global_pos(lstm_dict,pos_ankle_calib,settings.side_to_track)
                             
                         ### IK calculations
-                        ik_class = RT_IK(human_model, jcp_dict, q, keys_to_track_list, dt, dict_dof_to_keypoints, False)
+                        ik_class = RT_IK(human_model, jcp_dict, q, keys_to_track_list, settings.dt, dict_dof_to_keypoints, False)
                         q = ik_class.solve_ik_sample_casadi()
                         ik_class._q0=q
                         first_sample = False
 
                     else :
-                        lstm_dict = dict(zip(marker_names, augmented_markers))
-                        jcp_dict = get_jcp_global_pos(lstm_dict,pos_ankle_calib)
-
+                        lstm_dict = dict(zip(settings.marker_names, augmented_markers))
+                        jcp_dict = get_jcp_global_pos(lstm_dict,pos_ankle_calib,settings.side_to_track)
 
                         ### IK calculations
                         ik_class._dict_m= jcp_dict
                         q = ik_class.solve_ik_sample_casadi()
-
                         ik_class._q0 = q
 
                     publish_kinematics(q,pub,dof_names)     
 
                     # Saving kinematics
-                    with open(q_csv_file_path, mode='a', newline='') as file:
-                        csv_writer = csv.writer(file)
-                        # Write to CSV
-                        csv_writer.writerow([frame_idx, formatted_timestamp]+q.tolist())
-            
+                    save_q_to_csv(q_csv_file_path,q,frame_idx, formatted_timestamp)     
     finally:
         # Release the camera captures
         for cap in captures:
