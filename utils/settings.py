@@ -8,6 +8,7 @@ class Settings:
     dt: float = field(init=False)  # Mark `dt` as excluded from the constructor
     width: int = 1280 # image resolution
     height: int = 720 # image resolution
+
     # CAMS CALIB 
     #checkerboard params
     checkerboard_rows: int = 5 # number of rows on the checkerboard -1 
@@ -16,17 +17,21 @@ class Settings:
     wand_end_effector_local_pos: np.ndarray = field(
         default_factory=lambda: np.array([[-0.00004], [0.262865], [-0.000009]]) # local pose of wand's end effector for pointing calibration
     )
+
     # FILTER PARAMS
     order: int = 4
     system_freq: int = 30 # For now the system update time is at around 0.034 ms so around 30 Hz 
     cutoff_freq: float = 10
     filter_type: str = "lowpass"
+
     # IK AND DATA HANDLING
     # For planar case 
     side_to_track: str =  "right" # bilateral (if we want to track both side, i.e., lifting), right or left
+    
     # HUMAN ANTHROPOMETRY
     human_height: float = 1.81
     human_mass: float = 73.0
+
     #MMPOSE MODEL (here body 26)
     keypoints_names: list = field(default_factory=lambda: [
         "Nose", "LEye", "REye", "LEar", "REar", 
@@ -35,6 +40,7 @@ class Settings:
         "LKnee", "RKnee", "LAnkle", "RAnkle", "Head",
         "Neck", "midHip", "LBigToe", "RBigToe", "LSmallToe", "RSmallToe", "LHeel", "RHeel"
     ])
+    
     # OPENCAP MARKER SET 
     marker_names: list = field(default_factory=lambda: [
            'r.ASIS_study','L.ASIS_study','r.PSIS_study','L.PSIS_study','r_knee_study',
