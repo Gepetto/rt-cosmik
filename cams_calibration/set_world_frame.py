@@ -57,7 +57,7 @@ for idx, cap in enumerate(captures):
 
 # Define the ArUco dictionary and marker size
 aruco_dict = cv2.aruco.getPredefinedDictionary(cv2.aruco.DICT_4X4_50)
-marker_size = 0.176  # Marker size in meters (17.6 cm)
+marker_size = settings.wand_marker_size  # Marker size in meters (17.6 cm)
 
 K1, D1 = load_cam_params(os.path.join(parent_directory,"cams_calibration/cam_params/c1_params_color_"+ expe_no + "_" + trial_no +".yml"))
 K2, D2 = load_cam_params(os.path.join(parent_directory,"cams_calibration/cam_params/c2_params_color_"+ expe_no + "_" + trial_no +".yml"))
