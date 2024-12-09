@@ -6,7 +6,7 @@ RT-COSMIK is a cutting-edge open-source library for solving real-time constraine
 ---
 
 ## Getting Started
-This repository is designed to work with a pre-configured Docker environment to ensure compatibility and ease of use. Please follow the installation instructions in the [Gepetto Dev Container repository](https://gitlab.laas.fr/msabbah/gepetto-dev-container/-/tree/mmpose?ref_type=heads).
+This repository is designed to work with a pre-configured Docker environment to ensure compatibility and ease of use. Please follow the installation instructions in the [Gepetto Dev Container repository](https://gitlab.laas.fr/msabbah/gepetto-dev-container/).
 
 ### Clone the Repo Inside the Docker Container
 Once the Docker environment is set up, clone this repository into the appropriate directory:
