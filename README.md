@@ -1,13 +1,17 @@
-# RT-COSMIK
-***Real Time - Constrained and Open Source Multibodied Inverse Kinematics
+## RT-COSMIK
+***Real-Time - Constrained and Open Source Multibodied Inverse Kinematics***
 
-## Getting started
+RT-COSMIK is a cutting-edge open-source library for solving real-time constrained inverse kinematics problems for multibody systems. It is designed for robotics applications, offering robust integration with ROS and advanced features like real-time pipelines, MMpose, and LSTM-based motion prediction.
 
-This repo usage is with the following provided docker : https://gitlab.laas.fr/msabbah/gepetto-dev-container/-/tree/mmpose?ref_type=heads
-Follow the installation procedure there
+---
 
-## Clone the repo in the docker 
-```
+## Getting Started
+This repository is designed to work with a pre-configured Docker environment to ensure compatibility and ease of use. Please follow the installation instructions in the [Gepetto Dev Container repository](https://gitlab.laas.fr/msabbah/gepetto-dev-container/-/tree/mmpose?ref_type=heads).
+
+### Clone the Repo Inside the Docker Container
+Once the Docker environment is set up, clone this repository into the appropriate directory:
+
+```bash
 cd workspace/ros_ws_src
 git clone https://gitlab.laas.fr/msabbah/rt-cosmik.git
 ```
@@ -60,5 +64,7 @@ CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,
 OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
-## Project status
-This repo is still under development, I am available at msabbah@laas.fr
+## Project Status
+RT-COSMIK is currently under active development. Contributions and feedback are welcome. For any inquiries or support, feel free to contact the maintainer:  
+**Maxime Sabbah** - msabbah@laas.fr
+
