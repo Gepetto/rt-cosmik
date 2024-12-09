@@ -22,11 +22,13 @@ roslaunch rt-cosmik start_viz.launch
 ```
 
 ## Authors and acknowledgment
-Maxime Sabbah (LAAS-CNRS) : Main developper and maintainer of the project, Realtime pipeline, inverse kinematics and general implementation of the library
-Kahina Chalabi (LAAS-CNRS) : Main developper and maintainer of the project, MMpose and LSTM 
-Mohamed Adjel (LAAS-CNRS) : Main developper, Human modelling and camera feeds handling
-Thomas Bousquet (LAAS-CNRS) : Features developper 
-Vincent Bonnet (LAAS-CNRS / IPAL) : Project Instructor
+
+- **Maxime Sabbah (LAAS-CNRS):** Main developer and maintainer of the project, real-time pipeline, inverse kinematics, and general implementation of the library.
+- **Kahina Chalabi (LAAS-CNRS):** Main developer and maintainer of the project, MMpose, and LSTM.
+- **Mohamed Adjel (LAAS-CNRS):** Main developer, human modeling, and camera feeds handling.
+- **Thomas Bousquet (LAAS-CNRS):** Features developer.
+- **Vincent Bonnet (LAAS-CNRS / IPAL):** Project instructor.
+
 
 ## Citing RT-COSMIK
 
