@@ -382,7 +382,7 @@ def get_relative_pose_robot_in_cam(images_folder,camera_matrix,dist_coeffs, dete
 
     assert len(images)==4, "number of images to get robot base must be 4"
     
-    wand_local = np.array([[-0.00004],[0.262865],[-0.000009]])
+    wand_local = settings.wand_end_effector_local_pos
 
     wand_pos_cam_frame = []
     for ii, frame in enumerate(images):
@@ -444,7 +444,7 @@ def get_relative_pose_human_in_cam(images_folder,camera_matrix,dist_coeffs, dete
 
     assert len(images)==3, "number of images to get robot base must be 4"
     
-    wand_local = np.array([[-0.00004],[0.262865],[-0.000009]])
+    wand_local = settings.wand_end_effector_local_pos
 
     wand_pos_cam_frame = []
     for ii, frame in enumerate(images):
@@ -506,7 +506,7 @@ def get_relative_pose_world_in_cam(images_folder,camera_matrix,dist_coeffs, dete
 
     assert len(images)==3, "number of images to get world must be 3"
 
-    wand_local = np.array([[-0.00004],[0.262865],[-0.000009]])
+    wand_local = settings.wand_end_effector_local_pos
 
     wand_pos_cam_frame = []
     for ii, frame in enumerate(images):

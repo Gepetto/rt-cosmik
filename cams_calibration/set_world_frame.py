@@ -74,7 +74,7 @@ dist_coeffs_2 = D2
 parameters = cv2.aruco.DetectorParameters()
 detector = cv2.aruco.ArucoDetector(aruco_dict, parameters)
 
-wand_local = np.array([[-0.00004],[0.262865],[-0.000009]])
+wand_local = settings.wand_end_effector_local_pos
 img_idx=0
 
 try : 
