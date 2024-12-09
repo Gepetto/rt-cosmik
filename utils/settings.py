@@ -1,10 +1,11 @@
 from dataclasses import dataclass, field
+import numpy as np
 
 @dataclass
 class Settings:
     # CAM PARAMS
     fs: int = 40
-    dt: float = 1/fs
+    dt: float = field(init=False)  # Mark `dt` as excluded from the constructor
     width: int = 1280 # image resolution
     height: int = 720 # image resolution
     # CAMS CALIB 
@@ -12,6 +13,9 @@ class Settings:
     checkerboard_rows: int = 5 # number of rows on the checkerboard -1 
     checkerboard_columns: int = 7 # number of columns on the checkerboard -1 
     checkerboard_scaling: float = 0.107 # size of squares in meters
+    wand_end_effector_local_pos: np.ndarray = field(
+        default_factory=lambda: np.array([[-0.00004], [0.262865], [-0.000009]]) # local pose of wand's end effector for pointing calibration
+    )
     # FILTER PARAMS
     order: int = 4
     system_freq: int = 30 # For now the system update time is at around 0.034 ms so around 30 Hz 
@@ -42,5 +46,8 @@ class Settings:
            'L_sh1_study','L_sh2_study','L_sh3_study','RHJC_study','LHJC_study','r_lelbow_study',
            'r_melbow_study','r_lwrist_study','r_mwrist_study','L_lelbow_study','L_melbow_study',
            'L_lwrist_study','L_mwrist_study'])
+    
+    def __post_init__(self):
+        self.dt = 1 / self.fs  # Compute `dt` after initialization
 
 
