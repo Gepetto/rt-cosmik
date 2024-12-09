@@ -12,8 +12,15 @@ This repository is designed to work with a pre-configured Docker environment to 
 Once the Docker environment is set up, clone this repository into the appropriate directory:
 
 ```bash
-cd workspace/ros_ws_src
+cd workspace/ros_ws/src
 git clone https://gitlab.laas.fr/msabbah/rt-cosmik.git
+```
+
+### Build RT-COSMIK with catkin build
+
+```bash
+cd workspace/ros_ws/src
+catkin build rt-cosmik
 ```
 
 ## Test and Deploy
