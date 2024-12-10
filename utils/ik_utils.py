@@ -454,12 +454,15 @@ class RT_SWIKA:
         options["fatrop"]={"max_iter":50}
         options["fatrop"]={"tol":1e-3}
         options["structure_detection"] = "auto"
-        options["debug"] = True
-        
+        options["debug"] = False
+
         # (codegen of helper functions)
-        # options["jit"] = True
-        # options["jit_temp_suffix"] = False
-        # options["jit_options"] = {"flags": ["-O3"],"compiler": "shell"}
+        options["jit"] = True
+        # options["jit_name"] = "tmp_casadi_compiler_shell"
+        options["jit_temp_suffix"] = False
+        # options["compiler"] = "shell"
+        # options["jit_cleanup"]=False
+        options["jit_options"] = {"flags": ["-O3"],"compiler": "ccache clang"}
 
         opti.solver("fatrop",options)
 
