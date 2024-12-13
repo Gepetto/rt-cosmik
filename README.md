@@ -28,7 +28,7 @@ All the usable code can be found in apps folder for running the pipelines and on
 
 For ros visualisation in rviz do the following command : 
 
-```
+``` bash 
 roslaunch rt-cosmik start_viz.launch
 ```
 
