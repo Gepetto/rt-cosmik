@@ -8,7 +8,7 @@ import numpy as np
 np.set_printoptions(precision=4, suppress=True)
 from mmdeploy_runtime import PoseTracker
 import time 
-time.sleep(5)
+# time.sleep(5)
 import pinocchio as pin
 from collections import deque
 from datetime import datetime
