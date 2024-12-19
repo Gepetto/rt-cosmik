@@ -1,4 +1,4 @@
-# To run the code from RT-COSMIK root : python3 -m cams_calibration.get_human_base_frame
+# To run the code from RT-COSMIK root : python3 -m cams_calibration.get_human_base_frame expe trial
 
 import cv2
 import numpy as np
@@ -142,9 +142,13 @@ try :
             frame_2 = cv2.circle(frame_2, (int(image_points2[0]), int(image_points2[1])), 5, (0, 0, 255), -1)
 
 
+        resized_color_image_1 = cv2.resize(frame_1, (640, 480), interpolation = cv2.INTER_NEAREST)
+        resized_color_image_2 = cv2.resize(frame_2, (640, 480), interpolation = cv2.INTER_NEAREST) 
+
+        images_hstack_1 = np.hstack((resized_color_image_1, resized_color_image_2))
         # Display the frames for both cameras
-        cv2.imshow('Camera 1 Pose Estimation', frame_1)
-        cv2.imshow('Camera 2 Pose Estimation', frame_2)
+        cv2.imshow('Stacked images', images_hstack_1)
+        
         c = cv2.waitKey(10)
         if c == ord('s'):
             print('images taken')
