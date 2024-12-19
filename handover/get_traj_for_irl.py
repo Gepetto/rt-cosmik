@@ -3,7 +3,8 @@
 
 # Launch gepetto-gui then 
 # To run the code : python3 handover/get_traj_for_irl.py cuda /root/workspace/mmdeploy/rtmpose-trt/rtmdet-nano /root/workspace/mmdeploy/rtmpose-trt/rtmpose-m
-# or python3 -m handover.get_traj_for_irl cuda /root/workspace/mmdeploy/rtmpose-trt/rtmdet-nano /root/workspace/mmdeploy/rtmpose-trt/rtmpose-m
+# or 
+# python3 -m handover.get_traj_for_irl cuda /root/workspace/mmdeploy/rtmpose-trt/rtmdet-nano /root/workspace/mmdeploy/rtmpose-trt/rtmpose-m
 
 import argparse
 import os
