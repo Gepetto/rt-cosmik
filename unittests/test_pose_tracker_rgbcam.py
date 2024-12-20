@@ -9,6 +9,7 @@ from mmdeploy_runtime import PoseTracker
 import time 
 from utils.viz_utils import visualize, VISUALIZATION_CFG
 from utils.calib_utils import list_cameras_with_v4l2
+from utils.settings import Settings
 
 def parse_args():
     parser = argparse.ArgumentParser(
@@ -32,20 +33,13 @@ def parse_args():
 
 
 def main():
+    # FIRST, PARAM LOADING
+    settings = Settings()
     args = parse_args()
-    np.set_printoptions(precision=4, suppress=True)
-
-    width = 1280
-    height = 720
-    resize=1280
-    fs =40
 
     ### Initialize cams stream
     camera_dict = list_cameras_with_v4l2()
     captures = [cv2.VideoCapture(idx, cv2.CAP_V4L2) for idx in camera_dict.keys()]
-
-    width_vids = []
-    height_vids = []
 
     for idx, cap in enumerate(captures):
         if not cap.isOpened():
@@ -53,12 +47,9 @@ def main():
 
         # Apply settings
         cap.set(cv2.CAP_PROP_FOURCC, cv2.VideoWriter_fourcc(*'MJPG'))
-        cap.set(cv2.CAP_PROP_FRAME_WIDTH, width)
-        cap.set(cv2.CAP_PROP_FRAME_HEIGHT, height)
-        cap.set(cv2.CAP_PROP_FPS, fs)
-
-        width_vids.append(width)
-        height_vids.append(height)
+        cap.set(cv2.CAP_PROP_FRAME_WIDTH, settings.width)
+        cap.set(cv2.CAP_PROP_FRAME_HEIGHT, settings.height)
+        cap.set(cv2.CAP_PROP_FPS, settings.fs)
         
     frame_idx = 0
 
@@ -89,12 +80,8 @@ def main():
             for idx, frame in enumerate(frames):
                 t0 = time.time()
                 results = tracker(state, frame, detect=-1)
-                scale = resize / max(frame.shape[0], frame.shape[1])
                 keypoints, bboxes, _ = results
-                scores = keypoints[..., 2]
-                # keypoints = (keypoints[..., :2] * scale).astype(float)
                 keypoints = (keypoints[..., :2] ).astype(float)
-                bboxes *= scale
                 t1 =time.time()
                 print("Time of inference for one image",t1-t0)
 

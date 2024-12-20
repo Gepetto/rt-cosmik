@@ -320,9 +320,8 @@ class RT_IK:
         }
 
         opti.solver("ipopt", opts)
-
         sol = opti.solve()
-        
+
         q = sol.value(Q)
         return q 
 
