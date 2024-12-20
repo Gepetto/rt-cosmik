@@ -152,9 +152,9 @@ def main():
     frame_idx = 0
 
     # Define the codec and create VideoWriter objects for both RGB streams
-    fourcc = cv2.VideoWriter_fourcc(*'mp4v')  # Codec for AVI files
-    out_vid1 = cv2.VideoWriter(os.path.join(parent_directory,'output/cam1.mp4'), fourcc, 40.0, (int(settings.width), int(settings.height)), True)
-    out_vid2 = cv2.VideoWriter(os.path.join(parent_directory,'output/cam2.mp4'), fourcc, 40.0, (int(settings.width), int(settings.height)), True)
+    fourcc = cv2.VideoWriter_fourcc(*'MJPG')  # Codec for AVI files
+    out_vid1 = cv2.VideoWriter(os.path.join(parent_directory,'output/cam1.mp4'), fourcc, settings.system_freq, (int(settings.width), int(settings.height)), True)
+    out_vid2 = cv2.VideoWriter(os.path.join(parent_directory,'output/cam2.mp4'), fourcc, settings.system_freq, (int(settings.width), int(settings.height)), True)
 
     tracker = PoseTracker(
         det_model=args.det_model,
@@ -200,14 +200,14 @@ def main():
                 else :
                     keypoints_list.append(keypoints.reshape((26,2)).flatten())
                     
-                if not visualize(
-                        frame,
-                        results,
-                        args.output_dir,
-                        idx,
-                        frame_idx + idx,
-                        skeleton_type=args.skeleton):
-                    break
+                # if not visualize(
+                #         frame,
+                #         results,
+                #         args.output_dir,
+                #         idx,
+                #         frame_idx + idx,
+                #         skeleton_type=args.skeleton):
+                #     break
 
             if len(keypoints_list)!=2: #number of cams
                 pass
