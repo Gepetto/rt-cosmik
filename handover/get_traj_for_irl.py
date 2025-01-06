@@ -90,7 +90,7 @@ def main():
     keypoints_csv_file_path = os.path.join(parent_directory,'output/handover/calib_keypoints_3d_positions.csv')
     augmented_csv_file_path = os.path.join(parent_directory, 'output/handover/calib_augmented_markers_positions.csv')
     q_csv_file_path = os.path.join(parent_directory,'output/handover/irl_trajs.csv')
-    calib_human_path = os.path.join(parent_directory, "handover/human_params/human_arm_anthropometry.yaml")
+    calib_human_path = os.path.join(parent_directory, "handover/human_params/human_anthropometry.yaml")
 
     # TODO : ADJUST WITH THE NUMBER OF CAMERAS
     K1, D1 = load_cam_params(os.path.join(parent_directory,"cams_calibration/cam_params/c1_params_color_test_test.yml"))
@@ -259,12 +259,10 @@ def main():
                             dict_mean_segment_lengths = dict(zip(['Knee', 'Hip', 'Shoulder', 'Elbow', 'Wrist'], np.mean(segment_lengths_array,axis=0))) 
                             # Convert NumPy types to native Python types
                             dict_mean_segment_lengths = {key: float(value) for key, value in dict_mean_segment_lengths.items()}
-                            # Here we only keep upperarm and lowerarm lengths to save 
-                            dict_mean_segment_lengths_to_save = dict((key, dict_mean_segment_lengths[key]) for key in ["Elbow", "Wrist"])
                             
                             # Dump the dictionary to a YAML file
                             with open(calib_human_path, 'w') as file:
-                                yaml.dump(dict_mean_segment_lengths_to_save, file, default_flow_style=False)
+                                yaml.dump(dict_mean_segment_lengths, file, default_flow_style=False)
 
                             print(f"Dictionary successfully dumped to {calib_human_path}")
 
