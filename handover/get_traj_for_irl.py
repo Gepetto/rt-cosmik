@@ -256,7 +256,7 @@ def main():
                     else :
                         if not_calibrated:
                             segment_lengths_array = np.array(segment_lengths)
-                            dict_mean_segment_lengths = dict(zip(['Knee', 'Hip', 'Shoulder', 'Elbow', 'Wrist'], np.mean(segment_lengths_array,axis=0))) 
+                            dict_mean_segment_lengths = dict(zip(['Knee', 'Hip', 'Shoulder', 'Elbow', 'Wrist'], np.round(np.mean(segment_lengths_array,axis=0),4))) 
                             # Convert NumPy types to native Python types
                             dict_mean_segment_lengths = {key: float(value) for key, value in dict_mean_segment_lengths.items()}
                             
