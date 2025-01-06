@@ -90,16 +90,16 @@ def main():
     keypoints_csv_file_path = os.path.join(parent_directory,'output/handover/calib_keypoints_3d_positions.csv')
     augmented_csv_file_path = os.path.join(parent_directory, 'output/handover/calib_augmented_markers_positions.csv')
     q_csv_file_path = os.path.join(parent_directory,'output/handover/irl_trajs.csv')
-    calib_human_path = os.path.join(parent_directory, "handover/human_params/human_anthropometry.yaml")
+    calib_human_path = os.path.join(parent_directory, "config/human_params/human_anthropometry.yaml")
 
     # TODO : ADJUST WITH THE NUMBER OF CAMERAS
-    K1, D1 = load_cam_params(os.path.join(parent_directory,"cams_calibration/cam_params/c1_params_color_test_test.yml"))
-    K2, D2 = load_cam_params(os.path.join(parent_directory,"cams_calibration/cam_params/c2_params_color_test_test.yml"))
-    R,T = load_cam_to_cam_params(os.path.join(parent_directory,"cams_calibration/cam_params/c1_to_c2_params_color_test_test.yml"))
+    K1, D1 = load_cam_params(os.path.join(parent_directory,"config/cam_params/c1_params_color_test_test.yaml"))
+    K2, D2 = load_cam_params(os.path.join(parent_directory,"config/cam_params/c2_params_color_test_test.yaml"))
+    R,T = load_cam_to_cam_params(os.path.join(parent_directory,"config/cam_params/c1_to_c2_params_color_test_test.yaml"))
     mtxs, dists, projections, rotations, translations = get_cameras_params(K1, D1, K2, D2, R, T)
 
     ### Loading camera pose 
-    cam_R1_world, cam_T1_world = load_cam_pose(os.path.join(parent_directory,'cams_calibration/cam_params/camera1_pose_test_test.yml'))
+    cam_R1_world, cam_T1_world = load_cam_pose(os.path.join(parent_directory,'config/cam_params/camera1_pose_test_test.yaml'))
     # Inverse the pose to get cam in world frame 
     world_R1_cam = cam_R1_world.T
     world_T1_cam = -cam_R1_world.T@cam_T1_world

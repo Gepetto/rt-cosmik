@@ -30,13 +30,13 @@ trial_no = str(arg2)
 # Use os.makedirs() to create your directory; exist_ok=True means it won't throw an error if the directory already exists
 os.makedirs(os.path.join(parent_directory,"cams_calibration/images_human_base_cam_1/" + expe_no + "_" + trial_no + "/color"), exist_ok=True)
 os.makedirs(os.path.join(parent_directory,"cams_calibration/images_human_base_cam_2/" + expe_no + "_" + trial_no + "/color"), exist_ok=True)
-os.makedirs(os.path.join(parent_directory,"cams_calibration/human_params"), exist_ok=True)
+os.makedirs(os.path.join(parent_directory,"config/human_params"), exist_ok=True)
 
 c1_color_imgs_path = os.path.join(parent_directory,"cams_calibration/images_human_base_cam_1/" + expe_no + "_" + trial_no + "/color/*")
 c2_color_imgs_path = os.path.join(parent_directory,"cams_calibration/images_human_base_cam_2/" + expe_no + "_" + trial_no + "/color/*")
 
-c1_color_params_path = os.path.join(parent_directory,"cams_calibration/human_params/c1_human_color_" + expe_no + "_" + trial_no + ".yml")
-c2_color_params_path = os.path.join(parent_directory,"cams_calibration/human_params/c2_human_color_" + expe_no + "_" + trial_no + ".yml")
+c1_color_params_path = os.path.join(parent_directory,"config/human_params/c1_human_color_" + expe_no + "_" + trial_no + ".yaml")
+c2_color_params_path = os.path.join(parent_directory,"config/human_params/c2_human_color_" + expe_no + "_" + trial_no + ".yaml")
 
 # FIRST, PARAM LOADING
 settings = Settings()
@@ -59,11 +59,11 @@ for idx, cap in enumerate(captures):
 aruco_dict = cv2.aruco.getPredefinedDictionary(cv2.aruco.DICT_4X4_50)
 marker_size = settings.wand_marker_size  # Marker size in meters (17.6 cm)
 
-K1, D1 = load_cam_params(os.path.join(parent_directory,"cams_calibration/cam_params/c1_params_color_"+ expe_no + "_" + trial_no +".yml"))
-K2, D2 = load_cam_params(os.path.join(parent_directory,"cams_calibration/cam_params/c2_params_color_"+ expe_no + "_" + trial_no +".yml"))
+K1, D1 = load_cam_params(os.path.join(parent_directory,"config/cam_params/c1_params_color_"+ expe_no + "_" + trial_no +".yaml"))
+K2, D2 = load_cam_params(os.path.join(parent_directory,"config/cam_params/c2_params_color_"+ expe_no + "_" + trial_no +".yaml"))
 
-cam_R1_world, cam_T1_world = load_cam_pose(os.path.join(parent_directory,"cams_calibration/cam_params/camera1_pose_"+ expe_no + "_" + trial_no +".yml"))
-cam_R2_world, cam_T2_world = load_cam_pose(os.path.join(parent_directory,"cams_calibration/cam_params/camera2_pose_"+ expe_no + "_" + trial_no +".yml"))
+cam_R1_world, cam_T1_world = load_cam_pose(os.path.join(parent_directory,"config/cam_params/camera1_pose_"+ expe_no + "_" + trial_no +".yaml"))
+cam_R2_world, cam_T2_world = load_cam_pose(os.path.join(parent_directory,"config/cam_params/camera2_pose_"+ expe_no + "_" + trial_no +".yaml"))
 
 # Inverse the pose to get cam in world frame 
 world_R1_cam = cam_R1_world.T

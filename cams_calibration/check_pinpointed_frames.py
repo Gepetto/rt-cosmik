@@ -45,20 +45,20 @@ for idx, cap in enumerate(captures):
     cap.set(cv2.CAP_PROP_FRAME_HEIGHT, settings.height)
     cap.set(cv2.CAP_PROP_FPS, settings.fs)
 
-K1, D1 = load_cam_params(os.path.join(parent_directory,"cams_calibration/cam_params/c1_params_color_"+ expe_no + "_" + trial_no +".yml"))
-K2, D2 = load_cam_params(os.path.join(parent_directory,"cams_calibration/cam_params/c2_params_color_"+ expe_no + "_" + trial_no +".yml"))
+K1, D1 = load_cam_params(os.path.join(parent_directory,"config/cam_params/c1_params_color_"+ expe_no + "_" + trial_no +".yaml"))
+K2, D2 = load_cam_params(os.path.join(parent_directory,"config/cam_params/c2_params_color_"+ expe_no + "_" + trial_no +".yaml"))
 
-cam_R1_world, cam_T1_world = load_cam_pose(os.path.join(parent_directory,"cams_calibration/cam_params/camera1_pose_"+ expe_no + "_" + trial_no +".yml"))
-cam_R2_world, cam_T2_world = load_cam_pose(os.path.join(parent_directory,"cams_calibration/cam_params/camera2_pose_"+ expe_no + "_" + trial_no +".yml"))
+cam_R1_world, cam_T1_world = load_cam_pose(os.path.join(parent_directory,"config/cam_params/camera1_pose_"+ expe_no + "_" + trial_no +".yaml"))
+cam_R2_world, cam_T2_world = load_cam_pose(os.path.join(parent_directory,"config/cam_params/camera2_pose_"+ expe_no + "_" + trial_no +".yaml"))
 
-world_rpy1_human, world_T1_human = load_cam_pose_rpy(os.path.join(parent_directory,"cams_calibration/human_params/c1_human_color_"+ expe_no + "_" + trial_no +".yml"))
+world_rpy1_human, world_T1_human = load_cam_pose_rpy(os.path.join(parent_directory,"config/human_params/c1_human_color_"+ expe_no + "_" + trial_no +".yaml"))
 world_R1_human = Rotation.from_euler('xyz', world_rpy1_human.T, degrees=False).as_matrix()[0]
-world_rpy2_human, world_T2_human = load_cam_pose_rpy(os.path.join(parent_directory,"cams_calibration/human_params/c2_human_color_"+ expe_no + "_" + trial_no +".yml"))
+world_rpy2_human, world_T2_human = load_cam_pose_rpy(os.path.join(parent_directory,"config/human_params/c2_human_color_"+ expe_no + "_" + trial_no +".yaml"))
 world_R2_human = Rotation.from_euler('xyz', world_rpy2_human.T, degrees=False).as_matrix()[0]
 
-world_rpy1_robot, world_T1_robot = load_cam_pose_rpy(os.path.join(parent_directory,"cams_calibration/robot_params/c1_robot_color_"+ expe_no + "_" + trial_no +".yml"))
+world_rpy1_robot, world_T1_robot = load_cam_pose_rpy(os.path.join(parent_directory,"config/robot_params/c1_robot_color_"+ expe_no + "_" + trial_no +".yaml"))
 world_R1_robot = Rotation.from_euler('xyz', world_rpy1_robot.T, degrees=False).as_matrix()[0]
-world_rpy2_robot, world_T2_robot = load_cam_pose_rpy(os.path.join(parent_directory,"cams_calibration/robot_params/c2_robot_color_"+ expe_no + "_" + trial_no +".yml"))
+world_rpy2_robot, world_T2_robot = load_cam_pose_rpy(os.path.join(parent_directory,"config/robot_params/c2_robot_color_"+ expe_no + "_" + trial_no +".yaml"))
 world_R2_robot = Rotation.from_euler('xyz', world_rpy2_robot.T, degrees=False).as_matrix()[0]
 
 cam_T1_human = cam_T1_world + cam_R1_world@world_T1_human

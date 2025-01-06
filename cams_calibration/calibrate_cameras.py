@@ -51,9 +51,9 @@ os.makedirs(os.path.join(parent_directory,"cams_calibration/images_calib_cam_2/"
 
 c1_color_imgs_path = os.path.join(parent_directory,"cams_calibration/images_calib_cam_1/" + expe_no + "_" + trial_no + "/color/*")
 c2_color_imgs_path = os.path.join(parent_directory,"cams_calibration/images_calib_cam_2/" + expe_no + "_" + trial_no + "/color/*")
-c1_color_params_path = os.path.join(parent_directory,"cams_calibration/cam_params/c1_params_color_" + expe_no + "_" + trial_no + ".yml")
-c2_color_params_path = os.path.join(parent_directory,"cams_calibration/cam_params/c2_params_color_" + expe_no + "_" + trial_no + ".yml")
-c1_to_c2_color_params_path = os.path.join(parent_directory,"cams_calibration/cam_params/c1_to_c2_params_color_" + expe_no + "_" + trial_no + ".yml")
+c1_color_params_path = os.path.join(parent_directory,"config/cam_params/c1_params_color_" + expe_no + "_" + trial_no + ".yaml")
+c2_color_params_path = os.path.join(parent_directory,"config/cam_params/c2_params_color_" + expe_no + "_" + trial_no + ".yaml")
+c1_to_c2_color_params_path = os.path.join(parent_directory,"config/cam_params/c1_to_c2_params_color_" + expe_no + "_" + trial_no + ".yaml")
 
 img_idx = 0
 try:

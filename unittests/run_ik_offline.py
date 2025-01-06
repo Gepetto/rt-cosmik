@@ -30,7 +30,7 @@ data = pd.read_csv(os.path.join(parent_directory,'output/keypoints_3D_pos_2RGB_2
 keypoints = data[['X', 'Y', 'Z']].values  # Shape: (3, N) where N is the number of keypoints
 
 # Loading camera pose 
-R1_global, T1_global = load_cam_pose(os.path.join(parent_directory,'cams_calibration/cam_params/camera1_pose_test_test.yml'))
+R1_global, T1_global = load_cam_pose(os.path.join(parent_directory,'config/cam_params/camera1_pose_test_test.yaml'))
 R1_global = R1_global@pin.utils.rotate('z', np.pi) # aligns measurements to human model definition
 
 # Subtract the translation vector (shifting the origin)
