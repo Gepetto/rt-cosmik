@@ -42,7 +42,7 @@
     <axis xyz="0 0 1" />
     <parent link="foot" />
     <child link="lowerleg" />
-    <limit effort="500.0" lower="-3.14" upper="3.14159" velocity="200.0" />
+    <limit effort="500.0" lower="-0.15" upper="3.14159" velocity="200.0" />
   </joint>
   
   <transmission name="ankle_transmition">
@@ -87,7 +87,7 @@
     <axis xyz="0 0 1" />
     <parent link="lowerleg" />
     <child link="upperleg" />
-    <limit effort="500.0" lower="-3.14" upper="3.14" velocity="200.0" />
+    <limit effort="500.0" lower="-0.15" upper="2.80" velocity="200.0" />
   </joint>
   
   <transmission name="knee_transmition">
@@ -152,7 +152,7 @@
     <axis xyz="0 0 1" />
     <parent link="upperleg" />
     <child link="trunk" />
-    <limit effort="500.0" lower="-3.14" upper="3.14" velocity="200.0" />
+    <limit effort="500.0" lower="-2.0" upper="0.5" velocity="200.0" />
   </joint>
   
   <transmission name="lumbar_transmition">
@@ -286,7 +286,7 @@
     <axis xyz="0 0 1" />
     <parent link="upperarm" />
     <child link="lowerarm" />
-    <limit effort="500.0" lower="-3.14" upper="3.14" velocity="200.0" />
+    <limit effort="500.0" lower="-0.15" upper="3.14" velocity="200.0" />
   </joint>
   
   <transmission name="elbow_transmition">
