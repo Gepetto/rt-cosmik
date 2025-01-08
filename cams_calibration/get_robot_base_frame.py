@@ -1,4 +1,4 @@
-# To run the code from RT-COSMIK root : python3 -m cams_calibration.get_robot_base_frame expe trial
+# To run the code from RT-COSMIK root : python3 -m cams_calibration.get_robot_base_frame test test
 
 # For the pinpointing when facing the robot by the long side (behind the x axis): 
 # - First image should be the top left screw at the base of the panda

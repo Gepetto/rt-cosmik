@@ -1,4 +1,4 @@
-# To run the code from RT-COSMIK root : python -m cams_calibration.calibrate_cameras expe trial
+# To run the code from RT-COSMIK root : python -m cams_calibration.calibrate_cameras test test
 
 import numpy as np
 import cv2

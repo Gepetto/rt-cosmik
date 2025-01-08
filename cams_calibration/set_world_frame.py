@@ -1,4 +1,4 @@
-# To run the code from RT-COSMIK root : python3 -m cams_calibration.set_world_frame expe trial
+# To run the code from RT-COSMIK root : python3 -m cams_calibration.set_world_frame test test
 
 import cv2
 import numpy as np
