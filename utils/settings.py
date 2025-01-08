@@ -31,8 +31,8 @@ class Settings:
     side_to_track: str =  "right" # bilateral (if we want to track both side, i.e., lifting), right or left
     
     # HUMAN ANTHROPOMETRY
-    human_height: float = 1.81
-    human_mass: float = 73.0
+    human_height: float = 1.80
+    human_mass: float = 65.0
 
     #MMPOSE MODEL (here body 26)
     keypoints_names: list = field(default_factory=lambda: [

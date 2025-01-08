@@ -5,7 +5,7 @@
   </material>
   <link name="world" />
   <joint name="world_to_human" type="fixed">
-    <origin rpy="1.572570285861921 0.15063584360293358 0.9840076914665431" xyz="0.02373367081544142 0.005079786187961677 0.010846197486314102" />  
+    <origin rpy="1.57 0 0" xyz="0 0 0" />  
     <axis xyz="0 0 1" />
     <parent link="world" />
     <child link="foot" />
@@ -83,7 +83,7 @@
     </visual>
   </link>
   <joint name="knee_Z" type="revolute">
-    <origin rpy="0 -0 0" xyz="0.40155370945561 0 0" />
+    <origin rpy="0 -0 0" xyz="0.4149 0 0" />
     <axis xyz="0 0 1" />
     <parent link="lowerleg" />
     <child link="upperleg" />
@@ -148,7 +148,7 @@
     </visual>
   </link>
   <joint name="lumbar_Z" type="revolute">
-    <origin rpy="0 -0 0" xyz="0.47648042433424215 0 0" />
+    <origin rpy="0 -0 0" xyz="0.4766 0 0" />
     <axis xyz="0 0 1" />
     <parent link="upperleg" />
     <child link="trunk" />
@@ -223,7 +223,7 @@
     </visual>
   </link>
   <joint name="shoulder_Z" type="revolute">
-    <origin rpy="0 -0 0" xyz="0.4397691087116175 0 0" />
+    <origin rpy="0 -0 0" xyz="0.4489 0 0" />
     <axis xyz="0 0 1" />
     <parent link="trunk" />
     <child link="upperarm" />
@@ -282,7 +282,7 @@
     </visual>
   </link>
   <joint name="elbow_Z" type="revolute">
-    <origin rpy="0 -0 0" xyz="0.33566674458246937 0 0" />
+    <origin rpy="0 -0 0" xyz="0.339 0 0" />
     <axis xyz="0 0 1" />
     <parent link="upperarm" />
     <child link="lowerarm" />
@@ -347,7 +347,7 @@
     </visual>
   </link>
   <joint name="hand_fixed" type="fixed">
-    <origin rpy="0 -0 0" xyz="0.23242554243018573 0 0" />
+    <origin rpy="0 -0 0" xyz="0.2329 0 0" />
     <axis xyz="0 0 1" />
     <parent link="lowerarm" />
     <child link="hand" />

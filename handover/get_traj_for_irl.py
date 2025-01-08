@@ -204,6 +204,15 @@ def main():
                 results = tracker(state, frame, detect=-1)
                 keypoints, bboxes, _ = results
                 keypoints = (keypoints[..., :2] ).astype(float)
+                
+                if not visualize(
+                        frame,
+                        results,
+                        args.output_dir,
+                        idx,
+                        frame_idx + idx,
+                        skeleton_type=args.skeleton):
+                    break
 
                 if keypoints.size == 0 or keypoints.flatten().shape != (52,):
                     pass
