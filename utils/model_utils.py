@@ -52,16 +52,7 @@ class Robot(RobotWrapper):
             
         if freeflyer_ori is not None and isFext == True : 
             self.model.jointPlacements[self.model.getJointId('root_joint')].rotation = freeflyer_ori
-            ub = self.model.upperPositionLimit
-            ub[:7] = 1
-            self.model.upperPositionLimit = ub
-            lb = self.model.lowerPositionLimit
-            lb[:7] = -1
-            self.model.lowerPositionLimit = lb
             self.data = self.model.createData()
-        else:
-            self.model.upperPositionLimit = np.array([np.pi,np.pi,np.pi/8,np.pi/8,8*np.pi/9])
-            self.model.lowerPositionLimit = np.array([0,0,-np.pi,-10*np.pi/9,0])
 
         ## \todo test that this is equivalent to reloading the model
         self.geom_model = self.collision_model
