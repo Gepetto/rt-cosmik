@@ -152,6 +152,11 @@ def main():
     first_sample = True 
     not_calibrated = True
     frame_idx = 0
+    
+    # Define the codec and create VideoWriter objects for both RGB streams
+    fourcc = cv2.VideoWriter_fourcc(*'mp4v')  # Codec for AVI files
+    out_vid1 = cv2.VideoWriter(os.path.join(parent_directory,'output/handover/cam1_irl.mp4'), fourcc, 40.0, (int(settings.width), int(settings.height)), True)
+    out_vid2 = cv2.VideoWriter(os.path.join(parent_directory,'output/handover/cam2_irl.mp4'), fourcc, 40.0, (int(settings.width), int(settings.height)), True)
 
     tracker = PoseTracker(
         det_model=args.det_model,
@@ -190,6 +195,12 @@ def main():
 
             # Process each frame individually
             for idx, frame in enumerate(frames):
+                #Videos savings
+                if idx == 0 : 
+                    out_vid1.write(frame)
+                elif idx == 1 : 
+                    out_vid2.write(frame)
+                    
                 results = tracker(state, frame, detect=-1)
                 keypoints, bboxes, _ = results
                 keypoints = (keypoints[..., :2] ).astype(float)
@@ -350,6 +361,8 @@ def main():
         # Release the camera captures
         for cap in captures:
             cap.release()
+        out_vid1.release()
+        out_vid2.release()
         cv2.destroyAllWindows()
 
 
