@@ -244,7 +244,7 @@
     <axis xyz="0 0 1" />
     <parent link="trunk" />
     <child link="upperarm" />
-    <limit effort="500.0" velocity="200.0" lower="-3.14" upper="1.54" />
+    <limit effort="500.0" velocity="200.0" lower="-3.14" upper="3.14" />
   </joint>
   <!-- TRANSMITION DEFINITION -->
   <transmission name="shoulder_transmition">
