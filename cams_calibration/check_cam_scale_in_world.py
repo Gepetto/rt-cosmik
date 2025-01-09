@@ -1,4 +1,4 @@
-# To run the code from RT-COSMIK root : python3 -m cams_calibration.get_human_base_frame test test
+# To run the code from RT-COSMIK root : python3 -m cams_calibration.check_cam_scale_in_world test test
 
 import cv2
 import numpy as np
@@ -13,6 +13,7 @@ script_directory = os.path.dirname(os.path.abspath(__file__))
 # Go one folder back
 parent_directory = os.path.dirname(script_directory)
 
+
 # Checking if at least two arguments are passed (including the script name)
 if len(sys.argv) > 2:
     arg1 = sys.argv[1]  # First argument
@@ -26,17 +27,6 @@ else:
 
 expe_no = str(arg1)
 trial_no = str(arg2)
-
-# Use os.makedirs() to create your directory; exist_ok=True means it won't throw an error if the directory already exists
-os.makedirs(os.path.join(parent_directory,"cams_calibration/images_human_base_cam_1/" + expe_no + "_" + trial_no + "/color"), exist_ok=True)
-os.makedirs(os.path.join(parent_directory,"cams_calibration/images_human_base_cam_2/" + expe_no + "_" + trial_no + "/color"), exist_ok=True)
-os.makedirs(os.path.join(parent_directory,"config/human_params"), exist_ok=True)
-
-c1_color_imgs_path = os.path.join(parent_directory,"cams_calibration/images_human_base_cam_1/" + expe_no + "_" + trial_no + "/color/*")
-c2_color_imgs_path = os.path.join(parent_directory,"cams_calibration/images_human_base_cam_2/" + expe_no + "_" + trial_no + "/color/*")
-
-c1_color_params_path = os.path.join(parent_directory,"config/human_params/c1_human_color_" + expe_no + "_" + trial_no + ".yaml")
-c2_color_params_path = os.path.join(parent_directory,"config/human_params/c2_human_color_" + expe_no + "_" + trial_no + ".yaml")
 
 # FIRST, PARAM LOADING
 settings = Settings()
@@ -108,9 +98,6 @@ try :
         transformation_matrix_2, corners_2, rvec_2, tvec_2 = get_aruco_pose(frame_2, K2, D2, detector, marker_size)
 
         if transformation_matrix_1 is not None:
-            print("Camera 1 Pose (Transformation Matrix):")
-            print(transformation_matrix_1)
-
             tip_pos1=tvec_1 + transformation_matrix_1[:3, :3]@wand_local 
 
             # Project the 3D wand tip position to 2D image coordinates
@@ -125,9 +112,6 @@ try :
             frame_1 = cv2.circle(frame_1, (int(image_points1[0]), int(image_points1[1])), 5, (0, 0, 255), -1)
 
         if transformation_matrix_2 is not None:
-            print("Camera 2 Pose (Transformation Matrix):")
-            print(transformation_matrix_2)
-
             tip_pos2=tvec_2 + transformation_matrix_2[:3, :3]@wand_local 
 
             # Project the 3D wand tip position to 2D image coordinates
@@ -151,10 +135,9 @@ try :
         
         c = cv2.waitKey(10)
         if c == ord('s'):
-            print('images taken')
-            cv2.imwrite(os.path.join(parent_directory,"cams_calibration/images_human_base_cam_1/" + expe_no + "_" + trial_no + "/color/img_" + str(img_idx) + ".png"), color_frame_1)
-            cv2.imwrite(os.path.join(parent_directory,"cams_calibration/images_human_base_cam_2/" + expe_no + "_" + trial_no + "/color/img_" + str(img_idx) + ".png"), color_frame_2)
-            img_idx = img_idx + 1
+            print('Display tip poses')
+            print('Tip Pose in cam 1 = ', tip_pos1)
+            print('Tip Pose in cam 2 = ', tip_pos2)
         if c == ord('q'):
             print("quit")
             break
@@ -163,73 +146,3 @@ finally :
     for cap in captures:
         cap.release()
     cv2.destroyAllWindows()
-
-
-cam_T1_human, cam_R1_human = get_relative_pose_human_in_cam(c1_color_imgs_path,K1,D1,detector, marker_size)
-
-world_T1_human = world_R1_cam@cam_T1_human + world_T1_cam
-world_R1_human = world_R1_cam@cam_R1_human 
-
-world_rpy1_human = Rotation.from_matrix(world_R1_human).as_euler('xyz', degrees=False)
-
-print("computed translation RGB cam 1 : ")
-print(world_T1_human)
-print("computed rpy RGB cam 1 : ")
-print(world_rpy1_human)
-
-save_pose_rpy_to_yaml(world_T1_human, world_rpy1_human, c1_color_params_path)
-
-cam_T2_human, cam_R2_human = get_relative_pose_human_in_cam(c2_color_imgs_path,K2,D2,detector, marker_size)
-
-world_T2_human = world_R2_cam@cam_T2_human + world_T2_cam
-world_R2_human = world_R2_cam@cam_R2_human 
-
-world_rpy2_human = Rotation.from_matrix(world_R2_human).as_euler('xyz', degrees=False)
-
-print("computed translation RGB cam 2 : ")
-print(world_T2_human)
-print("computed rpy RGB cam 2 : ")
-print(world_rpy2_human)
-
-save_pose_rpy_to_yaml(world_T2_human, world_rpy2_human, c2_color_params_path)
-
-# Camera transformations 
-camera_data = [
-    {   "K": K1, "D": D1,
-        "cam_T_world": cam_T1_world, "cam_R_world": cam_R1_world,
-        "cam_T_human": cam_T1_human, "cam_R_human": cam_R1_human,
-        "image": cv2.imread(os.path.join(parent_directory,"cams_calibration/images_human_base_cam_1/" + expe_no + "_" + trial_no + "/color/img_0.png"))
-    },
-    {
-        "K": K2, "D": D2,
-        "cam_T_world": cam_T2_world, "cam_R_world": cam_R2_world,
-        "cam_T_human": cam_T2_human, "cam_R_human": cam_R2_human,
-        "image": cv2.imread(os.path.join(parent_directory,"cams_calibration/images_human_base_cam_2/" + expe_no + "_" + trial_no + "/color/img_0.png"))
-    }
-]
-
-for cam_data in camera_data:
-
-    cam_R_human = cam_data["cam_R_human"]
-    cam_rodrigues_human = cv2.Rodrigues(cam_R_human)[0]
-    cam_T_human = cam_data["cam_T_human"]
-
-    cam_R_world = cam_data["cam_R_world"]
-    cam_rodrigues_world = cv2.Rodrigues(cam_R_world)[0]
-    cam_T_world = cam_data["cam_T_world"]
-
-    image = cam_data["image"]
-    K= cam_data["K"]
-    D= cam_data["D"]
-
-    cv2.drawFrameAxes(image, K, D, cam_rodrigues_world, cam_T_world, 0.1)
-    cv2.drawFrameAxes(image, K, D, cam_rodrigues_human, cam_T_human, 0.1)
-
-    # Save or display the updated image
-    cv2.imshow('Reprojected Image', image)
-    cv2.waitKey(0)
-
-    if c == ord('a'):
-        break
-
-cv2.destroyAllWindows()
