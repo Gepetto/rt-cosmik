@@ -18,9 +18,9 @@
       <inertia ixx="0.000815" ixy="0.000477" ixz="-0.00018" iyy="0.00386" iyz="0.0" izz="0.003654"/>
     </inertial>
     <visual>
-      <origin rpy="0 1.57 0" xyz="-0.05 0 0"/>
+      <origin rpy="0 0 0" xyz="-0 0 0.1"/>
       <geometry>
-        <mesh filename="package://rt-cosmik/meshes/foot_mesh.STL" scale="0.0060 0.0060 0.0060"/>
+        <mesh filename="package://meshes/foot_mesh.STL" scale="0.0060 0.0060 0.0060"/>
       </geometry>
       <material name="body_color">
         <texture/>
@@ -28,9 +28,9 @@
       </material>
     </visual>
     <visual>
-      <origin rpy="0 1.57 0" xyz="-0.05 0 0.15"/>
+      <origin rpy="0 0 0" xyz="0 0.0 -0.1"/>
       <geometry>
-        <mesh filename="package://rt-cosmik/meshes/foot_mesh.STL" scale="0.0060 0.0060 0.0060"/>
+        <mesh filename="package://meshes/foot_mesh.STL" scale="0.0060 0.0060 0.0060"/>
       </geometry>
       <material name="body_color">
         <texture/>
@@ -59,13 +59,13 @@
   <link name="lowerleg">
     <inertial>
       <mass value="3.6"/>
-      <origin rpy="0 0 0" xyz="0.171 0.02 0.003"/>
+      <origin rpy="0 -0 0" xyz="0.171 0.02 0.003"/>
       <inertia ixx="0.049314" ixy="-0.001006" ixz="-0.000252" iyy="0.00629" iyz="0.001573" izz="0.049314"/>
     </inertial>
     <visual>
-      <origin rpy="1.57 1.57 0" xyz="-0.0 0.06 0.0"/>
+      <origin rpy="0 0 -1.57" xyz="0.45 0.0 0.1"/>
       <geometry>
-        <mesh filename="package://rt-cosmik/meshes/lowerleg_mesh.STL" scale="0.0063 0.0065 0.007"/>
+        <mesh filename="package://meshes/lowerleg_mesh.STL" scale="0.0063 0.0065 0.007"/>
       </geometry>
       <material name="body_color">
         <texture/>
@@ -73,9 +73,9 @@
       </material>
     </visual>
     <visual>
-      <origin rpy="1.57 1.57 0" xyz="-0.0 0.06 0.155"/>
+      <origin rpy="0 0 -1.57" xyz="0.45 0.0 -0.1"/>
       <geometry>
-        <mesh filename="package://rt-cosmik/meshes/lowerleg_mesh.STL" scale="0.0063 0.0065 0.007"/>
+        <mesh filename="package://meshes/lowerleg_mesh.STL" scale="0.0063 0.0065 0.007"/>
       </geometry>
       <material name="body_color">
         <texture/>
@@ -84,7 +84,7 @@
     </visual>
   </link>
   <joint name="knee_Z" type="revolute">
-    <origin rpy="0 -0 0" xyz="0.428 0.0 0.0"/>
+    <origin rpy="0 -0 0" xyz="0.4571 0.0 0.0"/>
     <axis xyz="0 0 1"/>
     <parent link="lowerleg"/>
     <child link="upperleg"/>
@@ -104,13 +104,13 @@
   <link name="upperleg">
     <inertial>
       <mass value="9.22"/>
-      <origin rpy="0 0 0" xyz="0.179 0.017 0.014"/>
+      <origin rpy="0 -0 0" xyz="0.179 0.017 0.014"/>
       <inertia ixx="0.134834" ixy="0.007856" ixz="-0.000641" iyy="0.036073" iyz="-0.007856" izz="0.144293"/>
     </inertial>
     <visual>
-      <origin rpy="0.0 0 0" xyz="-0.06 -0.05 -0.12"/>
+      <origin rpy="0.0 0 -1.57" xyz="0.05 0.0 0.1"/>
       <geometry>
-        <mesh filename="package://rt-cosmik/meshes/knee_mesh.STL" scale="0.006 0.006 0.006"/>
+        <mesh filename="package://meshes/knee_mesh.STL" scale="0.006 0.006 0.006"/>
       </geometry>
       <material name="body_color">
         <texture/>
@@ -118,9 +118,9 @@
       </material>
     </visual>
     <visual>
-      <origin rpy="0.0 0 0" xyz="-0.06 -0.05 0.03"/>
+      <origin rpy="0.0 0 -1.57" xyz="0.05 0.0 -0.1"/>
       <geometry>
-        <mesh filename="package://rt-cosmik/meshes/knee_mesh.STL" scale="0.006 0.006 0.006"/>
+        <mesh filename="package://meshes/knee_mesh.STL" scale="0.006 0.006 0.006"/>
       </geometry>
       <material name="body_color">
         <texture/>
@@ -128,9 +128,9 @@
       </material>
     </visual>
     <visual>
-      <origin rpy="1.57 1.57 0" xyz="0.02 0.07 0"/>
+      <origin rpy="0 0 -1.57" xyz="0.47 0.0 0.1"/>
       <geometry>
-        <mesh filename="package://rt-cosmik/meshes/upperleg_mesh.STL" scale="0.0063 0.0065 0.007"/>
+        <mesh filename="package://meshes/upperleg_mesh.STL" scale="0.0063 0.0065 0.007"/>
       </geometry>
       <material name="body_color">
         <texture/>
@@ -138,9 +138,9 @@
       </material>
     </visual>
     <visual>
-      <origin rpy="1.57 1.57 0" xyz="0.02 0.07 0.155"/>
+      <origin rpy="0 0 -1.57" xyz="0.47 0.0 -0.1"/>
       <geometry>
-        <mesh filename="package://rt-cosmik/meshes/upperleg_mesh.STL" scale="0.0063 0.0065 0.007"/>
+        <mesh filename="package://meshes/upperleg_mesh.STL" scale="0.0063 0.0065 0.007"/>
       </geometry>
       <material name="body_color">
         <texture/>
@@ -149,7 +149,7 @@
     </visual>
   </link>
   <joint name="lumbar_Z" type="revolute">
-    <origin rpy="0 -0 0" xyz="0.5972 0.0 0.0"/>
+    <origin rpy="0 -0 0" xyz="0.6092 0.0 0.0"/>
     <axis xyz="0 0 1"/>
     <parent link="upperleg"/>
     <child link="trunk"/>
@@ -169,13 +169,13 @@
   <link name="trunk">
     <inertial>
       <mass value="35.47"/>
-      <origin rpy="0 0 0" xyz="0.116 0.007 -0.001"/>
+      <origin rpy="0 -0 0" xyz="0.116 0.007 -0.001"/>
       <inertia ixx="2.592457" ixy="7.005900e-02" ixz="-3.523000e-04" iyy="2.448720e-01" iyz="-4.236600e-03" izz="2.594914"/>
     </inertial>
     <visual>
-      <origin rpy="1.57 1.57 0" xyz="-0.043 0.105 0.125"/>
+      <origin rpy="0 0 -1.57" xyz="0.05 0.0 0.0"/>
       <geometry>
-        <mesh filename="package://rt-cosmik/meshes/pelvis_mesh.STL" scale="0.006 0.0055 0.0055"/>
+        <mesh filename="package://meshes/pelvis_mesh.STL" scale="0.006 0.0055 0.0055"/>
       </geometry>
       <material name="body_color">
         <texture/>
@@ -183,9 +183,9 @@
       </material>
     </visual>
     <visual>
-      <origin rpy="0 0 0" xyz="0.10 -0.085 -0.085"/>
+      <origin rpy="0 -0 -1.57" xyz="0.06 0.0 0.0"/>
       <geometry>
-        <mesh filename="package://rt-cosmik/meshes/abdomen_mesh.STL" scale="0.0055 0.0055 0.0055"/>
+        <mesh filename="package://meshes/abdomen_mesh.STL" scale="0.0055 0.0055 0.0055"/>
       </geometry>
       <material name="body_color">
         <texture/>
@@ -193,9 +193,9 @@
       </material>
     </visual>
     <visual>
-      <origin rpy="1.57 1.57 0" xyz="0.22 0.13 0.125"/>
+      <origin rpy="0 0 -1.57" xyz="0.0 0.0 0.0"/>
       <geometry>
-        <mesh filename="package://rt-cosmik/meshes/torso_mesh.STL" scale="0.0065 0.0065 0.0065"/>
+        <mesh filename="package://meshes/torso_mesh.STL" scale="0.0065 0.0065 0.0065"/>
       </geometry>
       <material name="body_color">
         <texture/>
@@ -203,9 +203,9 @@
       </material>
     </visual>
     <visual>
-      <origin rpy="1.57 1.57 0" xyz="0.57 0.085 0.085"/>
+      <origin rpy="0 0 -1.57" xyz="0.5 0.0 0.0"/>
       <geometry>
-        <mesh filename="package://rt-cosmik/meshes/head_mesh.STL" scale="0.0055 0.0055 0.0055"/>
+        <mesh filename="package://meshes/head_mesh.STL" scale="0.0055 0.0055 0.0055"/>
       </geometry>
       <material name="body_color">
         <texture/>
@@ -213,9 +213,9 @@
       </material>
     </visual>
     <visual>
-      <origin rpy="0 0.0 0" xyz="0.51 -0.05 -0.05"/>
+      <origin rpy="0 0.0 0" xyz="0.5 -0.0 0.0"/>
       <geometry>
-        <mesh filename="package://rt-cosmik/meshes/neck_mesh.STL" scale="0.005 0.005 0.005"/>
+        <mesh filename="package://meshes/neck_mesh.STL" scale="0.005 0.005 0.005"/>
       </geometry>
       <material name="body_color">
         <texture/>
@@ -224,11 +224,11 @@
     </visual>
   </link>
   <joint name="shoulder_Z" type="revolute">
-    <origin rpy="0 -0 0" xyz="0.4706 0.0 0.0"/>
+    <origin rpy="0 -0 0" xyz="0.4811 0.0 0.0"/>
     <axis xyz="0 0 1"/>
     <parent link="trunk"/>
     <child link="upperarm"/>
-    <limit effort="500.0" lower="-3.14" upper="1.54" velocity="200.0"/>
+    <limit effort="500.0" lower="-3.14" upper="3.14" velocity="200.0"/>
   </joint>
   <!-- TRANSMITION DEFINITION -->
   <transmission name="shoulder_transmition">
@@ -244,13 +244,13 @@
   <link name="upperarm">
     <inertial>
       <mass value="1.8"/>
-      <origin rpy="0 0 0" xyz="0.118 -0.004 -0.007"/>
+      <origin rpy="0 -0 0" xyz="0.118 -0.004 -0.007"/>
       <inertia ixx="0.011874" ixy="0.000445" ixz="0.000309" iyy="0.002422" iyz="4.9e-05" izz="0.012652"/>
     </inertial>
     <visual>
-      <origin rpy="0 0 0" xyz="-0.15 -0.05 0.12"/>
+      <origin rpy="0 0 1.57" xyz="0.0 0.0 0.15"/>
       <geometry>
-        <mesh filename="package://rt-cosmik/meshes/shoulder_mesh.STL" scale="0.0055 0.0055 0.0055"/>
+        <mesh filename="package://meshes/shoulder_mesh.STL" scale="0.0055 0.0055 0.0055"/>
       </geometry>
       <material name="body_color">
         <texture/>
@@ -258,16 +258,16 @@
       </material>
     </visual>
     <visual>
-      <origin rpy="1.57 -1.57 3.14" xyz="-0.02 -0.065 -0.355"/>
+      <origin rpy="0 0 1.57" xyz="0.0 0.0 0.15"/>
       <geometry>
-        <mesh filename="package://rt-cosmik/meshes/upperarm_mesh.STL" scale="0.0063 0.0060 0.007"/>
+        <mesh filename="package://meshes/upperarm_mesh.STL" scale="0.0063 0.0060 0.007"/>
       </geometry>
       <material name="body_color"/>
     </visual>
     <visual>
-      <origin rpy="0 0 0" xyz="-0.15 -0.05 -0.225"/>
+      <origin rpy="0 0 1.57" xyz="0.0 0.0 -0.15"/>
       <geometry>
-        <mesh filename="package://rt-cosmik/meshes/shoulder_mesh.STL" scale="0.0055 0.0055 0.0055"/>
+        <mesh filename="package://meshes/shoulder_mesh.STL" scale="0.0055 0.0055 0.0055"/>
       </geometry>
       <material name="body_color">
         <texture/>
@@ -275,15 +275,15 @@
       </material>
     </visual>
     <visual>
-      <origin rpy="1.57 -1.57 3.14" xyz="-0.02 -0.065 -0.01"/>
+      <origin rpy="0 0 1.57" xyz="0.0 0.0 -0.15"/>
       <geometry>
-        <mesh filename="package://rt-cosmik/meshes/upperarm_mesh.STL" scale="0.0063 0.0060 0.007"/>
+        <mesh filename="package://meshes/upperarm_mesh.STL" scale="0.0063 0.0060 0.007"/>
       </geometry>
       <material name="body_color"/>
     </visual>
   </link>
   <joint name="elbow_Z" type="revolute">
-    <origin rpy="0 -0 0" xyz="0.361 0.0 0.0"/>
+    <origin rpy="0 -0 0" xyz="0.3465 0.0 0.0"/>
     <axis xyz="0 0 1"/>
     <parent link="upperarm"/>
     <child link="lowerarm"/>
@@ -303,13 +303,13 @@
   <link name="lowerarm">
     <inertial>
       <mass value="1.28"/>
-      <origin rpy="0 0 0" xyz="0.114 -0.003 0.004"/>
+      <origin rpy="0 -0 0" xyz="0.114 -0.003 0.004"/>
       <inertia ixx="0.007479" ixy="8.6e-05" ixz="3.8e-05" iyy="0.001154" iyz="-0.000611" izz="0.006954"/>
     </inertial>
     <visual>
-      <origin rpy="0 0 0" xyz="-0.165 -0.035 -0.21"/>
+      <origin rpy="0 0 1.57" xyz="0.02 0. 0.15"/>
       <geometry>
-        <mesh filename="package://rt-cosmik/meshes/elbow_mesh.STL" scale="0.0055 0.0055 0.0055"/>
+        <mesh filename="package://meshes/elbow_mesh.STL" scale="0.0055 0.0055 0.0055"/>
       </geometry>
       <material name="body_color">
         <texture/>
@@ -317,9 +317,9 @@
       </material>
     </visual>
     <visual>
-      <origin rpy="1.57 -1.57 3.14" xyz="-0.005 -0.05 -0.345"/>
+      <origin rpy="0 0 1.57" xyz="0.03 0.0 0.15"/>
       <geometry>
-        <mesh filename="package://rt-cosmik/meshes/lowerarm_mesh.STL" scale="0.0060 0.0060 0.0060"/>
+        <mesh filename="package://meshes/lowerarm_mesh.STL" scale="0.0060 0.0060 0.0060"/>
       </geometry>
       <material name="body_color">
         <texture/>
@@ -327,9 +327,9 @@
       </material>
     </visual>
     <visual>
-      <origin rpy="0 0 0" xyz="-0.165 -0.035 0.135"/>
+      <origin rpy="0 0 1.57" xyz="0.02 0.0 -0.15"/>
       <geometry>
-        <mesh filename="package://rt-cosmik/meshes/elbow_mesh.STL" scale="0.0055 0.0055 0.0055"/>
+        <mesh filename="package://meshes/elbow_mesh.STL" scale="0.0055 0.0055 0.0055"/>
       </geometry>
       <material name="body_color">
         <texture/>
@@ -337,9 +337,9 @@
       </material>
     </visual>
     <visual>
-      <origin rpy="1.57 -1.57 3.14" xyz="-0.005 -0.05 -0.0"/>
+      <origin rpy="0 0 1.57" xyz="0.03 0.0 -0.15"/>
       <geometry>
-        <mesh filename="package://rt-cosmik/meshes/lowerarm_mesh.STL" scale="0.0060 0.0060 0.0060"/>
+        <mesh filename="package://meshes/lowerarm_mesh.STL" scale="0.0060 0.0060 0.0060"/>
       </geometry>
       <material name="body_color">
         <texture/>
@@ -348,7 +348,7 @@
     </visual>
   </link>
   <joint name="hand_fixed" type="fixed">
-    <origin rpy="0 -0 0" xyz="0.2666 0.0 0.0"/>
+    <origin rpy="0 -0 0" xyz="0.2732 0.0 0.0"/>
     <axis xyz="0 0 1"/>
     <parent link="lowerarm"/>
     <child link="hand"/>
@@ -357,13 +357,13 @@
   <link name="hand">
     <inertial>
       <mass value="0.45"/>
-      <origin rpy="0 0 0" xyz="0.015 -0.154 0.014"/>
+      <origin rpy="0 -0 0" xyz="0.015 -0.154 0.014"/>
       <inertia ixx="0.005608" ixy="0.000729" ixz="0.000339" iyy="0.002176" iyz="-0.000603" izz="0.004726"/>
     </inertial>
     <visual>
-      <origin rpy="-1.57 1.57 0" xyz="0.15 -0.05 -0.005"/>
+      <origin rpy="0 0 1.57" xyz="0.035 0.0 0.15"/>
       <geometry>
-        <mesh filename="package://rt-cosmik/meshes/hand_mesh.STL" scale="0.0060 0.0060 0.0060"/>
+        <mesh filename="package://meshes/hand_mesh.STL" scale="0.0060 0.0060 0.0060"/>
       </geometry>
       <material name="body_color">
         <texture/>
@@ -371,9 +371,9 @@
       </material>
     </visual>
     <visual>
-      <origin rpy="1.57 -1.57 0" xyz="0.15 0.05 0.0"/>
+      <origin rpy="0 0 1.57" xyz="0.035 0.0 -0.15"/>
       <geometry>
-        <mesh filename="package://rt-cosmik/meshes/hand_mesh.STL" scale="0.0060 0.0060 0.0060"/>
+        <mesh filename="package://meshes/hand_mesh.STL" scale="0.0060 0.0060 0.0060"/>
       </geometry>
       <material name="body_color">
         <texture/>
