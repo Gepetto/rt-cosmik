@@ -23,7 +23,7 @@ class Settings:
     # FILTER PARAMS
     order: int = 4
     system_freq: int = 30 # For now the system update time is at around 0.034 ms so around 30 Hz 
-    cutoff_freq: float = 10
+    cutoff_freq: float = 7
     filter_type: str = "lowpass"
 
     # IK AND DATA HANDLING
@@ -31,8 +31,8 @@ class Settings:
     side_to_track: str =  "right" # bilateral (if we want to track both side, i.e., lifting), right or left
     
     # HUMAN ANTHROPOMETRY
-    human_height: float = 1.80
-    human_mass: float = 65.0
+    human_height: float = 1.81
+    human_mass: float = 73
 
     #MMPOSE MODEL (here body 26)
     keypoints_names: list = field(default_factory=lambda: [
