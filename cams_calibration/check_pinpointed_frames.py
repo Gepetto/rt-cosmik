@@ -1,5 +1,5 @@
 # This script helps to verify in the camera frame the different frames of the setup : human, robot, world 
-# To launch the script python3 -m cams_calibration.check_pinpointed_frames expe trial
+# To launch the script python3 -m cams_calibration.check_pinpointed_frames test test
 
 import cv2
 import numpy as np
