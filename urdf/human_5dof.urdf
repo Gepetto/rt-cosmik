@@ -2,7 +2,7 @@
 <robot name="human_5dof">
   <link name="world"/>
   <joint name="world_to_human" type="fixed">
-    <origin rpy="1.5457406002736422 -0.060306077436283134 0.7220667584225953" xyz="0.0005849673073485828 -0.000619424224471643 0.002751950406975956"/>
+    <origin rpy="1.5707 0 0.78539" xyz="-0.0 -0.0 -0.0"/>
     <axis xyz="0 0 1"/>
     <parent link="world"/>
     <child link="foot"/>
@@ -84,11 +84,11 @@
     </visual>
   </link>
   <joint name="knee_Z" type="revolute">
-    <origin rpy="0 -0 0" xyz="0.4206 0.0 0.0"/>
+    <origin rpy="0 -0 0" xyz="0.4312 0.0 0.0"/>
     <axis xyz="0 0 1"/>
     <parent link="lowerleg"/>
     <child link="upperleg"/>
-    <limit effort="500.0" lower="-3.14159" upper="3.14159" velocity="200.0"/>
+    <limit effort="500.0" lower="-0.10" upper="3.14159" velocity="200.0"/>
   </joint>
   <!-- TRANSMITION DEFINITION -->
   <transmission name="knee_transmition">
@@ -149,7 +149,7 @@
     </visual>
   </link>
   <joint name="lumbar_Z" type="revolute">
-    <origin rpy="0 -0 0" xyz="0.6008 0.0 0.0"/>
+    <origin rpy="0 -0 0" xyz="0.5519 0.0 0.0"/>
     <axis xyz="0 0 1"/>
     <parent link="upperleg"/>
     <child link="trunk"/>
@@ -224,11 +224,11 @@
     </visual>
   </link>
   <joint name="shoulder_Z" type="revolute">
-    <origin rpy="0 -0 0" xyz="0.4944 0.0 0.0"/>
+    <origin rpy="0 -0 0" xyz="0.478 0.0 0.0"/>
     <axis xyz="0 0 1"/>
     <parent link="trunk"/>
     <child link="upperarm"/>
-    <limit effort="500.0" lower="-6" upper="6" velocity="200.0"/>
+    <limit effort="500.0" lower="-4.01" upper="1.5708" velocity="200.0"/>
   </joint>
   <!-- TRANSMITION DEFINITION -->
   <transmission name="shoulder_transmition">
@@ -283,11 +283,11 @@
     </visual>
   </link>
   <joint name="elbow_Z" type="revolute">
-    <origin rpy="0 -0 0" xyz="0.3478 0.0 0.0"/>
+    <origin rpy="0 -0 0" xyz="0.3628 0.0 0.0"/>
     <axis xyz="0 0 1"/>
     <parent link="upperarm"/>
     <child link="lowerarm"/>
-    <limit effort="500.0" lower="-3.14159" upper="3.14159" velocity="200.0"/>
+    <limit effort="500.0" lower="-0.10" upper="2.96706" velocity="200.0"/>
   </joint>
   <!-- TRANSMITION DEFINITION -->
   <transmission name="elbow_transmition">
@@ -348,7 +348,7 @@
     </visual>
   </link>
   <joint name="hand_fixed" type="fixed">
-    <origin rpy="0 -0 0" xyz="0.2583 0.0 0.0"/>
+    <origin rpy="0 -0 0" xyz="0.2523 0.0 0.0"/>
     <axis xyz="0 0 1"/>
     <parent link="lowerarm"/>
     <child link="hand"/>
