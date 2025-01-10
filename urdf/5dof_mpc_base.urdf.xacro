@@ -303,7 +303,7 @@
     <axis xyz="0 0 1" />
     <parent link="upperarm" />
     <child link="lowerarm" />
-    <limit effort="500.0" velocity="200.0" lower="-0.10" upper="2,96706" />
+    <limit effort="500.0" velocity="200.0" lower="-0.10" upper="2.96706" />
   </joint>
   <!-- TRANSMITION DEFINITION -->
   <transmission name="elbow_transmition">
