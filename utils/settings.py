@@ -16,7 +16,7 @@ class Settings:
     checkerboard_scaling: float = 0.108 # size of squares in meters
     # wand params
     wand_end_effector_local_pos: np.ndarray = field(
-        default_factory=lambda: np.array([[-0.00004], [0.262865], [-0.000009]]) # local pose of wand's end effector for pointing calibration
+        default_factory=lambda: np.array([[0.000], [0.271], [0.000]]) # local pose of wand's end effector for pointing calibration
     )
     wand_marker_size: float = 0.176 # Marker size in meters (17.6 cm)
 
