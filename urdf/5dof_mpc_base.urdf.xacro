@@ -244,7 +244,7 @@
     <axis xyz="0 0 1" />
     <parent link="trunk" />
     <child link="upperarm" />
-    <limit effort="500.0" velocity="200.0" lower="-6" upper="6" />
+    <limit effort="500.0" velocity="200.0" lower="-4.01" upper="1.5708" />
   </joint>
   <!-- TRANSMITION DEFINITION -->
   <transmission name="shoulder_transmition">
@@ -303,7 +303,7 @@
     <axis xyz="0 0 1" />
     <parent link="upperarm" />
     <child link="lowerarm" />
-    <limit effort="500.0" velocity="200.0" lower="-3.14159" upper="3.14159" />
+    <limit effort="500.0" velocity="200.0" lower="-0.10" upper="2,96706" />
   </joint>
   <!-- TRANSMITION DEFINITION -->
   <transmission name="elbow_transmition">
