@@ -2,7 +2,7 @@
 
 import cv2
 import numpy as np
-from utils.calib_utils import load_cam_params, save_pose_matrix_to_yaml, get_aruco_pose, get_relative_pose_world_in_cam, list_cameras_with_v4l2
+from utils.calib_utils import load_cam_pose, load_cam_params, save_pose_matrix_to_yaml, get_aruco_pose, get_relative_pose_world_in_cam, list_cameras_with_v4l2
 import sys
 import os 
 from utils.settings import Settings
@@ -130,7 +130,7 @@ try :
             world_R1_wand = world_R1_cam @ transformation_matrix_1[:3, :3]
             world_T1_wand = world_R1_cam @ transformation_matrix_1[:3, 3] + world_T1_cam
             
-            world_tip_pos1 = world_R1_wand @ wand_local + world_T1_wand
+            world_tip_pos1 = world_R1_wand @ wand_local.reshape(3,) + world_T1_wand
             
             # Create a TransformStamped message for the wand frame
             wand_transform = TransformStamped()
@@ -190,7 +190,7 @@ try :
             world_R2_wand = world_R2_cam @ transformation_matrix_2[:3, :3]
             world_T2_wand = world_R2_cam @ transformation_matrix_2[:3, 3] + world_T2_cam
             
-            world_tip_pos2 = world_R2_wand @ wand_local + world_T2_wand
+            world_tip_pos2 = world_R2_wand @ wand_local.reshape(3,) + world_T2_wand
             
             # Create a TransformStamped message for the wand frame
             wand_transform = TransformStamped()
