@@ -416,15 +416,15 @@ def get_relative_pose_robot_in_cam(images_folder,camera_matrix,dist_coeffs, dete
             wand_pos_cam_frame.append((t+rotation_matrix@wand_local).flatten())
 
     P1 = cam_center_robot = (wand_pos_cam_frame[0]+wand_pos_cam_frame[1])/2
-    P2 = wand_pos_cam_frame[3]
+    P2 = (wand_pos_cam_frame[2]+wand_pos_cam_frame[3])/2
     P3 = wand_pos_cam_frame[0]
 
-    P1P2 = P2-P1
+    P2P1 = P1-P2
     P1P3 = P3-P1
 
-    Vz = np.cross(P1P2, P1P3)
-    Vy = np.cross(Vz,P1P2)
-    Vx = P1P2
+    Vz = np.cross(P2P1, P1P3)
+    Vy = np.cross(Vz,P2P1)
+    Vx = P2P1
 
     x_axis = Vx/np.linalg.norm(Vx)
     y_axis = Vy/np.linalg.norm(Vy)

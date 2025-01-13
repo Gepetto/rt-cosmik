@@ -2,7 +2,7 @@
 <robot name="human_5dof">
   <link name="world"/>
   <joint name="world_to_human" type="fixed">
-    <origin rpy="1.5707 0 0.78539" xyz="-0.0 -0.0 -0.0"/>
+    <origin rpy="1.57 0.0 0.0" xyz="0.0 0.0 0.0"/>
     <axis xyz="0 0 1"/>
     <parent link="world"/>
     <child link="foot"/>
@@ -84,7 +84,7 @@
     </visual>
   </link>
   <joint name="knee_Z" type="revolute">
-    <origin rpy="0 -0 0" xyz="0.4312 0.0 0.0"/>
+    <origin rpy="0 -0 0" xyz="0.4571 0.0 0.0"/>
     <axis xyz="0 0 1"/>
     <parent link="lowerleg"/>
     <child link="upperleg"/>
@@ -149,7 +149,7 @@
     </visual>
   </link>
   <joint name="lumbar_Z" type="revolute">
-    <origin rpy="0 -0 0" xyz="0.5519 0.0 0.0"/>
+    <origin rpy="0 -0 0" xyz="0.6092 0.0 0.0"/>
     <axis xyz="0 0 1"/>
     <parent link="upperleg"/>
     <child link="trunk"/>
@@ -224,7 +224,7 @@
     </visual>
   </link>
   <joint name="shoulder_Z" type="revolute">
-    <origin rpy="0 -0 0" xyz="0.478 0.0 0.0"/>
+    <origin rpy="0 -0 0" xyz="0.4811 0.0 0.0"/>
     <axis xyz="0 0 1"/>
     <parent link="trunk"/>
     <child link="upperarm"/>
@@ -283,7 +283,7 @@
     </visual>
   </link>
   <joint name="elbow_Z" type="revolute">
-    <origin rpy="0 -0 0" xyz="0.3628 0.0 0.0"/>
+    <origin rpy="0 -0 0" xyz="0.3465 0.0 0.0"/>
     <axis xyz="0 0 1"/>
     <parent link="upperarm"/>
     <child link="lowerarm"/>
@@ -348,7 +348,7 @@
     </visual>
   </link>
   <joint name="hand_fixed" type="fixed">
-    <origin rpy="0 -0 0" xyz="0.2523 0.0 0.0"/>
+    <origin rpy="0 -0 0" xyz="0.2732 0.0 0.0"/>
     <axis xyz="0 0 1"/>
     <parent link="lowerarm"/>
     <child link="hand"/>
