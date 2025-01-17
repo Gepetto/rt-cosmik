@@ -167,11 +167,11 @@ class RT_IK:
     def update_marker_estimates(self, q0):
         """Update the estimated marker positions."""
         pin.forwardKinematics(self._model, self._data, q0)
-        pin.updateFramePlacements(self._model, self._data)
+        pin.updateFramePlacements(self._model, self._data)  
 
         for key in self._keys_to_track_list:
-            if self._dict_dof_to_keypoints is not None:
-                frame_id = self._model.getFrameId(self._dict_dof_to_keypoints.get(key))
+            if self._dict_keypoints_to_dof is not None:
+                frame_id = self._model.getFrameId(self._dict_keypoints_to_dof[key])
             else:
                 frame_id = self._model.getFrameId(key)
             self._dict_m_est[key] = self._data.oMf[frame_id].translation.reshape((3, 1))
@@ -224,8 +224,8 @@ class RT_IK:
 
                 mu_ii=self._damping*np.dot(v_ii.T,v_ii)
 
-                if self._dict_dof_to_keypoints is not None :
-                    J_ii=pin.computeFrameJacobian(self._model,self._data,q0,self._model.getFrameId(self._dict_dof_to_keypoints[marker_name]),pin.ReferenceFrame.LOCAL_WORLD_ALIGNED)
+                if self._dict_keypoints_to_dof is not None :
+                    J_ii=pin.computeFrameJacobian(self._model,self._data,q0,self._model.getFrameId(self._dict_keypoints_to_dof[marker_name]),pin.ReferenceFrame.LOCAL_WORLD_ALIGNED)
                 else :
                     J_ii=pin.computeFrameJacobian(self._model,self._data,q0,self._model.getFrameId(marker_name),pin.ReferenceFrame.LOCAL_WORLD_ALIGNED)
                 
@@ -307,7 +307,7 @@ class RT_IK:
             "ipopt.sb": "yes",
             "ipopt.max_iter": 50,
             "ipopt.linear_solver": "mumps",
-            "print_time":0,
+            "print_time":1,
             "expand": True,
 
             # Tolerance options
