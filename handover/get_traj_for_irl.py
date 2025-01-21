@@ -161,7 +161,7 @@ def main():
     # Define the codec and create VideoWriter objects for both RGB streams
     fourcc = cv2.VideoWriter_fourcc(*'mp4v')  # Codec for AVI files
     out_vid1 = cv2.VideoWriter(os.path.join(parent_directory,'output/handover/cam1_irl.mp4'), fourcc, 40.0, (int(settings.width), int(settings.height)), True)
-    out_vid2 = cv2.VideoWriter(os.path.join(parent_directory,'output/handover/cam2_irl.mp4'), fourcc, 40.0, (int(settings.width), int(settings.height)), True)
+    # out_vid2 = cv2.VideoWriter(os.path.join(parent_directory,'output/handover/cam2_irl.mp4'), fourcc, 40.0, (int(settings.width), int(settings.height)), True)
 
     tracker = PoseTracker(
         det_model=args.det_model,
@@ -203,8 +203,8 @@ def main():
                 #Videos savings
                 if idx == 0 : 
                     out_vid1.write(frame)
-                elif idx == 1 : 
-                    out_vid2.write(frame)
+                # elif idx == 1 : 
+                #     out_vid2.write(frame)
                     
                 results = tracker(state, frame, detect=-1)
                 keypoints, bboxes, _ = results
@@ -350,7 +350,7 @@ def main():
 
                             ### IK calculations
                             ik_class._dict_m= jcp_dict
-                            q = ik_class.solve_ik_sample_casadi()
+                            q = ik_class.solve_ik_sample_quadprog() 
                             viz.display(q)
 
                             pin.framesForwardKinematics(human_model,human_data, q)
@@ -376,7 +376,7 @@ def main():
         for cap in captures:
             cap.release()
         out_vid1.release()
-        out_vid2.release()
+        # out_vid2.release()
         cv2.destroyAllWindows()
 
 
