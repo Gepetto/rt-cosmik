@@ -147,8 +147,8 @@ def main():
 
     # Define the codec and create VideoWriter objects for both RGB streams
     fourcc = cv2.VideoWriter_fourcc(*'mp4v')  # Codec for AVI files
-    out_vid1 = cv2.VideoWriter(os.path.join(parent_directory,'output/cam1.mp4'), fourcc, 40.0, (int(settings.width), int(settings.height)), True)
-    out_vid2 = cv2.VideoWriter(os.path.join(parent_directory,'output/cam2.mp4'), fourcc, 40.0, (int(settings.width), int(settings.height)), True)
+    out_vid1 = cv2.VideoWriter(os.path.join(parent_directory,'output/cam1.mp4'), fourcc, settings.system_freq, (int(settings.width), int(settings.height)), True)
+    out_vid2 = cv2.VideoWriter(os.path.join(parent_directory,'output/cam2.mp4'), fourcc, settings.system_freq, (int(settings.width), int(settings.height)), True)
 
     tracker = PoseTracker(
         det_model=args.det_model,
