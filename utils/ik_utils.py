@@ -123,7 +123,7 @@ class RT_IK:
         self._K_ii=0.5
         self._K_lim=0.75
         self._damping=1e-3
-        self._max_iter = 10
+        self._max_iter = 3
         self._threshold = 0.01
 
         # Line search tuning 
