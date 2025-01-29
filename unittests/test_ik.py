@@ -17,8 +17,8 @@ from utils.ik_utils import RT_IK
 from utils.viz_utils import place, Rquat
 import time
 
-data_markers = pd.read_csv(os.path.join(rt_cosmik_path,'output/augmented_markers_positions.csv'))
-data_keypoints = pd.read_csv(os.path.join(rt_cosmik_path,'output/keypoints_3d_positions.csv'))
+data_markers = pd.read_csv(os.path.join(rt_cosmik_path,'output/saved/augmented_markers_positions.csv'))
+data_keypoints = pd.read_csv(os.path.join(rt_cosmik_path,'output/saved/keypoints_3d_positions.csv'))
 
 result_markers = []
 for frame, group in data_markers.groupby("Frame"):
@@ -32,8 +32,6 @@ for frame, group in data_keypoints.groupby("Frame"):
         frame_dict["midHip"] = frame_dict.pop("Hip")
     result_keypoints.append(frame_dict)
 
-
-# lstm_dict = result_keypoints[100] | result_markers[100]
 lstm_dict = {**result_keypoints[100], **result_markers[100]}
 
 t1 =time.time()
@@ -63,17 +61,10 @@ except AttributeError as err:
     print(err)
     sys.exit(0)
 
-for ii in range(len(result_markers)):
-    print(ii)
-    for marker in result_markers[ii].keys():
-        viz.viewer.gui.addSphere('world/'+marker,0.01,[0,0,1,1])
-        M = pin.SE3(pin.SE3(Rquat(1, 0, 0, 0), np.matrix([result_markers[ii][marker][0],result_markers[ii][marker][1],result_markers[ii][marker][2]]).T))
-        place(viz,'world/'+marker,M)
-        # input("Press Enter to continue...")
 
 ### IK init 
 q = pin.neutral(human_model) # init pos
-dt = 1/40
+dt = 1/10
 keys_to_track_list = ['C7_study',
                         'r.ASIS_study', 'L.ASIS_study', 
                         'r.PSIS_study', 'L.PSIS_study', 
@@ -98,7 +89,11 @@ keys_to_track_list = ['C7_study',
 
 ### IK calculations
 ik_class = RT_IK(human_model, lstm_dict, q, keys_to_track_list, dt)
+t0 = time.time()
 q = ik_class.solve_ik_sample_casadi()
+t1 = time.time()
+print("Time for casadi IK: ", t1 - t0)
+
 viz.display(q)
 ik_class._q0=q
 
