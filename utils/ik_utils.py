@@ -528,142 +528,69 @@ class RT_SWIKA_Spectool:
         self._cmodel = cpin.Model(self._model)
         self._cdata = self._cmodel.createData()
 
-        self._fun = sp_setup()
-    
-    def sp_setup()->sp.Ocp.to_function():
-        #########
-        # Create an OCP object
-        #########
-        self._ocp = sp.Ocp()
+        cq = casadi.SX.sym("q",self._nq) # q
+        cdq = casadi.SX.sym("dq",self._nv) # dq
 
-        #########
-        # Create a stage, i.e, the object that encapsulate cost + dyn + constraint on a whole window horizon
-        #########
-        stage = self._ocp.new_stage(self._N)
+        self._integrate = casadi.Function('integrate',[ cq,cdq ],[cpin.integrate(self._cmodel,cq,cdq) ])
 
-        #########
-        # Define the states
-        #########
-        q = self._ocp.state(self._nq)
-        dq = self._ocp.state(self._nv)
+        cpin.framesForwardKinematics(self._cmodel, self._cdata, cq)
 
-        #########
-        # Define the controls
-        #########
-        ddq = self._ocp.control(self._nv)
-
-        #########
-        # Define the dynamics
-        #########
-        stage.set_next(q, q+dq*self._dt)
-        stage.set_next(dq, dq+ddq*self._dt)
-        # transition dynamics
-        stage.at_tf().set_next(q, q)
-        stage.at_tf().set_next(dq, dq)
-
-        #########
-        # Define the constraints
-        #########
-        self._ocp.at_t0().subject_to(self._qminus <= q <= self._qplus)
-        stage.subject_to(self._qminus <= q <= self._qplus, sp.mid)
-        self._ocp.at_tf().subject_to(self._qminus <= q <= self._qplus)
-
-        #########
-        # Define the cost function
-        #########
-
-        cpin.framesForwardKinematics(self._cmodel, self._cdata, q)
-
-        self._new_key_list = []
-        cfunction_list = []
+        markers_est = []
         for key in self._keys_to_track_list:
             index_mk = self._cmodel.getFrameId(key)
             if index_mk < len(self._model.frames.tolist()): # Check that the frame is in the model
-                new_key = key.replace('.','')
-                self._new_key_list.append(key)
-                function_mk = casadi.Function(f'f_{new_key}',[q],[self._cdata.oMf[index_mk].translation])
-                cfunction_list.append(function_mk)
+                markers_est = casadi.horzcat(markers_est,self._cdata.oMf[index_mk].translation) # Concatenate the markers positions, size (3 x Nb of markers)
 
-        self._cfunction_dict=dict(zip(self._new_key_list,cfunction_list))
+        self._fmarkers_est = casadi.Function('function_markers_est', [cq], [casadi.reshape(markers_est, 1, len(self._keys_to_track_list)*3)]) # reorganize the markers as [x0, y0, z0, ..., xi, yi, zi, ..., xN, yN, zN], size (1 x 3*Nb of markers)
 
-    def solve_swika_fatrop(self)->np.ndarray:
+        self._fun = self.sp_setup()
+    
+    def sp_setup(self)->sp.Ocp.to_function:
+        ocp = sp.Ocp()
+
+        X0 = ocp.parameter(self._nq+self._nv)
+        marker_meas = ocp.parameter(self._N, len(self._keys_to_track_list)*3)
+
+        x = ocp.state(self._nq+self._nv)
+        u = ocp.control(self._nv)
+        dt = self._dt
+        N = self._N
+
+        # Euler integration
+        qnext=self._integrate(x[:self._nq],x[self._nq:]*self._dt)
+        dqnext=x[self._nq:]+u*self._dt
+
+        xnext = casadi.vertcat(qnext,dqnext)
+
+        dyns = [xnext for i in range(N-1)]
+        costs = [10*casadi.sumsqr(marker_meas[i,:]-self._fmarkers_est(x[:self._nq])) + 1e-3*casadi.sumsqr(x-X0) + 1e-5*casadi.sumsqr(u) for i in range(N)]
+        
+        if self._with_freeflyer:
+            constr = [casadi.vertcat(self._qminus[7:] <= x[7:self._nq], x[7:self._nq] <= self._qplus[7:]) for i in range(N)]
+        else:
+            constr = [casadi.vertcat(self._qminus <= x[:self._nq], x[:self._nq] <= self._qplus) for i in range(N)]
+
+        for dyni, costi, contri in zip(dyns[:-1], costs[:-1], constr[:-1]):
+            ustagei = ocp.new_ustage()
+            ustagei.set_next(x, dyni)
+            ustagei.add_objective(costi)
+            ustagei.subject_to(contri)
+
+        ustageN = ocp.new_ustage()
+        ustageN.subject_to(constr[-1])
+        ustageN.add_objective(costs[-1])
+
+        ocp.solver("fatrop", {"expand":True, "jit":True})  
+        ocp_fun = ocp.to_function("ocp", [X0, marker_meas], [ocp.sample(x)[1]])
+        return ocp_fun
+
+    def solve_swika_fatrop(self)->tuple:
         x_list = self._x_list
         lstm_dict_list = list(self._deque_dict_m)
-        
-        # Casadi optimization class
-        opti = casadi.Opti()
 
-        X = []
-        U = []
+        # Convert the list of dictionaries to a NumPy array
+        array_data = np.array([np.hstack([d[marker] for marker in self._keys_to_track_list]) for d in lstm_dict_list])
 
-        for k in range(self._T):
-            X.append(opti.variable(self._nx))
-            U.append(opti.variable(self._nu))
+        results = self._fun(np.array(x_list[0]), array_data)
 
-        X0 = opti.parameter(self._nx)
-        opti.set_value(X0, x_list[0])
-
-        cost = 0
-
-        for k in range(self._T):
-            # Markers tracking cost function
-            for key in self._cfunction_dict.keys():
-                marker_meas = opti.parameter(len(lstm_dict_list[k][key]),1)
-                opti.set_value(marker_meas, lstm_dict_list[k][key])
-                cost+=10*casadi.sumsqr(marker_meas-self._cfunction_dict[key](X[k][:self._nq]))
-
-            # Control regul
-            cost += 1e-5*casadi.sumsqr(U[k])
-
-            # State regul
-            cost += 1e-3*casadi.sumsqr(X[k]-X0)
-
-            if k != self._T-1:
-                # Euler integration
-                qnext=self._integrate(X[k][:self._nq],X[k][self._nq:]*self._dt)
-                dqnext=X[k][self._nq:]+U[k]*self._dt
-
-                xnext = casadi.vertcat(qnext,dqnext)
-
-                # Multiple shooting gap-closing constraint
-                opti.subject_to(X[k+1]==xnext)
-                
-            # Set the constraint for the joint limits
-            if self._with_freeflyer:
-                for i in range(7,self._nv):
-                    opti.subject_to(opti.bounded(self._model.lowerPositionLimit[i],X[k][i],self._model.upperPositionLimit[i]))
-                    # opti.subject_to(casadi.sumsqr(X[k][3:7])==1)
-            else : 
-                for i in range(self._nv):
-                    opti.subject_to(opti.bounded(self._model.lowerPositionLimit[i],X[k][i],self._model.upperPositionLimit[i]))
-                
-            opti.set_initial(X[k],x_list[k])
-
-        X = casadi.hcat(X)
-        
-        opti.minimize(cost)
-
-        options = {}
-        options["expand"] = True
-        options["fatrop"] = {"mu_init": 0.01}
-        options["fatrop"]={"max_iter":50}
-        options["fatrop"]={"tol":1e-3}
-        options["structure_detection"] = "auto"
-        options["debug"] = False
-
-        # (codegen of helper functions)
-        options["jit"] = True
-        # options["jit_name"] = "tmp_casadi_compiler_shell"
-        options["jit_temp_suffix"] = False
-        # options["compiler"] = "shell"
-        # options["jit_cleanup"]=False
-        options["jit_options"] = {"flags": ["-O3"],"compiler": "ccache clang"}
-
-        opti.solver("fatrop",options)
-
-        sol = opti.solve()
-
-        new_X = sol.value(X).T
-        solved_x_list = [new_X[i] for i in range(new_X.shape[0])] 
-
-        return sol, solved_x_list #X with Dq but also Q with ff quat
+        return results
