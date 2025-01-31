@@ -127,36 +127,36 @@ for marker in result_markers[ii].keys():
     place(viz,'world/estimated'+marker,M)
 
 
-# while ii < len(result_markers):
-#     ii+=1
-#     print(ii)
+while ii < len(result_markers):
+    ii+=1
+    print(ii)
 
-#     lstm_dict = {**result_keypoints[ii], **result_markers[ii]}
-#     deque_lstm_dict.append(lstm_dict)
+    lstm_dict = {**result_keypoints[ii], **result_markers[ii]}
+    deque_lstm_dict.append(lstm_dict)
 
-#     ik_class._x_list = new_x_list
-#     ik_class._deque_dict_m = deque_lstm_dict
+    ik_class._x_list = new_x_list
+    ik_class._deque_dict_m = deque_lstm_dict
 
-#     sol, new_x_list = ik_class.solve_swika_casadi()
+    sol, new_x_list = ik_class.solve_swika_fatrop()
 
-#     q = new_x_list[-1][:human_model.nq]
+    q = new_x_list[-1][:human_model.nq]
 
-#     viz.display(q)
+    viz.display(q)
 
-#     pin.forwardKinematics(human_model, human_data, q)
-#     pin.updateFramePlacements(human_model, human_data)
-#     for dof in dof_names:
-#         place(viz,'world/'+dof,human_data.oMi[human_model.getJointId(dof)])
+    pin.forwardKinematics(human_model, human_data, q)
+    pin.updateFramePlacements(human_model, human_data)
+    for dof in dof_names:
+        place(viz,'world/'+dof,human_data.oMi[human_model.getJointId(dof)])
 
-#     #Blue markers
-#     for marker in result_markers[ii].keys():
-#         M = pin.SE3(pin.SE3(Rquat(1, 0, 0, 0), np.matrix([result_markers[ii][marker][0],result_markers[ii][marker][1],result_markers[ii][marker][2]]).T))
-#         place(viz,'world/'+marker,M)
-#         # input("Press Enter to continue...")
+    #Blue markers
+    for marker in result_markers[ii].keys():
+        M = pin.SE3(pin.SE3(Rquat(1, 0, 0, 0), np.matrix([result_markers[ii][marker][0],result_markers[ii][marker][1],result_markers[ii][marker][2]]).T))
+        place(viz,'world/'+marker,M)
+        # input("Press Enter to continue...")
 
-#     #Red estimated markers
-#     for marker in result_markers[ii].keys():
-#         M = human_data.oMf[human_model.getFrameId(marker)]
-#         place(viz,'world/estimated'+marker,M)
+    #Red estimated markers
+    for marker in result_markers[ii].keys():
+        M = human_data.oMf[human_model.getFrameId(marker)]
+        place(viz,'world/estimated'+marker,M)
 
-#     input()
+    input()
