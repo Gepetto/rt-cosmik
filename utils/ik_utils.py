@@ -541,6 +541,114 @@ class RT_SWIKA_Spectool:
             if index_mk < len(self._model.frames.tolist()): # Check that the frame is in the model
                 markers_est = casadi.horzcat(markers_est,self._cdata.oMf[index_mk].translation) # Concatenate the markers positions, size (3 x Nb of markers)
 
+        self._fmarkers_est = casadi.Function('function_markers_est', [cq], [casadi.reshape(markers_est, len(self._keys_to_track_list)*3, 1)]) # reorganize the markers as [x0, y0, z0, ..., xi, yi, zi, ..., xN, yN, zN], size (1 x 3*Nb of markers)
+
+        # self._fun = self.sp_setup()
+    
+    def sp_setup(self, marker_array)->sp.Ocp.to_function:
+        dt = self._dt
+        N = self._N
+
+        ocp = sp.Ocp()
+
+        stage = ocp.new_stage(N)
+
+        X0 = ocp.parameter(self._nq+self._nv)
+        marker_meas = ocp.parameter(len(self._keys_to_track_list)*3, grid ='control')
+        ocp.set_initial(marker_meas, marker_array)
+
+        x = ocp.state(self._nq+self._nv)
+        u = ocp.control(self._nv)
+
+        # Euler integration
+        qnext=self._integrate(x[:self._nq],x[self._nq:]*self._dt)
+        dqnext=x[self._nq:]+u*self._dt
+        xnext = casadi.vertcat(qnext,dqnext)
+
+        stage.set_next(x, xnext)
+
+        # Define the constraints
+        if self._with_freeflyer:
+            stage.subject_to(casadi.vertcat(self._qminus[7:] <= x[7:self._nq], x[7:self._nq] <= self._qplus[7:]), sp.t0, sp.mid, sp.tf)
+        else:
+            stage.subject_to(casadi.vertcat(self._qminus <= x[:self._nq], x[:self._nq] <= self._qplus), sp.t0, sp.mid, sp.tf)
+
+        # Define the cost function
+        stage.add_objective(10*casadi.sumsqr(marker_meas-self._fmarkers_est(x[:self._nq])), sp.t0, sp.mid, sp.tf)
+        stage.add_objective(1e-3*casadi.sumsqr(x-X0), sp.t0, sp.mid, sp.tf)
+        stage.add_objective(1e-5*casadi.sumsqr(u), sp.t0, sp.mid)
+
+        ocp.solver("fatrop")#, {"expand":True, "jit":True})  
+        ocp_fun = ocp.to_function("ocp", [X0], [ocp.sample(x)[1]])
+        return ocp_fun
+
+    def solve_swika_fatrop(self)->tuple:
+        x_list = self._x_list
+        lstm_dict_list = list(self._deque_dict_m)
+
+        # Convert the list of dictionaries to a NumPy array
+        array_data = np.array([np.hstack([d[marker] for marker in self._keys_to_track_list]) for d in lstm_dict_list])
+        print(array_data.shape)
+
+        fun = self.sp_setup(array_data)
+
+        results = fun(np.array(x_list[0]))
+
+        return results
+
+class RT_SWIKA_Spectool_ustage:
+    """_Class to manage multi body Sliding Window IK problem using fatrop solver and spectool formulation_
+    """
+    def __init__(self,model: pin.Model, deque_dict_m: deque, x_list: List, keys_to_track_list: List, N: int, dt: float, dict_dof_to_keypoints=None, with_freeflyer=True) -> None:
+       
+        """ _Init of the class _
+
+        Args:
+            model (pin.Model): _Pinocchio biomechanical model_
+            deque_dict_m (deque): _a deque containing the measures of the landmarks_
+            x_list (List): _list of states_
+            keys_to_track_list (List): _name of the points to track from the dictionnary_
+            N (int): _Size of the window_
+            dt (float): _Sampling rate of the data_
+            dict_dof_to_keypoints (Dict): _a dictionnary linking frame of pinocchio model to measurements. Default to None if the pinocchio model has the same frame naming than the measurements_
+            with_freeflyer (boolean): _tells if the pinocchio model has a ff or not. Default to True.
+        """
+        
+        self._model = model
+        self._nq = self._model.nq
+        self._nv = self._model.nv
+        self._data = self._model.createData()
+        self._deque_dict_m = deque_dict_m
+        self._x_list = x_list
+        self._keys_to_track_list = keys_to_track_list
+        self._N = N
+        self._dt = dt # TO SET UP : FRAMERATE OF THE DATA
+
+        # Ensure dict_dof_to_keypoints is either a valid dictionary or None
+        self._dict_dof_to_keypoints = dict_dof_to_keypoints if dict_dof_to_keypoints is not None else None
+        self._with_freeflyer = with_freeflyer
+
+        # Joint limits
+        self._qplus = casadi.DM(self._model.upperPositionLimit)
+        self._qminus = casadi.DM(self._model.lowerPositionLimit) 
+
+        # Casadi framework 
+        self._cmodel = cpin.Model(self._model)
+        self._cdata = self._cmodel.createData()
+
+        cq = casadi.SX.sym("q",self._nq) # q
+        cdq = casadi.SX.sym("dq",self._nv) # dq
+
+        self._integrate = casadi.Function('integrate',[ cq,cdq ],[cpin.integrate(self._cmodel,cq,cdq) ])
+
+        cpin.framesForwardKinematics(self._cmodel, self._cdata, cq)
+
+        markers_est = []
+        for key in self._keys_to_track_list:
+            index_mk = self._cmodel.getFrameId(key)
+            if index_mk < len(self._model.frames.tolist()): # Check that the frame is in the model
+                markers_est = casadi.horzcat(markers_est,self._cdata.oMf[index_mk].translation) # Concatenate the markers positions, size (3 x Nb of markers)
+
         self._fmarkers_est = casadi.Function('function_markers_est', [cq], [casadi.reshape(markers_est, 1, len(self._keys_to_track_list)*3)]) # reorganize the markers as [x0, y0, z0, ..., xi, yi, zi, ..., xN, yN, zN], size (1 x 3*Nb of markers)
 
         self._fun = self.sp_setup()
@@ -580,7 +688,7 @@ class RT_SWIKA_Spectool:
         ustageN.subject_to(constr[-1])
         ustageN.add_objective(costs[-1])
 
-        ocp.solver("fatrop", {"expand":True, "jit":True})  
+        ocp.solver("fatrop")#, {"expand":True, "jit":True})  
         ocp_fun = ocp.to_function("ocp", [X0, marker_meas], [ocp.sample(x)[1]])
         return ocp_fun
 
@@ -594,3 +702,4 @@ class RT_SWIKA_Spectool:
         results = self._fun(np.array(x_list[0]), array_data)
 
         return results
+

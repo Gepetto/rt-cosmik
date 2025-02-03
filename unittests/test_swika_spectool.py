@@ -13,7 +13,7 @@ import pinocchio as pin
 from pinocchio.visualize import GepettoVisualizer
 import numpy as np
 from utils.model_utils import build_model_challenge
-from utils.ik_utils import RT_SWIKA_Spectool
+from utils.ik_utils import RT_SWIKA_Spectool, RT_SWIKA_Spectool_ustage
 from utils.viz_utils import place, Rquat
 import time
 from collections import deque
@@ -85,7 +85,7 @@ marker_names = ['r.ASIS_study','L.ASIS_study','r.PSIS_study','L.PSIS_study','r_k
            'L_lwrist_study','L_mwrist_study']
 
 ### IK init 
-dt = 1/10
+dt = 0.04
 T=10
 
 keys_to_track_list = marker_names
@@ -100,11 +100,14 @@ for ii in range(T):
     deque_lstm_dict.append(lstm_dict)
 
 ### IK calculations
-ik_class = RT_SWIKA_Spectool(human_model, deque_lstm_dict, x_list, keys_to_track_list, T, dt)
+ik_class = RT_SWIKA_Spectool_ustage(human_model, deque_lstm_dict, x_list, keys_to_track_list, T, dt)
 results = ik_class.solve_swika_fatrop()
 
 q = pin.neutral(human_model)
-q[:] = results[:human_model.nq,0].full().flatten()
+q[:] = results[:human_model.nq,-1].full().flatten()
+
+new_x_list = results.full().T.tolist()
+new_x_list.append(np.zeros(human_model.nq + human_model.nv))
 
 viz.display(q)
 
@@ -137,9 +140,13 @@ while ii < len(result_markers):
     ik_class._x_list = new_x_list
     ik_class._deque_dict_m = deque_lstm_dict
 
-    sol, new_x_list = ik_class.solve_swika_fatrop()
+    results = ik_class.solve_swika_fatrop()
 
-    q = new_x_list[-1][:human_model.nq]
+    q = pin.neutral(human_model)
+    q[:] = results[:human_model.nq,-1].full().flatten()
+
+    new_x_list = results.full().T.tolist()
+    new_x_list.append(np.zeros(human_model.nq + human_model.nv))
 
     viz.display(q)
 
