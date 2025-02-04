@@ -599,14 +599,15 @@ class RT_SWIKA_Spectool:
 class RT_SWIKA_Spectool_ustage:
     """_Class to manage multi body Sliding Window IK problem using fatrop solver and spectool formulation_
     """
-    def __init__(self,model: pin.Model, deque_dict_m: deque, x_list: List, keys_to_track_list: List, N: int, dt: float, dict_dof_to_keypoints=None, with_freeflyer=True) -> None:
+    def __init__(self,model: pin.Model, deque_dict_m: deque, x_list: List, u_list: List, keys_to_track_list: List, N: int, dt: float, dict_dof_to_keypoints=None, with_freeflyer=True) -> None:
        
         """ _Init of the class _
 
         Args:
             model (pin.Model): _Pinocchio biomechanical model_
             deque_dict_m (deque): _a deque containing the measures of the landmarks_
-            x_list (List): _list of states_
+            x_list (List): _list of states for warm start_
+            u_list (List): _list of controls for warm start_
             keys_to_track_list (List): _name of the points to track from the dictionnary_
             N (int): _Size of the window_
             dt (float): _Sampling rate of the data_
@@ -620,6 +621,7 @@ class RT_SWIKA_Spectool_ustage:
         self._data = self._model.createData()
         self._deque_dict_m = deque_dict_m
         self._x_list = x_list
+        self._u_list = u_list
         self._keys_to_track_list = keys_to_track_list
         self._N = N
         self._dt = dt # TO SET UP : FRAMERATE OF THE DATA
@@ -660,6 +662,7 @@ class RT_SWIKA_Spectool_ustage:
         # Define parameters 
         X0 = ocp.parameter(self._nq+self._nv)
         X_ws = ocp.parameter(self._nq+self._nv) 
+        U_ws = ocp.parameter(self._nv)
         marker_meas = ocp.parameter(self._N, len(self._keys_to_track_list)*3)
 
         # Define variables
@@ -697,20 +700,23 @@ class RT_SWIKA_Spectool_ustage:
         ustageN.subject_to(constr[-1])
         ustageN.add_objective(costs[-1])
 
-        ocp.set_initial(x,X_ws) # Warm start 
+        # Warm start 
+        ocp.set_initial(x,X_ws) 
+        ocp.set_initial(u,U_ws) 
 
         ocp.solver("fatrop", {"expand":True}, {"tol":1e-3, "mu_init":1e-1})  # , "jit":True
-        ocp_fun = ocp.to_function("ocp", [X_ws, X0, marker_meas], [ocp.sample(x)[1]])
+        ocp_fun = ocp.to_function("ocp", [X_ws, U_ws, X0, marker_meas], [ocp.sample(x)[1], ocp.sample(u)[1]])
         return ocp_fun
 
     def solve_swika_fatrop(self)->tuple:
         x_list = self._x_list
+        u_list = self._u_list
         lstm_dict_list = list(self._deque_dict_m)
 
         # Convert the list of dictionaries to a NumPy array
         array_data = np.array([np.hstack([d[marker] for marker in self._keys_to_track_list]) for d in lstm_dict_list])
 
-        results = self._fun(np.array(x_list[0]), np.array(x_list[0]), array_data)
+        x_sol, u_sol = self._fun(np.array(x_list[0]), np.array(u_list[0]), np.array(x_list[0]), array_data)
 
-        return results
+        return x_sol, u_sol
 

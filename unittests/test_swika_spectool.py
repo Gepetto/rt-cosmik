@@ -91,25 +91,31 @@ T=10
 keys_to_track_list = marker_names
 
 x_list = []
+u_list = []
 
 x0 = np.zeros(human_model.nq + human_model.nv)
 x0[6] = 1
+u0 = np.zeros(human_model.nv)
 
 for ii in range(T):
     x_list.append(x0)
+    u_list.append(u0)
     deque_lstm_dict.append(lstm_dict)
 
 ### IK calculations
-ik_class = RT_SWIKA_Spectool_ustage(human_model, deque_lstm_dict, x_list, keys_to_track_list, T, dt)
-results = ik_class.solve_swika_fatrop()
+ik_class = RT_SWIKA_Spectool_ustage(human_model, deque_lstm_dict, x_list, u_list, keys_to_track_list, T, dt)
+x_sol, u_sol = ik_class.solve_swika_fatrop()
 
 input()
 
 q = pin.neutral(human_model)
-q[:] = results[:human_model.nq,-1].full().flatten()
+q[:] = x_sol[:human_model.nq,-1].full().flatten()
 
-new_x_list = results.full().T.tolist()
+new_x_list = x_sol.full().T.tolist()
 new_x_list.append(np.zeros(human_model.nq + human_model.nv))
+
+new_u_list = u_sol.full().T.tolist()
+new_u_list.append(np.zeros(human_model.nv))
 
 viz.display(q)
 
@@ -140,15 +146,19 @@ while ii < len(result_markers):
     deque_lstm_dict.append(lstm_dict)
 
     ik_class._x_list = new_x_list
+    ik_class._u_list = new_u_list
     ik_class._deque_dict_m = deque_lstm_dict
 
-    results = ik_class.solve_swika_fatrop()
+    x_sol, u_sol = ik_class.solve_swika_fatrop()
 
     q = pin.neutral(human_model)
-    q[:] = results[:human_model.nq,-1].full().flatten()
+    q[:] = x_sol[:human_model.nq,-1].full().flatten()
 
-    new_x_list = results.full().T.tolist()
+    new_x_list = x_sol.full().T.tolist()
     new_x_list.append(np.zeros(human_model.nq + human_model.nv))
+
+    new_u_list = u_sol.full().T.tolist()
+    new_u_list.append(np.zeros(human_model.nv))
 
     viz.display(q)
 
