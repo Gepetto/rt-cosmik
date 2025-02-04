@@ -97,10 +97,13 @@ x0 = np.zeros(human_model.nq + human_model.nv)
 x0[6] = 1
 u0 = np.zeros(human_model.nv)
 
-for ii in range(T):
+for ii in range(T-1):
     x_list.append(x0)
     u_list.append(u0)
     deque_lstm_dict.append(lstm_dict)
+
+x_list.append(x0)
+deque_lstm_dict.append(lstm_dict)
 
 ### IK calculations
 ik_class = RT_SWIKA_Spectool_ustage(human_model, deque_lstm_dict, x_list, u_list, keys_to_track_list, T, dt)
@@ -115,7 +118,7 @@ new_x_list = x_sol.full().T.tolist()
 new_x_list.append(x_sol.full().T.tolist()[-1])
 
 new_u_list = u_sol.full().T.tolist()
-new_u_list.append(u_sol.full().T.tolist()[-1])
+new_u_list[-1]=u_sol.full().T.tolist()[-2]
 
 viz.display(q)
 
@@ -158,7 +161,7 @@ while ii < len(result_markers):
     new_x_list.append(x_sol.full().T.tolist()[-1])
 
     new_u_list = u_sol.full().T.tolist()
-    new_u_list.append(u_sol.full().T.tolist()[-1])
+    new_u_list[-1]=u_sol.full().T.tolist()[-2]
 
     viz.display(q)
 
