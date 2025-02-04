@@ -716,7 +716,7 @@ class RT_SWIKA_Spectool_ustage:
         # Convert the list of dictionaries to a NumPy array
         array_data = np.array([np.hstack([d[marker] for marker in self._keys_to_track_list]) for d in lstm_dict_list])
 
-        x_sol, u_sol = self._fun(np.array(x_list[0]), np.array(u_list[0]), np.array(x_list[0]), array_data)
+        x_sol, u_sol = self._fun(np.array(x_list[-1]), np.array(u_list[-1]), np.array(x_list[-1]), array_data)
 
         return x_sol, u_sol
 

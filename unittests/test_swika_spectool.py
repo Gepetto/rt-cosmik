@@ -112,10 +112,10 @@ q = pin.neutral(human_model)
 q[:] = x_sol[:human_model.nq,-1].full().flatten()
 
 new_x_list = x_sol.full().T.tolist()
-new_x_list.append(np.zeros(human_model.nq + human_model.nv))
+new_x_list.append(x_sol.full().T.tolist()[-1])
 
 new_u_list = u_sol.full().T.tolist()
-new_u_list.append(np.zeros(human_model.nv))
+new_u_list.append(u_sol.full().T.tolist()[-1])
 
 viz.display(q)
 
@@ -155,10 +155,10 @@ while ii < len(result_markers):
     q[:] = x_sol[:human_model.nq,-1].full().flatten()
 
     new_x_list = x_sol.full().T.tolist()
-    new_x_list.append(np.zeros(human_model.nq + human_model.nv))
+    new_x_list.append(x_sol.full().T.tolist()[-1])
 
     new_u_list = u_sol.full().T.tolist()
-    new_u_list.append(np.zeros(human_model.nv))
+    new_u_list.append(u_sol.full().T.tolist()[-1])
 
     viz.display(q)
 
