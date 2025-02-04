@@ -654,42 +654,53 @@ class RT_SWIKA_Spectool_ustage:
         self._fun = self.sp_setup()
     
     def sp_setup(self)->sp.Ocp.to_function:
+        # Define ocp 
         ocp = sp.Ocp()
 
+        # Define parameters 
         X0 = ocp.parameter(self._nq+self._nv)
+        X_ws = ocp.parameter(self._nq+self._nv) 
         marker_meas = ocp.parameter(self._N, len(self._keys_to_track_list)*3)
 
+        # Define variables
         x = ocp.state(self._nq+self._nv)
         u = ocp.control(self._nv)
         dt = self._dt
         N = self._N
 
+        # Define the dynamics
         # Euler integration
         qnext=self._integrate(x[:self._nq],x[self._nq:]*self._dt)
         dqnext=x[self._nq:]+u*self._dt
-
         xnext = casadi.vertcat(qnext,dqnext)
 
         dyns = [xnext for i in range(N-1)]
+
+        # Define the cost function
         costs = [10*casadi.sumsqr(marker_meas[i,:]-self._fmarkers_est(x[:self._nq])) + 1e-3*casadi.sumsqr(x-X0) + 1e-5*casadi.sumsqr(u) for i in range(N)]
         
+        # Define the constraints
         if self._with_freeflyer:
             constr = [casadi.vertcat(self._qminus[7:] <= x[7:self._nq], x[7:self._nq] <= self._qplus[7:]) for i in range(N)]
         else:
             constr = [casadi.vertcat(self._qminus <= x[:self._nq], x[:self._nq] <= self._qplus) for i in range(N)]
 
+        # Running stages 
         for dyni, costi, contri in zip(dyns[:-1], costs[:-1], constr[:-1]):
             ustagei = ocp.new_ustage()
             ustagei.set_next(x, dyni)
             ustagei.add_objective(costi)
             ustagei.subject_to(contri)
 
+        # Terminal stage 
         ustageN = ocp.new_ustage()
         ustageN.subject_to(constr[-1])
         ustageN.add_objective(costs[-1])
 
-        ocp.solver("fatrop")#, {"expand":True, "jit":True})  
-        ocp_fun = ocp.to_function("ocp", [X0, marker_meas], [ocp.sample(x)[1]])
+        ocp.set_initial(x,X_ws) # Warm start 
+
+        ocp.solver("fatrop", {"expand":True, "jit":True}, {"mu_init":1e-1})  #
+        ocp_fun = ocp.to_function("ocp", [X_ws, X0, marker_meas], [ocp.sample(x)[1]])
         return ocp_fun
 
     def solve_swika_fatrop(self)->tuple:
@@ -699,7 +710,7 @@ class RT_SWIKA_Spectool_ustage:
         # Convert the list of dictionaries to a NumPy array
         array_data = np.array([np.hstack([d[marker] for marker in self._keys_to_track_list]) for d in lstm_dict_list])
 
-        results = self._fun(np.array(x_list[0]), array_data)
+        results = self._fun(np.array(x_list[0]), np.array(x_list[0]), array_data)
 
         return results
 

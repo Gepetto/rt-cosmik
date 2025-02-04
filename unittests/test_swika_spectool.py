@@ -103,6 +103,8 @@ for ii in range(T):
 ik_class = RT_SWIKA_Spectool_ustage(human_model, deque_lstm_dict, x_list, keys_to_track_list, T, dt)
 results = ik_class.solve_swika_fatrop()
 
+input()
+
 q = pin.neutral(human_model)
 q[:] = results[:human_model.nq,-1].full().flatten()
 
