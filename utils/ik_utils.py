@@ -704,7 +704,7 @@ class RT_SWIKA_Spectool_ustage:
         ocp.set_initial(x,X_ws) 
         ocp.set_initial(u,U_ws) 
 
-        ocp.solver("fatrop", {"expand":True}, {"tol":1e-2, "mu_init":1e-1})  # , "jit":True
+        ocp.solver("fatrop", {"expand":True, "jit":True}, {"warm_start_init_point":True, "bound_push":1e-7,"warm_start_mult_bound_push":1e-7,"tol":1e-3, "mu_init":1e-5})  #  
         ocp_fun = ocp.to_function("ocp", [X_ws, U_ws, X0, marker_meas], [ocp.sample(x)[1], ocp.sample(u)[1]])
         return ocp_fun
 
