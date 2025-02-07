@@ -5,7 +5,7 @@ import socket
 import requests
 import urllib.request
 import shutil
-import utils.utilsDataman
+import utilsDataman
 import pickle
 import glob
 import mimetypes

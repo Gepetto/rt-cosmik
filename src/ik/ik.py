@@ -328,10 +328,7 @@ class RT_IK:
 
         # Solve the optimization problem
         opti.solver("ipopt", opts)
-        t0 =time.time()
         sol = opti.solve()
-        t1 = time.time()
-        print("Time for opti.solve : ", t1 - t0)
         
         # Get the optimized joint angles
         q = sol.value(Q)
