@@ -2,7 +2,7 @@ import cv2
 import os
 
 class VideoSaver:
-    def __init__(self, camera_id, save_dir, fps=40, frame_size=(720, 1080)):  # Updated frame_size
+    def __init__(self, camera_id, save_dir, fps=40, frame_size=(720, 1280)):  # Updated frame_size
         """Initialize video writer."""
         self._camera_id = camera_id
         self._save_dir = save_dir

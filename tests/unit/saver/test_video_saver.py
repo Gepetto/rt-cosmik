@@ -12,7 +12,7 @@ class TestVideoSaver(unittest.TestCase):
         self.temp_dir = tempfile.TemporaryDirectory()
         self.save_dir = self.temp_dir.name
         self.camera_id = 0
-        self.frame_size = (720, 1080)
+        self.frame_size = (720, 1280)
         self.fps = 40
 
     def tearDown(self):

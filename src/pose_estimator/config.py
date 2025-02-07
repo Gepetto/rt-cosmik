@@ -1,10 +1,6 @@
-import numpy as np 
-import pinocchio as pin 
-import cv2 
-import time 
+# MMPOSE VISUALISATION CONFIG
+# This configuration is used to define the skeleton, palette, link color, point color, and sigmas for the visualization of the pose estimator.
 
-
-### MMPOSE VISUALISATION
 VISUALIZATION_CFG = dict(
     body26=dict(
         skeleton = [(0, 1), (0, 2), (1, 3), (2, 4), (3, 5), (4, 6), (1, 2), (5, 18),(6, 18), (17,18), # Head, shoulders, and neck connections
@@ -37,7 +33,7 @@ VISUALIZATION_CFG = dict(
         ],
         sigmas = [0.026] * 26
     ),
-    coco=dict(
+    body17=dict(
         skeleton=[(15, 13), (13, 11), (16, 14), (14, 12), (11, 12), (5, 11),
                   (6, 12), (5, 6), (5, 7), (6, 8), (7, 9), (8, 10), (1, 2),
                   (0, 1), (0, 2), (1, 3), (2, 4), (3, 5), (4, 6)],
@@ -101,40 +97,3 @@ VISUALIZATION_CFG = dict(
             0.021, 0.021, 0.032, 0.02, 0.019, 0.022, 0.031
         ]))
 
-def visualize(frame,
-              results,
-              output_dir,
-              idx,
-              frame_id,
-              thr=0.5,
-              resize=1280,
-              skeleton_type='coco'):
-
-    skeleton = VISUALIZATION_CFG[skeleton_type]['skeleton']
-    palette = VISUALIZATION_CFG[skeleton_type]['palette']
-    link_color = VISUALIZATION_CFG[skeleton_type]['link_color']
-    point_color = VISUALIZATION_CFG[skeleton_type]['point_color']
-
-    scale = resize / max(frame.shape[0], frame.shape[1])
-    keypoints, bboxes, _ = results
-    scores = keypoints[..., 2]
-    keypoints = (keypoints[..., :2] * scale).astype(int)
-    bboxes *= scale
-    img = cv2.resize(frame, (0, 0), fx=scale, fy=scale)
-    for kpts, score, bbox in zip(keypoints, scores, bboxes):
-        show = [1] * len(kpts)
-        for (u, v), color in zip(skeleton, link_color):
-            if score[u] > thr and score[v] > thr:
-                cv2.line(img, kpts[u], tuple(kpts[v]), palette[color], 1,
-                         cv2.LINE_AA)
-            else:
-                show[u] = show[v] = 0
-        for kpt, show, color in zip(kpts, show, point_color):
-            if show:
-                cv2.circle(img, kpt, 1, palette[color], 2, cv2.LINE_AA)
-    if output_dir:
-        cv2.imwrite(f'{output_dir}/{str(frame_id).zfill(6)}.jpg', img)
-    else:
-        cv2.imshow('pose_tracker'+str(idx), img)
-        return cv2.waitKey(1) != 'q'
-    return True
