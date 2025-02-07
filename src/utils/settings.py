@@ -3,6 +3,9 @@ import numpy as np
 
 @dataclass
 class Settings:
+    # VIEWER TYPE
+    viewer: str = "gv" # "ros" or "gv". Default to gv
+    
     # CAM PARAMS
     fs: int = 40
     dt: float = field(init=False)  # Mark `dt` as excluded from the constructor

@@ -2,8 +2,21 @@ import rospy
 from visualization_msgs.msg import Marker, MarkerArray
 from geometry_msgs.msg import Point, TransformStamped
 from sensor_msgs.msg import JointState
+import tf2_ros
 import pinocchio as pin
 import numpy as np 
+
+def ros_init(freeflyer):
+    rospy.init_node('human_rt_ik', anonymous=True)
+    q_pub = rospy.Publisher('/human_RT_joint_angles', JointState, queue_size=10)
+    keypoints_pub = rospy.Publisher('/keypoints', MarkerArray, queue_size=10)
+    markers_pub = rospy.Publisher('/lstm_markers', MarkerArray, queue_size=10)
+    if freeflyer:
+        br = tf2_ros.TransformBroadcaster()
+    else : 
+        br = None
+    return keypoints_pub, markers_pub, q_pub, br
+
 
 def publish_keypoints_as_marker_array(keypoints, marker_pub, keypoint_names, frame_id="world"):
     """
