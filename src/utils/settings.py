@@ -5,7 +5,7 @@ import numpy as np
 class Settings:
     # VIEWER TYPE
     viewer: str = "gv" # "ros" or "gv". Default to gv
-    
+
     # CAM PARAMS
     fs: int = 40
     dt: float = field(init=False)  # Mark `dt` as excluded from the constructor
@@ -37,13 +37,14 @@ class Settings:
     human_height: float = 1.81
     human_mass: float = 73
 
-    #MMPOSE MODEL (here body 26)
+    # MMPOSE MODEL (here body 26)
     keypoints_names: list = field(default_factory=lambda: [
         "Nose", "LEye", "REye", "LEar", "REar", 
         "LShoulder", "RShoulder", "LElbow", "RElbow", 
         "LWrist", "RWrist", "LHip", "RHip", 
         "LKnee", "RKnee", "LAnkle", "RAnkle", "Head",
-        "Neck", "midHip", "LBigToe", "RBigToe", "LSmallToe", "RSmallToe", "LHeel", "RHeel"
+        "Neck", "midHip", "LBigToe", "RBigToe", 
+        "LSmallToe", "RSmallToe", "LHeel", "RHeel"
     ])
     
     # OPENCAP MARKER SET 
@@ -57,6 +58,12 @@ class Settings:
            'L_sh1_study','L_sh2_study','L_sh3_study','RHJC_study','LHJC_study','r_lelbow_study',
            'r_melbow_study','r_lwrist_study','r_mwrist_study','L_lelbow_study','L_melbow_study',
            'L_lwrist_study','L_mwrist_study'])
+    
+    # MODEL DOFS NAMES
+    dof_names:  list = field(default_factory=lambda: ['FF_TX','FF_TY','FF_TZ','FF_Rquat0','FF_Rquat1',
+                                                      'FF_Rquat2','FF_Rquat3','L5S1_FE','RShoulder_FE',
+                                                      'RShoulder_AA','RShoulder_RIE','RElbow_FE','RElbow_PS',
+                                                      'RHip_FE','RHip_AA','RKnee_FE','RAnkle_FE'])
     
     def __post_init__(self):
         self.dt = 1 / self.fs  # Compute `dt` after initialization

@@ -1,7 +1,5 @@
 import numpy as np
-# from scipy import linalg
 import cv2
-# from scipy.spatial.transform import Rotation as R
 
 def DLT_adaptive(projections, points):
     """
