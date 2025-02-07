@@ -1,6 +1,7 @@
 # To run the code : python3 apps/rt_cosmik_rgbcams_wb_rviz.py cuda /root/workspace/mmdeploy/rtmpose-trt/rtmdet-nano /root/workspace/mmdeploy/rtmpose-trt/rtmpose-m
 # or python3 -m apps.rt_cosmik_rgbcams_wb_rviz cuda /root/workspace/mmdeploy/rtmpose-trt/rtmdet-nano /root/workspace/mmdeploy/rtmpose-trt/rtmpose-m
 
+#roslaunch rt-cosmik start_viz.launch
 import argparse
 import os
 import cv2
@@ -112,7 +113,7 @@ def main():
     ### Initialize CSV files
     init_csv(keypoints_csv_file_path,['Frame', 'Time','Keypoint', 'X', 'Y', 'Z'])
     init_csv(augmented_csv_file_path,['Frame', 'Time','Marker', 'X', 'Y', 'Z'])
-    init_csv(q_csv_file_path,['Frame','Time','q0', 'q1','q2','q3','q4','q5','q6','q7','q8','q9','q10','q11','q12','q13','q14','q15','q16','q17','q18','q19','q20','q21','q22'])
+    init_csv(q_csv_file_path,['Frame','Time','q0', 'q1','q2','q3','q4','q5','q6','q7','q8','q9','q10','q11','q12','q13','q14','q15','q16','q17','q18','q19','q20','q21','q22', 'q23', 'q24', 'q25', 'q26', 'q27', 'q28'])
 
     ### Initialize ROS node 
     rospy.init_node('human_rt_ik', anonymous=True)
@@ -185,29 +186,32 @@ def main():
             # Process each frame individually
             for idx, frame in enumerate(frames):
                 #Videos savings
-                if idx == 0 : 
-                    out_vid1.write(frame)
-                elif idx == 1 : 
-                    out_vid2.write(frame)
+                # if idx == 0 : 
+                #     out_vid1.write(frame)
+                # elif idx == 1 : 
+                #     out_vid2.write(frame)
 
                 t0 = time.time()
+                #tout mettre dans une classe qui permet de recuperer les keypoints correcte (avec le mono user)
                 results = tracker(state, frame, detect=-1)
                 keypoints, bboxes, _ = results
                 keypoints = (keypoints[..., :2] ).astype(float)
+
+
                 
                 if keypoints.size == 0 or keypoints.flatten().shape != (52,):
                     pass
                 else :
                     keypoints_list.append(keypoints.reshape((26,2)).flatten())
                     
-                # if not visualize(
-                #         frame,
-                #         results,
-                #         args.output_dir,
-                #         idx,
-                #         frame_idx + idx,
-                #         skeleton_type=args.skeleton):
-                #     break
+                if not visualize(
+                        frame,
+                        results,
+                        args.output_dir,
+                        idx,
+                        frame_idx + idx,
+                        skeleton_type=args.skeleton):
+                    break
 
             if len(keypoints_list)!=2: #number of cams
                 pass
@@ -216,7 +220,7 @@ def main():
                 keypoints_in_cam = p3d_frame
 
                 # Apply the rotation matrix to align the points
-                keypoints_in_world = np.array([np.dot(world_R1_cam,point) + world_T1_cam for point in keypoints_in_cam])
+                keypoints_in_world = np.array([np.dot(world_R1_cam,point) + world_T1_cam for point in keypoints_in_cam])#remettre world frame =>camera
                 
                 # Save keypoints to csv
                 save_3dpos_to_csv(keypoints_csv_file_path,keypoints_in_world,settings.keypoints_names,frame_idx, formatted_timestamp)

@@ -200,6 +200,7 @@ def visualize(frame,
               output_dir,
               idx,
               frame_id,
+              out_vid = None, 
               thr=0.5,
               resize=1280,
               skeleton_type='coco'):
@@ -230,5 +231,7 @@ def visualize(frame,
         cv2.imwrite(f'{output_dir}/{str(frame_id).zfill(6)}.jpg', img)
     else:
         cv2.imshow('pose_tracker'+str(idx), img)
+        if out_vid is not None: 
+            out_vid.write(img)
         return cv2.waitKey(1) != 'q'
     return True
