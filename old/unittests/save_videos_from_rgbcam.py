@@ -9,7 +9,6 @@ from datetime import datetime
 
 def main():
 
-
     # Initialize camera streams
     settings = Settings()
     camera_dict = list_cameras_with_v4l2()
@@ -26,8 +25,8 @@ def main():
         cap.set(cv2.CAP_PROP_FRAME_HEIGHT, settings.height)
         cap.set(cv2.CAP_PROP_FPS, settings.fs)
 
-    # fps_reported = cap.get(cv2.CAP_PROP_FPS)
-    # print(f"reports FPS: {fps_reported}")
+        fps_reported = cap.get(cv2.CAP_PROP_FPS)
+        print(f"reports FPS: {fps_reported}")
     # Check if all cameras are opened successfully
     for i, capture in enumerate(captures):
         if not capture.isOpened():
@@ -57,21 +56,21 @@ def main():
             # fps_reported = capture.get(cv2.CAP_PROP_FPS)
             # print(fps_reported)
             ret, frame = capture.read()
-            print( timestamp2 - timestamp)
+            print( capture, " " , timestamp2 - timestamp)
             timestamp = timestamp2
 
             if not ret:
                 print("Error: Failed to capture frame from one of the cameras")
                 return
-            frames.append(frame)
+            # frames.append(frame)
 
         # Write the frames to the corresponding video files
-        for writer, frame in zip(writers, frames):
-            writer.write(frame)
+        # for writer, frame in zip(writers, frames):
+        #     writer.write(frame)
 
         # Optionally, display the frames from each camera
-        for i, frame in enumerate(frames):
-            cv2.imshow(f"Camera {i}", frame)
+        # for i, frame in enumerate(frames):
+        #     cv2.imshow(f"Camera {i}", frame)
 
         # Press 'q' to exit the loop
         if cv2.waitKey(1) & 0xFF == ord('q'):

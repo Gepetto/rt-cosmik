@@ -1,4 +1,4 @@
-#python3 -m unittests.test_pose_tracker_rgbcam_multiprocess cuda /root/workspace/mmdeploy/rtmpose-trt/rtmdet-nano /root/workspace/mmdeploy/rtmpose-trt/rtmpose-m 
+#python3 -m unittests.multiprocess
 
 import multiprocessing
 import argparse
@@ -18,38 +18,42 @@ import multiprocessing
 
 def process_camera(camera_id, width, height, fps, barrier):
     # Set up the camera...
-    barrier.wait()
-    
-    cap = cv2.VideoCapture(camera_id, cv2.CAP_V4L2)
-    cap.set(cv2.CAP_PROP_BUFFERSIZE, 1); 
-    buffsuze = cap.get(cv2.CAP_PROP_BUFFERSIZE) 
-    while True:
-        ret, frame = cap.read()
-        print("buffsize:", buffsuze)
-        print(camera_id, " ", datetime.now())
-    # Camera configuration...
-    time.sleep(0.01)
-    # try:
-    #     while True:
-    #         # Wait for all processes to be ready
-            
-    #         print(camera_id)
-    #         # print('parent process:', os.getppid())
-    #         # print('process id:', os.getpid())
+    # barrier.wait()
 
-    #         print(datetime.now())
+    print('parent process:', os.getppid())
+    print('process id:', os.getpid())
+    # print(camera_id, " ", datetime.now())
+    cap = cv2.VideoCapture(camera_id, cv2.CAP_V4L2)
+    cap.set(cv2.CAP_PROP_FOURCC, cv2.VideoWriter_fourcc(*'MJPG'))#which format to deliver the frames
+
+    cap.set(cv2.CAP_PROP_FRAME_WIDTH, width)
+    cap.set(cv2.CAP_PROP_FRAME_HEIGHT, height)
+    cap.set(cv2.CAP_PROP_FPS, fps)
+
+
+    fps_reported = cap.get(cv2.CAP_PROP_FRAME_WIDTH)
+    print(f"reports FPS: {fps_reported}")
+
+    timestamp= datetime.now()
+
+    try:
+        while True:
+            timestamp2 = datetime.now()
+            ret, frame = cap.read()
+            print(camera_id," ", timestamp2 - timestamp)
+            timestamp = timestamp2
+
+            if not ret:
+                break
             
-    #         ret, frame = cap.read()
-    #         if not ret:
-    #             break
-            
-    #         # Process or display the frame
-    #         cv2.imshow(f"Camera {camera_id}", frame)
-    #         if cv2.waitKey(1) & 0xFF == ord('q'):
-    #             break
-    # finally:
-    #     cap.release()
-    #     cv2.destroyAllWindows()
+            # Process or display the frame
+            cv2.imshow(f"Camera {camera_id}", frame)
+            if cv2.waitKey(1) & 0xFF == ord('q'):
+                break
+
+    finally:
+        cap.release()
+        cv2.destroyAllWindows()
 
 if __name__ == "__main__":
     settings = Settings()
