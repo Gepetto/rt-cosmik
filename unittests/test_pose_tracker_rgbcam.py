@@ -79,7 +79,8 @@ def main():
             # Process each frame individually
             for idx, frame in enumerate(frames):
                 t0 = time.time()
-                results = tracker(state, frame, detect=-1)
+                frames: List[np.ndarray[np.uint8]] = [frame, frame.copy()]
+                results = tracker.batch(state,frames, detect=-1)
                 keypoints, bboxes, _ = results
                 keypoints = (keypoints[..., :2] ).astype(float)
                 t1 =time.time()

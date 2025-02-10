@@ -1,129 +1,82 @@
-# Copyright (c) OpenMMLab. All rights reserved.
+#python example/python/pose_tracker_2.py cpu rtmpose-ort/rtmdet-nano/ rtmpose-trt/rtmpose-m/ 0
+#python3 -m unittests.test_pose_tracker cuda /root/workspace/mmdeploy/rtmpose-trt/rtmdet-nano /root/workspace/mmdeploy/rtmpose-trt/rtmpose-m /root/workspace/ros_ws/src/rt-cosmik/output/camera0_output.avi 
+#python3 -m unittests.test_pose_tracker cuda /root/workspace/mmdeploy/rtmpose-trt/rtmdet-nano /root/workspace/mmdeploy/rtmpose-trt/rtmpose-m 0
+
 import argparse
 import os
-
-import cv2
 import numpy as np
+import cv2
 from mmdeploy_runtime import PoseTracker
-
-
+import math as m
+import csv
 def parse_args():
-    parser = argparse.ArgumentParser(
-        description='show how to use SDK Python API')
+    parser = argparse.ArgumentParser(description='show how to use SDK Python API')
     parser.add_argument('device_name', help='name of device, cuda or cpu')
-    parser.add_argument(
-        'det_model',
-        help='path of mmdeploy SDK model dumped by model converter')
-    parser.add_argument(
-        'pose_model',
-        help='path of mmdeploy SDK model dumped by model converter')
+    parser.add_argument('det_model', help='path of mmdeploy SDK model dumped by model converter')
+    parser.add_argument('pose_model', help='path of mmdeploy SDK model dumped by model converter')
     parser.add_argument('video', help='video path or camera index')
     parser.add_argument('--output_dir', help='output directory', default=None)
-    parser.add_argument(
-        '--skeleton',
-        default='coco',
-        choices=['coco', 'coco_wholebody'],
-        help='skeleton for keypoints')
-
     args = parser.parse_args()
     if args.video.isnumeric():
         args.video = int(args.video)
     return args
 
 
-VISUALIZATION_CFG = dict(
-    coco=dict(
-        skeleton=[(15, 13), (13, 11), (16, 14), (14, 12), (11, 12), (5, 11),
-                  (6, 12), (5, 6), (5, 7), (6, 8), (7, 9), (8, 10), (1, 2),
-                  (0, 1), (0, 2), (1, 3), (2, 4), (3, 5), (4, 6)],
-        palette=[(255, 128, 0), (255, 153, 51), (255, 178, 102), (230, 230, 0),
-                 (255, 153, 255), (153, 204, 255), (255, 102, 255),
-                 (255, 51, 255), (102, 178, 255), (51, 153, 255),
-                 (255, 153, 153), (255, 102, 102), (255, 51, 51),
-                 (153, 255, 153), (102, 255, 102), (51, 255, 51), (0, 255, 0),
-                 (0, 0, 255), (255, 0, 0), (255, 255, 255)],
-        link_color=[
-            0, 0, 0, 0, 7, 7, 7, 9, 9, 9, 9, 9, 16, 16, 16, 16, 16, 16, 16
-        ],
-        point_color=[16, 16, 16, 16, 16, 9, 9, 9, 9, 9, 9, 0, 0, 0, 0, 0, 0],
-        sigmas=[
-            0.026, 0.025, 0.025, 0.035, 0.035, 0.079, 0.079, 0.072, 0.072,
-            0.062, 0.062, 0.107, 0.107, 0.087, 0.087, 0.089, 0.089
-        ]),
-    coco_wholebody=dict(
-        skeleton=[(15, 13), (13, 11), (16, 14), (14, 12), (11, 12), (5, 11),
-                  (6, 12), (5, 6), (5, 7), (6, 8), (7, 9), (8, 10), (1, 2),
-                  (0, 1), (0, 2), (1, 3), (2, 4), (3, 5), (4, 6), (15, 17),
-                  (15, 18), (15, 19), (16, 20), (16, 21), (16, 22), (91, 92),
-                  (92, 93), (93, 94), (94, 95), (91, 96), (96, 97), (97, 98),
-                  (98, 99), (91, 100), (100, 101), (101, 102), (102, 103),
-                  (91, 104), (104, 105), (105, 106), (106, 107), (91, 108),
-                  (108, 109), (109, 110), (110, 111), (112, 113), (113, 114),
-                  (114, 115), (115, 116), (112, 117), (117, 118), (118, 119),
-                  (119, 120), (112, 121), (121, 122), (122, 123), (123, 124),
-                  (112, 125), (125, 126), (126, 127), (127, 128), (112, 129),
-                  (129, 130), (130, 131), (131, 132)],
-        palette=[(51, 153, 255), (0, 255, 0), (255, 128, 0), (255, 255, 255),
-                 (255, 153, 255), (102, 178, 255), (255, 51, 51)],
-        link_color=[
-            1, 1, 2, 2, 0, 0, 0, 0, 1, 2, 1, 2, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1,
-            2, 2, 2, 2, 2, 2, 2, 4, 4, 4, 4, 5, 5, 5, 5, 6, 6, 6, 6, 1, 1, 1,
-            1, 2, 2, 2, 2, 4, 4, 4, 4, 5, 5, 5, 5, 6, 6, 6, 6, 1, 1, 1, 1
-        ],
-        point_color=[
-            0, 0, 0, 0, 0, 1, 2, 1, 2, 1, 2, 1, 2, 1, 2, 1, 2, 2, 2, 2, 2, 2,
-            2, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3,
-            3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3,
-            3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3,
-            3, 3, 3, 3, 2, 2, 2, 2, 4, 4, 4, 4, 5, 5, 5, 5, 6, 6, 6, 6, 1, 1,
-            1, 1, 3, 2, 2, 2, 2, 4, 4, 4, 4, 5, 5, 5, 5, 6, 6, 6, 6, 1, 1, 1, 1
-        ],
-        sigmas=[
-            0.026, 0.025, 0.025, 0.035, 0.035, 0.079, 0.079, 0.072, 0.072,
-            0.062, 0.062, 0.107, 0.107, 0.087, 0.087, 0.089, 0.089, 0.068,
-            0.066, 0.066, 0.092, 0.094, 0.094, 0.042, 0.043, 0.044, 0.043,
-            0.040, 0.035, 0.031, 0.025, 0.020, 0.023, 0.029, 0.032, 0.037,
-            0.038, 0.043, 0.041, 0.045, 0.013, 0.012, 0.011, 0.011, 0.012,
-            0.012, 0.011, 0.011, 0.013, 0.015, 0.009, 0.007, 0.007, 0.007,
-            0.012, 0.009, 0.008, 0.016, 0.010, 0.017, 0.011, 0.009, 0.011,
-            0.009, 0.007, 0.013, 0.008, 0.011, 0.012, 0.010, 0.034, 0.008,
-            0.008, 0.009, 0.008, 0.008, 0.007, 0.010, 0.008, 0.009, 0.009,
-            0.009, 0.007, 0.007, 0.008, 0.011, 0.008, 0.008, 0.008, 0.01,
-            0.008, 0.029, 0.022, 0.035, 0.037, 0.047, 0.026, 0.025, 0.024,
-            0.035, 0.018, 0.024, 0.022, 0.026, 0.017, 0.021, 0.021, 0.032,
-            0.02, 0.019, 0.022, 0.031, 0.029, 0.022, 0.035, 0.037, 0.047,
-            0.026, 0.025, 0.024, 0.035, 0.018, 0.024, 0.022, 0.026, 0.017,
-            0.021, 0.021, 0.032, 0.02, 0.019, 0.022, 0.031
-        ]))
+def visualize(frame, keypoints,bboxes, output_dir, frame_id, thr=0.5, resize=1280):
+    # Updated skeleton for 26 points
+    skeleton= [
+    (0, 1), (0, 2), (1, 3), (2, 4), (3, 5), (4, 6), (17, 18), (1, 2), (5, 18),(6, 18), # Head, shoulders, and neck connections
 
+    (5, 7), (7, 9),                                                              # Right arm connections
 
-def visualize(frame,
-              results,
-              output_dir,
-              frame_id,
-              thr=0.5,
-              resize=1280,
-              skeleton_type='coco'):
+    (6, 8), (8, 10),                                                             # Left arm connections
 
-    skeleton = VISUALIZATION_CFG[skeleton_type]['skeleton']
-    palette = VISUALIZATION_CFG[skeleton_type]['palette']
-    link_color = VISUALIZATION_CFG[skeleton_type]['link_color']
-    point_color = VISUALIZATION_CFG[skeleton_type]['point_color']
+    (18, 19), (19, 11), (19, 12),                                                      # Shoulders to hips connections
+
+    (11, 13), (13, 15), (15, 20), (15, 22), (15, 24),                            # Left leg and foot connections
+
+    (12, 14), (14, 16), (16, 21), (16, 23), (16, 25),                            # Right leg and foot connections
+                                                      # Hip connection
+]
+
+    # Updated palette
+    palette = [[51, 153, 255], [0, 255, 0], [255, 128, 0], [255, 255, 255],
+               [255, 153, 255], [102, 178, 255], [255, 51, 51]]
+
+    # Updated link color
+    link_color = [
+        1, 1, 2, 2, 0, 0, 0, 0, 1, 2, 1, 2, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 2, 2,
+        2, 2, 2, 2, 2, 4, 4, 4, 4, 5, 5, 5, 5, 6, 6, 6, 6, 1, 1, 1, 1, 2, 2, 2,
+        2, 4, 4, 4, 4, 5, 5, 5, 5, 6, 6, 6, 6, 1, 1, 1, 1
+    ]
+
+    # Updated point color
+    point_color = [
+        0, 0, 0, 0, 0, 1, 2, 1, 2, 1, 2, 1, 2, 1, 2, 1, 2, 2, 2, 2, 2, 2, 2, 3,
+        3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3,
+        3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3,
+        3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 2, 2, 2, 2, 4, 4, 4, 4,
+        5, 5, 5, 5, 6, 6, 6, 6, 1, 1, 1, 1, 3, 2, 2, 2, 2, 4, 4, 4, 4, 5, 5, 5,
+        5, 6, 6, 6, 6, 1, 1, 1, 1
+    ]
 
     scale = resize / max(frame.shape[0], frame.shape[1])
-    keypoints, bboxes, _ = results
+    #keypoints, bboxes, _ = results
+    #print(bboxes)
     scores = keypoints[..., 2]
     keypoints = (keypoints[..., :2] * scale).astype(int)
     bboxes *= scale
     img = cv2.resize(frame, (0, 0), fx=scale, fy=scale)
+
     for kpts, score, bbox in zip(keypoints, scores, bboxes):
-        show = [1] * len(kpts)
+        x1, y1, x2, y2 = map(int, bbox)
+        cv2.rectangle(img, (x1, y1), (x2, y2), (0, 255, 0), 2)
+
+        show = [0] * len(kpts)
         for (u, v), color in zip(skeleton, link_color):
             if score[u] > thr and score[v] > thr:
-                cv2.line(img, kpts[u], tuple(kpts[v]), palette[color], 1,
-                         cv2.LINE_AA)
-            else:
-                show[u] = show[v] = 0
+                cv2.line(img, kpts[u], tuple(kpts[v]), palette[color], 1, cv2.LINE_AA)
+                show[u] = show[v] = 1
         for kpt, show, color in zip(kpts, show, point_color):
             if show:
                 cv2.circle(img, kpt, 1, palette[color], 2, cv2.LINE_AA)
@@ -137,7 +90,7 @@ def visualize(frame,
 
 def main():
     args = parse_args()
-    np.set_printoptions(precision=4, suppress=True)
+
     video = cv2.VideoCapture(args.video)
 
     tracker = PoseTracker(
@@ -145,29 +98,66 @@ def main():
         pose_model=args.pose_model,
         device_name=args.device_name)
 
-    # optionally use OKS for keypoints similarity comparison
-    sigmas = VISUALIZATION_CFG[args.skeleton]['sigmas']
+    # Adjust coco_sigmas if needed for 26 keypoints (replace these with correct values for your model)
+    coco_sigmas = [0.026] * 26  # Placeholder, adjust based on your model
+
     state = tracker.create_state(
-        det_interval=1, det_min_bbox_size=100, keypoint_sigmas=sigmas)
+        det_interval=1, det_min_bbox_size=100, keypoint_sigmas=coco_sigmas)
 
     if args.output_dir:
         os.makedirs(args.output_dir, exist_ok=True)
 
-    frame_id = 0
-    while True:
-        success, frame = video.read()
-        if not success:
-            break
-        results = tracker(state, frame, detect=-1)
-        if not visualize(
-                frame,
-                results,
-                args.output_dir,
-                frame_id,
-                skeleton_type=args.skeleton):
-            break
-        frame_id += 1
+    csv_file = os.path.join("/root/workspace/ros_ws/src/rt-cosmik/output", 'keypoints.csv')
+    with open(csv_file, mode='w', newline='') as file:
+        writer = csv.writer(file)
+
+        # Write the header (Assuming you have 26 keypoints with x, y, z for each)
+        header = ['frame_id'] + [f'keypoint_{i}_x' for i in range(26)] + [f'keypoint_{i}_y' for i in range(26)] 
+        writer.writerow(header)
+
+        frame_id = 0
+        first_person_bbox = None
+        is_someone_detected=False
+        frame_of_first_detection=0
+        while True:
+            success, frame = video.read()
+            if not success:
+                break
+            results = tracker(state, frame, detect=-1)
+            keypoints, bboxes, _ = results
+            
+            if len(bboxes) > 0 and is_someone_detected==False:
+                first_person_bbox = bboxes[0] 
+            
+            if first_person_bbox is not None:
+                closest_person_idx = None
+                min_distance = float('inf')
+
+                for i, bbox in enumerate(bboxes):
+                    distance = abs(first_person_bbox[2] - bbox[2])  
+                    if distance < min_distance:
+                        min_distance = distance
+                        closest_person_idx = i
+
+                        
+                if closest_person_idx is not None:
+                    first_person_bbox = (bboxes[closest_person_idx] + first_person_bbox)/2.0 #moyenne mobile
+                    keypoints = keypoints[closest_person_idx:closest_person_idx + 1]
+                    bboxes = bboxes[closest_person_idx:closest_person_idx + 1]
+                    keypoints_to_write = (keypoints[..., :2] ).astype(float)
+                    print(keypoints_to_write)
+
+
+                    row = [frame_id] + keypoints_to_write.flatten().tolist()
+                    writer.writerow(row)
+                    
+
+
+            if not visualize(frame, keypoints,bboxes, args.output_dir, frame_id):
+                break
+            frame_id += 1
 
 
 if __name__ == '__main__':
     main()
+

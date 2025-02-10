@@ -1,6 +1,6 @@
 # To run the code : python3 apps/rt_cosmik_rgbcams_wb_rviz.py cuda /root/workspace/mmdeploy/rtmpose-trt/rtmdet-nano /root/workspace/mmdeploy/rtmpose-trt/rtmpose-m
 # or python3 -m apps.rt_cosmik_rgbcams_wb_rviz cuda /root/workspace/mmdeploy/rtmpose-trt/rtmdet-nano /root/workspace/mmdeploy/rtmpose-trt/rtmpose-m
-
+#tracking one person
 import argparse
 import os
 import cv2
@@ -181,6 +181,9 @@ def main():
             
             keypoints_list = []
             frame_idx += 1  # Increment frame counter
+            first_person_bbox = None
+            is_someone_detected=False
+            frame_of_first_detection=0
 
             # Process each frame individually
             for idx, frame in enumerate(frames):
@@ -193,21 +196,44 @@ def main():
                 t0 = time.time()
                 results = tracker(state, frame, detect=-1)
                 keypoints, bboxes, _ = results
-                keypoints = (keypoints[..., :2] ).astype(float)
+                
+
+                if len(bboxes) > 0 and is_someone_detected==False:
+                    first_person_bbox = bboxes[0] 
+                    is_someone_detected==True #à tester
+                    
+                
+                if first_person_bbox is not None:
+                    closest_person_idx = None
+                    min_distance = float('inf')
+
+                for i, bbox in enumerate(bboxes):
+                    distance = abs(first_person_bbox[2] - bbox[2])  
+                    if distance < min_distance:
+                        min_distance = distance
+                        closest_person_idx = i
+
+                        
+                    if closest_person_idx is not None:
+                        first_person_bbox = (bboxes[closest_person_idx] + first_person_bbox)/2.0 #moyenne mobile
+                        keypoints = keypoints[closest_person_idx:closest_person_idx + 1]
+                        bboxes = bboxes[closest_person_idx:closest_person_idx + 1]
+                        keypoints = (keypoints[..., :2] ).astype(float)
+
                 
                 if keypoints.size == 0 or keypoints.flatten().shape != (52,):
                     pass
                 else :
                     keypoints_list.append(keypoints.reshape((26,2)).flatten())
                     
-                # if not visualize(
-                #         frame,
-                #         results,
-                #         args.output_dir,
-                #         idx,
-                #         frame_idx + idx,
-                #         skeleton_type=args.skeleton):
-                #     break
+                if not visualize(
+                        frame,
+                        results,
+                        args.output_dir,
+                        idx,
+                        frame_idx + idx,
+                        skeleton_type=args.skeleton):
+                    break
 
             if len(keypoints_list)!=2: #number of cams
                 pass
