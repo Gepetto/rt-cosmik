@@ -17,8 +17,9 @@ from utils.ik_utils import RT_IK
 from utils.viz_utils import place, Rquat
 import time
 
-data_markers = pd.read_csv(os.path.join(rt_cosmik_path,'output/augmented_markers_positions.csv'))
-data_keypoints = pd.read_csv(os.path.join(rt_cosmik_path,'output/keypoints_3d_positions.csv'))
+start_sample = 0
+data_markers = pd.read_csv(os.path.join(rt_cosmik_path,'process_data_manip/mks_lstm/augmented_markers_positions_test_2.csv'))
+data_keypoints = pd.read_csv(os.path.join(rt_cosmik_path,'process_data_manip/jcp/keypoints_3d_positions_test_2.csv'))
 
 result_markers = []
 for frame, group in data_markers.groupby("Frame"):
@@ -32,9 +33,8 @@ for frame, group in data_keypoints.groupby("Frame"):
         frame_dict["midHip"] = frame_dict.pop("Hip")
     result_keypoints.append(frame_dict)
 
-
 # lstm_dict = result_keypoints[100] | result_markers[100]
-lstm_dict = {**result_keypoints[100], **result_markers[100]}
+lstm_dict = {**result_keypoints[start_sample], **result_markers[start_sample]}
 
 t1 =time.time()
 human_model, human_geom_model, visuals_dict = build_model_challenge(lstm_dict, lstm_dict, meshes_folder_path)
@@ -63,16 +63,17 @@ except AttributeError as err:
     print(err)
     sys.exit(0)
 
-for ii in range(len(result_markers)):
-    print(ii)
-    for marker in result_markers[ii].keys():
-        viz.viewer.gui.addSphere('world/'+marker,0.01,[0,0,1,1])
-        M = pin.SE3(pin.SE3(Rquat(1, 0, 0, 0), np.matrix([result_markers[ii][marker][0],result_markers[ii][marker][1],result_markers[ii][marker][2]]).T))
-        place(viz,'world/'+marker,M)
+# for ii in range(len(result_markers)):
+#     print(ii)
+#     for marker in result_markers[ii].keys():
+#         viz.viewer.gui.addSphere('world/'+marker,0.01,[0,0,1,1])
+#         M = pin.SE3(pin.SE3(Rquat(1, 0, 0, 0), np.matrix([result_markers[ii][marker][0],result_markers[ii][marker][1],result_markers[ii][marker][2]]).T))
+#         place(viz,'world/'+marker,M)
         # input("Press Enter to continue...")
 
 ### IK init 
 q = pin.neutral(human_model) # init pos
+human_data = pin.Data(human_model)
 dt = 1/40
 keys_to_track_list = ['C7_study',
                         'r.ASIS_study', 'L.ASIS_study', 
@@ -104,11 +105,42 @@ ik_class._q0=q
 
 print(q)
 input()
+q_list = []
 
-for ii in range(100,len(result_markers)): 
+#markers spheres (model and measured)
+for marker in result_markers[1].keys():
+    viz.viewer.gui.addSphere('world/'+marker,0.01,[0,0,1,1])
+    viz.viewer.gui.addSphere('world/'+marker+"_m",0.01,[0,1,0,1])
+
+for ii in range(start_sample,len(result_markers)): 
     lstm_dict = result_markers[ii]
     ik_class._dict_m= lstm_dict
     q = ik_class.solve_ik_sample_quadprog() 
+
+    pin.forwardKinematics(human_model, human_data, q)
+    pin.updateFramePlacements(human_model, human_data)
+
+    for marker in result_markers[ii].keys():
+        if marker == "LHJC_study" or marker == "RHJC_study":
+            continue  #skip
+
+        M = pin.SE3(pin.SE3(Rquat(1, 0, 0, 0), np.matrix([result_markers[ii][marker][0],result_markers[ii][marker][1],result_markers[ii][marker][2]]).T))
+        M_model = human_data.oMf[human_model.getFrameId(marker)]
+        # marker_pos=  M_model.translation 
+        # M_model = pin.SE3(Rquat(1, 0, 0, 0), np.matrix([M_model.translation[0],M_model.translation[1],M_model.translation[2]]).T)
+        place(viz,'world/'+marker,M)
+        place(viz,'world/'+marker+"_m",M_model)
+
+
+
     viz.display(q)
     ik_class._q0 = q 
-    input()
+    q_list.append(q)
+    # input('tap')
+
+# num_values = len(q_list[0])  
+# headers = [f"q{i}" for i in range(num_values)]
+# df = pd.DataFrame(q_list, columns=headers)
+
+# csv_file = os.path.join(rt_cosmik_path,'process_data_manip/q_cosmik_test_2_new_bounds_ipopt.csv')
+# df.to_csv(csv_file, index=False)

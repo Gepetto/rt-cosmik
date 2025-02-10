@@ -67,6 +67,41 @@ def make_homogeneous_rep_matrix(R, t):
     P[:3, 3] = t.reshape(3)
     return P
 
+
+def rodrigues_angle(v1, v2):
+    # Normalize the Rodrigues vectors
+    norm_v = np.linalg.norm(v1)
+    norm_prev = np.linalg.norm(v2)
+
+    if norm_v > 0 and norm_prev > 0:  # Avoid division by zero
+        v1_normalized = v1 / norm_v
+        v2_normalized = v2 / norm_prev
+
+        # Calculate dot product
+        dot_product = np.dot(v1_normalized.T, v2_normalized)
+        dot_product = np.clip(dot_product, -1.0, 1.0)  # Ensure within valid range for arccos
+
+        # Compute the angle in radians
+        angle_rad = np.arccos(dot_product)
+        angle_deg = np.degrees(angle_rad)  # Convert to degrees
+        # print(f"Angle between Rodrigues vectors: {angle_deg[0, 0]:.2f} degrees")
+
+    return angle_deg
+
+def rotation_matrix_angle(R1, R2):
+    # Compute the relative rotation matrix
+    R_rel = np.dot(R1.T, R2)
+    
+    # Compute the trace of the relative rotation matrix
+    trace = np.trace(R_rel)
+    
+    # Compute the rotation angle
+    angle_rad = np.arccos((trace - 1) / 2)
+    angle_deg = np.degrees(angle_rad)
+    # print(f"Angle : {angle_deg} degrees")
+    return angle_deg
+
+
 def butterworth_filter(data, cutoff_frequency, order=5, sampling_frequency=60):
     nyquist = 0.5 * sampling_frequency
     if not 0 < cutoff_frequency < nyquist:

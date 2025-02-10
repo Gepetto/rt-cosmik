@@ -122,6 +122,7 @@ def main():
 
     ### IK calculations 
     q = np.array([np.pi/2,0,0,-np.pi,0]) # init pos
+
     keys_to_track_list = ['Knee', 'midHip', 'Shoulder', 'Elbow', 'Wrist']
     dict_dof_to_keypoints = dict(zip(['knee_Z', 'lumbar_Z', 'shoulder_Z', 'elbow_Z', 'hand_fixed'],keys_to_track_list))
     

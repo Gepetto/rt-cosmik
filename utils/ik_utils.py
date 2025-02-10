@@ -258,6 +258,7 @@ class RT_IK:
             # Reset estimated markers dict 
             self.update_marker_estimates(q0)
             rmse = self.calculate_RMSE_dicts(self._dict_m,self._dict_m_est)
+            # print("rmse_qp", rmse)
             nb_iter+=1
 
         return q0
@@ -290,6 +291,8 @@ class RT_IK:
             for key in self._cfunction_dict.keys():
                 cost+=1*casadi.sumsqr(self._dict_m[key]-self._cfunction_dict[key](Q))
 
+        #add regularisation term 
+        cost += casadi.sumsqr(Q[7:])*1e-3
         # Set the constraint for the joint limits
         if self._with_freeflyer:
             for i in range(7,self._nq):
@@ -305,17 +308,17 @@ class RT_IK:
         opts = {
             "ipopt.print_level": 0,
             "ipopt.sb": "yes",
-            "ipopt.max_iter": 50,
+            "ipopt.max_iter": 200,
             "ipopt.linear_solver": "mumps",
             "print_time":0,
             "expand": True,
 
             # Tolerance options
-            "ipopt.tol": 1e-3,  # Overall tolerance for the optimization problem
+            "ipopt.tol": 1e-5,  # Overall tolerance for the optimization problem
             "ipopt.constr_viol_tol": 1e-6,  # Constraint violation tolerance
             "ipopt.compl_inf_tol": 1e-6,  # Complementarity tolerance
             "ipopt.dual_inf_tol": 1e-6,  # Dual infeasibility tolerance
-            "ipopt.acceptable_tol": 1e-3,  # Less strict tolerance for acceptable solutions
+            "ipopt.acceptable_tol": 1e-5,  # Less strict tolerance for acceptable solutions
             "ipopt.acceptable_constr_viol_tol": 1e-5  # Acceptable constraint violation tolerance
         }
 

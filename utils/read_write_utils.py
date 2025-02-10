@@ -120,6 +120,40 @@ def get_lstm_mks_names(file_name: str):
     mk_names = [mot for mot in mk_names if pd.notna(mot)] #On enlève les nan correspondant aux cases vides du fichier csv
     return mk_names
 
+def read_mks_data(data_markers, start_sample=0):
+    #the mks are ordered in a csv like this : "time,r.ASIS_study_x,r.ASIS_study_y,r.ASIS_study_z...."
+    """    
+    Parameters:
+        data_markers (pd.DataFrame): The input DataFrame containing marker data.
+        start_sample (int): The index of the sample to start processing from.
+        time_column (str): The name of the time column in the DataFrame.
+        
+    Returns:
+        list: A list of dictionaries where each dictionary contains markers with 3D coordinates.
+        dict: A dictionary representing the markers and their 3D coordinates for the specified start_sample.
+    """
+    # Extract marker column names
+    marker_columns = [col[:-2] for col in data_markers.columns if col.endswith("_x")]
+    # print(marker_columns)
+    
+    # Initialize the result list
+    result_markers = []
+    
+    # Iterate over each row in the DataFrame
+    for _, row in data_markers.iterrows():
+        frame_dict = {}
+        for marker in marker_columns:
+            x = row[f"{marker}_x"]
+            y = row[f"{marker}_y"]
+            z = row[f"{marker}_z"]
+            frame_dict[marker] = np.array([x, y, z])  # Store as a NumPy array
+        result_markers.append(frame_dict)
+    
+    # Get the data for the specified start_sample
+    lstm_dict = result_markers[start_sample]
+    
+    return result_markers, lstm_dict
+
 #read the first and second line of mocap data, from a trc file
 # def read_mocap_data(file_path: str)->Dict:
 #     """_Gets the lstm mks names_
@@ -148,7 +182,7 @@ def get_lstm_mks_names(file_name: str):
     
 #     return mocap_mks_positions
 
-#read all mocap data from a csv file 
+#read all mocap data from a csv file (csv file from vicon)
 def read_mocap_data(file_path: str) -> list:
     """Gets the mocap markers names and positions from a file.
     
@@ -317,6 +351,35 @@ def read_joint_angles(directory_name:str)->np.ndarray:
     q=np.array(q)
     return q
 
+
+#read q from a csv file
+def read_joint_angles_wholebody(file_path, start_sample, end_sample):
+
+    dofs_names = ['q0','q1','q2','q3','q4','q5','q6','q7','q8','q9','q10','q11','q12','q13','q14','q15','q16', 'q17','q18', 'q19', 'q20', 'q21','q22','q23', 'q24','q25','q26','q27', 'q28']
+
+    q = []
+    with open(file_path, mode='r') as csv_file:
+        csv_reader = csv.reader(csv_file)
+        #Skip the header 
+        header = next(csv_reader)
+        
+        # Read all rows into memory to count total rows
+        all_rows = list(csv_reader)
+        total_rows = len(all_rows)
+        
+        #  determine indices of columns
+        indices = [header.index(name) for name in dofs_names if name in header]
+        
+        # Start reading from the start_sampleth row and stop before the last end_sample rows
+        for row in all_rows[start_sample:total_rows - end_sample]:
+            # Extract values for the specified columns
+            selected_values = [float(row[i]) for i in indices]
+            q.append(selected_values)
+    
+    return np.array(q)
+
+
+
 def read_joint_positions(file_path):
     with open(file_path, 'r') as f:
         lines = f.readlines()
@@ -343,7 +406,7 @@ def read_mmpose_file(nom_fichier):
     with open(nom_fichier, 'r') as f:
         for ligne in f:
             ligne = ligne.strip().split(',')  # Séparer les valeurs par virgule
-            donnees.append([float(valeur) for valeur in ligne[2:]])  # Convertir les valeurs en float, en excluant le num_sample
+            donnees.append([float(valeur) for valeur in ligne[:]])  # Convertir les valeurs en float, en excluant le num_sample
     # print('donnees=',donnees)
     return donnees
 

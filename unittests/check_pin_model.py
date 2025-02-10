@@ -1,7 +1,7 @@
 #This script uses the ii-th frame of the video to construct the model, then,
 #displays the pinocchio model in neutral pose with frames, mks, and meshes
 
-ii = 0 #Video frame used for calibration
+ii = 200#Video frame used for calibration
 
 
 import os
@@ -18,27 +18,34 @@ import pandas as pd
 import pinocchio as pin 
 from pinocchio.visualize import GepettoVisualizer
 import numpy as np
-from utils.model_utils import build_model_challenge, get_segments_lstm_mks_dict_challenge, get_subset_challenge_mks_names
+from utils.model_w_mocap_utils import build_model_challenge, get_segments_lstm_mks_dict_challenge, get_subset_challenge_mks_names
 from utils.viz_utils import place
 import time
-
-data_markers = pd.read_csv(os.path.join(rt_cosmik_path,'output/augmented_markers_positions.csv'))
-data_keypoints = pd.read_csv(os.path.join(rt_cosmik_path,'output/keypoints_3d_positions.csv'))
-
-result_markers = []
-for frame, group in data_markers.groupby("Frame"):
-    frame_dict = {row["Marker"]: np.array([row["X"], row["Y"], row["Z"]]) for _, row in group.iterrows()}
-    result_markers.append(frame_dict)
-
-result_keypoints = []
-for frame, group in data_keypoints.groupby("Frame"):
-    frame_dict = {row["Keypoint"]: np.array([row["X"], row["Y"], row["Z"]]) for _, row in group.iterrows()}
-    if "Hip" in frame_dict:
-        frame_dict["midHip"] = frame_dict.pop("Hip")
-    result_keypoints.append(frame_dict)
+from utils.read_write_utils import read_mks_data
 
 
-lstm_dict = {**result_keypoints[ii], **result_markers[ii]}
+data_markers = pd.read_csv(os.path.join(rt_cosmik_path,'process_data_manip/mks_mocap/mks_mocap_with_header.csv'))
+
+result_markers, lstm_dict = read_mks_data(data_markers, start_sample=ii)
+lstm_dict = result_markers[ii]
+
+# data_markers = pd.read_csv(os.path.join(rt_cosmik_path,'output/augmented_markers_positions.csv'))
+# data_keypoints = pd.read_csv(os.path.join(rt_cosmik_path,'output/keypoints_3d_positions.csv'))
+
+# result_markers = []
+# for frame, group in data_markers.groupby("Frame"):
+#     frame_dict = {row["Marker"]: np.array([row["X"], row["Y"], row["Z"]]) for _, row in group.iterrows()}
+#     result_markers.append(frame_dict)
+
+# result_keypoints = []
+# for frame, group in data_keypoints.groupby("Frame"):
+#     frame_dict = {row["Keypoint"]: np.array([row["X"], row["Y"], row["Z"]]) for _, row in group.iterrows()}
+#     if "Hip" in frame_dict:
+#         frame_dict["midHip"] = frame_dict.pop("Hip")
+#     result_keypoints.append(frame_dict)
+
+
+# lstm_dict = {**result_keypoints[ii], **result_markers[ii]}
 
 t1 =time.time()
 human_model, human_geom_model, visuals_dict = build_model_challenge(lstm_dict, lstm_dict, meshes_folder_path)
@@ -76,6 +83,7 @@ data = pin.Data(human_model)
 pin.forwardKinematics(human_model, data, q)
 pin.updateFramePlacements(human_model, data)
 viz.display(q)
+
 for seg_name, mks in seg_names_mks.items():
     #Display markers from human_model
     for mk_name in mks:
