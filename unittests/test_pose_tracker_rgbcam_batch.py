@@ -1,5 +1,5 @@
 # To run the code : python3 unittests/test_pose_tracker_rgbcam.py cuda /root/workspace/mmdeploy/rtmpose-trt/rtmdet-nano /root/workspace/mmdeploy/rtmpose-trt/rtmpose-m
-# or python3 -m unittests.test_pose_tracker_rgbcam cuda /root/workspace/mmdeploy/rtmpose-trt/rtmdet-nano /root/workspace/mmdeploy/rtmpose-trt/rtmpose-m
+# or python3 -m unittests.test_pose_tracker_rgbcam_batch cuda /root/workspace/mmdeploy/rtmpose-trt/rtmdet-nano /root/workspace/mmdeploy/rtmpose-trt/rtmpose-m
 
 import argparse
 import os
@@ -47,8 +47,8 @@ def main():
 
         # Apply settings
         cap.set(cv2.CAP_PROP_FOURCC, cv2.VideoWriter_fourcc(*'MJPG'))
-        cap.set(cv2.CAP_PROP_FRAME_WIDTH, settings.width)
-        cap.set(cv2.CAP_PROP_FRAME_HEIGHT, settings.height)
+        cap.set(cv2.CAP_PROP_FRAME_WIDTH, 640)
+        cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 480)
         cap.set(cv2.CAP_PROP_FPS, settings.fs)
         
     frame_idx = 0
@@ -60,8 +60,10 @@ def main():
 
     # optionally use OKS for keypoints similarity comparison
     sigmas = VISUALIZATION_CFG[args.skeleton]['sigmas']
-    state = tracker.create_state(
+    state1 = tracker.create_state(
         det_interval=1, det_min_bbox_size=100, keypoint_sigmas=sigmas)
+        
+    states = [state1, state1]
 
     if args.output_dir:
         os.makedirs(args.output_dir, exist_ok=True)
@@ -77,23 +79,43 @@ def main():
             frame_idx += 1  # Increment frame counter
 
             # Process each frame individually
-            for idx, frame in enumerate(frames):
-                t0 = time.time()
-                results = tracker(state, frame, detect=-1)
-                keypoints, bboxes, _ = results
-                keypoints = (keypoints[..., :2] ).astype(float)
-                t1 =time.time()
-                print("Time of inference for one image",t1-t0)
+            
+            frames = [frames[0], frames[1]]
+            # frames = cv2.hconcat([frames[0], frames[1]]) #concat images 
 
-                if not visualize(
-                        frame,
-                        results,
-                        args.output_dir,
-                        idx,
-                        frame_idx + idx,
-                        skeleton_type=args.skeleton):
-                    break
-                
+            t0 = time.time()
+            result1, result2 = tracker.batch(states,frames, detects=[-1, -1]) #batch of images
+            # result1 = tracker(state1,frames, detect=-1)
+            # print(results[0], results[1], results[2])
+            # input()
+            keypoints1, bboxes1, _ = result1
+            keypoints1 = (keypoints1[..., :2] ).astype(float)
+
+            keypoints2, bboxes2, _ = result2
+            keypoints2 = (keypoints2[..., :2] ).astype(float)
+
+            t1 =time.time()
+
+            print("Time of inference for one image",t1-t0)
+
+            if not visualize(
+                    frames,
+                    result1,
+                    args.output_dir,
+                    0,
+                    frame_idx + 0,
+                    skeleton_type=args.skeleton):
+                break
+
+            if not visualize(
+                    frames[1],
+                    result2,
+                    args.output_dir,
+                    1,
+                    frame_idx + 1,
+                    skeleton_type=args.skeleton):
+                break
+            
             if cv2.waitKey(1) & 0xFF == ord('q'):
                 print("quit")
                 break    

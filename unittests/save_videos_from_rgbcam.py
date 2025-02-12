@@ -52,17 +52,17 @@ def main():
     while True:
         frames = []
         for capture in captures:
-            timestamp2 = datetime.now()
+            # timestamp2 = datetime.now()
             # fps_reported = capture.get(cv2.CAP_PROP_FPS)
             # print(fps_reported)
             ret, frame = capture.read()
-            print( capture, " " , timestamp2 - timestamp)
-            timestamp = timestamp2
+            # print( capture, " " , timestamp2 - timestamp)
+            # timestamp = timestamp2
 
             if not ret:
                 print("Error: Failed to capture frame from one of the cameras")
                 return
-            # frames.append(frame)
+            frames.append(frame)
 
         # Write the frames to the corresponding video files
         for writer, frame in zip(writers, frames):

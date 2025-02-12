@@ -1,77 +1,89 @@
+#python3 -m unittests.test_rtmlib_rgbcam
 import cv2
 from functools import partial
-from rtmlib import PoseTracker, Wholebody, Custom, draw_skeleton, BodyWithFeet, RTMPose, Body
-
+from rtmlib import PoseTracker, Wholebody, RTMO, Custom, draw_skeleton, BodyWithFeet, RTMPose, Body
+from utils.calib_utils import list_cameras_with_v4l2
+from utils.settings import Settings
+import time
+settings = Settings()
 device = 'cuda'
 backend = 'onnxruntime'  # opencv, onnxruntime
 
 openpose_skeleton = False  # True for openpose-style, False for mmpose-style
 
-cap = cv2.VideoCapture(0)
+# cap = cv2.VideoCapture(0)
+camera_dict = list_cameras_with_v4l2()
+captures = [cv2.VideoCapture(idx, cv2.CAP_V4L2) for idx in camera_dict.keys()]
 
-# pose_tracker = PoseTracker(BodyWithFeet,
-#                         det_frequency=10,  # detect every 10 frames
-#                         to_openpose=openpose_skeleton,
-#                         backend=backend, device=device)
+for idx, cap in enumerate(captures):
+    if not cap.isOpened():
+        continue
 
-# pose_model = RTMPose(
-#     onnx_model='/root/workspace/mmdeploy/rtmpose-trt/rtmpose-m/end2end.onnx',
-#     model_input_size=(192, 256),
-#     backend=backend,
-#     device=device
-# )
+    # Apply settings
+    cap.set(cv2.CAP_PROP_FOURCC, cv2.VideoWriter_fourcc(*'MJPG'))
+    cap.set(cv2.CAP_PROP_FRAME_WIDTH, settings.width)
+    cap.set(cv2.CAP_PROP_FRAME_HEIGHT, settings.height)
+    cap.set(cv2.CAP_PROP_FPS, settings.fs)
 
-pose_model = Body(
-                to_openpose=openpose_skeleton,
-                mode='lightweight',  # balanced, performance, lightweight
-                backend=backend,
-                device=device)
-                        
-# # Initialized slightly differently for Custom solution:
-# custom = partial(Custom,
-#                 to_openpose=openpose_skeleton,
-#                 pose_class='RTMO',
-#                 pose='https://download.openmmlab.com/mmpose/v1/projects/rtmo/onnx_sdk/rtmo-m_16xb16-600e_body7-640x640-39e78cc4_20231211.zip', # noqa
-#                 pose_input_size=(640,640),
-#                 backend=backend,
-#                 device=device)
-# # or
+pose_model = RTMO(
+    onnx_model='/root/workspace/ros_ws/src/rt-cosmik/models/rtmo-s_8xb32-600e_body7-640x640-dac2bf74_20231211/end2end.onnx', 
+    model_input_size=(640, 640),
+    backend=backend,
+    device=device
+)
+
 # custom = partial(
 #             Custom,
 #             to_openpose=openpose_skeleton,
-#             det_class='YOLOX',
-#             det='https://download.openmmlab.com/mmpose/v1/projects/rtmposev1/onnx_sdk/yolox_m_8xb8-300e_humanart-c2c7a14a.zip', # noqa
-#             det_input_size=(640, 640),
+#             det_class='RTMDet',
+#             det='/root/workspace/mmdeploy/rtmpose-ort/rtmdet-nano/end2end.onnx', # noqa
+#             det_input_size=(320, 320),
 #             pose_class='RTMPose',
-#             pose='https://download.openmmlab.com/mmpose/v1/projects/rtmposev1/onnx_sdk/rtmpose-m_simcc-body7_pt-body7-halpe26_700e-256x192-4d3e73dd_20230605.zip', # noqa
+#             pose='/root/workspace/mmdeploy/rtmpose-ort/rtmpose-m/end2end.onnx', # noqa
 #             pose_input_size=(192, 256),
 #             backend=backend,
 #             device=device)
 # # then
-# pose_tracker = PoseTracker(custom,
+# pose_model = PoseTracker(custom,
 #                         det_frequency=10,
+#                         tracking = False,
+#                         to_openpose=openpose_skeleton,
+#                         backend=backend, device=device)
+
+# pose_model = Body( pose = 'rtmo',
+#                 to_openpose=openpose_skeleton,
+#                 mode='performance',  # balanced, performance, lightweight
+#                 backend=backend,
+#                 device=device)
+
+# pose_model = PoseTracker(BodyWithFeet, #
+#                         det_frequency=10,  # detect every 10 frames
+#                         tracking = False,
 #                         to_openpose=openpose_skeleton,
 #                         backend=backend, device=device)
 
 
+
 frame_idx = 0
-while cap.isOpened():
-    success, frame = cap.read()
-    frame_idx += 1
+while True:
+    frames = [cap.read()[1] for cap in captures]
 
-    if not success:
+            
+    frame_idx += 1  # Increment frame counter
+
+    for idx, frame in enumerate(frames):
+        t0 = time.time()
+        keypoints, scores = pose_model(frame)
+        t1 =time.time()
+        print("Time of inference for one image",t1-t0)
+        img_show = draw_skeleton(frame,
+                                keypoints,
+                                scores,
+                                openpose_skeleton=openpose_skeleton,
+                                kpt_thr=0.6)
+
+        img_show = cv2.resize(img_show, (960, 540))
+        cv2.imshow(f"Camera {idx}", img_show)
+     # Press 'q' to exit the loop
+    if cv2.waitKey(1) & 0xFF == ord('q'):
         break
-
-    keypoints, scores = pose_model(frame)
-
-    img_show = frame.copy()
-
-    img_show = draw_skeleton(img_show,
-                             keypoints,
-                             scores,
-                             openpose_skeleton=openpose_skeleton,
-                             kpt_thr=0.43)
-
-    img_show = cv2.resize(img_show, (960, 540))
-    cv2.imshow('img', img_show)
-    cv2.waitKey(10)
