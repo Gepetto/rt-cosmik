@@ -47,8 +47,8 @@ def main():
 
         # Apply settings
         cap.set(cv2.CAP_PROP_FOURCC, cv2.VideoWriter_fourcc(*'MJPG'))
-        cap.set(cv2.CAP_PROP_FRAME_WIDTH, 640)
-        cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 480)
+        cap.set(cv2.CAP_PROP_FRAME_WIDTH, settings.width)
+        cap.set(cv2.CAP_PROP_FRAME_HEIGHT, settings.height)
         cap.set(cv2.CAP_PROP_FPS, settings.fs)
         
     frame_idx = 0
@@ -83,7 +83,7 @@ def main():
             frames = [frames[0], frames[1]]
             # frames = cv2.hconcat([frames[0], frames[1]]) #concat images 
 
-            t0 = time.time()
+            t0 = time.time() #19 - 28ms
             result1, result2 = tracker.batch(states,frames, detects=[-1, -1]) #batch of images
             # result1 = tracker(state1,frames, detect=-1)
             # print(results[0], results[1], results[2])
@@ -99,7 +99,7 @@ def main():
             print("Time of inference for one image",t1-t0)
 
             if not visualize(
-                    frames,
+                    frames[0],
                     result1,
                     args.output_dir,
                     0,

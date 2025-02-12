@@ -200,7 +200,7 @@ def visualize(frame,
               output_dir,
               idx,
               frame_id,
-              thr=0.5,
+              thr=0.1,
               resize=1280,
               skeleton_type='coco'):
 

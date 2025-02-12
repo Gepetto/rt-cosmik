@@ -68,7 +68,7 @@ def main():
 
     try : 
         while True:
-            
+            t0 = time.time()
             frames = [cap.read()[1] for cap in captures]
             
             if not all(frame is not None for frame in frames):
@@ -78,7 +78,7 @@ def main():
 
             # Process each frame individually
             for idx, frame in enumerate(frames):
-                t0 = time.time()
+                
                 results = tracker(state, frame, detect=-1)
                 keypoints, bboxes, _ = results
                 keypoints = (keypoints[..., :2] ).astype(float)
