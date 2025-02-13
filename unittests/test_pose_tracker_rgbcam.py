@@ -10,7 +10,7 @@ import time
 from utils.viz_utils import visualize, VISUALIZATION_CFG
 from utils.calib_utils import list_cameras_with_v4l2
 from utils.settings import Settings
-
+from datetime import datetime
 def parse_args():
     parser = argparse.ArgumentParser(
         description='show how to use SDK Python API')
@@ -68,8 +68,13 @@ def main():
 
     try : 
         while True:
-            t0 = time.time()
+            # timestamp=datetime.now()
+            # print(timestamp)
+
+            keypoints_list = []
+            
             frames = [cap.read()[1] for cap in captures]
+            
             
             if not all(frame is not None for frame in frames):
                 continue
@@ -77,22 +82,32 @@ def main():
             frame_idx += 1  # Increment frame counter
 
             # Process each frame individually
+            
             for idx, frame in enumerate(frames):
-                
+                t0 = time.time()
                 results = tracker(state, frame, detect=-1)
-                keypoints, bboxes, _ = results
-                keypoints = (keypoints[..., :2] ).astype(float)
                 t1 =time.time()
                 print("Time of inference for one image",t1-t0)
+                
+                keypoints, bboxes, _ = results
+                keypoints = (keypoints[..., :2] ).astype(float)
 
-                if not visualize(
-                        frame,
-                        results,
-                        args.output_dir,
-                        idx,
-                        frame_idx + idx,
-                        skeleton_type=args.skeleton):
-                    break
+                if keypoints.size == 0 or keypoints.flatten().shape != (52,):
+                    pass
+                else :
+                    keypoints_list.append(keypoints.reshape((26,2)).flatten())
+                # print(keypoints_list)
+            
+            
+
+                # if not visualize(
+                #         frame,
+                #         results,
+                #         args.output_dir,
+                #         idx,
+                #         frame_idx + idx,
+                #         skeleton_type=args.skeleton):
+                #     break
                 
             if cv2.waitKey(1) & 0xFF == ord('q'):
                 print("quit")

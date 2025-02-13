@@ -153,9 +153,9 @@ def main():
     frame_idx = 0
 
     # Define the codec and create VideoWriter objects for both RGB streams
-    fourcc = cv2.VideoWriter_fourcc(*'MJPG')  # Codec for AVI files
-    out_vid1 = cv2.VideoWriter(os.path.join(parent_directory,'output/cam1.mp4'), fourcc, settings.system_freq, (int(settings.width), int(settings.height)), True)
-    out_vid2 = cv2.VideoWriter(os.path.join(parent_directory,'output/cam2.mp4'), fourcc, settings.system_freq, (int(settings.width), int(settings.height)), True)
+    # fourcc = cv2.VideoWriter_fourcc(*'MJPG')  # Codec for AVI files
+    # out_vid1 = cv2.VideoWriter(os.path.join(parent_directory,'output/cam1.mp4'), fourcc, settings.system_freq, (int(settings.width), int(settings.height)), True)
+    # out_vid2 = cv2.VideoWriter(os.path.join(parent_directory,'output/cam2.mp4'), fourcc, settings.system_freq, (int(settings.width), int(settings.height)), True)
 
     tracker = PoseTracker(
         det_model=args.det_model,
@@ -173,6 +173,7 @@ def main():
     try : 
         while not rospy.is_shutdown():
             timestamp=datetime.now()
+            print(timestamp)
             formatted_timestamp = timestamp.strftime("%Y-%m-%d %H:%M:%S.%f ")
             
             frames = [cap.read()[1] for cap in captures]
@@ -188,15 +189,16 @@ def main():
 
             # Process each frame individually
             for idx, frame in enumerate(frames):
-                #Videos savings
-                if idx == 0 : 
-                    out_vid1.write(frame)
-                elif idx == 1 : 
-                    out_vid2.write(frame)
+            #     #Videos savings
+            #     if idx == 0 : 
+            #         out_vid1.write(frame)
+            #     elif idx == 1 : 
+            #         out_vid2.write(frame)
 
                 t0 = time.time()
                 results = tracker(state, frame, detect=-1)
                 keypoints, bboxes, _ = results
+                # print(keypoints)
                 
 
                 if len(bboxes) > 0 and is_someone_detected==False:
@@ -219,6 +221,7 @@ def main():
                         first_person_bbox = (bboxes[closest_person_idx] + first_person_bbox)/2.0 #moyenne mobile
                         keypoints = keypoints[closest_person_idx:closest_person_idx + 1]
                         bboxes = bboxes[closest_person_idx:closest_person_idx + 1]
+
                         keypoints = (keypoints[..., :2] ).astype(float)
 
                 
@@ -227,15 +230,14 @@ def main():
                 else :
                     keypoints_list.append(keypoints.reshape((26,2)).flatten())
                 
-                print(keypoints_list)
-                if not visualize(
-                        frame,
-                        results,
-                        args.output_dir,
-                        idx,
-                        frame_idx + idx,
-                        skeleton_type=args.skeleton):
-                    break
+                # if not visualize(
+                #         frame,
+                #         results,
+                #         args.output_dir,
+                #         idx,
+                #         frame_idx + idx,
+                #         skeleton_type=args.skeleton):
+                #     break
 
             if len(keypoints_list)!=2: #number of cams
                 pass
@@ -247,7 +249,7 @@ def main():
                 keypoints_in_world = np.array([np.dot(world_R1_cam,point) + world_T1_cam for point in keypoints_in_cam])
                 
                 # Save keypoints to csv
-                save_3dpos_to_csv(keypoints_csv_file_path,keypoints_in_world,settings.keypoints_names,frame_idx, formatted_timestamp)
+                # save_3dpos_to_csv(keypoints_csv_file_path,keypoints_in_world,settings.keypoints_names,frame_idx, formatted_timestamp)
                 
                 if first_sample:
                     for k in range(30):
@@ -275,7 +277,7 @@ def main():
                     augmented_markers = np.array(augmented_markers).reshape(-1, 3) 
 
                     # Saving markers
-                    save_3dpos_to_csv(augmented_csv_file_path,augmented_markers,settings.marker_names,frame_idx, formatted_timestamp)
+                    # save_3dpos_to_csv(augmented_csv_file_path,augmented_markers,settings.marker_names,frame_idx, formatted_timestamp)
                    
                     publish_augmented_markers(augmented_markers, augmented_markers_pub, settings.marker_names)
 
@@ -295,7 +297,7 @@ def main():
                         publish_kinematics(q, pub,dof_names,br)
                         
                         # Saving kinematics
-                        save_q_to_csv(q_csv_file_path,q,frame_idx, formatted_timestamp)     
+                        # save_q_to_csv(q_csv_file_path,q,frame_idx, formatted_timestamp)     
 
                         first_sample = False  #put the flag to false 
                     else:
@@ -310,7 +312,7 @@ def main():
                         publish_kinematics(q, pub,dof_names, br )     
 
                         # Saving kinematics
-                        save_q_to_csv(q_csv_file_path,q,frame_idx, formatted_timestamp)   
+                        # save_q_to_csv(q_csv_file_path,q,frame_idx, formatted_timestamp)   
                 
             if cv2.waitKey(1) & 0xFF == ord('q'):
                 print("quit")
@@ -320,8 +322,8 @@ def main():
         # Release the camera captures
         for cap in captures:
             cap.release()
-        out_vid1.release()
-        out_vid2.release()
+        # out_vid1.release()
+        # out_vid2.release()
         cv2.destroyAllWindows()
 
 

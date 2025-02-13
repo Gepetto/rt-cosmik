@@ -172,6 +172,7 @@ def main():
     try : 
         while not rospy.is_shutdown():
             timestamp=datetime.now()
+            print(timestamp)
             formatted_timestamp = timestamp.strftime("%Y-%m-%d %H:%M:%S.%f ")
 
             frames = []
@@ -188,21 +189,21 @@ def main():
                 continue  # Skip if not all frames are captured
 
             results = tracker.batch(states, frames, detects=[-1] * len(camera_ids))
-            keypoints, bboxes = results
-            print(results)
-            keypoints_list = [kp[0, :, :2].flatten() for kp in keypoints]  # Extract x, y, and flatten
+            data0, data1 = results
 
-            # print(keypoints_list)
+            for data in (data0, data1):
+                keypoints = data[0][..., :2].astype(float)
+                if keypoints.size== 0 or keypoints.flatten().shape != (52,):
+                    pass
+                else : 
+                    keypoints_list.append(keypoints.reshape((26, 2)).flatten())
 
-            for i, frame in enumerate(frames):
-
-                if not visualize(frame, results[i], args.output_dir, i, frame_idx + i, skeleton_type=args.skeleton):
-                    break
+            # for i, frame in enumerate(frames):
+            #     if not visualize(frame, results[i], args.output_dir, i, frame_idx + i, skeleton_type=args.skeleton):
+            #         break
 
             if len(keypoints_list)!=2: #number of cams
-                print("ifffffffffffffffffff")
                 pass
-
 
             else :
                 p3d_frame = triangulate_points(keypoints_list, mtxs, dists, projections)
@@ -212,7 +213,7 @@ def main():
                 keypoints_in_world = np.array([np.dot(world_R1_cam,point) + world_T1_cam for point in keypoints_in_cam])
                 
                 # Save keypoints to csv
-                save_3dpos_to_csv(keypoints_csv_file_path,keypoints_in_world,settings.keypoints_names,frame_idx, formatted_timestamp)
+                # save_3dpos_to_csv(keypoints_csv_file_path,keypoints_in_world,settings.keypoints_names,frame_idx, formatted_timestamp)
                 
                 if first_sample:
                     for k in range(30):
@@ -240,7 +241,7 @@ def main():
                     augmented_markers = np.array(augmented_markers).reshape(-1, 3) 
 
                     # Saving markers
-                    save_3dpos_to_csv(augmented_csv_file_path,augmented_markers,settings.marker_names,frame_idx, formatted_timestamp)
+                    # save_3dpos_to_csv(augmented_csv_file_path,augmented_markers,settings.marker_names,frame_idx, formatted_timestamp)
                    
                     publish_augmented_markers(augmented_markers, augmented_markers_pub, settings.marker_names)
 
@@ -260,7 +261,7 @@ def main():
                         publish_kinematics(q, pub,dof_names,br)
                         
                         # Saving kinematics
-                        save_q_to_csv(q_csv_file_path,q,frame_idx, formatted_timestamp)     
+                        # save_q_to_csv(q_csv_file_path,q,frame_idx, formatted_timestamp)     
 
                         first_sample = False  #put the flag to false 
                     else:
@@ -275,7 +276,7 @@ def main():
                         publish_kinematics(q, pub,dof_names, br )     
 
                         # Saving kinematics
-                        save_q_to_csv(q_csv_file_path,q,frame_idx, formatted_timestamp)   
+                        # save_q_to_csv(q_csv_file_path,q,frame_idx, formatted_timestamp)   
                 
             if cv2.waitKey(1) & 0xFF == ord('q'):
                 print("quit")

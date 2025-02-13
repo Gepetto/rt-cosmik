@@ -9,6 +9,7 @@ from utils.viz_utils import visualize, VISUALIZATION_CFG
 from utils.settings import Settings
 from utils.process_utils import parse_args, capture_frames_buffer, initialize_cameras
 import numpy as np
+from datetime import datetime
 
 def main():
     args = parse_args()
@@ -43,27 +44,30 @@ def main():
     try:
         while True:
             frames = []
-
-            fetch_start_time = time.time()
+            keypoints_list = []
+            
+            t0 = time.time()
             for cam_id in camera_ids:
                 with locks[cam_id]:  # Prevent race conditions
                     frame = np.frombuffer(buffers[cam_id].get_obj(), dtype=np.uint8).reshape(shape).copy()
                 frames.append(frame)
 
-            fetch_time = time.time() - fetch_start_time  # Measure fetching time
-
             if len(frames) < len(camera_ids):
                 continue  # Skip if not all frames are captured
+            
+            results = tracker.batch(states, frames, detects=[-1] * len(camera_ids))
+            t1 =time.time()
+            print("Time of inference ",t1-t0)
 
-
-            t0 = time.time()
-            results = tracker.batch(states, frames, detects=[-1] * len(camera_ids))  # Pose inference
-            k,b = results
-            print(k[0])
-            inference_time = time.time() - t0
-
-            total_time =fetch_time + inference_time
-            print(f"Total Processing Time: {total_time}")
+            data0, data1 = results
+            keypoints0 = (data0[0][..., :2] ).astype(float)
+            keypoints1 = (data1[0][..., :2] ).astype(float)
+            
+            if keypoints0.size == 0 or keypoints1.size ==0:
+                pass
+            else:
+                keypoints_list.append(keypoints0.reshape((26,2)).flatten())
+                keypoints_list.append(keypoints1.reshape((26,2)).flatten())
 
             for i, frame in enumerate(frames):
                 if not visualize(frame, results[i], args.output_dir, i, frame_idx + i, skeleton_type=args.skeleton):

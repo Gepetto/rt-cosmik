@@ -25,7 +25,6 @@ def initialize_cameras(settings):
     """Initialize cameras and create shared buffers."""
     camera_dict = list_cameras_with_v4l2()
     camera_ids = list(camera_dict.keys())
-    print(camera_ids)
 
     if len(camera_ids) < 2:
         print("Error: At least two cameras are required!")

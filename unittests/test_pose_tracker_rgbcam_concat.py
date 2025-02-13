@@ -1,5 +1,5 @@
 # To run the code : python3 unittests/test_pose_tracker_rgbcam.py cuda /root/workspace/mmdeploy/rtmpose-trt/rtmdet-nano /root/workspace/mmdeploy/rtmpose-trt/rtmpose-m
-# or python3 -m unittests.test_pose_tracker_rgbcam_batch cuda /root/workspace/mmdeploy/rtmpose-trt/rtmdet-nano /root/workspace/mmdeploy/rtmpose-trt/rtmpose-m
+# or python3 -m unittests.test_pose_tracker_rgbcam_concat cuda /root/workspace/mmdeploy/rtmpose-trt/rtmdet-nano /root/workspace/mmdeploy/rtmpose-trt/rtmpose-m
 
 import argparse
 import os
@@ -61,11 +61,9 @@ def main():
 
     # optionally use OKS for keypoints similarity comparison
     sigmas = VISUALIZATION_CFG[args.skeleton]['sigmas']
-    state1 = tracker.create_state(
+    state = tracker.create_state(
         det_interval=1, det_min_bbox_size=100, keypoint_sigmas=sigmas)
         
-    states = [state1, state1]
-
     if args.output_dir:
         os.makedirs(args.output_dir, exist_ok=True)
 
@@ -79,36 +77,28 @@ def main():
             
             frame_idx += 1  # Increment frame counter
 
-            # frame1 = cv2.resize(frames[0], (256, 192))
-            # frame2 = cv2.resize(frames[1], (256, 192))
-            frames = [frames[0], frames[1]]
+            frames = cv2.hconcat([frames[0], frames[1]]) #concat images 
 
             t0 = time.time()
-            result1, result2 = tracker.batch(states,frames, detects=[-1, -1]) #batch of images
+            results = tracker(state,frames, detect=-1)
             t1 =time.time()
             print("Time of inference ",t1-t0)
 
-            keypoints1, bboxes1, _ = result1
-            keypoints1 = (keypoints1[..., :2] ).astype(float)
+            keypoints, bboxes, _ = results
+            keypoints = (keypoints[..., :2] ).astype(float)
+            print(keypoints)
 
-            keypoints2, bboxes2, _ = result2
-            keypoints2 = (keypoints2[..., :2] ).astype(float)
+           
 
+            # if keypoints.size== 0 or keypoints.flatten().shape != (52,)
+            #     pass
+            
             if not visualize(
-                    frames[0],
-                    result1,
+                    frames,
+                    results,
                     args.output_dir,
                     0,
                     frame_idx + 0,
-                    skeleton_type=args.skeleton):
-                break
-
-            if not visualize(
-                    frames[1],
-                    result2,
-                    args.output_dir,
-                    1,
-                    frame_idx + 1,
                     skeleton_type=args.skeleton):
                 break
             
