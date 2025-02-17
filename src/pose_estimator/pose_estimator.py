@@ -104,3 +104,4 @@ class BatchPoseTrackerEstimator:
                 cv2.imshow('pose_tracker'+str(idx), img)
                 return cv2.waitKey(1) != 'q'
         return True
+    
