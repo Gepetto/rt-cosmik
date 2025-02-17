@@ -76,29 +76,64 @@ def main():
                 continue
             
             frame_idx += 1  # Increment frame counter
-
-            frames = cv2.hconcat([frames[0], frames[1]]) #concat images 
+            
+            stacked_frame = cv2.hconcat([frames[0], frames[1]]) #concat images 
 
             t0 = time.time()
-            results = tracker(state,frames, detect=-1)
-            t1 =time.time()
-            print("Time of inference ",t1-t0)
-
+            results = tracker(state,stacked_frame, detect=-1)
             keypoints, bboxes, _ = results
-            keypoints = (keypoints[..., :2] ).astype(float)
-            print(keypoints)
 
-           
+            if keypoints is not None and len(keypoints) >= 2:
+                # For each detected skeleton, compute its mean x-coordinate.
+                mean_x_values = [kp[:, 0].mean() for kp in keypoints]
 
-            # if keypoints.size== 0 or keypoints.flatten().shape != (52,)
-            #     pass
-            
+                # The left skeleton is the one with the smallest mean x,
+                # and the right skeleton is the one with the largest mean x.
+                left_idx = np.argmin(mean_x_values)
+                right_idx = np.argmax(mean_x_values)
+
+                # Extract the keypoints and bboxes for each skeleton.
+                left_skeleton = keypoints[[left_idx]]
+                left_bboxes = bboxes[left_idx]
+                
+                right_skeleton = keypoints[[right_idx]]
+                right_bboxes = bboxes[right_idx]
+                
+                # Reproject the right skeleton from the global (stacked) coordinate system to the right frame’s coordinate system.
+                # Since the right half of the stacked frame starts at "x = settings.width", subtract "settings.width" from all x coordinates.
+                right_skeleton_reproj = right_skeleton.copy()
+                right_skeleton_reproj[..., 0] -= settings.width
+
+                left_result = left_skeleton, left_bboxes, _ 
+                right_result = right_skeleton_reproj, right_bboxes, _
+                
+                print("inf time", time.time() - t0)
+
+                if not visualize(
+                        frames[0],
+                        left_result,
+                        args.output_dir,
+                        0,
+                        frame_idx + 0,
+                        skeleton_type=args.skeleton):
+                    break
+                
+                if not visualize(
+                        frames[1],
+                        right_result,
+                        args.output_dir,
+                        1,
+                        frame_idx + 1,
+                        skeleton_type=args.skeleton):
+                    break
+
+            #visualize stacked frame      
             if not visualize(
-                    frames,
+                    stacked_frame,
                     results,
                     args.output_dir,
-                    0,
-                    frame_idx + 0,
+                    2,
+                    frame_idx + 2,
                     skeleton_type=args.skeleton):
                 break
             
