@@ -9,23 +9,25 @@ import cv2
 # Initialize the PoseTrackerEstimator
 det_model = "/root/workspace/mmdeploy/rtmpose-trt/rtmdet-nano"  # Replace with your actual model
 pose_model = "/root/workspace/mmdeploy/rtmpose-trt/rtmpose-m"      # Replace with your actual model
-pose_tracker = PoseTrackerEstimator(det_model, pose_model)
+pose_tracker = BatchPoseTrackerEstimator(2,det_model, pose_model)
 
 # Open video file or webcam
 video_path = "/root/workspace/ros_ws/src/rt-cosmik/old/output/saved/cam1.mp4"  
-cap = cv2.VideoCapture(video_path)# Use 0 for webcam
+cap = cv2.VideoCapture(2) # Use 0 for webcam 
 
 frame_idx = 0
 while cap.isOpened():
     ret, frame = cap.read()
+    frames = [frame, frame.copy()]
     if not ret:
         break  # End of video
 
     # Estimate keypoints
-    results = pose_tracker.estimate(frame)
+    results = pose_tracker.estimate(frames)
+    print(results)
 
     # Visualize keypoints
-    if not pose_tracker.visualize(frame, results, frame_idx):
+    if not pose_tracker.visualize(frames, results):
         break  # Exit if user presses 'q'
 
 
