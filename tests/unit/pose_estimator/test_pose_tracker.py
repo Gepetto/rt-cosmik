@@ -13,7 +13,7 @@ pose_tracker = PoseTrackerEstimator(det_model, pose_model)
 
 # Open video file or webcam
 video_path = "/root/workspace/ros_ws/src/rt-cosmik/old/output/saved/cam1.mp4"  
-cap = cv2.VideoCapture(video_path)# Use 0 for webcam
+cap = cv2.VideoCapture(0)# Use 0 for webcam
 
 frame_idx = 0
 while cap.isOpened():

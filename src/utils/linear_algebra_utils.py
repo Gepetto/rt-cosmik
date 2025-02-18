@@ -92,3 +92,39 @@ def low_pass_filter_data(data,nbutter=5):
     # data = np.delete(data, np.s_[(data.shape[0] - nbord): data.shape[0]], axis=0)
      
     return data
+
+def reproject_horizontally(results, frame_width):
+    """
+    Reprojects detected keypoints and bounding boxes to their original frames
+    after horizontal concatenation.
+
+    Parameters:
+    - keypoints: np.array of shape (N, num_joints, 2) containing keypoint coordinates.
+    - bboxes: np.array of shape (N, 4) containing bounding boxes.
+    - frame_width: int, width of one original frame before concatenation.
+
+    Returns:
+    - left_result: (keypoints, bbox)
+    - right_result: (keypoints, bbox)
+    """
+    keypoints, bboxes, _ = results
+    if keypoints is None or len(keypoints) < 2:
+        return None, None  # Not enough skeletons detected
+
+    mean_x_values = [kp[:, 0].mean() for kp in keypoints]
+    left_idx = np.argmin(mean_x_values)   # Skeleton with smallest mean x (left frame)
+    right_idx = np.argmax(mean_x_values)  # Skeleton with largest mean x (right frame)
+
+    left_skeleton = keypoints[[left_idx]]
+    left_bboxes = bboxes[left_idx]
+
+    right_skeleton = keypoints[[right_idx]]
+    right_bboxes = bboxes[right_idx]
+
+    # Shift right skeleton back to its original frame coordinates
+    right_skeleton[..., 0] -= frame_width
+
+    left_result = (left_skeleton, left_bboxes,_)
+    right_result = (right_skeleton, right_bboxes,_)
+
+    return left_result, right_result
