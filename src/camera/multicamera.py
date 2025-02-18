@@ -70,12 +70,12 @@ class MultiCameraSystem:
             p.start()
 
     def get_frames(self):
-        """Retrieve frames from all cameras."""
-        frames = {}
+        """Retrieve frames from all cameras(buffers)."""
+        frames = []
         for cam_id in self.camera_ids:
             with self.locks[cam_id]:
                 frame = np.frombuffer(self.buffers[cam_id].get_obj(), dtype=np.uint8).reshape(self.shape).copy()
-                frames[cam_id] = frame
+            frames.append(frame)
         return frames
 
     def stop_processes(self):

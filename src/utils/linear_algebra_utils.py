@@ -1,6 +1,7 @@
 import numpy as np
 from numpy import linalg as LA
 from scipy import signal
+import cv2
 
 def trace(m):
     return float(np.trace(m))
@@ -93,38 +94,117 @@ def low_pass_filter_data(data,nbutter=5):
      
     return data
 
-def reproject_horizontally(results, frame_width):
+def concat_frames(frames):
+    if len(frames) == 2:
+        return cv2.hconcat(frames)
+    elif len(frames) == 4:
+        # Horizontally concatenate pairs
+        h_top = cv2.hconcat(frames[:2])
+        h_bottom = cv2.hconcat(frames[2:])
+        # Vertically concatenate the two rows
+        return cv2.vconcat([h_top, h_bottom])
+    else:
+        raise ValueError("Only 2 or 4 frames are supported for concatenation.")
+
+
+
+def reproject(results, frame_size, axis="horizontal"):
     """
     Reprojects detected keypoints and bounding boxes to their original frames
-    after horizontal concatenation.
+    after concatenation along a specified axis.
 
     Parameters:
-    - keypoints: np.array of shape (N, num_joints, 2) containing keypoint coordinates.
-    - bboxes: np.array of shape (N, 4) containing bounding boxes.
-    - frame_width: int, width of one original frame before concatenation.
+    - results: tuple (keypoints, bboxes, _), output of the pose estimator.
+    - frame_size: int, width (if horizontal) or height (if vertical) of one original frame.
+    - axis: str, either "horizontal" (x-axis) or "vertical" (y-axis).
 
     Returns:
-    - left_result: (keypoints, bbox)
-    - right_result: (keypoints, bbox)
+    - first_result: (keypoints, bbox, _), corresponding to the first original frame.
+    - second_result: (keypoints, bbox, _), corresponding to the second original frame.
     """
     keypoints, bboxes, _ = results
     if keypoints is None or len(keypoints) < 2:
         return None, None  # Not enough skeletons detected
 
-    mean_x_values = [kp[:, 0].mean() for kp in keypoints]
-    left_idx = np.argmin(mean_x_values)   # Skeleton with smallest mean x (left frame)
-    right_idx = np.argmax(mean_x_values)  # Skeleton with largest mean x (right frame)
+    coord_idx = 0 if axis == "horizontal" else 1  # 0 for x, 1 for y
 
-    left_skeleton = keypoints[[left_idx]]
-    left_bboxes = bboxes[left_idx]
+    # Compute mean coordinates (x or y)
+    mean_values = [kp[:, coord_idx].mean() for kp in keypoints]
+    first_idx = np.argmin(mean_values)   # Left (if horizontal) or Top (if vertical)
+    second_idx = np.argmax(mean_values)  # Right (if horizontal) or Bottom (if vertical)
 
-    right_skeleton = keypoints[[right_idx]]
-    right_bboxes = bboxes[right_idx]
+    first_skeleton = keypoints[[first_idx]]
+    first_bboxes = bboxes[first_idx]
 
-    # Shift right skeleton back to its original frame coordinates
-    right_skeleton[..., 0] -= frame_width
+    second_skeleton = keypoints[[second_idx]]
+    second_bboxes = bboxes[second_idx]
 
-    left_result = (left_skeleton, left_bboxes,_)
-    right_result = (right_skeleton, right_bboxes,_)
+    # Shift second skeleton back to its original frame coordinates
+    second_skeleton[..., coord_idx] -= frame_size
 
-    return left_result, right_result
+    first_result = (first_skeleton, first_bboxes, _)
+    second_result = (second_skeleton, second_bboxes, _)
+
+    return first_result, second_result
+
+
+
+def reproject_four_frames(results, frame_width, frame_height):
+    """
+    Reprojects detected keypoints and bounding boxes to their original frames
+    after two-step concatenation: horizontal + vertical.
+
+    Parameters:
+    - results: tuple (keypoints, bboxes, _), output of the pose estimator.
+    - frame_width: int, width of a single original frame.
+    - frame_height: int, height of a single original frame.
+
+    Returns:
+    - 4 results
+    """
+    keypoints, bboxes, _ = results
+    if keypoints is None or len(keypoints) < 4:
+        return None, None, None,None  # Not enough skeletons detected
+    else:
+        # Step 1: Separate into top and bottom stacked frames
+        mean_y_values = [kp[:, 1].mean() for kp in keypoints]
+        top_indices = np.argsort(mean_y_values)[:2]    # Two skeletons with smallest y (top row)
+        bottom_indices = np.argsort(mean_y_values)[2:] # Two skeletons with largest y (bottom row)
+
+        top_skeletons = keypoints[top_indices]
+        top_bboxes = bboxes[top_indices]
+        
+        bottom_skeletons = keypoints[bottom_indices]
+        bottom_bboxes = bboxes[bottom_indices]
+
+        # Adjust bottom skeletons back to their original y-coordinates
+        bottom_skeletons[..., 1] -= frame_height
+
+        # Step 2: Separate left and right within top and bottom stacked frames
+        def split_horizontally(skeletons, bboxes):
+            """Splits horizontally stacked frames"""
+            mean_x_values = [kp[:, 0].mean() for kp in skeletons]
+            left_idx = np.argmin(mean_x_values)   # Left frame
+            right_idx = np.argmax(mean_x_values)  # Right frame
+            
+            left_skeleton = skeletons[[left_idx]]
+            left_bboxes = bboxes[left_idx]
+
+            right_skeleton = skeletons[[right_idx]]
+            right_bboxes = bboxes[right_idx]
+
+            # Adjust right skeletons back to their original x-coordinates
+            right_skeleton[..., 0] -= frame_width
+
+            return (left_skeleton, left_bboxes, _), (right_skeleton, right_bboxes, _)
+
+        # Split top stacked frame into left and right
+        top_left_result, top_right_result = split_horizontally(top_skeletons, top_bboxes)
+        
+        # Split bottom stacked frame into left and right
+        bottom_left_result, bottom_right_result = split_horizontally(bottom_skeletons, bottom_bboxes)
+
+        # Return dictionary containing results for each original frame
+        return top_left_result,top_right_result,bottom_left_result,bottom_right_result
+
+
