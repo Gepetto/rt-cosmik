@@ -5,14 +5,15 @@ import sys
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '../../../src')))
 import time
 import numpy as np
-from pose_estimator.pose_estimator import *  # Importer ta classe
+from pose_estimator.pose_estimator import *  
+from utils.linear_algebra_utils import reproject_horizontally
 
 # Chemins des modèles (à adapter si besoin)
 det_model = "/root/workspace/mmdeploy/rtmpose-trt/rtmdet-nano"
 pose_model = "/root/workspace/mmdeploy/rtmpose-trt/rtmpose-m"
 
 # Initialisation du pose tracker
-tracker = ConcatPoseTrackerEstimator(det_model, pose_model, device='cuda')
+tracker = PoseTrackerEstimator(det_model, pose_model)
 
 
 cap1 = cv2.VideoCapture(0)
@@ -33,7 +34,10 @@ while cap1.isOpened() and cap2.isOpened():
 
     # Détection des poses
     # t0 = time.time()
-    left_result, right_result = tracker.estimate(stacked_frame)
+    results = tracker.estimate(stacked_frame)
+    keypoints, bboxes, _ = results
+    left_result, right_result = reproject_horizontally(keypoints, bboxes, frame_width=frame1.shape[1])
+
     # print("Inference time:", time.time() - t0)
 
     # Visualisation
