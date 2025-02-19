@@ -343,7 +343,7 @@ def read_mmpose_file(nom_fichier):
     with open(nom_fichier, 'r') as f:
         for ligne in f:
             ligne = ligne.strip().split(',')  # Séparer les valeurs par virgule
-            donnees.append([float(valeur) for valeur in ligne[2:]])  # Convertir les valeurs en float, en excluant le num_sample
+            donnees.append([float(valeur) for valeur in ligne[:]])  # Convertir les valeurs en float, en excluant le num_sample
     # print('donnees=',donnees)
     return donnees
 
@@ -466,3 +466,9 @@ def save_q_to_csv(csv_path, q, frame_idx, formatted_timestamp):
         csv_writer = csv.writer(file)
         # Write to CSV
         csv_writer.writerow([frame_idx, formatted_timestamp]+q.tolist())  
+
+def save_to_csv(data, output_path):
+    """Save 3D keypoints to a CSV file."""
+    df = pd.DataFrame(data)
+    df.to_csv(output_path, index=False, header=False)
+    print(f"Saved {len(data)} frames to {output_path}")

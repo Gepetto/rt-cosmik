@@ -5,14 +5,20 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '../.
 from camera.multicamera import *
 import multiprocessing as mp
 
+
 if __name__ == "__main__":
     multi_cam = MultiCameraSystem(width=1280, height=720)
+
+    if len(multi_cam.camera_ids) < 2:
+        print("Error: At least two cameras are required!")
+        sys.exit(1)
+
     multi_cam.start_processes()
     try:
         while True:
             frames = multi_cam.get_frames()
-            for cam_id, frame in frames.items():
-                cv2.imshow(f"Camera {cam_id}", frame)
+            for i, frame in enumerate(frames):
+                cv2.imshow(f"Camera {multi_cam.camera_ids[i]}", frame)
             if cv2.waitKey(1) & 0xFF == ord('q'):
                 break
     finally:

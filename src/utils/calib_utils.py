@@ -1,3 +1,4 @@
+import os
 import cv2 as cv
 import yaml
 import glob
@@ -700,3 +701,18 @@ def get_cameras_params(K1, D1, K2, D2, R, T):
         dists.append(dict_cam[cam]["dist"])
         mtxs.append(dict_cam[cam]["mtx"])
     return mtxs, dists, projections, rotations, translations
+
+
+def load_camera_parameters(config_path):
+    """Load intrinsic and extrinsic camera parameters."""
+    K1, D1 = load_cam_params(os.path.join(config_path, "c1_params_color_test_test.yaml"))
+    K2, D2 = load_cam_params(os.path.join(config_path, "c2_params_color_test_test.yaml"))
+    R, T = load_cam_to_cam_params(os.path.join(config_path, "c1_to_c2_params_color_test_test.yaml"))
+    return get_cameras_params(K1, D1, K2, D2, R, T)
+
+def load_world_transformation(config_path):
+    """Load world transformation matrix."""
+    cam_R1_world, cam_T1_world = load_cam_pose(os.path.join(config_path, "camera1_pose_test_test.yaml"))
+    world_R1_cam = cam_R1_world.T
+    world_T1_cam = -world_R1_cam @ cam_T1_world
+    return world_R1_cam, world_T1_cam.reshape((3,))

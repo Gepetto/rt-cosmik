@@ -1,7 +1,9 @@
 import numpy as np
+from scipy import linalg
 import cv2
+# from scipy.spatial.transform import Rotation as R
 
-def DLT_adaptive(projections, points):
+def DLT(projections, points):
     """
     Perform Direct Linear Transformation (DLT) for adaptive triangulation.
     This function computes the 3D coordinates of a point given its projections
@@ -59,8 +61,22 @@ def triangulate_points(keypoints_list, mtxs, dists, projections):
 
     for point_idx in range(26):
         points_per_point = [undistorted_points[i][point_idx] for i in range(len(undistorted_points))]
-        _p3d = DLT_adaptive(projections, points_per_point)
+        _p3d = DLT(projections, points_per_point)
         p3ds_frame.append(_p3d)
 
     return np.array(p3ds_frame)
 
+def triangulate_offline(uvs, mtxs, dists, projections, R, T):
+    """Triangulate and transform keypoints for all frames."""
+    keypoints_in_world_list = []
+    num_frames = len(uvs[0])
+    
+    for frame_idx in range(num_frames):
+        points_2d_per_frame = [uv[frame_idx] for uv in uvs]
+        p3d_frame = triangulate_points(points_2d_per_frame, mtxs, dists, projections)
+
+        #express p3d_frame in world frame
+        p3d_frame_in_world= np.array([np.dot(R, point) + T for point in p3d_frame])
+        keypoints_in_world_list.append(p3d_frame_in_world.flatten().tolist())
+    
+    return keypoints_in_world_list
