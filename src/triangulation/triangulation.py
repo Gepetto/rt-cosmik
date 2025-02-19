@@ -63,3 +63,4 @@ def triangulate_points(keypoints_list, mtxs, dists, projections):
         p3ds_frame.append(_p3d)
 
     return np.array(p3ds_frame)
+
