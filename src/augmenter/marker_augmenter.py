@@ -26,7 +26,7 @@ def marker(buffer, keypoint_index):
     
     return reference_marker_trajectory
 
-def loadModel(augmenterDir, augmenterModelName="LSTM",augmenter_model='v0.3', offset = True):
+def loadModel(augmenterDir, augmenterModelName="LSTM",augmenter_model='v0.3'):
     """
     Load and initialize LSTM models for different augmenter types.
     Parameters:
@@ -37,8 +37,6 @@ def loadModel(augmenterDir, augmenterModelName="LSTM",augmenter_model='v0.3', of
         Name of the augmenter model (default is "LSTM").
     augmenter_model : str, optional
         Version of the augmenter model to load (default is 'v0.3').
-    offset : bool, optional
-        Flag to indicate if offset should be applied (default is True).
     Returns:
     --------
     dict
@@ -112,10 +110,10 @@ def augmentTRC(keypoints_buffer, subject_mass, subject_height,
     for augmenterModelType in augmenterModelType_all:
         if 'lower' in augmenterModelType:
             feature_markers = marker_indices_lower
-            response_markers=['r.ASIS_study', 'L.ASIS_study', 'r.PSIS_study', 'L.PSIS_study', 'r_knee_study', 'r_mknee_study', 'r_ankle_study', 'r_mankle_study', 'r_toe_study', 'r_5meta_study', 'r_calc_study', 'L_knee_study', 'L_mknee_study', 'L_ankle_study', 'L_mankle_study', 'L_toe_study', 'L_calc_study', 'L_5meta_study', 'r_shoulder_study', 'L_shoulder_study', 'C7_study', 'r_thigh1_study', 'r_thigh2_study', 'r_thigh3_study', 'L_thigh1_study', 'L_thigh2_study', 'L_thigh3_study', 'r_sh1_study', 'r_sh2_study', 'r_sh3_study', 'L_sh1_study', 'L_sh2_study', 'L_sh3_study', 'RHJC_study', 'LHJC_study']
+            # response_markers=['r.ASIS_study', 'L.ASIS_study', 'r.PSIS_study', 'L.PSIS_study', 'r_knee_study', 'r_mknee_study', 'r_ankle_study', 'r_mankle_study', 'r_toe_study', 'r_5meta_study', 'r_calc_study', 'L_knee_study', 'L_mknee_study', 'L_ankle_study', 'L_mankle_study', 'L_toe_study', 'L_calc_study', 'L_5meta_study', 'r_shoulder_study', 'L_shoulder_study', 'C7_study', 'r_thigh1_study', 'r_thigh2_study', 'r_thigh3_study', 'L_thigh1_study', 'L_thigh2_study', 'L_thigh3_study', 'r_sh1_study', 'r_sh2_study', 'r_sh3_study', 'L_sh1_study', 'L_sh2_study', 'L_sh3_study', 'RHJC_study', 'LHJC_study']
         else:
             feature_markers = marker_indices_upper
-            response_markers=['r_lelbow_study', 'r_melbow_study', 'r_lwrist_study', 'r_mwrist_study', 'L_lelbow_study', 'L_melbow_study', 'L_lwrist_study', 'L_mwrist_study']
+            # response_markers=['r_lelbow_study', 'r_melbow_study', 'r_lwrist_study', 'r_mwrist_study', 'L_lelbow_study', 'L_melbow_study', 'L_lwrist_study', 'L_mwrist_study']
 
         augmenterModelDir = os.path.join(augmenterDir, augmenterModelName, 
                                          augmenterModelType)
@@ -175,11 +173,6 @@ def augmentTRC(keypoints_buffer, subject_mass, subject_height,
         for i in range(0, unnorm_outputs.shape[1], 3):
             unnorm2_outputs[:, i:i+3] = unnorm_outputs[:, i:i+3] + referenceMarker_data
 
-        for c, m in enumerate(response_markers):
-            x = unnorm2_outputs[:,c*3]
-            y = unnorm2_outputs[:,c*3+1]
-            z = unnorm2_outputs[:,c*3+2]
-        
         outputs_all[augmenterModelType] = unnorm2_outputs
         last_output = unnorm2_outputs[-1, :]
         outputs_all[augmenterModelType] = last_output
@@ -194,10 +187,6 @@ def augmentTRC(keypoints_buffer, subject_mass, subject_height,
 
 
     responses_all_conc = np.concatenate((v0_3_lower, v0_3_upper))
-
-    # # Convert responses_all_conc to a pandas DataFrame
-    df = pd.DataFrame([responses_all_conc])
-
-    df.to_csv("/root/workspace/ros_ws/src/rt-cosmik/tests/unit/augmenter/responses_all_conc_rt.csv", mode='a',header= False, index=False)
+    # print(responses_all_conc)
     return responses_all_conc
 
