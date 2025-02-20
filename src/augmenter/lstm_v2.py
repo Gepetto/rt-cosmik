@@ -2,7 +2,7 @@ import numpy as np
 import os
 import numpy as np
 import onnxruntime as ort
-
+import pandas as pd
 
 def marker(buffer, keypoint_index):
     """
@@ -45,44 +45,19 @@ def loadModel(augmenterDir, augmenterModelName="LSTM",augmenter_model='v0.3', of
         A dictionary where keys are augmenter model types and values are the corresponding ONNX inference sessions.
     Notes:
     ------
-    - The function supports different augmenter model versions ('v0.0', 'v0.1', 'v0.2', and others).
-    - Depending on the augmenter model version, different sets of feature and response markers are loaded.
     - The function initializes ONNX inference sessions for each augmenter model type and stores them in a dictionary.
     """
     
     # Remove the redundant definition of loadModel
 
     models = {}
-     # Augmenter types
-    if augmenter_model == 'v0.0':
-        from .lstm_utils import getOpenPoseMarkers_fullBody
-        feature_markers_full, response_markers_full = getOpenPoseMarkers_fullBody()         
-        augmenterModelType_all = [augmenter_model]
-        feature_markers_all = [feature_markers_full]
-        response_markers_all = [response_markers_full]            
-    elif augmenter_model == 'v0.1' or augmenter_model == 'v0.2':
-        # Lower body           
-        augmenterModelType_lower = '{}_lower'.format(augmenter_model)
-        from .lstm_utils import getOpenPoseMarkers_lowerExtremity
-        feature_markers_lower, response_markers_lower = getOpenPoseMarkers_lowerExtremity()
-        # Upper body
-        augmenterModelType_upper = '{}_upper'.format(augmenter_model)
-        from .lstm_utils import getMarkers_upperExtremity_noPelvis
-        feature_markers_upper, response_markers_upper = getMarkers_upperExtremity_noPelvis()        
-        augmenterModelType_all = [augmenterModelType_lower, augmenterModelType_upper]
-        feature_markers_all = [feature_markers_lower, feature_markers_upper]
-        response_markers_all = [response_markers_lower, response_markers_upper]
-    else:
-        # Lower body           
-        augmenterModelType_lower = '{}_lower'.format(augmenter_model)
-        from .lstm_utils import getOpenPoseMarkers_lowerExtremity2
-        feature_markers_lower, response_markers_lower = getOpenPoseMarkers_lowerExtremity2()
-        # Upper body
-        augmenterModelType_upper = '{}_upper'.format(augmenter_model)
-        from .lstm_utils import getMarkers_upperExtremity_noPelvis2
-        feature_markers_upper, response_markers_upper = getMarkers_upperExtremity_noPelvis2()   
-             
-        augmenterModelType_all = [augmenterModelType_lower, augmenterModelType_upper]
+
+    # Lower body           
+    augmenterModelType_lower = '{}_lower'.format(augmenter_model)
+    # Upper body
+    augmenterModelType_upper = '{}_upper'.format(augmenter_model)
+            
+    augmenterModelType_all = [augmenterModelType_lower, augmenterModelType_upper]
     
     for idx_augm, augmenterModelType in enumerate(augmenterModelType_all):
         augmenterModelDir = os.path.join(augmenterDir, augmenterModelName, 
@@ -221,8 +196,8 @@ def augmentTRC(keypoints_buffer, subject_mass, subject_height,
     responses_all_conc = np.concatenate((v0_3_lower, v0_3_upper))
 
     # # Convert responses_all_conc to a pandas DataFrame
-    # df = pd.DataFrame([responses_all_conc])
+    df = pd.DataFrame([responses_all_conc])
 
-    # df.to_csv("responses_all_conc_rt.csv", mode='a',header= False, index=False)
+    df.to_csv("/root/workspace/ros_ws/src/rt-cosmik/tests/unit/augmenter/responses_all_conc_rt.csv", mode='a',header= False, index=False)
     return responses_all_conc
 

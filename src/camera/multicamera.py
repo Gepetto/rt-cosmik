@@ -7,7 +7,7 @@ import multiprocessing as mp
 from datetime import datetime
 from camera.camera import SingleCamera
 
-#####i have to test this !!!!!!!
+#####should remove this functoion to utils !!!!!!!
 def list_cameras():
     """List all available cameras using v4l2-ctl."""
     cameras = {}
