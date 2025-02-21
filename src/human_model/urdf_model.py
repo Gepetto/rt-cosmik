@@ -2,6 +2,8 @@ from pinocchio.robot_wrapper import RobotWrapper
 import pinocchio as pin
 import numpy as np 
 from typing import List, Tuple, Dict
+from human_model.model_utils import get_torso_pose
+from utils.linear_algebra_utils import col_vector_3D
 
 class Robot(RobotWrapper):
     """_Class to load a given urdf_
@@ -48,7 +50,18 @@ class Robot(RobotWrapper):
             
         if freeflyer_ori is not None and isFext == True : 
             self.model.jointPlacements[self.model.getJointId('root_joint')].rotation = freeflyer_ori
+            ub = self.model.upperPositionLimit
+            ub[:7] = 1
+            self.model.upperPositionLimit = ub
+            lb = self.model.lowerPositionLimit
+            lb[:7] = -1
+            self.model.lowerPositionLimit = lb
             self.data = self.model.createData()
+        else:
+            # self.model.upperPositionLimit = np.array([np.pi,np.pi,np.pi/8,np.pi/8,8*np.pi/9])
+            # self.model.lowerPositionLimit = np.array([0,0,-np.pi,-10*np.pi/9,0])
+            self.model.upperPositionLimit = np.array([np.pi/2,np.pi])
+            self.model.lowerPositionLimit = np.array([-np.pi/2,-1.57])
 
         ## \todo test that this is equivalent to reloading the model
         self.geom_model = self.collision_model
@@ -262,3 +275,49 @@ def calculate_segment_lengths_from_dict(dict):
     return np.array([lowerleg_l, upperleg_l, trunk_l, upperarm_l, lowerarm_l])
 
 
+####2dofs
+
+def model_scaling_from_dict_2dof(model, dict):
+
+    upperarm_l = dict['Elbow']
+    lowerarm_l = dict['Wrist']
+    
+    model.jointPlacements[model.getJointId('elbow_Z')].translation=np.array([upperarm_l,0,0])
+    model.frames[model.getFrameId('hand_fixed')].translation=np.array([lowerarm_l,0,0])
+    model.frames[model.getFrameId('hand')].translation=np.array([lowerarm_l,0,0])
+
+    return model
+
+def calculate_segment_lengths_from_dict_2dof(dict):
+    upperarm_l = np.linalg.norm(dict['Elbow']-dict['Shoulder'])
+    lowerarm_l = np.linalg.norm(dict['Wrist']-dict['Elbow'])
+
+    return np.array([upperarm_l, lowerarm_l])
+
+
+def get_jcp_global_pos_2dof(mocap_mks_positions, side_to_track):
+    names = ['Shoulder', 'Elbow', 'Wrist']
+    torso_pose = []
+
+    if side_to_track == "right":
+        torso_pose = get_torso_pose(mocap_mks_positions)
+        bi_acromial_dist = np.linalg.norm(mocap_mks_positions['L_shoulder_study'].reshape(3,1) - mocap_mks_positions['r_shoulder_study'].reshape(3,1))
+        Rshoulder_center = mocap_mks_positions['r_shoulder_study'].reshape(3,1) + torso_pose[:3, :3] @ col_vector_3D(0., -0.17*bi_acromial_dist, 0).reshape(3,1)
+        shoulder_center = Rshoulder_center.reshape(3,1)
+
+        elbow_center =  (mocap_mks_positions['r_melbow_study']+ mocap_mks_positions['r_lelbow_study']).reshape(3,1)/2.0
+        wrist_center =  (mocap_mks_positions['r_mwrist_study'] + mocap_mks_positions['r_lwrist_study']).reshape(3,1)/2.0
+    
+    elif side_to_track == "left":
+        torso_pose = get_torso_pose(mocap_mks_positions)
+        bi_acromial_dist = np.linalg.norm(mocap_mks_positions['L_shoulder_study'].reshape(3,1) - mocap_mks_positions['r_shoulder_study'].reshape(3,1))
+        Lshoulder_center = mocap_mks_positions['L_shoulder_study'].reshape(3,1) + torso_pose[:3, :3] @ col_vector_3D(0., -0.17*bi_acromial_dist, 0).reshape(3,1)
+        shoulder_center = Lshoulder_center.reshape(3,1)
+
+        elbow_center =  (mocap_mks_positions['L_melbow_study']+ mocap_mks_positions['L_lelbow_study']).reshape(3,1)/2.0
+        wrist_center =  (mocap_mks_positions['L_mwrist_study'] + mocap_mks_positions['L_lwrist_study']).reshape(3,1)/2.0
+
+
+    jcp = [shoulder_center, elbow_center, wrist_center]
+
+    return dict(zip(names,jcp))

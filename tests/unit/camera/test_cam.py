@@ -3,7 +3,7 @@ import os
 import sys
 # Add the src folder to sys.path so that viewer modules can be found.
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '../../../src')))
-from camera.camera import * # Replace 'your_module' with the actual module name
+from camera.camera import * 
 
 def test_single_camera():
     """Test capturing frames from a single camera."""

@@ -3,7 +3,7 @@ import pinocchio as pin
 import numpy as np 
 import sys
 
-def gv_init(model, geom_model, visual_model, keypoint_names, marker_names):
+def gv_init(model, geom_model, visual_model, keypoint_names=None, marker_names=None):
     viz = GepettoVisualizer(model, geom_model,visual_model)
     try:
         viz.initViewer()
@@ -25,16 +25,18 @@ def gv_init(model, geom_model, visual_model, keypoint_names, marker_names):
 
     # Init objects to show 
     # Frame axis for frame in the pinocchio model 
-    for frame in model.frames.tolist():
-        viz.viewer.gui.addXYZaxis('world/'+frame.name,[1,0,0,1],0.01,0.1)
+    # for frame in model.frames.tolist():
+    #     viz.viewer.gui.addXYZaxis('world/'+frame.name,[1,0,0,1],0.01,0.1)
     
     # Keypoints
-    for keypoint in keypoint_names:
-        viz.viewer.gui.addSphere('world/'+keypoint,0.01,[0,1,0,1])
+    if keypoint_names is not None : 
+        for keypoint in keypoint_names:
+            viz.viewer.gui.addSphere('world/'+keypoint,0.01,[0,1,0,1])
 
     # Markers
-    for marker in marker_names:
-        viz.viewer.gui.addSphere('world/'+marker,0.01,[0,0,1,1])
+    if marker_names is not None: 
+        for marker in marker_names:
+            viz.viewer.gui.addSphere('world/'+marker,0.01,[0,0,1,1])
 
     return viz
 

@@ -4,7 +4,8 @@ import hppfcl as fcl
 from scipy.spatial.transform import Rotation as R
 from typing import List, Tuple, Dict
 from utils.linear_algebra_utils import col_vector_3D
-from model_utils import construct_segments_frames, get_segments_mks_dict, get_local_mks_positions, get_local_segments_positions
+from .model_utils import construct_segments_frames, get_segments_mks_dict, get_local_mks_positions, get_local_segments_positions
+
 
 def build_model(mocap_mks_positions: Dict, meshes_folder_path: str)->Tuple[pin.Model,pin.Model, Dict]:
     """_Build the biomechanical model associated to one exercise for one subject_
