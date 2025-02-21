@@ -31,7 +31,7 @@ from utils.settings import Settings
 import gepetto as gep
 settings = Settings()
 
-data_markers = pd.read_csv(os.path.join(rt_cosmik_path,'output//lstm.csv')) 
+data_markers = pd.read_csv(os.path.join(rt_cosmik_path,'output/frontal_plan/augmented_data.csv')) 
 
 start_sample=0
 ##for lstm data 

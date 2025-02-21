@@ -26,8 +26,8 @@ script_directory = os.path.dirname(os.path.abspath(__file__))
 parent_directory = os.path.dirname(script_directory)
 
 liste_fichiers = [
-    '/root/workspace/ros_ws/src/rt-cosmik/output/cam_1.csv',
-    '/root/workspace/ros_ws/src/rt-cosmik/output/cam_2.csv'
+    '/root/workspace/ros_ws/src/rt-cosmik/output/frontal_plan/cam_1.csv',
+    '/root/workspace/ros_ws/src/rt-cosmik/output/frontal_plan/cam_2.csv'
 
 ]
 donnees_cameras=[]
@@ -75,7 +75,7 @@ for frame_idx in range(num_frames):
 # Convert to DataFrame
 df = pd.DataFrame(keypoints_in_world_list)
 
-output_csv_path = "/root/workspace/ros_ws/src/rt-cosmik/output/keypoints_3d_test.csv"
+output_csv_path = "/root/workspace/ros_ws/src/rt-cosmik/output/frontal_plan/keypoints_3d.csv"
 
 # Save to CSV without header/index
 df.to_csv(output_csv_path, index=False, header=False)

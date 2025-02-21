@@ -22,22 +22,22 @@ from utils.settings import Settings
 from utils.iir import IIR
 
 
-data_markers_mocap = pd.read_csv(os.path.join(rt_cosmik_path,'process_data_manip/mks_mocap/mks_mocap_test_2.csv')) 
-data_markers = pd.read_csv(os.path.join(rt_cosmik_path,'process_data_manip/mks_lstm/augmented_markers_positions_test_2.csv')) 
+data_markers_mocap = pd.read_csv(os.path.join(rt_cosmik_path,'/root/workspace/ros_ws/src/rt-cosmik/output/frontal_plan/augmented_data.csv')) 
+# data_markers = pd.read_csv(os.path.join(rt_cosmik_path,'process_data_manip/mks_lstm/augmented_markers_positions_test_2.csv')) 
 
 
 start_sample=0
 ##for lstm data 
-result_markers = []
-for frame, group in data_markers.groupby("Frame"):
-    frame_dict = {row["Marker"]: np.array([row["X"], row["Y"], row["Z"]]) for _, row in group.iterrows()}
-    result_markers.append(frame_dict)
+# result_markers = []
+# for frame, group in data_markers.groupby("Frame"):
+#     frame_dict = {row["Marker"]: np.array([row["X"], row["Y"], row["Z"]]) for _, row in group.iterrows()}
+#     result_markers.append(frame_dict)
 
-lstm_dict = result_markers[start_sample]
+# lstm_dict = result_markers[start_sample]
 
 # for mocap data
-result_markers_mocap, start_sample_dict = read_mks_data(data_markers_mocap, start_sample=start_sample) #check the function of read 
-start_sample_dict = result_markers_mocap[start_sample]
+result_markers, start_sample_dict = read_mks_data(data_markers_mocap, start_sample=start_sample) #check the function of read 
+start_sample_dict = result_markers[start_sample]
 
 
 human_model, human_geom_model, visuals_dict = build_model_challenge(start_sample_dict, start_sample_dict, meshes_folder_path)
@@ -117,7 +117,7 @@ keys_to_track_list = [  'C7_study',
                         ]
 
 ### IK calculations
-ik_class = RT_IK(human_model, lstm_dict, q, keys_to_track_list, dt)
+ik_class = RT_IK(human_model, start_sample_dict, q, keys_to_track_list, dt)
 q = ik_class.solve_ik_sample_casadi() #warm start with ipopt for qp 
 viz.display(q)
 ik_class._q0=q

@@ -41,7 +41,7 @@ def butterworth_filter(data, cutoff_frequency, order=5, sampling_frequency=60):
 # print(f"Data shape: {data[1]}")
 
 
-data = pd.read_csv('/root/workspace/ros_ws/src/rt-cosmik/output/keypoints_3d_test.csv')
+data = pd.read_csv('/root/workspace/ros_ws/src/rt-cosmik/output/frontal_plan/keypoints_3d.csv')
 data= data.values
 
 #data = butterworth_filter(data, 5.0)

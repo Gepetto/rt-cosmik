@@ -1,5 +1,6 @@
 **/__pycache__/
-output
+output/handover
+output/saved
 process_data_manip/jcp/
 process_data_manip/mks_lstm/
 process_data_manip/mks_mocap/

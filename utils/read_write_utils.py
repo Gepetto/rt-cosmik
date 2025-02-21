@@ -407,7 +407,6 @@ def read_mmpose_file(nom_fichier):
         for ligne in f:
             ligne = ligne.strip().split(',')  # Séparer les valeurs par virgule
             donnees.append([float(valeur) for valeur in ligne[:]])  # Convertir les valeurs en float, en excluant le num_sample
-    # print('donnees=',donnees)
     return donnees
 
 def read_mmpose_scores(liste_fichiers):
