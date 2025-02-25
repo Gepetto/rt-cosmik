@@ -282,7 +282,7 @@ def model_scaling_from_dict_2dof(model, dict):
     upperarm_l = dict['Elbow']
     lowerarm_l = dict['Wrist']
     
-    model.jointPlacements[model.getJointId('elbow_Z')].translation=np.array([upperarm_l,0,0])
+    model.jointPlacements[model.getJointId('elbow')].translation=np.array([upperarm_l,0,0])
     model.frames[model.getFrameId('hand_fixed')].translation=np.array([lowerarm_l,0,0])
     model.frames[model.getFrameId('hand')].translation=np.array([lowerarm_l,0,0])
 

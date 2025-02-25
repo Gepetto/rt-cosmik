@@ -27,7 +27,7 @@ def main():
         for data in camera_data
     ]
 
-    mtxs, dists, projections, _, _ = load_camera_parameters(config_path)
+    mtxs, dists, projections, rotations, translations = load_camera_parameters(config_path)
     world_R1_cam, world_T1_cam = load_world_transformation(config_path)
     
     keypoints_in_world = triangulate_offline(uvs, mtxs, dists, projections, world_R1_cam, world_T1_cam)

@@ -15,7 +15,7 @@ from utils.read_write_utils import read_mks_data
 import pandas as pd
 from human_model.pin_model import * 
 from human_model.model_utils import construct_segments_frames
-from viewer.gv_viewer import place, gv_init, Rquat
+from viewer.gv_viewer import place, gv_init, Rquat, add_frames
 
 #read mks data
 start_sample = 0
@@ -33,23 +33,20 @@ pin.updateFramePlacements(human_model, human_data)
 
 # VISUALIZATION
 
-#world frame
 
 viz = gv_init(human_model,human_geom_model.copy(),human_geom_model,start_sample_dict.keys())
-viz.viewer.gui.addXYZaxis('world/base_frame', [255, 0., 0, 1.], 0.02, 0.15)
-place(viz, 'world/base_frame', pin.SE3(np.eye(3), np.matrix([0, 0, 0]).T))
 
 #display markers
 for key in start_sample_dict.keys():
     M = pin.SE3(pin.SE3(Rquat(1, 0, 0, 0), np.matrix([start_sample_dict[key][0],start_sample_dict[key][1],start_sample_dict[key][2]]).T))
     place(viz,'world/'+key,M)
 
-#construct and display frames 
+# construct and display frames 
 seg_frames = construct_segments_frames(result_markers[start_sample])
+add_frames(viz,seg_frames,"meas", 0.008, 0.08)
+
 for seg_name, mks in seg_frames.items():
-    frame_name = f'world/{seg_name+"_meas"}'
-    viz.viewer.gui.addXYZaxis(frame_name, [255, 0., 0, 1.], 0.008, 0.08)
-   
+    frame_name = f'world/{seg_name+"_meas"}'   
     frame_se3 = pin.SE3(mks[:3,:3], np.matrix([mks[0,3],mks[1,3],mks[2,3]]).T)
     place(viz, frame_name, frame_se3)
 

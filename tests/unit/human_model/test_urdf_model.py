@@ -18,7 +18,7 @@ from viewer.gv_viewer import place, gv_init
 
 #read mks data
 start_sample = 0
-data_markers = pd.read_csv('/root/workspace/ros_ws/src/rt-cosmik/output/frontal_plan/lstm_frontal_plan.csv') 
+data_markers = pd.read_csv('/root/workspace/ros_ws/src/rt-cosmik/output/frontal_plan/augmented_data.csv') 
 
 result_markers, start_sample_dict = read_mks_data(data_markers, start_sample=start_sample) #check the function of read 
 
@@ -31,7 +31,7 @@ human_visual_model = human.visual_model
 
 pin.framesForwardKinematics(human_model,human_data, pin.neutral(human_model))
 
-jcp_dict, _ = get_jcp_global_pos_2dof(start_sample_dict,side_to_track="right")
+jcp_dict = get_jcp_global_pos_2dof(start_sample_dict,side_to_track="right")
 seg_lengths = calculate_segment_lengths_from_dict_2dof(jcp_dict)
 seg_lengths_dic={'Elbow' :seg_lengths[0], 'Wrist' :seg_lengths[1]}
 
@@ -40,6 +40,7 @@ human_model = model_scaling_from_dict_2dof(human_model, seg_lengths_dic)
 
 # VISUALIZATION
 viz = gv_init(human_model,human_collision_model,human_visual_model,jcp_dict.keys())
+
 #displa urdf frames
 for frame in human_model.frames.tolist():
     viz.viewer.gui.addXYZaxis('world/'+frame.name,[1,0,0,1],0.01,0.1)
