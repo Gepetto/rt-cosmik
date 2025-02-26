@@ -413,15 +413,8 @@ class RT_SWIKA:
             X.append(opti.variable(self._nx))
             U.append(opti.variable(self._nu))
 
-        cost = 0
+        # Constraints 
         for k in range(self._N):
-            # Markers tracking
-            cost+=cost_weights[0]*casadi.sumsqr(marker_meas[:,k]-fmarkers_est(X[k]))
-            # State regul
-            cost += cost_weights[1]*casadi.sumsqr(X[k]-X0)
-            # Control regul
-            cost += cost_weights[2]*casadi.sumsqr(U[k])
-
             if k != self._N-1:
                 # Euler integration
                 xkp1 = dyn_fun(X[k],U[k],dt)
@@ -439,6 +432,15 @@ class RT_SWIKA:
 
         X = casadi.hcat(X)
         U = casadi.hcat(U)
+        
+        # Cost function 
+        cost = 0
+        # Markers tracking
+        cost+=cost_weights[0]*casadi.sumsqr(marker_meas-fmarkers_est.map(self._N, "openmp")(X))
+        # State regul
+        cost += cost_weights[1]*casadi.sumsqr(X-X0)
+        # Control regul
+        cost += cost_weights[2]*casadi.sumsqr(U)
         
         opti.minimize(cost)
 
