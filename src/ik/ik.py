@@ -3,9 +3,9 @@ import casadi
 import pinocchio.casadi as cpin 
 import quadprog
 from typing import Dict, List
-from collections import deque
 import numpy as np 
-# import fatropy.spectool as sp
+import time
+from os import system
 
 def quadprog_solve_qp(P: np.ndarray, q: np.ndarray, G: np.ndarray=None, h: np.ndarray=None, A: np.ndarray=None, b: np.ndarray=None):
     """_Set up the qp solver using quadprog API_
@@ -328,12 +328,157 @@ class RT_IK:
 
         # Solve the optimization problem
         opti.solver("ipopt", opts)
+        t0 =time.time()
         sol = opti.solve()
+        t1 = time.time()
+        print("Time for opti.solve : ", t1 - t0)
         
         # Get the optimized joint angles
         q = sol.value(Q)
 
         return q
+
+class RT_SWIKA:
+    def __init__(self, pin_model: pin.Model, keys_to_track: List, N: int, dict_dof_to_keypoints: Dict=None, with_freeflyer=True, code: str ='c'):
+        # Initialize the Pinocchio model
+        self._pin_model = pin_model
+        self._nq = self._pin_model.nq
+        self._nv = self._pin_model.nv
+        self._nx = self._nq + self._nv
+        self._nu = self._nv
+        self._with_freeflyer = with_freeflyer
+        self._code = code 
+
+        self._N = N
+
+        self._keys_to_track = keys_to_track
+
+        # Ensure dict_dof_to_keypoints is either a valid dictionary or None
+        self._dict_dof_to_keypoints = dict_dof_to_keypoints if dict_dof_to_keypoints is not None else None
+
+        self._ocp_func = self.create_ocp()
+    
+    def create_ocp(self):
+        ##### CASADI SYMBOLICS #####
+        cmodel = cpin.Model(self._pin_model)
+        cdata = cmodel.createData()
+
+        cx = casadi.SX.sym('cx', self._nq+self._nv) # States
+        cu = casadi.SX.sym('cu', self._nv) # Controls
+        cdt = casadi.SX.sym('cdt') # Time step
+
+        ### Define the constraints functions
+        ## Define the dynamics function
+        # Define the integrate function
+        integrate = casadi.Function('integrate', [cx, cdt], [cpin.integrate(cmodel, cx[:self._nq], cx[self._nq:]*cdt)])
+        # Euler integration
+        qnext=integrate(cx,cdt)
+        dqnext=cx[self._nq:]+cu*cdt
+        xnext = casadi.vertcat(qnext,dqnext)
+        dyn_fun = casadi.Function('dyn', [cx, cu, cdt], [xnext])
+
+        ### Define the cost function
+        ## Define the markers_est function
+        # Perform forward kinematics
+        cpin.framesForwardKinematics(cmodel, cdata, cx[:self._nq])
+        # Initialize the markers_est list
+        markers_est = []
+        # Get the frame indices for the keys to track
+        frame_indices = [cmodel.getFrameId(key) for key in self._keys_to_track]
+        # Extract the translation of each frame and concatenate
+        for index_mk in frame_indices:
+            if index_mk < len(self._pin_model.frames.tolist()):  # Check that the frame is in the model
+                markers_est = casadi.horzcat(markers_est, cdata.oMf[index_mk].translation)  # Concatenate the markers positions, size (3 x Nb of markers)
+        # Create a CasADi function for the estimated markers
+        fmarkers_est = casadi.Function('markers_est', [cx], [casadi.reshape(markers_est, len(self._keys_to_track) * 3, 1)])  # reorganize the markers as [x0, y0, z0, ..., xi, yi, zi, ..., xN, yN, zN]^T, size (3*Nb x 1 of markers)
+
+        ##### OPTI FRAMEWORK #####
+        opti = casadi.Opti()
+
+        ### Define ocp parameters input
+        # Time parameters
+        dt = opti.parameter()
+
+        # Measure parameter
+        marker_meas = opti.parameter(len(self._keys_to_track)*3, self._N)
+
+        # Cost parameters
+        X0 = opti.parameter(self._nx)
+        cost_weights =  opti.parameter(3)
+
+        X = []
+        U = []
+
+        for k in range(self._N):
+            X.append(opti.variable(self._nx))
+            U.append(opti.variable(self._nu))
+
+        cost = 0
+        for k in range(self._N):
+            # Markers tracking
+            cost+=cost_weights[0]*casadi.sumsqr(marker_meas[:,k]-fmarkers_est(X[k]))
+            # State regul
+            cost += cost_weights[1]*casadi.sumsqr(X[k]-X0)
+            # Control regul
+            cost += cost_weights[2]*casadi.sumsqr(U[k])
+
+            if k != self._N-1:
+                # Euler integration
+                xkp1 = dyn_fun(X[k],U[k],dt)
+
+                # Multiple shooting gap-closing constraint
+                opti.subject_to(X[k+1]==xkp1)
+                
+            # Set the constraint for the joint limits
+            if self._with_freeflyer:
+                for i in range(7,self._nq):
+                    opti.subject_to(opti.bounded(self._pin_model.lowerPositionLimit[i],X[k][i],self._pin_model.upperPositionLimit[i]))
+            else : 
+                for i in range(self._nq):
+                    opti.subject_to(opti.bounded(self._pin_model.lowerPositionLimit[i],X[k][i],self._pin_model.upperPositionLimit[i]))
+
+        X = casadi.hcat(X)
+        U = casadi.hcat(U)
+        
+        opti.minimize(cost)
+
+        ### Define the solver
+        options = {}
+        options["expand"] = True
+        options["fatrop"] = {"mu_init": 0.01}
+        options["fatrop"]={"max_iter":50}
+        options["fatrop"]={"tol":1e-3}
+        options["structure_detection"] = "auto"
+        options["debug"] = False
+
+        opti.solver('fatrop', options)
+
+        ocp_func = opti.to_function('ocp', [X,U,marker_meas, X0, cost_weights, dt], [X,U], ['Xin','Uin', 'marker_meas', 'X0', 'cost_weights', 'dt'],['Xout','Uout'])
+        return ocp_func
+        
+    def compile_Ccode(self):
+        cname = self._ocp_func.generate('ocp.c', {"with_header": False, "main":True})
+        oname_O3 = 'ocp_O3.so'
+        print('Compiling with O3 optimization: ', oname_O3)
+        t1 = time.time()
+        system('gcc -fPIC -shared -O3 ' + cname + ' -o ' + oname_O3 + ' -lfatrop -lblasfeo -lm')
+        t2 = time.time()
+        print('Compilation time = ', (t2-t1), ' s')
+
+    def solve(self, X: np.ndarray, U: np.ndarray, marker_meas: np.ndarray, X0: np.ndarray, cost_weights: np.ndarray, dt: float):
+        if self._code == 'c': # Use codegen 
+            ocp_fun = casadi.external('ocp','./ocp_O3.so')
+        elif self._code == 'python': 
+            ocp_fun = self.create_ocp()
+        else : 
+            raise ValueError('Code should be either c or python')
+
+        # print(X.shape, U.shape, marker_meas.shape, X0.shape, cost_weights.shape, dt)
+        # print(ocp_fun)
+
+        X, U = ocp_fun(X, U, marker_meas, X0, cost_weights, dt)
+        return X, U
+
 
 # class RT_SWIKA:
 #     """_Class to manage multi body Sliding Window IK problem using fatrop solver_
@@ -484,114 +629,6 @@ class RT_IK:
 #         solved_x_list = [new_X[i] for i in range(new_X.shape[0])] 
 
 #         return sol, solved_x_list #X with Dq but also Q with ff quat 
-
-# class RT_SWIKA_Spectool:
-#     """_Class to manage multi body Sliding Window IK problem using fatrop solver and spectool formulation_
-#     """
-#     def __init__(self,model: pin.Model, deque_dict_m: deque, x_list: List, keys_to_track_list: List, N: int, dt: float, dict_dof_to_keypoints=None, with_freeflyer=True) -> None:
-       
-#         """ _Init of the class _
-
-#         Args:
-#             model (pin.Model): _Pinocchio biomechanical model_
-#             deque_dict_m (deque): _a deque containing the measures of the landmarks_
-#             x_list (List): _list of states_
-#             keys_to_track_list (List): _name of the points to track from the dictionnary_
-#             N (int): _Size of the window_
-#             dt (float): _Sampling rate of the data_
-#             dict_dof_to_keypoints (Dict): _a dictionnary linking frame of pinocchio model to measurements. Default to None if the pinocchio model has the same frame naming than the measurements_
-#             with_freeflyer (boolean): _tells if the pinocchio model has a ff or not. Default to True.
-#         """
-        
-#         self._model = model
-#         self._nq = self._model.nq
-#         self._nv = self._model.nv
-#         self._data = self._model.createData()
-#         self._deque_dict_m = deque_dict_m
-#         self._x_list = x_list
-#         self._keys_to_track_list = keys_to_track_list
-#         self._N = N
-#         self._dt = dt # TO SET UP : FRAMERATE OF THE DATA
-
-#         # Ensure dict_dof_to_keypoints is either a valid dictionary or None
-#         self._dict_dof_to_keypoints = dict_dof_to_keypoints if dict_dof_to_keypoints is not None else None
-#         self._with_freeflyer = with_freeflyer
-
-#         # Joint limits
-#         self._qplus = casadi.DM(self._model.upperPositionLimit)
-#         self._qminus = casadi.DM(self._model.lowerPositionLimit) 
-
-#         # Casadi framework 
-#         self._cmodel = cpin.Model(self._model)
-#         self._cdata = self._cmodel.createData()
-
-#         cq = casadi.SX.sym("q",self._nq) # q
-#         cdq = casadi.SX.sym("dq",self._nv) # dq
-
-#         self._integrate = casadi.Function('integrate',[ cq,cdq ],[cpin.integrate(self._cmodel,cq,cdq) ])
-
-#         cpin.framesForwardKinematics(self._cmodel, self._cdata, cq)
-
-#         markers_est = []
-#         for key in self._keys_to_track_list:
-#             index_mk = self._cmodel.getFrameId(key)
-#             if index_mk < len(self._model.frames.tolist()): # Check that the frame is in the model
-#                 markers_est = casadi.horzcat(markers_est,self._cdata.oMf[index_mk].translation) # Concatenate the markers positions, size (3 x Nb of markers)
-
-#         self._fmarkers_est = casadi.Function('function_markers_est', [cq], [casadi.reshape(markers_est, len(self._keys_to_track_list)*3, 1)]) # reorganize the markers as [x0, y0, z0, ..., xi, yi, zi, ..., xN, yN, zN], size (1 x 3*Nb of markers)
-
-#         # self._fun = self.sp_setup()
-    
-#     def sp_setup(self, marker_array)->sp.Ocp.to_function:
-#         dt = self._dt
-#         N = self._N
-
-#         ocp = sp.Ocp()
-
-#         stage = ocp.new_stage(N)
-
-#         X0 = ocp.parameter(self._nq+self._nv)
-#         marker_meas = ocp.parameter(len(self._keys_to_track_list)*3, grid ='control')
-#         ocp.set_initial(marker_meas, marker_array)
-
-#         x = ocp.state(self._nq+self._nv)
-#         u = ocp.control(self._nv)
-
-#         # Euler integration
-#         qnext=self._integrate(x[:self._nq],x[self._nq:]*self._dt)
-#         dqnext=x[self._nq:]+u*self._dt
-#         xnext = casadi.vertcat(qnext,dqnext)
-
-#         stage.set_next(x, xnext)
-
-#         # Define the constraints
-#         if self._with_freeflyer:
-#             stage.subject_to(casadi.vertcat(self._qminus[7:] <= x[7:self._nq], x[7:self._nq] <= self._qplus[7:]), sp.t0, sp.mid, sp.tf)
-#         else:
-#             stage.subject_to(casadi.vertcat(self._qminus <= x[:self._nq], x[:self._nq] <= self._qplus), sp.t0, sp.mid, sp.tf)
-
-#         # Define the cost function
-#         stage.add_objective(10*casadi.sumsqr(marker_meas-self._fmarkers_est(x[:self._nq])), sp.t0, sp.mid, sp.tf)
-#         stage.add_objective(1e-3*casadi.sumsqr(x-X0), sp.t0, sp.mid, sp.tf)
-#         stage.add_objective(1e-5*casadi.sumsqr(u), sp.t0, sp.mid)
-
-#         ocp.solver("fatrop")#, {"expand":True, "jit":True})  
-#         ocp_fun = ocp.to_function("ocp", [X0], [ocp.sample(x)[1]])
-#         return ocp_fun
-
-#     def solve_swika_fatrop(self)->tuple:
-#         x_list = self._x_list
-#         lstm_dict_list = list(self._deque_dict_m)
-
-#         # Convert the list of dictionaries to a NumPy array
-#         array_data = np.array([np.hstack([d[marker] for marker in self._keys_to_track_list]) for d in lstm_dict_list])
-#         print(array_data.shape)
-
-#         fun = self.sp_setup(array_data)
-
-#         results = fun(np.array(x_list[0]))
-
-#         return results
 
 # class RT_SWIKA_Spectool_ustage:
 #     """_Class to manage multi body Sliding Window IK problem using fatrop solver and spectool formulation_
