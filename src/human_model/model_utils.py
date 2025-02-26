@@ -451,14 +451,13 @@ def get_footR_pose(mocap_mks_positions):
     X, Y, Z, ankle_center = [], [], [], []
 
     ankle_center = (mocap_mks_positions['r_mankle_study'] + mocap_mks_positions['r_ankle_study']).reshape(3,1)/2.0
-    toe_pos = (mocap_mks_positions['r_toe_study'] + mocap_mks_positions['r_5meta_study'])/2.0
-    
-    X = (toe_pos - mocap_mks_positions['r_calc_study']).reshape(3,1)  
+    X = (mocap_mks_positions['r_toe_study'] - mocap_mks_positions['r_calc_study']).reshape(3,1)
     X = X/np.linalg.norm(X)
     Z = (mocap_mks_positions['r_ankle_study'] - mocap_mks_positions['r_mankle_study']).reshape(3,1)
     Z = Z/np.linalg.norm(Z)
     Y = np.cross(Z, X, axis=0)
     Z = np.cross(X, Y, axis=0)
+
 
 
     pose[:3,0] = X.reshape(3,)
@@ -493,14 +492,13 @@ def get_footL_pose(mocap_mks_positions):
     X, Y, Z, ankle_center = [], [], [], []
 
     ankle_center = (mocap_mks_positions['L_mankle_study'] + mocap_mks_positions['L_ankle_study']).reshape(3,1)/2.0
-    toe_pos = (mocap_mks_positions['L_toe_study'] + mocap_mks_positions['L_5meta_study'])/2.0
-
-    X = (toe_pos - mocap_mks_positions['L_calc_study']).reshape(3,1)
+    X = (mocap_mks_positions['L_toe_study'] - mocap_mks_positions['L_calc_study']).reshape(3,1)
     X = X/np.linalg.norm(X)
     Z = (mocap_mks_positions['L_mankle_study'] - mocap_mks_positions['L_ankle_study']).reshape(3,1)
     Z = Z/np.linalg.norm(Z)
     Y = np.cross(Z, X, axis=0)
     Z = np.cross(X, Y, axis=0)
+
 
     pose[:3,0] = X.reshape(3,)
     pose[:3,1] = Y.reshape(3,)

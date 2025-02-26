@@ -145,8 +145,7 @@ def reproject(results, frame_size, axis="horizontal"):
     first_result = (first_skeleton, first_bboxes, _)
     second_result = (second_skeleton, second_bboxes, _)
 
-    return first_result, second_result
-
+    return first_skeleton, second_skeleton
 
 
 def reproject_four_frames(results, frame_width, frame_height):

@@ -16,8 +16,8 @@ def main():
     config_path = os.path.join(base_path, "config/cam_params")
     output_csv_path = os.path.join(base_path, "output/keypoints_3d_test.csv")
     file_paths = [
-        os.path.join(base_path, "output/cam_1.csv"),
-        os.path.join(base_path, "output/cam_2.csv")
+        os.path.join(base_path, "output/frontal_plan/cam_1.csv"),
+        os.path.join(base_path, "output/frontal_plan/cam_2.csv")
     ]
     
     camera_data = [read_mmpose_file(file) for file in file_paths]
@@ -31,7 +31,7 @@ def main():
     world_R1_cam, world_T1_cam = load_world_transformation(config_path)
     
     keypoints_in_world = triangulate_offline(uvs, mtxs, dists, projections, world_R1_cam, world_T1_cam)
-    save_to_csv(keypoints_in_world, output_csv_path)
+    # save_to_csv(keypoints_in_world, output_csv_path)
 
 if __name__ == "__main__":
     main()

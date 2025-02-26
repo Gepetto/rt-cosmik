@@ -1500,3 +1500,25 @@ def calculate_segment_lengths_from_dict(dict):
     return np.array([lowerleg_l, upperleg_l, trunk_l, upperarm_l, lowerarm_l])
 
 
+def get_segment_length(mocap_mks_positions: Dict, path_for_segment_length: str):
+    sgts_poses = construct_segments_frames_challenge(mocap_mks_positions)
+    local_segments_positions = get_local_segments_positions(sgts_poses)
+    print('local_segments_positions', local_segments_positions)
+    # Calculate norms to get length of segments
+    norms = {}
+    norms['upperlegR'] = np.linalg.norm(local_segments_positions['shankR'])
+    norms['lowerlegR'] = np.linalg.norm(local_segments_positions['footR'])
+    norms['upperlegL'] = np.linalg.norm(local_segments_positions['shankL'])
+    norms['lowerlegL'] = np.linalg.norm(local_segments_positions['footL'])
+
+    norms['upperarmR'] = np.linalg.norm(local_segments_positions['upperarmR'])
+    norms['lowerarmR'] = np.linalg.norm(local_segments_positions['lowerarmR'])
+    norms['upperarmL'] = np.linalg.norm(local_segments_positions['upperarmL'])
+    norms['lowerarmL'] = np.linalg.norm(local_segments_positions['lowerarmL'])
+
+    # Save to CSV
+    df = pd.DataFrame(list(norms.items()), columns=['Segment_Pair', 'Norm']).T
+    df.to_csv(path_for_segment_length, index=False, header=False)
+
+
+

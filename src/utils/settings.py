@@ -6,8 +6,8 @@ class Settings:
     # CAM PARAMS
     fs: int = 40
     dt: float = field(init=False)  # Mark `dt` as excluded from the constructor
-    width: int = 640 # image resolution
-    height: int = 480 # image resolution
+    width: int = 1280 # image resolution
+    height: int = 720 # image resolution
 
     # CAMS CALIB 
     # checkerboard params
@@ -31,8 +31,8 @@ class Settings:
     side_to_track: str =  "right" # bilateral (if we want to track both side, i.e., lifting), right or left
     
     # HUMAN ANTHROPOMETRY
-    human_height: float = 1.81
-    human_mass: float = 73
+    human_height: float = 1.64
+    human_mass: float = 50
 
     #MMPOSE MODEL (here body 26)
     keypoints_names: list = field(default_factory=lambda: [
