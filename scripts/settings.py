@@ -2,10 +2,11 @@ from dataclasses import dataclass, field
 @dataclass
 class Settings:
     # CAM PARAMS
-    fs: int = 40
+    fps: int = 40
     dt: float = field(init=False)  # Mark `dt` as excluded from the constructor
     width: int = 1280 # image resolution
     height: int = 720 # image resolution
+    fourcc: str = "MJPG" # video codec
 
     # VIEWER PARAMS
     viewer: str = "gv" # viewer type: gv or ros

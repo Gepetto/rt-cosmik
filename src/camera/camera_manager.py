@@ -6,8 +6,7 @@ from datetime import datetime
 
 class CameraManager:
     """
-    Manages multiple camera processes, including initialization, starting, stopping, 
-    and retrieving frames from the cameras.
+    Manages multiple camera processes.
     Attributes:
         _width (int): The width of the camera frames.
         _height (int): The height of the camera frames.
@@ -24,16 +23,6 @@ class CameraManager:
             Discovers and initializes available cameras, setting up shared resources for each.
         get_shared_resources():
             Returns all shared resources for external processes.
-        start():
-            Starts all camera processes.
-        get_frames():
-            Retrieves the latest frames and timestamps from all cameras.
-        stop():
-            Stops all camera processes gracefully.
-        __enter__():
-            Initializes cameras and starts processes when entering a context.
-        __exit__(exc_type, exc_val, exc_tb):
-            Stops all camera processes when exiting a context.
     """
 
     def __init__(self, width, height, fps, fourcc):
@@ -80,67 +69,6 @@ class CameraManager:
             ],
             'stop_event': self._stop_event
         }
-    
-    def start(self):
-        """Start all camera processes"""
-        if not self._cameras:
-            raise RuntimeError("No cameras initialized. Call initialize_cameras() first")
-            
-        for cam in self._cameras:
-            process = mp.Process(
-                target=start_camera_process,
-                args=(
-                    cam['id'],
-                    self._width,
-                    self._height,
-                    self._fps,
-                    self._fourcc,
-                    cam['frame_buffer'],
-                    cam['timestamp_buffer'],
-                    cam['lock'],
-                    self._barrier,
-                    self._stop_event
-                )
-            )
-            self._processes.append(process)
-            process.start()
-    
-    def get_frames(self):
-        """Retrieve latest frames and timestamps from all cameras"""
-        frames = []
-        for cam in self._cameras:
-            with cam['lock']:
-                # Get frame data
-                frame = np.frombuffer(cam['frame_buffer'].get_obj(), 
-                                     dtype=np.uint8).reshape(self._height, self._width, 3)
-                # Get timestamp
-                ts_bytes = bytes(cam['timestamp_buffer'].get_obj())
-                timestamp = ts_bytes.decode('utf-8').strip('\x00')
-                
-            frames.append({
-                'camera_id': cam['id'],
-                'frame': frame.copy(),
-                'timestamp': datetime.strptime(timestamp, "%Y%m%d_%H%M%S_%f")
-            })
-        return frames
-    
-    def stop(self):
-        """Stop all camera processes gracefully"""
-        self._stop_event.set()
-        for process in self._processes:
-            process.join(timeout=2)
-            if process.is_alive():
-                process.terminate()
-        print("All camera processes terminated")
-
-    def __enter__(self):
-        self.initialize_cameras()
-        self.start()
-        return self
-        
-    def __exit__(self, exc_type, exc_val, exc_tb):
-        self.stop()
-
 
 class CameraBufferReader:
     """
