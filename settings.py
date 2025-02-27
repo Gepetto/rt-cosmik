@@ -76,6 +76,6 @@ class Settings:
 
 
     def __post_init__(self):
-        self.dt = 1 / self.fs  # Compute `dt` after initialization
+        self.dt = 1 / self.fps  # Compute `dt` after initialization
 
 

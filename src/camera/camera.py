@@ -1,6 +1,7 @@
 import cv2
 import numpy as np
 from datetime import datetime
+
 class Camera:
     """
     A class to represent a camera and handle its operations.
@@ -53,7 +54,7 @@ class Camera:
     def read_frame(self):
         if self._cap is None:
             raise Exception("Camera is not opened. Call open() first.")
-        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S_%f")[:-3] # truncated 
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S_%f")
         ret, frame = self._cap.read()
         if not ret:
             raise Exception(f"Failed to capture frame from camera {self._camera_id}")
@@ -65,7 +66,7 @@ class Camera:
             self._cap = None
         cv2.destroyAllWindows()
 
-def start_camera_process(id_cam, width, height, fps, fourcc, image_buffer, timestamp_buffer, lock, barrier,stopping_event):
+def start_camera_process(id_cam, width, height, fps, fourcc, image_buffer, timestamp_buffer, lock, barrier, stopping_event, recording_event):
     """
     Start a camera process to capture frames and store them in a shared memory buffer.
     Args:
@@ -86,6 +87,8 @@ def start_camera_process(id_cam, width, height, fps, fourcc, image_buffer, times
                     fps=fps, 
                     fourcc=fourcc)
 
+    print(stopping_event)
+    print(stopping_event.is_set())
     try:
         while not stopping_event.is_set():
             timestamp, frame = camera.read_frame()

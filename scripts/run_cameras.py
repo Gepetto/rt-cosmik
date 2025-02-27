@@ -1,7 +1,7 @@
-from .settings import Settings
+from settings import Settings
 settings = Settings()
 
-from src.camera import start_camera_process
+from src.camera.camera import start_camera_process
 from src.camera.camera_manager import CameraManager, CameraBufferReader
 from src.process_manager import ProcessManager
 import signal
@@ -36,7 +36,10 @@ def main():
             )
         )
 
-    # Signal handling
+    # Start all processes
+    process_manager.start_all()
+
+     # Signal handling
     def handle_interrupt(sig, frame):
         print("\nTermination requested")
         process_manager.stop_all()
@@ -44,12 +47,9 @@ def main():
         
     signal.signal(signal.SIGINT, handle_interrupt)
 
-    # Start all processes
-    process_manager.start_all()
-
     # For better performance, add this before the display loop
     cv2.startWindowThread()
-    
+  
     try:
         while not process_manager.shared_events['stopping_event'].is_set():
             frames = reader.read_all()

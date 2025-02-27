@@ -1,7 +1,6 @@
 import numpy as np
 import multiprocessing as mp
-from camera.camera import start_camera_process
-from camera.cam_utils import list_cameras
+from src.camera.cam_utils import list_cameras
 from datetime import datetime
 
 class CameraManager:
@@ -31,9 +30,7 @@ class CameraManager:
         self._fps = fps
         self._fourcc = fourcc
         self._cameras = []
-        self._processes = []
         self._barrier = None
-        self._stop_event = mp.Event()
 
         self.initialize_cameras()
 
@@ -67,7 +64,6 @@ class CameraManager:
                     'dtype': np.uint8
                 } for cam in self._cameras
             ],
-            'stop_event': self._stop_event
         }
 
 class CameraBufferReader:

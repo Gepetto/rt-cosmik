@@ -16,7 +16,7 @@ class ProcessManager:
             self.shared_events['stopping_event'],
             self.shared_events['recording_event'],
         )
-        
+
         self.processes.append(
             mp.Process(target=target, args=final_args)
         )
