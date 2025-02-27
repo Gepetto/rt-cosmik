@@ -42,12 +42,12 @@ def main():
             results = tracker.estimate(stacked_frame)
 
             # Reproject results to original frames
-            first_result, second_result = reproject(results, width, axis="horizontal")
+            first_skeleton, second_skeleton = reproject(results, width, axis="horizontal")
 
-            # Visualize results on each frame
-            for idx, (frame, result) in enumerate(zip(frames, [first_result, second_result])):
-                if result is not None and not tracker.visualize(frame, result, idx=idx):
-                    return  # Exit if 'q' is pressed
+            # Visualize results on each frame, if you want to visualise the results you should get first_result and second_result from "reproject function"
+            # for idx, (frame, result) in enumerate(zip(frames, [first_result, second_result])):
+            #     if result is not None and not tracker.visualize(frame, result, idx=idx):
+            #         return  # Exit if 'q' is pressed
 
     except KeyboardInterrupt:
         print("Exiting gracefully...")

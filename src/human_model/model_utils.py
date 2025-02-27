@@ -451,12 +451,15 @@ def get_footR_pose(mocap_mks_positions):
     X, Y, Z, ankle_center = [], [], [], []
 
     ankle_center = (mocap_mks_positions['r_mankle_study'] + mocap_mks_positions['r_ankle_study']).reshape(3,1)/2.0
-    X = (mocap_mks_positions['r_toe_study'] - mocap_mks_positions['r_calc_study']).reshape(3,1)
+    toe_pos = (mocap_mks_positions['r_toe_study'] + mocap_mks_positions['r_5meta_study'])/2.0
+    
+    X = (toe_pos - mocap_mks_positions['r_calc_study']).reshape(3,1)  
     X = X/np.linalg.norm(X)
     Z = (mocap_mks_positions['r_ankle_study'] - mocap_mks_positions['r_mankle_study']).reshape(3,1)
     Z = Z/np.linalg.norm(Z)
     Y = np.cross(Z, X, axis=0)
     Z = np.cross(X, Y, axis=0)
+
 
 
 
@@ -492,12 +495,15 @@ def get_footL_pose(mocap_mks_positions):
     X, Y, Z, ankle_center = [], [], [], []
 
     ankle_center = (mocap_mks_positions['L_mankle_study'] + mocap_mks_positions['L_ankle_study']).reshape(3,1)/2.0
-    X = (mocap_mks_positions['L_toe_study'] - mocap_mks_positions['L_calc_study']).reshape(3,1)
+    toe_pos = (mocap_mks_positions['L_toe_study'] + mocap_mks_positions['L_5meta_study'])/2.0
+
+    X = (toe_pos - mocap_mks_positions['L_calc_study']).reshape(3,1)
     X = X/np.linalg.norm(X)
     Z = (mocap_mks_positions['L_mankle_study'] - mocap_mks_positions['L_ankle_study']).reshape(3,1)
     Z = Z/np.linalg.norm(Z)
     Y = np.cross(Z, X, axis=0)
     Z = np.cross(X, Y, axis=0)
+
 
 
     pose[:3,0] = X.reshape(3,)
@@ -727,6 +733,24 @@ def get_local_segments_positions(sgts_poses: Dict)->Dict:
         shank_global = sgts_poses["shankL"]
         local_positions["footL"] = (np.linalg.inv(shank_global) @ foot_global @ np.array([0, 0, 0, 1]))[:3]
     return local_positions
+    
+
+    def get_segment_length(mocap_mks_positions: Dict):
+        sgts_poses = construct_segments_frames_challenge(mocap_mks_positions)
+        local_segments_positions = get_local_segments_positions(sgts_poses)
+        print('local_segments_positions', local_segments_positions)
+        # Calculate norms to get length of segments
+        norms = {}
+        norms['upperlegR'] = np.linalg.norm(local_segments_positions['shankR'])
+        norms['lowerlegR'] = np.linalg.norm(local_segments_positions['footR'])
+        norms['upperlegL'] = np.linalg.norm(local_segments_positions['shankL'])
+        norms['lowerlegL'] = np.linalg.norm(local_segments_positions['footL'])
+
+        norms['upperarmR'] = np.linalg.norm(local_segments_positions['upperarmR'])
+        norms['lowerarmR'] = np.linalg.norm(local_segments_positions['lowerarmR'])
+        norms['upperarmL'] = np.linalg.norm(local_segments_positions['upperarmL'])
+        norms['lowerarmL'] = np.linalg.norm(local_segments_positions['lowerarmL'])
+
 
 
 

@@ -4,21 +4,20 @@ import os
 import sys
 # Add the src folder to sys.path so that viewer modules can be found.
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '../../../src')))
+import pinocchio as pin
+from collections import deque
+from pinocchio.visualize import GepettoVisualizer
+
 from pose_estimator.pose_estimator import PoseTrackerEstimator
 from triangulation.triangulation import triangulate_points
 from augmenter.marker_augmenter import augmentTRC, loadModel
 from filtering.iir import IIR
 from ik.ik import RT_IK
-
 from human_model.pin_model import * 
-from utils.model_utils import *
-
 from human_model.model_utils import construct_segments_frames, get_segments_mks_dict
 from viewer.gv_viewer import place, gv_init, Rquat, add_marker, add_frames
-from collections import deque
 from utils.calib_utils import load_camera_parameters,load_world_transformation
 from utils.settings import Settings
-from pinocchio.visualize import GepettoVisualizer
 from utils.linear_algebra_utils import reproject, concat_frames
 from viewer.gv_viewer import place, gv_init, Rquat, add_marker, add_frames
 from camera.multicamera import *
@@ -95,10 +94,6 @@ def main():
             # Reproject results to original frames
             first_result, second_result = reproject(results, width, axis="horizontal")
 
-            # Visualize results on each frame
-            # for idx, (frame, result) in enumerate(zip(frames, [first_result, second_result])):
-            #     if result is not None and not tracker.visualize(frame, result, idx=idx):
-            #         return  # Exit if 'q' is pressed
             if first_result is None and second_result is None: 
                 pass
             else: 
@@ -195,6 +190,13 @@ def main():
                         for marker in mks_dict.keys():
                             M = pin.SE3(pin.SE3(Rquat(1, 0, 0, 0), np.matrix([mks_dict[marker][0],mks_dict[marker][1],mks_dict[marker][2]]).T))
                             place(viz,'world/'+marker,M)
+                        
+                        seg_frames = construct_segments_frames(mks_dict)
+                        add_frames(viz,seg_frames,"meas", 0.008, 0.08)
+                        for seg_name, M in seg_frames.items():
+                            frame_name = f'world/{seg_name+"_meas"}'
+                            frame_se3 = pin.SE3(M[:3,:3], np.matrix([M[0,3],M[1,3],M[2,3]]).T)
+                            place(viz, frame_name, frame_se3)
 
                         viz.display(q)
                         ik_class._q0 = q
