@@ -1,6 +1,4 @@
 from dataclasses import dataclass, field
-import numpy as np
-
 @dataclass
 class Settings:
     # CAM PARAMS
@@ -9,16 +7,13 @@ class Settings:
     width: int = 1280 # image resolution
     height: int = 720 # image resolution
 
-    # CAMS CALIB 
-    # checkerboard params
-    checkerboard_rows: int = 6 # number of rows on the checkerboard -1 
-    checkerboard_columns: int = 7 # number of columns on the checkerboard -1 
-    checkerboard_scaling: float = 0.108 # size of squares in meters
-    # wand params
-    wand_end_effector_local_pos: np.ndarray = field(
-        default_factory=lambda: np.array([[0.000], [0.271], [0.000]]) # local pose of wand's end effector for pointing calibration
-    )
-    wand_marker_size: float = 0.176 # Marker size in meters (17.6 cm)
+    # VIEWER PARAMS
+    viewer: str = "gv" # viewer type: gv or ros
+    
+    # CALIB
+    cam_calib_path: str = "" # absolute path to the camera calibration file
+    human_calib_path: str = "" # absolute path to the human calibration file
+    robot_calib_path: str = "" # absolute path to the robot calibration file
 
     # FILTER PARAMS
     order: int = 4

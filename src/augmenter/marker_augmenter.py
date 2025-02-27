@@ -2,7 +2,6 @@ import numpy as np
 import os
 import numpy as np
 import onnxruntime as ort
-import pandas as pd
 
 def marker(buffer, keypoint_index):
     """
