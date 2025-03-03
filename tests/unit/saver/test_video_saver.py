@@ -1,11 +1,13 @@
+# From project root (rt-cosmik)
+# PYTHONPATH=src:. python -m unittest discover tests/unit -v
+
 import os
 import sys
 # Add the src folder to sys.path so that viewer modules can be found.
-sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '../../../src')))
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '../../..')))
 import unittest
-import cv2
 import tempfile
-from saver.video_saver import VideoSaver
+from src.saver.video_saver import VideoSaver
 
 class TestVideoSaver(unittest.TestCase):
     def setUp(self):

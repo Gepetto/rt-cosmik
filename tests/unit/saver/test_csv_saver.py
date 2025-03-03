@@ -1,12 +1,15 @@
+# From project root (rt-cosmik)
+# PYTHONPATH=src:. python -m unittest discover tests/unit -v
+
 import os
 import sys 
 # Add the src folder to sys.path so that viewer modules can be found.
-sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '../../../src')))
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '../../..')))
 import unittest
 import os
 import tempfile
 from collections import OrderedDict
-from saver.csv_saver import CSVSaver
+from src.saver.csv_saver import CSVSaver
 
 class TestCSVSaver(unittest.TestCase):
     def setUp(self):

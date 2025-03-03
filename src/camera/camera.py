@@ -1,115 +1,73 @@
 import cv2
 import numpy as np
 from datetime import datetime
+import multiprocessing as mp
+from multiprocessing import Process, Value, Lock
 
-class Camera:
-    """
-    A class to represent a camera and handle its operations.
-    Attributes:
-    -----------
-    camera_id : int
-        The ID of the camera to be used.
-    width : int
-        The width of the video frames.
-    height : int
-        The height of the video frames.
-    fps : int
-        The frames per second of the video.
-    fourcc : str
-        The four-character code for the video codec.
-    _cap : cv2.VideoCapture
-        The OpenCV VideoCapture object.
-    Methods:
-    --------
-    __init__(camera_id, width, height, fps, fourcc):
-        Initializes the camera with the given parameters and opens it.
-    open():
-        Opens and configures the camera.
-    read_frame():
-        Reads a frame from the camera.
-    release():
-        Releases the camera and destroys all OpenCV windows.
-    """
-      
-    def __init__(self, camera_id, width, height, fps, fourcc):
-        self._camera_id = camera_id
-        self._width = width
-        self._height = height
-        self._fps = fps
-        self._fourcc = fourcc
-        self._cap = None
-
-        self.open()
-
-    def open(self):
-        self._cap = cv2.VideoCapture(self._camera_id, cv2.CAP_V4L2)
-        if not self._cap.isOpened():
-            raise Exception(f"Camera {self._camera_id} could not be opened.")
+class Camera(Process):
+    def __init__(self, 
+                 cam_id: int,
+                 shared_buffer: mp.Array,
+                 timestamp_buffer: mp.Array, # Character array for timestamp
+                 lock: Lock,
+                 frame_shape: tuple = (1280, 720, 3),
+                 cam_fps: int = None,
+                 cam_fourcc: str = "MJPG"):
+        super().__init__()
+        self.cam_id = cam_id
+        self.shared_buffer = shared_buffer
+        self.timestamp_buffer = timestamp_buffer  # For timestamp string
+        self.lock = lock
+        self.running = Value('b', True)
         
-        self._cap.set(cv2.CAP_PROP_FOURCC, cv2.VideoWriter_fourcc(*self._fourcc))
-        self._cap.set(cv2.CAP_PROP_FRAME_WIDTH, self._width)
-        self._cap.set(cv2.CAP_PROP_FRAME_HEIGHT, self._height)
-        self._cap.set(cv2.CAP_PROP_FPS, self._fps)
+        # Video capture parameters
+        self.frame_shape = frame_shape  # (height, width, channels)
+        self.cam_fps = cam_fps
+        self.cam_fourcc = cam_fourcc
 
-    def read_frame(self):
-        if self._cap is None:
-            raise Exception("Camera is not opened. Call open() first.")
-        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S_%f")
-        ret, frame = self._cap.read()
-        if not ret:
-            raise Exception(f"Failed to capture frame from camera {self._camera_id}")
-        return timestamp, frame
+        # Validate timestamp buffer size (need 26 chars for format)
+        if len(timestamp_buffer) != 26:
+            raise ValueError("Timestamp buffer must be exactly 26 characters")
 
-    def release(self):
-        if self._cap is not None:
-            self._cap.release()
-            self._cap = None
-        cv2.destroyAllWindows()
+    def run(self):
+        # Initialize camera once at start
+        cap = cv2.VideoCapture(self.cam_id, cv2.CAP_V4L2)
 
-def start_camera_process(id_cam, width, height, fps, fourcc, image_buffer, timestamp_buffer, lock, barrier, stopping_event, recording_event):
-    """
-    Start a camera process to capture frames and store them in a shared memory buffer.
-    Args:
-        id_cam (int): The ID of the camera to be used.
-        width (int): The width of the video frames.
-        height (int): The height of the video frames.
-        fps (int): The frames per second of the video.
-        fourcc (str): The four-character code for the video codec.
-        buffer (multiprocessing.Array): The shared memory buffer to store frames.
-        lock (multiprocessing.Lock): The lock to synchronize access to the shared buffer.
-        barrier (multiprocessing.Barrier): The barrier to synchronize process start.
-        stopping_event (multiprocessing.Event): The event to signal process termination.
-    """
-    barrier.wait() #wait for all process before launching cameras
-    camera = Camera(camera_id=id_cam, 
-                    width=width, 
-                    height=height, 
-                    fps=fps, 
-                    fourcc=fourcc)
+        if not cap.isOpened():
+            raise Exception(f"Camera {self.cam_id} could not be opened.")
+        
+        # Set camera properties once if specified
+        if self.frame_shape:
+            cap.set(cv2.CAP_PROP_FRAME_WIDTH, self.frame_shape[0])
+            cap.set(cv2.CAP_PROP_FRAME_HEIGHT, self.frame_shape[1])
+        if self.cam_fps:
+            cap.set(cv2.CAP_PROP_FPS, self.cam_fps)
+        if self.cam_fourcc:
+            cap.set(cv2.CAP_PROP_FOURCC, cv2.VideoWriter_fourcc(*self.cam_fourcc))
 
-    print(stopping_event)
-    print(stopping_event.is_set())
-    try:
-        while not stopping_event.is_set():
-            timestamp, frame = camera.read_frame()
+        # Prepare shared buffer view
+        arr = np.frombuffer(self.shared_buffer.get_obj(), dtype=np.uint8)
+        frame_buffer = arr.reshape(self.frame_shape)
 
-            # Convert timestamp to bytes for shared memory
-            ts_bytes = timestamp.encode('utf-8')
+        # Main capture loop
+        while self.running.value:
+            ret, frame = cap.read()
+            if not ret:
+                break  # Exit on failure
 
-            with lock:
+            # Generate timestamp
+            timestamp_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S.%f")
+            
+            # Update shared memory
+            with self.lock:
                 # Update frame buffer
-                np_buffer = np.frombuffer(image_buffer.get_obj(), 
-                                        dtype=np.uint8).reshape(height, width, 3)
-                np_buffer[:] = frame  # Overwrite previous frame
+                np.copyto(frame_buffer, frame)
                 
                 # Update timestamp buffer
-                timestamp_np = np.frombuffer(timestamp_buffer.get_obj(), dtype='S23')
-                timestamp_np[0] = ts_bytes
+                encoded_ts = timestamp_str.encode('utf-8')
+                self.timestamp_buffer[:26] = encoded_ts  # Exact 26-byte copy
+        
+        cap.release()
 
-    except Exception as e:
-        print(f"Camera {id_cam} error: {e}")
-    finally:
-        camera.release()
-        print(f"Camera {id_cam} process terminated")
-
-
+    def stop(self):
+        self.running.value = False

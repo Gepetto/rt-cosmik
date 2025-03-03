@@ -1,7 +1,10 @@
+# From project root (rt-cosmik)
+# PYTHONPATH=src:. python -m unittest discover tests/unit -v
+
 import os
 import sys
 # Add the src folder to sys.path so that viewer modules can be found.
-sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '../../../src')))
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '../../..')))
 
 import unittest
 
@@ -49,10 +52,10 @@ def fake_place_objects(viz, names, pos_dict):
 
 # --- Patch the Viewer Module --- #
 # Import the viewer module now that the sys.path is adjusted.
-from viewer.viewer import Viewer
+from src.viewer.viewer import Viewer
 
 # Override settings and viewer-specific functions in the viewer module.
-import viewer.viewer as viewer_module
+import src.viewer.viewer as viewer_module
 viewer_module.settings = DummySettings()
 viewer_module.gv_init = fake_gv_init
 viewer_module.place_objects = fake_place_objects

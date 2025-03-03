@@ -1,4 +1,4 @@
-from utils.settings import Settings
+from settings import Settings
 settings = Settings()
 if settings.viewer == 'ros':
     from .ros_viewer import ros_init, publish_keypoints_as_marker_array, publish_augmented_markers, publish_kinematics
