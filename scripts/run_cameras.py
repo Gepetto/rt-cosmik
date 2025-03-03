@@ -4,7 +4,7 @@ settings = Settings()
 import time
 from src.camera.cam_utils import list_cameras
 from src.camera.camera import Camera
-from src.multiprocessing import create_camera_shared_ressources
+from src.utils.mp_utils import create_camera_shared_ressources
 
 def main():
     cameras = list_cameras()

@@ -38,34 +38,57 @@ class Camera(Process):
         
         # Set camera properties once if specified
         if self.frame_shape:
-            cap.set(cv2.CAP_PROP_FRAME_WIDTH, self.frame_shape[0])
-            cap.set(cv2.CAP_PROP_FRAME_HEIGHT, self.frame_shape[1])
+            cap.set(cv2.CAP_PROP_FRAME_HEIGHT, self.frame_shape[0])
+            cap.set(cv2.CAP_PROP_FRAME_WIDTH, self.frame_shape[1])
         if self.cam_fps:
             cap.set(cv2.CAP_PROP_FPS, self.cam_fps)
         if self.cam_fourcc:
             cap.set(cv2.CAP_PROP_FOURCC, cv2.VideoWriter_fourcc(*self.cam_fourcc))
 
-        # Prepare shared buffer view
-        arr = np.frombuffer(self.shared_buffer.get_obj(), dtype=np.uint8)
-        frame_buffer = arr.reshape(self.frame_shape)
+        # Correct frame buffer reshaping
+        arr = np.frombuffer(self.shared_buffer, dtype=np.uint8)
+        try:
+            frame_buffer = arr.reshape(self.frame_shape)
+        except ValueError:
+            actual_size = arr.size
+            expected_size = np.prod(self.frame_shape)
+            raise RuntimeError(
+                f"Buffer size mismatch. Expected {expected_size} elements, "
+                f"got {actual_size}. Check frame_shape: {self.frame_shape}"
+            )
+
+        # Warmup frame counter
+        warmup_frames = 5
+        frame_count = 0
 
         # Main capture loop
         while self.running.value:
             ret, frame = cap.read()
             if not ret:
-                break  # Exit on failure
+                continue  # Exit on failure
+
+            # Validate frame before processing
+            if frame.size != np.prod(self.frame_shape):
+                print(f"Frame size mismatch: {frame.shape} vs {self.frame_shape}")
+                continue
 
             # Generate timestamp
             timestamp_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S.%f")
             
+            # Resize and ensure 3 channels
+            resized = cv2.resize(frame, (self.frame_shape[1], self.frame_shape[0]))
+            if resized.shape[-1] != self.frame_shape[2]:
+                resized = cv2.cvtColor(resized, cv2.COLOR_BGR2RGB)
+
             # Update shared memory
             with self.lock:
-                # Update frame buffer
-                np.copyto(frame_buffer, frame)
-                
-                # Update timestamp buffer
-                encoded_ts = timestamp_str.encode('utf-8')
-                self.timestamp_buffer[:26] = encoded_ts  # Exact 26-byte copy
+                np.copyto(frame_buffer, resized)
+                self.timestamp_buffer[:26] = timestamp_str.ljust(26, '\0').encode('utf-8')
+
+            # Skip first few frames for initialization
+            if frame_count < warmup_frames:
+                frame_count += 1
+                continue
         
         cap.release()
 
