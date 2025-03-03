@@ -10,7 +10,7 @@ class Camera(Process):
                  shared_buffer: mp.Array,
                  timestamp_buffer: mp.Array, # Character array for timestamp
                  lock: Lock,
-                 frame_shape: tuple = (1280, 720, 3),
+                 frame_shape: tuple = (720, 1280, 3),
                  cam_fps: int = None,
                  cam_fourcc: str = "MJPG"):
         super().__init__()
@@ -92,5 +92,74 @@ class Camera(Process):
         
         cap.release()
 
+    def stop(self):
+        self.running.value = False
+
+class DisplayConsumer(Process):
+    def __init__(self, camera_buffers, camera_locks, frame_shape, num_cameras):
+        super().__init__()
+        self.camera_buffers = camera_buffers
+        self.camera_locks = camera_locks
+        self.frame_shape = frame_shape  # (height, width, channels)
+        self.num_cameras = num_cameras
+        self.running = Value('b', True)
+        
+    def run(self):
+        window_names = [f'Camera {i}' for i in range(self.num_cameras)]
+        
+        # Optimization 1: Create a single window for all cameras
+        combined_window = "Multi-Camera View"
+        
+        while self.running.value:
+            frames = []
+            
+            # Collect frames from all cameras
+            for i in range(self.num_cameras):
+                with self.camera_locks[i]:
+                    arr = np.frombuffer(self.camera_buffers[i], dtype=np.uint8)
+                    frame = arr.reshape(self.frame_shape).copy()
+                    
+                    # Optimization 2: Add timestamp overlay
+                    ########################################
+                    # Get current timestamp
+                    from datetime import datetime
+                    timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S.%f")[:-3]
+                    
+                    # Add text overlay (white text with black background)
+                    cv2.putText(frame, timestamp, (10, 30), 
+                            cv2.FONT_HERSHEY_SIMPLEX, 0.6, 
+                            (0,0,0), 4, lineType=cv2.LINE_AA)
+                    cv2.putText(frame, timestamp, (10, 30), 
+                            cv2.FONT_HERSHEY_SIMPLEX, 0.6, 
+                            (255,255,255), 2, lineType=cv2.LINE_AA)
+                    ########################################
+                    
+                    frames.append(frame)
+
+            # Optimization 1: Combine all frames into single view
+            ########################################
+            # Create a horizontal stack of frames
+            combined_frame = np.hstack(frames)
+            
+            # Convert color space if needed
+            if combined_frame.shape[-1] == 3:
+                combined_frame = cv2.cvtColor(combined_frame, cv2.COLOR_BGR2RGB)
+            
+            # Show combined view
+            cv2.imshow(combined_window, combined_frame)
+            ########################################
+            
+            # Original individual windows display (comment out when using combined view)
+            # for i, frame in enumerate(frames):
+            #     if frame.shape[2] == 3:
+            #         frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+            #     cv2.imshow(window_names[i], frame)
+
+            # Break on 'q' key press
+            if cv2.waitKey(1) & 0xFF == ord('q'):
+                break
+                
+        cv2.destroyAllWindows()
+        
     def stop(self):
         self.running.value = False
