@@ -3,7 +3,7 @@ from dataclasses import dataclass, field
 class Settings:
     # SAVE 
     SAVE: bool = False
-    SAVE_DIR: str = "output" # relative path to the save folder
+    SAVE_DIR: str = "path/to/rt-cosmik/output" # abs path to the save folder
 
     # CAM PARAMS
     fps: int = 40

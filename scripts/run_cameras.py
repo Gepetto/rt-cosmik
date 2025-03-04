@@ -5,6 +5,7 @@ import time
 from src.camera.cam_utils import list_cameras
 from src.camera.camera import Camera, DisplayConsumer
 from src.utils.mp_utils import create_camera_shared_ressources
+from src.saver.video_saver import VideoSaverProcess
 
 def main():
     cameras = list_cameras()
@@ -28,7 +29,21 @@ def main():
         num_cameras=NUM_CAMERAS
     )
 
-    processes = camera_processes + [display]
+    video_savers = []
+    if settings.SAVE:
+        for i in range(NUM_CAMERAS):
+            vs = VideoSaverProcess(
+                camera_id=list(cameras.keys())[i],
+                shared_buffer=camera_buffers[i],
+                lock=camera_locks[i],
+                frame_shape=FRAME_SHAPE,
+                save_dir=settings.SAVE_DIR,
+                fps=settings.fps,
+                stop_event=stop_event
+            )
+            video_savers.append(vs)
+
+    processes = camera_processes + video_savers + [display]
 
     # Start processes
     for p in processes:
