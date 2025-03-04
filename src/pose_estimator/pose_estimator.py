@@ -4,6 +4,8 @@ import cv2
 import numpy as np 
 from typing import List, Tuple
 import time
+from src.utils.linear_algebra_utils import reproject, concat_frames, reproject_four_frames, reproject
+from multiprocessing import Process, Value
 
 class PoseTrackerEstimator:
     def __init__(self, det_model, pose_model, device='cuda', thr=0.1, skeleton = 'body26'):
@@ -124,4 +126,88 @@ class BatchPoseTrackerEstimator:
 
         return True
 
+class DisplayPoseTracker(Process):
+    def __init__(self, DET_MODEL_PATH, POSE_MODEL_PATH, camera_buffers, camera_locks, frame_shape, num_cameras):
+        super().__init__()
+        self.camera_buffers = camera_buffers
+        self.camera_locks = camera_locks
+        self.frame_shape = frame_shape  # (height, width, channels)
+        self.num_cameras = num_cameras
+        self.running = Value('b', True)
+
+        self.DET_MODEL_PATH = DET_MODEL_PATH
+        self.POSE_MODEL_PATH = POSE_MODEL_PATH
+        
+    def run(self):
+        # Initialize Pose Tracker
+        ### CONCATENATION
+        tracker = PoseTrackerEstimator(self.DET_MODEL_PATH, self.POSE_MODEL_PATH)
+
+        ### BATCHED
+        # tracker = BatchPoseTrackerEstimator(self.num_cameras, self.DET_MODEL_PATH, self.POSE_MODEL_PATH)
+
+        window_names = [f'Camera {i}' for i in range(self.num_cameras)]
+        
+        # Optimization 1: Create a single window for all cameras
+        combined_window = "Multi-Camera View"
+        
+        while self.running.value:
+            frames = []
+            
+            # Collect frames from all cameras
+            for i in range(self.num_cameras):
+                with self.camera_locks[i]:
+                    arr = np.frombuffer(self.camera_buffers[i], dtype=np.uint8)
+                    frame = arr.reshape(self.frame_shape).copy()
+                    
+                    # Optimization 2: Add timestamp overlay
+                    ########################################
+                    # Get current timestamp
+                    from datetime import datetime
+                    timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S.%f")[:-3]
+                    
+                    # Add text overlay (white text with black background)
+                    cv2.putText(frame, timestamp, (10, 30), 
+                            cv2.FONT_HERSHEY_SIMPLEX, 0.6, 
+                            (0,0,0), 4, lineType=cv2.LINE_AA)
+                    cv2.putText(frame, timestamp, (10, 30), 
+                            cv2.FONT_HERSHEY_SIMPLEX, 0.6, 
+                            (255,255,255), 2, lineType=cv2.LINE_AA)
+                    ########################################
+                    
+                    frames.append(frame)
+            ### CONCATENATION 
+            # Concatenate frames horizontally
+            stacked_frame = concat_frames(frames)
+
+            # Run pose estimation
+            results = tracker.estimate(stacked_frame)
+            
+
+            # Reproject results to original frames
+            if self.num_cameras == 4:
+                reprojected_results = reproject_four_frames(results, self.frame_shape[1], self.frame_shape[0])
+            elif self.num_cameras == 2: 
+                reprojected_results = reproject(results, self.frame_shape[1], axis='horizontal')
+            else : 
+                raise ValueError("works only with 2 or 4 cameras for now")
+
+            for i in range(self.num_cameras):
+                if not tracker.visualize(frames[i], reprojected_results[i], i) :
+                    break
+
+            ### BATCHED
+            # results = tracker.estimate(frames)
+
+            # if not tracker.visualize(frames, results) :
+            #         break
+
+            # Break on 'q' key press
+            if cv2.waitKey(1) & 0xFF == ord('q'):
+                break
+                
+        cv2.destroyAllWindows()
+        
+    def stop(self):
+        self.running.value = False
 

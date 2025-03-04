@@ -123,29 +123,30 @@ def reproject(results, frame_size, axis="horizontal"):
     - second_result: (keypoints, bbox, _), corresponding to the second original frame.
     """
     keypoints, bboxes, _ = results
-    if keypoints is None or len(keypoints) < 2:
-        return None, None  # Not enough skeletons detected
 
-    coord_idx = 0 if axis == "horizontal" else 1  # 0 for x, 1 for y
+    if len(keypoints) < 2 :
+        return results, results  # Not enough skeletons detected
+    else :
+        coord_idx = 0 if axis == "horizontal" else 1  # 0 for x, 1 for y
 
-    # Compute mean coordinates (x or y)
-    mean_values = [kp[:, coord_idx].mean() for kp in keypoints]
-    first_idx = np.argmin(mean_values)   # Left (if horizontal) or Top (if vertical)
-    second_idx = np.argmax(mean_values)  # Right (if horizontal) or Bottom (if vertical)
+        # Compute mean coordinates (x or y)
+        mean_values = [kp[:, coord_idx].mean() for kp in keypoints]
+        first_idx = np.argmin(mean_values)   # Left (if horizontal) or Top (if vertical)
+        second_idx = np.argmax(mean_values)  # Right (if horizontal) or Bottom (if vertical)
 
-    first_skeleton = keypoints[[first_idx]]
-    first_bboxes = bboxes[first_idx]
+        first_skeleton = keypoints[[first_idx]]
+        first_bboxes = bboxes[first_idx]
 
-    second_skeleton = keypoints[[second_idx]]
-    second_bboxes = bboxes[second_idx]
+        second_skeleton = keypoints[[second_idx]]
+        second_bboxes = bboxes[second_idx]
 
-    # Shift second skeleton back to its original frame coordinates
-    second_skeleton[..., coord_idx] -= frame_size
+        # Shift second skeleton back to its original frame coordinates
+        second_skeleton[..., coord_idx] -= frame_size
 
-    first_result = (first_skeleton, first_bboxes, _)
-    second_result = (second_skeleton, second_bboxes, _)
+        first_result = (first_skeleton, first_bboxes, _)
+        second_result = (second_skeleton, second_bboxes, _)
 
-    return first_skeleton, second_skeleton
+        return [first_result, second_result]
 
 
 def reproject_four_frames(results, frame_width, frame_height):
@@ -162,9 +163,10 @@ def reproject_four_frames(results, frame_width, frame_height):
     - 4 results
     """
     keypoints, bboxes, _ = results
-    if keypoints is None or len(keypoints) < 4:
-        return None, None, None,None  # Not enough skeletons detected
-    else:
+
+    if len(keypoints) < 4 :
+        return results, results, results, results  # Not enough skeletons detected
+    else :
         # Step 1: Separate into top and bottom stacked frames
         mean_y_values = [kp[:, 1].mean() for kp in keypoints]
         top_indices = np.argsort(mean_y_values)[:2]    # Two skeletons with smallest y (top row)
@@ -204,6 +206,6 @@ def reproject_four_frames(results, frame_width, frame_height):
         bottom_left_result, bottom_right_result = split_horizontally(bottom_skeletons, bottom_bboxes)
 
         # Return dictionary containing results for each original frame
-        return top_left_result,top_right_result,bottom_left_result,bottom_right_result
+        return [top_left_result,top_right_result,bottom_left_result,bottom_right_result]
 
 
