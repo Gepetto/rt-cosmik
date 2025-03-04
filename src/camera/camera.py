@@ -77,9 +77,7 @@ class Camera(Process):
             
             # Resize and ensure 3 channels
             resized = cv2.resize(frame, (self.frame_shape[1], self.frame_shape[0]))
-            if resized.shape[-1] != self.frame_shape[2]:
-                resized = cv2.cvtColor(resized, cv2.COLOR_BGR2RGB)
-
+            
             # Update shared memory
             with self.lock:
                 np.copyto(frame_buffer, resized)
@@ -140,10 +138,6 @@ class DisplayConsumer(Process):
             ########################################
             # Create a horizontal stack of frames
             combined_frame = np.hstack(frames)
-            
-            # Convert color space if needed
-            if combined_frame.shape[-1] == 3:
-                combined_frame = cv2.cvtColor(combined_frame, cv2.COLOR_BGR2RGB)
             
             # Show combined view
             cv2.imshow(combined_window, combined_frame)
