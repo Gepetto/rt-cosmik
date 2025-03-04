@@ -11,11 +11,11 @@ def main():
     NUM_CAMERAS = len(cameras)
     FRAME_SHAPE = (settings.height, settings.width, 3)
 
-    camera_buffers, camera_timestamps, camera_locks = create_camera_shared_ressources(NUM_CAMERAS, FRAME_SHAPE)
-
+    camera_buffers, camera_timestamps, camera_locks, barrier = create_camera_shared_ressources(NUM_CAMERAS, FRAME_SHAPE)
+    
     # Create camera processes
     camera_processes = [
-        Camera(list(cameras.keys())[i], camera_buffers[i], camera_timestamps[i], camera_locks[i], FRAME_SHAPE, settings.fps, settings.fourcc)
+        Camera(list(cameras.keys())[i], camera_buffers[i], camera_timestamps[i], camera_locks[i], barrier, FRAME_SHAPE, settings.fps, settings.fourcc)
         for i in range(NUM_CAMERAS)
     ]
 

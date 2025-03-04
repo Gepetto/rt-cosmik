@@ -2,7 +2,7 @@ import cv2
 import numpy as np
 from datetime import datetime
 import multiprocessing as mp
-from multiprocessing import Process, Value, Lock
+from multiprocessing import Process, Value, Lock, Barrier
 
 class Camera(Process):
     def __init__(self, 
@@ -10,6 +10,7 @@ class Camera(Process):
                  shared_buffer: mp.Array,
                  timestamp_buffer: mp.Array, # Character array for timestamp
                  lock: Lock,
+                 barrier: Barrier,
                  frame_shape: tuple = (720, 1280, 3),
                  cam_fps: int = None,
                  cam_fourcc: str = "MJPG"):
@@ -18,6 +19,7 @@ class Camera(Process):
         self.shared_buffer = shared_buffer
         self.timestamp_buffer = timestamp_buffer  # For timestamp string
         self.lock = lock
+        self.barrier = barrier
         self.running = Value('b', True)
         
         # Video capture parameters
@@ -30,6 +32,7 @@ class Camera(Process):
             raise ValueError("Timestamp buffer must be exactly 26 characters")
 
     def run(self):
+        self.barrier.wait()
         # Initialize camera once at start
         cap = cv2.VideoCapture(self.cam_id, cv2.CAP_V4L2)
 
