@@ -177,6 +177,7 @@ class DisplayPoseTracker(Process):
                         ########################################
                         
                         frames.append(frame)
+                        
                 ### CONCATENATION 
                 # Concatenate frames horizontally
                 # stacked_frame = concat_frames(frames)
