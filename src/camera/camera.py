@@ -64,10 +64,6 @@ class Camera(Process):
                 f"got {actual_size}. Check frame_shape: {self.frame_shape}"
             )
 
-        # Warmup frame counter
-        # warmup_frames = 2
-        # frame_count = 0
-
         # Main capture loop
         try: 
             while not self.stop_event.is_set():
@@ -90,12 +86,9 @@ class Camera(Process):
                 with self.lock:
                     np.copyto(frame_buffer, resized)
                     self.timestamp_buffer[:26] = timestamp_str.ljust(26, '\0').encode('utf-8')
+                    print(self.frame_counter.value)
                     self.frame_counter.value += 1
 
-                # # Skip first few frames for initialization
-                # if frame_count < warmup_frames:
-                #     frame_count += 1
-                #     continue
         finally:
             cap.release()
 
