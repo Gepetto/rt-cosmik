@@ -141,10 +141,10 @@ class DisplayPoseTracker(Process):
     def run(self):
         # Initialize Pose Tracker
         ### CONCATENATION
-        tracker = PoseTrackerEstimator(self.DET_MODEL_PATH, self.POSE_MODEL_PATH)
+        # tracker = PoseTrackerEstimator(self.DET_MODEL_PATH, self.POSE_MODEL_PATH)
 
         ### BATCHED
-        # tracker = BatchPoseTrackerEstimator(self.num_cameras, self.DET_MODEL_PATH, self.POSE_MODEL_PATH)
+        tracker = BatchPoseTrackerEstimator(self.num_cameras, self.DET_MODEL_PATH, self.POSE_MODEL_PATH)
 
         window_names = [f'Camera {i}' for i in range(self.num_cameras)]
         
@@ -179,32 +179,32 @@ class DisplayPoseTracker(Process):
                         frames.append(frame)
                 ### CONCATENATION 
                 # Concatenate frames horizontally
-                stacked_frame = concat_frames(frames)
+                # stacked_frame = concat_frames(frames)
 
-                # Run pose estimation
-                results = tracker.estimate(stacked_frame)
+                # # Run pose estimation
+                # results = tracker.estimate(stacked_frame)
                 
 
-                # Reproject results to original frames
-                if self.num_cameras == 4:
-                    reprojected_results = reproject_four_frames(results, self.frame_shape[1], self.frame_shape[0])
-                elif self.num_cameras == 2: 
-                    reprojected_results = reproject(results, self.frame_shape[1], axis='horizontal')
-                else : 
-                    raise ValueError("works only with 2 or 4 cameras for now")
+                # # Reproject results to original frames
+                # if self.num_cameras == 4:
+                #     reprojected_results = reproject_four_frames(results, self.frame_shape[1], self.frame_shape[0])
+                # elif self.num_cameras == 2: 
+                #     reprojected_results = reproject(results, self.frame_shape[1], axis='horizontal')
+                # else : 
+                #     raise ValueError("works only with 2 or 4 cameras for now")
 
-                # for i in range(self.num_cameras):
-                #     if not tracker.visualize(frames[i], reprojected_results[i], i) :
-                #         break
+                # # for i in range(self.num_cameras):
+                # #     if not tracker.visualize(frames[i], reprojected_results[i], i) :
+                # #         break
 
-                if not tracker.visualize(stacked_frame, results,0) :
-                    break
+                # if not tracker.visualize(stacked_frame, results,0) :
+                #     break
 
                 ### BATCHED
-                # results = tracker.estimate(frames)
+                results = tracker.estimate(frames)
 
-                # if not tracker.visualize(frames, results) :
-                #         break
+                if not tracker.visualize(frames, results) :
+                        break
 
                 # Break on 'q' key press
                 if cv2.waitKey(1) & 0xFF == ord('q'):
