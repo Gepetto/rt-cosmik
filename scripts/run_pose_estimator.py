@@ -22,7 +22,16 @@ def main():
     
     # Create camera processes
     camera_processes = [
-        Camera(list(cameras.keys())[i], camera_buffers[i], camera_timestamps[i], camera_locks[i], frame_counters[i], barrier, stop_event, FRAME_SHAPE, settings.fps, settings.fourcc)
+        Camera(list(cameras.keys())[i], 
+               camera_buffers[i], 
+               camera_timestamps[i], 
+               camera_locks[i], 
+               frame_counters[i], 
+               barrier, 
+               stop_event, 
+               FRAME_SHAPE, 
+               settings.fps, 
+               settings.fourcc)
         for i in range(NUM_CAMERAS)
     ]
 
