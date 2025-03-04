@@ -1,19 +1,24 @@
-import numpy as np 
+import numpy as np
 import multiprocessing as mp
 
 def create_shared_buffer(shape, dtype):
+    """Create shared memory buffer for camera frames"""
+    # Convert numpy dtype to ctype
+    ctype = np.ctypeslib.as_ctypes_type(dtype)  # Fix typo: as_ctypes_type
     size = int(np.prod(shape))
-    return mp.Array(np.ctypeslib.as_ctype_type(dtype), size, lock=False)
+    return mp.Array(ctype, size, lock=False)
 
-def create_camera_shared_ressources(NUM_CAMERAS, FRAME_SHAPE):
-    # Shared resources per camera
+def create_camera_shared_ressources(num_cameras, frame_shape):
+    """Create shared resources for camera processes"""
     camera_buffers = []
     camera_timestamps = []
     camera_locks = []
-
-    for _ in range(NUM_CAMERAS):
-        camera_buffers.append(create_shared_buffer(FRAME_SHAPE, np.uint8))
-        camera_timestamps.append(ts_buffer = mp.Array('c', 26))  # Fixed size for "%Y-%m-%d %H:%M:%S.%f"
+    
+    for _ in range(num_cameras):
+        # Create frame buffer
+        camera_buffers.append(create_shared_buffer(frame_shape, np.uint8))
+        # Create timestamp buffer
+        camera_timestamps.append(mp.Array('c', 26))  # 26-character buffer
         camera_locks.append(mp.Lock())
     
     return camera_buffers, camera_timestamps, camera_locks
