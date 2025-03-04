@@ -2,7 +2,8 @@ from dataclasses import dataclass, field
 @dataclass
 class Settings:
     # SAVE 
-    SAVE: bool = True
+    SAVE_VID: bool = True
+    SAVE_CSV: bool = True
     SAVE_DIR: str = "/root/workspace/ros_ws/src/rt-cosmik/output" # abs path to the save folder
 
     # CAM PARAMS

@@ -134,7 +134,6 @@ class DisplayPoseTracker(Process):
         self.frame_shape = frame_shape  # (height, width, channels)
         self.num_cameras = num_cameras
         self.stop_event = stop_event
-        # self.running = Value('b', True)
 
         self.DET_MODEL_PATH = DET_MODEL_PATH
         self.POSE_MODEL_PATH = POSE_MODEL_PATH
@@ -151,8 +150,7 @@ class DisplayPoseTracker(Process):
         
         # Optimization 1: Create a single window for all cameras
         combined_window = "Multi-Camera View"
-        
-        # while self.running.value:
+
         try:
             while not self.stop_event.is_set():
                 frames = []
@@ -210,7 +208,5 @@ class DisplayPoseTracker(Process):
                     break
         finally:        
             cv2.destroyAllWindows()
-        
-    # def stop(self):
-    #     self.running.value = False
+
 

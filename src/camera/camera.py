@@ -10,6 +10,7 @@ class Camera(Process):
                  shared_buffer: mp.Array,
                  timestamp_buffer: mp.Array, # Character array for timestamp
                  lock: Lock,
+                 frame_counter: Value,
                  barrier: Barrier,
                  stop_event: Event,
                  frame_shape: tuple = (720, 1280, 3),
@@ -20,9 +21,9 @@ class Camera(Process):
         self.shared_buffer = shared_buffer
         self.timestamp_buffer = timestamp_buffer  # For timestamp string
         self.lock = lock
+        self.frame_counter = frame_counter
         self.barrier = barrier
         self.stop_event = stop_event
-        # self.running = Value('b', True)
         
         # Video capture parameters
         self.frame_shape = frame_shape  # (height, width, channels)
@@ -68,7 +69,6 @@ class Camera(Process):
         # frame_count = 0
 
         # Main capture loop
-        # while self.running.value:
         try: 
             while not self.stop_event.is_set():
                 ret, frame = cap.read()
@@ -90,6 +90,7 @@ class Camera(Process):
                 with self.lock:
                     np.copyto(frame_buffer, resized)
                     self.timestamp_buffer[:26] = timestamp_str.ljust(26, '\0').encode('utf-8')
+                    self.frame_counter.value += 1
 
                 # # Skip first few frames for initialization
                 # if frame_count < warmup_frames:
@@ -97,9 +98,6 @@ class Camera(Process):
                 #     continue
         finally:
             cap.release()
-
-    # def stop(self):
-    #     self.running.value = False
 
 class DisplayConsumer(Process):
     def __init__(self, camera_buffers, camera_locks, stop_event, frame_shape, num_cameras):
@@ -109,7 +107,6 @@ class DisplayConsumer(Process):
         self.frame_shape = frame_shape  # (height, width, channels)
         self.num_cameras = num_cameras
         self.stop_event = stop_event
-        # self.running = Value('b', True)
         
     def run(self):
         window_names = [f'Camera {i}' for i in range(self.num_cameras)]
@@ -117,7 +114,6 @@ class DisplayConsumer(Process):
         # Optimization 1: Create a single window for all cameras
         combined_window = "Multi-Camera View"
         
-        # while self.running.value:
         try: 
             while not self.stop_event.is_set():
                 frames = []
@@ -165,6 +161,3 @@ class DisplayConsumer(Process):
                     break
         finally:        
             cv2.destroyAllWindows()
-        
-    # def stop(self):
-    #     self.running.value = False

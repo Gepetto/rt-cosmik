@@ -13,6 +13,7 @@ def create_camera_shared_ressources(num_cameras, frame_shape):
     camera_buffers = []
     camera_timestamps = []
     camera_locks = []
+    frame_counters = [] 
 
     barrier = mp.Barrier(num_cameras)
     stop_event = mp.Event()
@@ -23,5 +24,6 @@ def create_camera_shared_ressources(num_cameras, frame_shape):
         # Create timestamp buffer
         camera_timestamps.append(mp.Array('c', 26))  # 26-character buffer
         camera_locks.append(mp.Lock())
+        frame_counters.append(mp.Value('L', 0))  # Unsigned long counter
     
-    return camera_buffers, camera_timestamps, camera_locks, barrier, stop_event
+    return camera_buffers, camera_timestamps, camera_locks, frame_counters, barrier, stop_event
