@@ -18,19 +18,18 @@ class Settings:
 
     # FILTER PARAMS
     order: int = 4
-    system_freq: int = 30 # For now the system update time is at around 0.034 ms so around 30 Hz 
+    system_freq: int = 40 # For now the system update time is at around 0.034 ms so around 30 Hz 
     cutoff_freq: float = 10
     filter_type: str = "lowpass"
 
     # IK AND DATA HANDLING
     # For planar case 
     side_to_track: str =  "right" # bilateral (if we want to track both side, i.e., lifting), right or left
-    
-    # HUMAN ANTHROPOMETRY
-    human_height: float = 1.64
-    human_mass: float = 50
 
-    #MMPOSE MODEL (here body 26)
+    #MMPOSE MODELS (here body 26)
+    det_model_path: str = "/root/workspace/mmdeploy/rtmpose-trt/rtmdet-nano"
+    pose_model_path: str = "/root/workspace/mmdeploy/rtmpose-trt/rtmpose-m"
+
     keypoints_names: list = field(default_factory=lambda: [
         "Nose", "LEye", "REye", "LEar", "REar", 
         "LShoulder", "RShoulder", "LElbow", "RElbow", 
@@ -39,7 +38,12 @@ class Settings:
         "Neck", "midHip", "LBigToe", "RBigToe", "LSmallToe", "RSmallToe", "LHeel", "RHeel"
     ])
     
-    # OPENCAP MARKER SET 
+    # OPENCAP 
+    # HUMAN ANTHROPOMETRY
+    human_height: float = 1.81
+    human_mass: float = 74.0   
+     
+    # MARKER SET 
     marker_names: list = field(default_factory=lambda: [
            'r.ASIS_study','L.ASIS_study','r.PSIS_study','L.PSIS_study','r_knee_study',
            'r_mknee_study','r_ankle_study','r_mankle_study','r_toe_study','r_5meta_study',

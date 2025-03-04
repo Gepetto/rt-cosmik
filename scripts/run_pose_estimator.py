@@ -10,9 +10,10 @@ from multiprocessing import set_start_method
 
 def main():
     # rtmpose model paths
-    DET_MODEL_PATH = "/root/workspace/mmdeploy/rtmpose-trt/rtmdet-nano"
-    POSE_MODEL_PATH = "/root/workspace/mmdeploy/rtmpose-trt/rtmpose-m"
+    DET_MODEL_PATH = settings.det_model_path
+    POSE_MODEL_PATH = settings.pose_model_path
 
+    # List available cameras
     cameras = list_cameras()
     NUM_CAMERAS = len(cameras)
     FRAME_SHAPE = (settings.height, settings.width, 3)
