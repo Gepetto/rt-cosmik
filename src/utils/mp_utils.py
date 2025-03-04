@@ -15,6 +15,7 @@ def create_camera_shared_ressources(num_cameras, frame_shape):
     camera_locks = []
 
     barrier = mp.Barrier(num_cameras)
+    stop_event = mp.Event()
     
     for _ in range(num_cameras):
         # Create frame buffer
@@ -23,4 +24,4 @@ def create_camera_shared_ressources(num_cameras, frame_shape):
         camera_timestamps.append(mp.Array('c', 26))  # 26-character buffer
         camera_locks.append(mp.Lock())
     
-    return camera_buffers, camera_timestamps, camera_locks, barrier
+    return camera_buffers, camera_timestamps, camera_locks, barrier, stop_event

@@ -1,6 +1,10 @@
 from dataclasses import dataclass, field
 @dataclass
 class Settings:
+    # SAVE 
+    SAVE: bool = False
+    SAVE_DIR: str = "output" # relative path to the save folder
+
     # CAM PARAMS
     fps: int = 40
     dt: float = field(init=False)  # Mark `dt` as excluded from the constructor
@@ -12,9 +16,9 @@ class Settings:
     viewer: str = "gv" # viewer type: gv or ros
     
     # CALIB
-    cam_calib_path: str = "" # absolute path to the camera calibration file
-    human_calib_path: str = "" # absolute path to the human calibration file
-    robot_calib_path: str = "" # absolute path to the robot calibration file
+    cam_calib_path: str = "" # relative path to the camera calibration file
+    human_calib_path: str = "" # relative path to the human calibration file
+    robot_calib_path: str = "" # relative path to the robot calibration file
 
     # FILTER PARAMS
     order: int = 4
@@ -27,8 +31,8 @@ class Settings:
     side_to_track: str =  "right" # bilateral (if we want to track both side, i.e., lifting), right or left
 
     #MMPOSE MODELS (here body 26)
-    det_model_path: str = "/root/workspace/mmdeploy/rtmpose-trt/rtmdet-nano"
-    pose_model_path: str = "/root/workspace/mmdeploy/rtmpose-trt/rtmpose-m"
+    det_model_path: str = "/root/workspace/mmdeploy/rtmpose-trt/rtmdet-nano" # absolute path
+    pose_model_path: str = "/root/workspace/mmdeploy/rtmpose-trt/rtmpose-m" # absolute path 
 
     keypoints_names: list = field(default_factory=lambda: [
         "Nose", "LEye", "REye", "LEar", "REar", 
@@ -42,7 +46,7 @@ class Settings:
     # HUMAN ANTHROPOMETRY
     human_height: float = 1.81
     human_mass: float = 74.0   
-     
+
     # MARKER SET 
     marker_names: list = field(default_factory=lambda: [
            'r.ASIS_study','L.ASIS_study','r.PSIS_study','L.PSIS_study','r_knee_study',

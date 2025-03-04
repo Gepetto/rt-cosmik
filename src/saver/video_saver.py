@@ -1,5 +1,7 @@
 import cv2
 import os
+from multiprocessing import Process
+import numpy as np
 
 class VideoSaver:
     def __init__(self, camera_id, save_dir, fps=40, frame_size=(720, 1280)):  # Updated frame_size
@@ -29,3 +31,37 @@ class VideoSaver:
 
     def __del__(self):
         self.close()
+
+class VideoSaverProcess(Process):
+    def __init__(self, camera_id, shared_buffer, lock, frame_shape, save_dir, fps, stop_event):
+        super().__init__()
+        self.camera_id = camera_id
+        self.shared_buffer = shared_buffer
+        self.lock = lock
+        self.frame_shape = frame_shape  # (height, width, channels)
+        self.save_dir = save_dir
+        self.fps = fps
+        self.stop_event = stop_event
+        
+    def run(self):
+        vs = VideoSaver(
+            camera_id=self.camera_id,
+            save_dir=self.save_dir,
+            fps=self.fps,
+            frame_size=(self.frame_shape[1], self.frame_shape[0])  # (width, height)
+        )
+        
+        try:
+            while not self.stop_event.is_set():
+                with self.lock:
+                    arr = np.frombuffer(self.shared_buffer, dtype=np.uint8)
+                    frame = arr.reshape(self.frame_shape).copy()
+                
+                # Convert color space if needed
+                if frame.shape[-1] == 3:
+                    frame = cv2.cvtColor(frame, cv2.COLOR_RGB2BGR)
+                
+                vs.write_frame(frame)
+                
+        finally:
+            vs.close()

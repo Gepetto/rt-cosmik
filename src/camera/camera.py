@@ -2,7 +2,7 @@ import cv2
 import numpy as np
 from datetime import datetime
 import multiprocessing as mp
-from multiprocessing import Process, Value, Lock, Barrier
+from multiprocessing import Process, Value, Lock, Barrier, Event
 
 class Camera(Process):
     def __init__(self, 
@@ -11,6 +11,7 @@ class Camera(Process):
                  timestamp_buffer: mp.Array, # Character array for timestamp
                  lock: Lock,
                  barrier: Barrier,
+                 stop_event: Event,
                  frame_shape: tuple = (720, 1280, 3),
                  cam_fps: int = None,
                  cam_fourcc: str = "MJPG"):
@@ -20,7 +21,8 @@ class Camera(Process):
         self.timestamp_buffer = timestamp_buffer  # For timestamp string
         self.lock = lock
         self.barrier = barrier
-        self.running = Value('b', True)
+        self.stop_event = stop_event
+        # self.running = Value('b', True)
         
         # Video capture parameters
         self.frame_shape = frame_shape  # (height, width, channels)
@@ -65,45 +67,48 @@ class Camera(Process):
         frame_count = 0
 
         # Main capture loop
-        while self.running.value:
-            ret, frame = cap.read()
-            if not ret:
-                continue  # Exit on failure
+        # while self.running.value:
+        try: 
+            while not self.stop_event.is_set():
+                ret, frame = cap.read()
+                if not ret:
+                    continue  # Exit on failure
 
-            # Validate frame before processing
-            if frame.size != np.prod(self.frame_shape):
-                print(f"Frame size mismatch: {frame.shape} vs {self.frame_shape}")
-                continue
+                # Validate frame before processing
+                if frame.size != np.prod(self.frame_shape):
+                    print(f"Frame size mismatch: {frame.shape} vs {self.frame_shape}")
+                    continue
 
-            # Generate timestamp
-            timestamp_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S.%f")
-            
-            # Resize and ensure 3 channels
-            resized = cv2.resize(frame, (self.frame_shape[1], self.frame_shape[0]))
-            
-            # Update shared memory
-            with self.lock:
-                np.copyto(frame_buffer, resized)
-                self.timestamp_buffer[:26] = timestamp_str.ljust(26, '\0').encode('utf-8')
+                # Generate timestamp
+                timestamp_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S.%f")
+                
+                # Resize and ensure 3 channels
+                resized = cv2.resize(frame, (self.frame_shape[1], self.frame_shape[0]))
+                
+                # Update shared memory
+                with self.lock:
+                    np.copyto(frame_buffer, resized)
+                    self.timestamp_buffer[:26] = timestamp_str.ljust(26, '\0').encode('utf-8')
 
-            # Skip first few frames for initialization
-            if frame_count < warmup_frames:
-                frame_count += 1
-                continue
-        
-        cap.release()
+                # Skip first few frames for initialization
+                if frame_count < warmup_frames:
+                    frame_count += 1
+                    continue
+        finally:
+            cap.release()
 
-    def stop(self):
-        self.running.value = False
+    # def stop(self):
+    #     self.running.value = False
 
 class DisplayConsumer(Process):
-    def __init__(self, camera_buffers, camera_locks, frame_shape, num_cameras):
+    def __init__(self, camera_buffers, camera_locks, stop_event, frame_shape, num_cameras):
         super().__init__()
         self.camera_buffers = camera_buffers
         self.camera_locks = camera_locks
         self.frame_shape = frame_shape  # (height, width, channels)
         self.num_cameras = num_cameras
-        self.running = Value('b', True)
+        self.stop_event = stop_event
+        # self.running = Value('b', True)
         
     def run(self):
         window_names = [f'Camera {i}' for i in range(self.num_cameras)]
@@ -111,52 +116,54 @@ class DisplayConsumer(Process):
         # Optimization 1: Create a single window for all cameras
         combined_window = "Multi-Camera View"
         
-        while self.running.value:
-            frames = []
-            
-            # Collect frames from all cameras
-            for i in range(self.num_cameras):
-                with self.camera_locks[i]:
-                    arr = np.frombuffer(self.camera_buffers[i], dtype=np.uint8)
-                    frame = arr.reshape(self.frame_shape).copy()
-                    
-                    # Optimization 2: Add timestamp overlay
-                    ########################################
-                    # Get current timestamp
-                    from datetime import datetime
-                    timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S.%f")[:-3]
-                    
-                    # Add text overlay (white text with black background)
-                    cv2.putText(frame, timestamp, (10, 30), 
-                            cv2.FONT_HERSHEY_SIMPLEX, 0.6, 
-                            (0,0,0), 4, lineType=cv2.LINE_AA)
-                    cv2.putText(frame, timestamp, (10, 30), 
-                            cv2.FONT_HERSHEY_SIMPLEX, 0.6, 
-                            (255,255,255), 2, lineType=cv2.LINE_AA)
-                    ########################################
-                    
-                    frames.append(frame)
-
-            # Optimization 1: Combine all frames into single view
-            ########################################
-            # Create a horizontal stack of frames
-            combined_frame = np.hstack(frames)
-            
-            # Show combined view
-            cv2.imshow(combined_window, combined_frame)
-            ########################################
-            
-            # Original individual windows display (comment out when using combined view)
-            # for i, frame in enumerate(frames):
-            #     if frame.shape[2] == 3:
-            #         frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-            #     cv2.imshow(window_names[i], frame)
-
-            # Break on 'q' key press
-            if cv2.waitKey(1) & 0xFF == ord('q'):
-                break
+        # while self.running.value:
+        try: 
+            while not self.stop_event.is_set():
+                frames = []
                 
-        cv2.destroyAllWindows()
+                # Collect frames from all cameras
+                for i in range(self.num_cameras):
+                    with self.camera_locks[i]:
+                        arr = np.frombuffer(self.camera_buffers[i], dtype=np.uint8)
+                        frame = arr.reshape(self.frame_shape).copy()
+                        
+                        # Optimization 2: Add timestamp overlay
+                        ########################################
+                        # Get current timestamp
+                        from datetime import datetime
+                        timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S.%f")[:-3]
+                        
+                        # Add text overlay (white text with black background)
+                        cv2.putText(frame, timestamp, (10, 30), 
+                                cv2.FONT_HERSHEY_SIMPLEX, 0.6, 
+                                (0,0,0), 4, lineType=cv2.LINE_AA)
+                        cv2.putText(frame, timestamp, (10, 30), 
+                                cv2.FONT_HERSHEY_SIMPLEX, 0.6, 
+                                (255,255,255), 2, lineType=cv2.LINE_AA)
+                        ########################################
+                        
+                        frames.append(frame)
+
+                # Optimization 1: Combine all frames into single view
+                ########################################
+                # Create a horizontal stack of frames
+                combined_frame = np.hstack(frames)
+                
+                # Show combined view
+                cv2.imshow(combined_window, combined_frame)
+                ########################################
+                
+                # Original individual windows display (comment out when using combined view)
+                # for i, frame in enumerate(frames):
+                #     if frame.shape[2] == 3:
+                #         frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+                #     cv2.imshow(window_names[i], frame)
+
+                # Break on 'q' key press
+                if cv2.waitKey(1) & 0xFF == ord('q'):
+                    break
+        finally:        
+            cv2.destroyAllWindows()
         
-    def stop(self):
-        self.running.value = False
+    # def stop(self):
+    #     self.running.value = False
