@@ -193,9 +193,12 @@ class DisplayPoseTracker(Process):
                 else : 
                     raise ValueError("works only with 2 or 4 cameras for now")
 
-                for i in range(self.num_cameras):
-                    if not tracker.visualize(frames[i], reprojected_results[i], i) :
-                        break
+                # for i in range(self.num_cameras):
+                #     if not tracker.visualize(frames[i], reprojected_results[i], i) :
+                #         break
+
+                if not tracker.visualize(stacked_frame, results,0) :
+                    break
 
                 ### BATCHED
                 # results = tracker.estimate(frames)

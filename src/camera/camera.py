@@ -86,7 +86,7 @@ class Camera(Process):
                 with self.lock:
                     np.copyto(frame_buffer, resized)
                     self.timestamp_buffer[:26] = timestamp_str.ljust(26, '\0').encode('utf-8')
-                    print(self.frame_counter.value)
+                    # print(self.frame_counter.value)
                     self.frame_counter.value += 1
 
         finally:
