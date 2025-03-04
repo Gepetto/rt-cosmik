@@ -42,13 +42,14 @@ class Camera(Process):
             raise Exception(f"Camera {self.cam_id} could not be opened.")
         
         # Set camera properties once if specified
+        if self.cam_fourcc:
+            cap.set(cv2.CAP_PROP_FOURCC, cv2.VideoWriter_fourcc(*self.cam_fourcc))
         if self.frame_shape:
             cap.set(cv2.CAP_PROP_FRAME_HEIGHT, self.frame_shape[0])
             cap.set(cv2.CAP_PROP_FRAME_WIDTH, self.frame_shape[1])
         if self.cam_fps:
             cap.set(cv2.CAP_PROP_FPS, self.cam_fps)
-        if self.cam_fourcc:
-            cap.set(cv2.CAP_PROP_FOURCC, cv2.VideoWriter_fourcc(*self.cam_fourcc))
+
 
         # Correct frame buffer reshaping
         arr = np.frombuffer(self.shared_buffer, dtype=np.uint8)
@@ -63,8 +64,8 @@ class Camera(Process):
             )
 
         # Warmup frame counter
-        warmup_frames = 5
-        frame_count = 0
+        # warmup_frames = 2
+        # frame_count = 0
 
         # Main capture loop
         # while self.running.value:
@@ -90,10 +91,10 @@ class Camera(Process):
                     np.copyto(frame_buffer, resized)
                     self.timestamp_buffer[:26] = timestamp_str.ljust(26, '\0').encode('utf-8')
 
-                # Skip first few frames for initialization
-                if frame_count < warmup_frames:
-                    frame_count += 1
-                    continue
+                # # Skip first few frames for initialization
+                # if frame_count < warmup_frames:
+                #     frame_count += 1
+                #     continue
         finally:
             cap.release()
 

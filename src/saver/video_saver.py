@@ -13,7 +13,7 @@ class VideoSaver:
         
         os.makedirs(self._save_dir, exist_ok=True)
         self._video_filename = os.path.join(self._save_dir, f"camera_{self._camera_id}.mp4")  # .mp4 extension
-        fourcc = cv2.VideoWriter_fourcc(*'MJPG')  # Updated codec for MP4
+        fourcc = cv2.VideoWriter_fourcc(*'mp4v')  # Updated codec for MP4
         self._video_writer = cv2.VideoWriter(self._video_filename, fourcc, self._fps, self._frame_size)
         if not self._video_writer.isOpened():
             raise RuntimeError("Failed to initialize VideoWriter")
@@ -56,10 +56,6 @@ class VideoSaverProcess(Process):
                 with self.lock:
                     arr = np.frombuffer(self.shared_buffer, dtype=np.uint8)
                     frame = arr.reshape(self.frame_shape).copy()
-                
-                # Convert color space if needed
-                if frame.shape[-1] == 3:
-                    frame = cv2.cvtColor(frame, cv2.COLOR_RGB2BGR)
                 
                 vs.write_frame(frame)
                 
