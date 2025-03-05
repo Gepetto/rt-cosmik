@@ -23,10 +23,11 @@ class PoseTrackerEstimator:
     def estimate(self, frame):
         t0 = time.time()
         results = self.tracker(self.state, frame, detect=-1)
-        print("time of inference :", time.time()-t0)
+        t_inf = time.time()-t0
+        print("time of inference :", t_inf)
         # keypoints, bboxes, _ = results
         # keypoints = (keypoints[..., :2] ).astype(float)
-        return results
+        return results, t_inf
     
     def visualize(self, 
                   frame,
@@ -160,14 +161,27 @@ class PoseTrackerProcess(Process):
         try:
             while not self.stop_event.is_set():
                 with self.camera_lock:
+                    # Read and copy shared data atomically
                     arr = np.frombuffer(self.camera_buffer, dtype=np.uint8)
                     frame = arr.reshape(self.frame_shape).copy()
                     timestamp = self.timestamp_buffer[:26].decode('utf-8').strip('\0')
+                    frame_counter = self.camera_frame_counter.value
 
-                    if self.camera_frame_counter.value > self.last_processed:
-                        results = self.tracker.estimate(frame)
-                        self.result_queue.put((timestamp, results))
-                        self.last_processed = self.camera_frame_counter.value
+                if frame_counter > self.last_processed:
+                    # Perform heavy processing without holding the lock
+                    results, time_taken = self.tracker.estimate(frame)
+                    keypoints, bboxes, _ = results
+
+                    # Queue the result; multiprocessing.Queue is designed for safe concurrent access
+                    self.result_queue.put({
+                        'frame_counter': frame_counter,
+                        'timestamp': timestamp,
+                        'keypoints': keypoints.tobytes(),
+                        'inference_time': time_taken
+                    })
+
+                    # Update local counter; assuming last_processed is local and not shared
+                    self.last_processed = frame_counter
         finally:
             pass
                 
@@ -206,20 +220,20 @@ class DisplayPoseTracker(Process):
                     with self.camera_locks[i]:
                         arr = np.frombuffer(self.camera_buffers[i], dtype=np.uint8)
                         frame = arr.reshape(self.frame_shape).copy()
-                        
-                        # Optimization 2: Add timestamp overlay
-                        ########################################
+                        frame_counter = self.camera_frame_counters[i].value
                         # Get current timestamp
                         timestamp = self.timestamp_buffers[i][:26].decode('utf-8').strip('\0')
-                        
-                        # Add text overlay (white text with black background)
-                        cv2.putText(frame, timestamp, (10, 30), 
-                                cv2.FONT_HERSHEY_SIMPLEX, 0.6, 
-                                (0,0,0), 4, lineType=cv2.LINE_AA)
-                        cv2.putText(frame, timestamp, (10, 30), 
-                                cv2.FONT_HERSHEY_SIMPLEX, 0.6, 
-                                (255,255,255), 2, lineType=cv2.LINE_AA)
-                        ########################################
+                    
+                    # Optimization 2: Add timestamp overlay
+                    ########################################
+                    # Add text overlay (white text with black background)
+                    cv2.putText(frame, timestamp, (10, 30), 
+                            cv2.FONT_HERSHEY_SIMPLEX, 0.6, 
+                            (0,0,0), 4, lineType=cv2.LINE_AA)
+                    cv2.putText(frame, timestamp, (10, 30), 
+                            cv2.FONT_HERSHEY_SIMPLEX, 0.6, 
+                            (255,255,255), 2, lineType=cv2.LINE_AA)
+                    ########################################
                         
 
                 # Break on 'q' key press

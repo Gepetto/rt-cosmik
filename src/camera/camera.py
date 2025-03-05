@@ -123,22 +123,21 @@ class DisplayConsumer(Process):
                     with self.camera_locks[i]:
                         arr = np.frombuffer(self.camera_buffers[i], dtype=np.uint8)
                         frame = arr.reshape(self.frame_shape).copy()
-                        
-                        # Optimization 2: Add timestamp overlay
-                        ########################################
                         # Get current timestamp
                         timestamp = self.timestamp_buffers[i][:26].decode('utf-8').strip('\0')
-                        
-                        # Add text overlay (white text with black background)
-                        cv2.putText(frame, timestamp, (10, 30), 
-                                cv2.FONT_HERSHEY_SIMPLEX, 0.6, 
-                                (0,0,0), 4, lineType=cv2.LINE_AA)
-                        cv2.putText(frame, timestamp, (10, 30), 
-                                cv2.FONT_HERSHEY_SIMPLEX, 0.6, 
-                                (255,255,255), 2, lineType=cv2.LINE_AA)
-                        ########################################
-                        
-                        frames.append(frame)
+
+                    # Optimization 2: Add timestamp overlay
+                    ########################################  
+                    # Add text overlay (white text with black background)
+                    cv2.putText(frame, timestamp, (10, 30), 
+                            cv2.FONT_HERSHEY_SIMPLEX, 0.6, 
+                            (0,0,0), 4, lineType=cv2.LINE_AA)
+                    cv2.putText(frame, timestamp, (10, 30), 
+                            cv2.FONT_HERSHEY_SIMPLEX, 0.6, 
+                            (255,255,255), 2, lineType=cv2.LINE_AA)
+                    ########################################
+                    
+                    frames.append(frame)
 
                 # Optimization 1: Combine all frames into single view
                 ########################################
