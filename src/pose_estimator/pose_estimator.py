@@ -221,19 +221,23 @@ class DisplayPoseTracker(Process):
         
     def run(self):
         combined_window = "Multi-Camera View"
+        last_good_result = {}
 
         try:
             while not self.stop_event.is_set():
                 frames = []
-                results_buffer = {}
+                # results_buffer = {}
 
                 # For each camera, update the results buffer from the result queue
                 for i in range(self.num_cameras):
                     try:
                         while True:
                             result = self.result_queues[i].get_nowait()
-                            # Overwrite any previous result; we only care about the most recent
-                            results_buffer[i] = result
+                            # # Overwrite any previous result; we only care about the most recent
+                            # results_buffer[i] = result
+                            # If this is the first result or a newer one, update the last_good_result
+                            if (i not in last_good_result) or (result['frame_counter'] >= last_good_result[i]['frame_counter']):
+                                last_good_result[i] = result
                     except queue.Empty:
                         pass
 
@@ -246,39 +250,63 @@ class DisplayPoseTracker(Process):
                         current_frame_counter = self.camera_frame_counters[i].value
                         # Get current timestamp
                         timestamp = bytes(self.timestamp_buffers[i][:]).decode().strip('\x00')
+
+                        # Check if a valid result exists for this camera
+                    if i in last_good_result:
+                        # Ensure the stored result is not from a future frame
+                        if last_good_result[i]['frame_counter'] <= current_frame_counter:
+                            res = last_good_result[i]
+                            pose_results = res['results']
+                            keypoints = pose_results['keypoints']
+                            bboxes = pose_results['bboxes']
+                            # Visualize pose estimation overlay on the frame
+                            img = self._visualize(frame, keypoints, bboxes)
+                        else:
+                            img = frame
+                    else:
+                        img = frame
+
+                    # Add timestamp overlay (white text with black outline for readability)
+                    cv2.putText(img, timestamp, (10, 30),
+                                cv2.FONT_HERSHEY_SIMPLEX, 0.6,
+                                (0, 0, 0), 4, lineType=cv2.LINE_AA)
+                    cv2.putText(img, timestamp, (10, 30),
+                                cv2.FONT_HERSHEY_SIMPLEX, 0.6,
+                                (255, 255, 255), 2, lineType=cv2.LINE_AA)
+
+                    frames.append(img)
+                    # # Check if there is a matching result in the results buffer
+                    # if i in results_buffer and results_buffer[i]['frame_counter'] <= current_frame_counter:
+                    #     res = results_buffer[i]
+                    #     pose_results = res['results']
+                    #     keypoints = pose_results['keypoints']
+                    #     bboxes = pose_results['bboxes']
+
+                    #     # Visualize the pose estimation results
+                    #     img = self._visualize(frame, keypoints, bboxes)
+
+                    #     # Optimization 2: Add timestamp overlay
+                    #     ########################################
+                    #     # Add text overlay (white text with black background)
+                    #     cv2.putText(img, timestamp, (10, 30), 
+                    #             cv2.FONT_HERSHEY_SIMPLEX, 0.6, 
+                    #             (0,0,0), 4, lineType=cv2.LINE_AA)
+                    #     cv2.putText(img, timestamp, (10, 30), 
+                    #             cv2.FONT_HERSHEY_SIMPLEX, 0.6, 
+                    #             (255,255,255), 2, lineType=cv2.LINE_AA)
+                    #     ########################################
+
+                    #     frames.append(img)
                     
-                    # Check if there is a matching result in the results buffer
-                    if i in results_buffer and results_buffer[i]['frame_counter'] == current_frame_counter:
-                        res = results_buffer[i]
-                        pose_results = res['results']
-                        keypoints = pose_results['keypoints']
-                        bboxes = pose_results['bboxes']
+                    # else :
+                    #     # Optionally, if no matching result is found, you could append the raw frame
+                    #     # or log that the pose estimation result is not yet ready.
+                    #     frames.append(frame)
 
-                        # Visualize the pose estimation results
-                        img = self._visualize(frame, keypoints, bboxes)
-
-                        # Optimization 2: Add timestamp overlay
-                        ########################################
-                        # Add text overlay (white text with black background)
-                        cv2.putText(img, timestamp, (10, 30), 
-                                cv2.FONT_HERSHEY_SIMPLEX, 0.6, 
-                                (0,0,0), 4, lineType=cv2.LINE_AA)
-                        cv2.putText(img, timestamp, (10, 30), 
-                                cv2.FONT_HERSHEY_SIMPLEX, 0.6, 
-                                (255,255,255), 2, lineType=cv2.LINE_AA)
-                        ########################################
-
-                        frames.append(img)
-                    
-                    else :
-                        # Optionally, if no matching result is found, you could append the raw frame
-                        # or log that the pose estimation result is not yet ready.
-                        frames.append(frame)
-
-                    # Optionally, once a frame has been processed, you can remove it from the buffer
-                    # to prevent the dictionary from growing indefinitely:
-                    if current_frame_counter in results_buffer:
-                        results_buffer.pop(current_frame_counter)
+                    # # Optionally, once a frame has been processed, you can remove it from the buffer
+                    # # to prevent the dictionary from growing indefinitely:
+                    # if current_frame_counter in results_buffer:
+                    #     results_buffer.pop(current_frame_counter)
 
                 # Combine frames from all cameras for a multi-camera display
                 if frames:
