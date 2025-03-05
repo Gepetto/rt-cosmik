@@ -124,7 +124,7 @@ class DisplayConsumer(Process):
                         arr = np.frombuffer(self.camera_buffers[i], dtype=np.uint8)
                         frame = arr.reshape(self.frame_shape).copy()
                         # Get current timestamp
-                        timestamp = self.timestamp_buffers[i][:26].decode('utf-8').strip('\0')
+                        timestamp = bytes(self.timestamp_buffers[i][:]).decode().strip('\x00')
 
                     # Optimization 2: Add timestamp overlay
                     ########################################  

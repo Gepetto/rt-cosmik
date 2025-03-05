@@ -27,3 +27,7 @@ def create_camera_shared_ressources(num_cameras, frame_shape):
         frame_counters.append(mp.Value('L', 0))  # Unsigned long counter
     
     return camera_buffers, camera_timestamps, camera_locks, frame_counters, barrier, stop_event
+
+def create_pose_estimator_shared_ressources(num_cameras):
+    # Result queues (one per camera)
+    return [mp.Queue(maxsize=30) for _ in range(num_cameras)]

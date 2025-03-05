@@ -7,6 +7,7 @@ import time
 from src.utils.linear_algebra_utils import reproject, concat_frames, reproject_four_frames, reproject
 from multiprocessing import Process, Value
 import torch
+from collections import defaultdict
 
 class PoseTrackerEstimator:
     def __init__(self, det_model, pose_model, device='cuda', thr=0.1, skeleton = 'body26'):
@@ -136,7 +137,6 @@ class PoseTrackerProcess(Process):
                  camera_buffer, 
                  camera_lock, 
                  camera_frame_counter, 
-                 timestamp_buffer,
                  result_queue, 
                  stop_event, 
                  frame_shape, 
@@ -146,7 +146,6 @@ class PoseTrackerProcess(Process):
         self.camera_buffer = camera_buffer
         self.camera_lock = camera_lock
         self.camera_frame_counter = camera_frame_counter
-        self.timestamp_buffer = timestamp_buffer
         self.frame_shape = frame_shape  # (height, width, channels)
         self.result_queue = result_queue
         self.stop_event = stop_event
@@ -158,32 +157,28 @@ class PoseTrackerProcess(Process):
         self.last_processed = 0  # Last processed frame number
 
     def run(self):
-        try:
-            while not self.stop_event.is_set():
+        while not self.stop_event.is_set():
+            if self.camera_frame_counter.value > self.last_processed:
                 with self.camera_lock:
                     # Read and copy shared data atomically
                     arr = np.frombuffer(self.camera_buffer, dtype=np.uint8)
                     frame = arr.reshape(self.frame_shape).copy()
-                    timestamp = self.timestamp_buffer[:26].decode('utf-8').strip('\0')
-                    frame_counter = self.camera_frame_counter.value
+                    current_counter = self.camera_frame_counter.value
 
-                if frame_counter > self.last_processed:
-                    # Perform heavy processing without holding the lock
-                    results, time_taken = self.tracker.estimate(frame)
-                    keypoints, bboxes, _ = results
+                # Perform heavy processing without holding the lock
+                results, infer_time = self.tracker.estimate(frame)
 
-                    # Queue the result; multiprocessing.Queue is designed for safe concurrent access
-                    self.result_queue.put({
-                        'frame_counter': frame_counter,
-                        'timestamp': timestamp,
-                        'keypoints': keypoints.tobytes(),
-                        'inference_time': time_taken
-                    })
+                # Queue the result; multiprocessing.Queue is designed for safe concurrent access
+                self.result_queue.put({
+                    'frame_counter': current_counter,
+                    'keypoints': results[0].astype(np.float16).tobytes(),  # Compression
+                    'inference_time': infer_time
+                })
 
-                    # Update local counter; assuming last_processed is local and not shared
-                    self.last_processed = frame_counter
-        finally:
-            pass
+                # Update local counter; assuming last_processed is local and not shared
+                self.last_processed = current_counter
+            else:
+                time.sleep(0.001) # prevent CPU hogging
                 
 class DisplayPoseTracker(Process):
     def __init__(self, 
@@ -206,6 +201,7 @@ class DisplayPoseTracker(Process):
         self.stop_event = stop_event
         
     def run(self):
+        buffer = defaultdict(dict)
         window_names = [f'Camera {i}' for i in range(self.num_cameras)]
         
         # Optimization 1: Create a single window for all cameras
