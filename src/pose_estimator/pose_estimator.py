@@ -7,7 +7,6 @@ import time
 from multiprocessing import Process
 from src.utils.linear_algebra_utils import concat_frames
 import torch
-from collections import defaultdict
 import queue
 
 class PoseTrackerEstimator:
