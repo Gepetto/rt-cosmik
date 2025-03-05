@@ -33,6 +33,7 @@ def main():
     display = DisplayConsumer(
         camera_buffers=camera_buffers,
         camera_locks=camera_locks,
+        camera_timestamps=camera_timestamps,
         stop_event=stop_event,
         frame_shape=FRAME_SHAPE,
         num_cameras=NUM_CAMERAS
