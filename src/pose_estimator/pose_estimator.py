@@ -220,21 +220,23 @@ class DisplayPoseTracker(Process):
         self.thr = 0.1
         
     def run(self):
-        results_buffer = defaultdict(dict)
         combined_window = "Multi-Camera View"
 
         try:
             while not self.stop_event.is_set():
                 frames = []
+                results_buffer = {}
 
                 # For each camera, update the results buffer from the result queue
                 for i in range(self.num_cameras):
                     try:
                         while True:
                             result = self.result_queues[i].get_nowait()
-                            results_buffer[result['frame_counter']][i] = result
+                            # Overwrite any previous result; we only care about the most recent
+                            results_buffer[i] = result
                     except queue.Empty:
                         pass
+
                 
                 # Collect frames from all cameras
                 for i in range(self.num_cameras):
@@ -246,8 +248,8 @@ class DisplayPoseTracker(Process):
                         timestamp = bytes(self.timestamp_buffers[i][:]).decode().strip('\x00')
                     
                     # Check if there is a matching result in the results buffer
-                    if current_frame_counter in results_buffer and i in results_buffer[current_frame_counter]:
-                        res = results_buffer[current_frame_counter][i]
+                    if i in results_buffer and results_buffer[i]['frame_counter'] == current_frame_counter:
+                        res = results_buffer[i]
                         pose_results = res['results']
                         keypoints = pose_results['keypoints']
                         bboxes = pose_results['bboxes']
@@ -267,6 +269,11 @@ class DisplayPoseTracker(Process):
                         ########################################
 
                         frames.append(img)
+                    
+                    else :
+                        # Optionally, if no matching result is found, you could append the raw frame
+                        # or log that the pose estimation result is not yet ready.
+                        frames.append(frame)
 
                     # Optionally, once a frame has been processed, you can remove it from the buffer
                     # to prevent the dictionary from growing indefinitely:
@@ -275,7 +282,6 @@ class DisplayPoseTracker(Process):
 
                 # Combine frames from all cameras for a multi-camera display
                 if frames:
-                    print(len(frames))
                     if self.num_cameras > 1 and len(frames)==self.num_cameras:
                         combined_frame = concat_frames(frames)
                     else:
