@@ -176,6 +176,7 @@ class PoseTrackerProcess(Process):
 
                 # Perform heavy processing without holding the lock
                 results, infer_time = self.tracker.estimate(frame)
+                print("Cam_id : ", self.cam_id, "inference time : ", infer_time)
                 keypoints, bboxes, _ = results
 
                 # Directly queue the results

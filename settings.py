@@ -33,7 +33,7 @@ class Settings:
 
     #MMPOSE MODELS (here body 26)
     det_model_path: str = "/root/workspace/mmdeploy/rtmpose-trt/rtmdet-nano" # absolute path
-    pose_model_path: str = "/root/workspace/mmdeploy/rtmpose-trt/rtmpose-m" # absolute path 
+    pose_model_path: str = "/root/workspace/mmdeploy/rtmpose-trt/rtmpose-s" # absolute path 
 
     keypoints_names: list = field(default_factory=lambda: [
         "Nose", "LEye", "REye", "LEar", "REar", 
