@@ -4,8 +4,8 @@ settings = Settings()
 import time
 from src.camera.cam_utils import list_cameras
 from src.camera.camera import Camera
-from src.pose_estimator.pose_estimator import DisplayPoseTracker
-from src.utils.mp_utils import create_camera_shared_ressources
+from src.pose_estimator.pose_estimator import DisplayPoseTracker, PoseTrackerProcess
+from src.utils.mp_utils import create_camera_shared_ressources, create_pose_estimator_shared_ressources
 from multiprocessing import set_start_method
 
 def main():
@@ -19,7 +19,8 @@ def main():
     FRAME_SHAPE = (settings.height, settings.width, 3)
 
     camera_buffers, camera_timestamps, camera_locks, frame_counters, barrier, stop_event = create_camera_shared_ressources(NUM_CAMERAS, FRAME_SHAPE)
-    
+    pose_estimator_queues = create_pose_estimator_shared_ressources(NUM_CAMERAS)
+
     # Create camera processes
     camera_processes = [
         Camera(list(cameras.keys())[i], 
@@ -35,18 +36,34 @@ def main():
         for i in range(NUM_CAMERAS)
     ]
 
+    # Create pose estimator processes
+    pose_estimators = [
+        PoseTrackerProcess(
+            DET_MODEL_PATH,
+            POSE_MODEL_PATH,
+            list(cameras.keys())[i],
+            camera_buffers[i],
+            camera_locks[i],
+            frame_counters[i],
+            pose_estimator_queues[i],
+            stop_event,
+            FRAME_SHAPE)
+        for i in range(NUM_CAMERAS)
+    ]
+
     # Create display consumer
     display = DisplayPoseTracker(
-        DET_MODEL_PATH,
-        POSE_MODEL_PATH,
         camera_buffers=camera_buffers,
         camera_locks=camera_locks,
+        camera_frame_counters=frame_counters,
+        result_queues=pose_estimator_queues,
+        timestamp_buffers=camera_timestamps,
         stop_event=stop_event,
         frame_shape=FRAME_SHAPE,
         num_cameras=NUM_CAMERAS
     )
 
-    processes = camera_processes + [display]
+    processes = camera_processes + pose_estimators + [display]
 
     # Start processes
     for p in processes:

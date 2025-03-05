@@ -4,10 +4,10 @@ import cv2
 import numpy as np 
 from typing import List, Tuple
 import time
-from src.utils.linear_algebra_utils import reproject, concat_frames, reproject_four_frames, reproject
-from multiprocessing import Process, Value
+from multiprocessing import Process
 import torch
 from collections import defaultdict
+import queue
 
 class PoseTrackerEstimator:
     def __init__(self, det_model, pose_model, device='cuda', thr=0.1, skeleton = 'body26'):
@@ -63,7 +63,10 @@ class PoseTrackerEstimator:
                     cv2.circle(img, kpt, 1, palette[color], 2, cv2.LINE_AA)
            
         cv2.imshow('pose_tracker'+str(idx), img)
-        return cv2.waitKey(1) != 'q'
+        # If 'q' is pressed, exit visualization
+        if cv2.waitKey(1) & 0xFF == ord('q'):
+            return False
+
         return True
     
 class BatchPoseTrackerEstimator:
@@ -167,11 +170,15 @@ class PoseTrackerProcess(Process):
 
                 # Perform heavy processing without holding the lock
                 results, infer_time = self.tracker.estimate(frame)
+                keypoints, bboxes, _ = results
 
-                # Queue the result; multiprocessing.Queue is designed for safe concurrent access
+                # Directly queue the results
                 self.result_queue.put({
                     'frame_counter': current_counter,
-                    'keypoints': results[0].astype(np.float16).tobytes(),  # Compression
+                    'results': {
+                        'keypoints': keypoints,  # full precision and structure preserved
+                        'bboxes': bboxes
+                    },
                     'inference_time': infer_time
                 })
 
@@ -201,41 +208,104 @@ class DisplayPoseTracker(Process):
         self.stop_event = stop_event
         
     def run(self):
-        buffer = defaultdict(dict)
-        window_names = [f'Camera {i}' for i in range(self.num_cameras)]
-        
-        # Optimization 1: Create a single window for all cameras
+        results_buffer = defaultdict(dict)
         combined_window = "Multi-Camera View"
 
         try:
             while not self.stop_event.is_set():
                 frames = []
+
+                # For each camera, update the results buffer from the result queue
+                for i in range(self.num_cameras):
+                    try:
+                        while True:
+                            result = self.result_queues[i].get_nowait()
+                            results_buffer[result['frame_counter']][i] = result
+                    except queue.Empty:
+                        pass
                 
                 # Collect frames from all cameras
                 for i in range(self.num_cameras):
                     with self.camera_locks[i]:
                         arr = np.frombuffer(self.camera_buffers[i], dtype=np.uint8)
                         frame = arr.reshape(self.frame_shape).copy()
-                        frame_counter = self.camera_frame_counters[i].value
+                        current_frame_counter = self.camera_frame_counters[i].value
                         # Get current timestamp
-                        timestamp = self.timestamp_buffers[i][:26].decode('utf-8').strip('\0')
+                        timestamp = bytes(self.timestamp_buffers[i][:]).decode().strip('\x00')
                     
+                    # Check if there is a matching result in the results buffer
+                    if current_frame_counter in results_buffer and i in results_buffer[current_frame_counter]:
+                        res = results_buffer[current_frame_counter][i]
+                        pose_results = res['results']
+                        keypoints = pose_results['keypoints']
+                        bboxes = pose_results['bboxes']
+
+                        # Visualize the pose estimation results
+                        img = self._visualize(frame, keypoints, bboxes)
+
                     # Optimization 2: Add timestamp overlay
                     ########################################
                     # Add text overlay (white text with black background)
-                    cv2.putText(frame, timestamp, (10, 30), 
+                    cv2.putText(img, timestamp, (10, 30), 
                             cv2.FONT_HERSHEY_SIMPLEX, 0.6, 
                             (0,0,0), 4, lineType=cv2.LINE_AA)
-                    cv2.putText(frame, timestamp, (10, 30), 
+                    cv2.putText(img, timestamp, (10, 30), 
                             cv2.FONT_HERSHEY_SIMPLEX, 0.6, 
                             (255,255,255), 2, lineType=cv2.LINE_AA)
                     ########################################
-                        
+
+                    frames.append(img)
+
+                    # Optionally, once a frame has been processed, you can remove it from the buffer
+                    # to prevent the dictionary from growing indefinitely:
+                    if current_frame_counter in results_buffer:
+                        results_buffer.pop(current_frame_counter)
+
+                # Combine frames from all cameras for a multi-camera display
+                if self.num_cameras > 1:
+                    combined_frame = np.hstack(frames)
+                else:
+                    combined_frame = frames[0]
+                
+                cv2.imshow(combined_window, combined_frame)        
 
                 # Break on 'q' key press
                 if cv2.waitKey(1) & 0xFF == ord('q'):
                     break
         finally:        
             cv2.destroyAllWindows()
+
+    def _visualize(self, 
+                  frame,
+                  keypoints,
+                  bboxes,
+                  resize=1280):
+        
+        skeleton = self.VISUALISATION_CFG[self._skeleton]['skeleton']
+        palette = self.VISUALISATION_CFG[self._skeleton]['palette']
+        link_color = self.VISUALISATION_CFG[self._skeleton]['link_color']
+        point_color = self.VISUALISATION_CFG[self._skeleton]['point_color']
+
+        scale = resize / max(frame.shape[0], frame.shape[1])
+        scores = keypoints[..., 2]
+        keypoints = (keypoints[..., :2] * scale).astype(int)
+        bboxes *= scale
+        img = cv2.resize(frame, (0, 0), fx=scale, fy=scale)
+
+        for kpts, score, bbox in zip(keypoints, scores, bboxes):
+            show = [1] * len(kpts)
+
+            for (u, v), color in zip(skeleton, link_color):
+                if score[u] > self._thr and score[v] > self._thr:
+                    cv2.line(img, kpts[u], tuple(kpts[v]), palette[color], 1,
+                            cv2.LINE_AA)
+                else:
+                    show[u] = show[v] = 0
+
+            for kpt, show, color in zip(kpts, show, point_color):
+                if show:
+                    cv2.circle(img, kpt, 1, palette[color], 2, cv2.LINE_AA)
+
+        return img
 
 
