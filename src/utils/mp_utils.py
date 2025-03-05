@@ -30,4 +30,6 @@ def create_camera_shared_ressources(num_cameras, frame_shape):
 
 def create_pose_estimator_shared_ressources(num_cameras):
     # Result queues (one per camera)
-    return [mp.Queue(maxsize=30) for _ in range(num_cameras)]
+    queues = [mp.Queue(maxsize=30) for _ in range(num_cameras)]
+    barrier = mp.Barrier(num_cameras)
+    return queues, barrier

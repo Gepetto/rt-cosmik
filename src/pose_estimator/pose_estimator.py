@@ -5,6 +5,7 @@ import numpy as np
 from typing import List, Tuple
 import time
 from multiprocessing import Process
+from src.utils.linear_algebra_utils import concat_frames
 import torch
 from collections import defaultdict
 import queue
@@ -25,7 +26,7 @@ class PoseTrackerEstimator:
         t0 = time.time()
         results = self.tracker(self.state, frame, detect=-1)
         t_inf = time.time()-t0
-        print("time of inference :", t_inf)
+        # print("time of inference :", t_inf)
         # keypoints, bboxes, _ = results
         # keypoints = (keypoints[..., :2] ).astype(float)
         return results, t_inf
@@ -141,25 +142,31 @@ class PoseTrackerProcess(Process):
                  camera_lock, 
                  camera_frame_counter, 
                  result_queue, 
+                 barrier,
                  stop_event, 
                  frame_shape, 
                  ):
         super().__init__()
+        self.DET_MODEL_PATH = DET_MODEL_PATH
+        self.POSE_MODEL_PATH = POSE_MODEL_PATH
         self.cam_id = cam_id
         self.camera_buffer = camera_buffer
         self.camera_lock = camera_lock
         self.camera_frame_counter = camera_frame_counter
         self.frame_shape = frame_shape  # (height, width, channels)
         self.result_queue = result_queue
+        self.barrier = barrier
         self.stop_event = stop_event
 
         self.device = 'cuda' if torch.cuda.is_available() else 'cpu'
-        self.tracker = PoseTrackerEstimator(DET_MODEL_PATH, POSE_MODEL_PATH, device=self.device)
 
         # State tracking
         self.last_processed = 0  # Last processed frame number
 
     def run(self):
+        self.barrier.wait()
+        self.tracker = PoseTrackerEstimator(self.DET_MODEL_PATH, self.POSE_MODEL_PATH, device=self.device)
+
         while not self.stop_event.is_set():
             if self.camera_frame_counter.value > self.last_processed:
                 with self.camera_lock:
@@ -206,6 +213,11 @@ class DisplayPoseTracker(Process):
         self.frame_shape = frame_shape  # (height, width, channels)
         self.num_cameras = num_cameras
         self.stop_event = stop_event
+
+        self.VISUALISATION_CFG = VISUALIZATION_CFG
+        self.skeleton = 'body26'
+        self.sigmas = VISUALIZATION_CFG[self.skeleton]['sigmas']
+        self.thr = 0.1
         
     def run(self):
         results_buffer = defaultdict(dict)
@@ -243,18 +255,18 @@ class DisplayPoseTracker(Process):
                         # Visualize the pose estimation results
                         img = self._visualize(frame, keypoints, bboxes)
 
-                    # Optimization 2: Add timestamp overlay
-                    ########################################
-                    # Add text overlay (white text with black background)
-                    cv2.putText(img, timestamp, (10, 30), 
-                            cv2.FONT_HERSHEY_SIMPLEX, 0.6, 
-                            (0,0,0), 4, lineType=cv2.LINE_AA)
-                    cv2.putText(img, timestamp, (10, 30), 
-                            cv2.FONT_HERSHEY_SIMPLEX, 0.6, 
-                            (255,255,255), 2, lineType=cv2.LINE_AA)
-                    ########################################
+                        # Optimization 2: Add timestamp overlay
+                        ########################################
+                        # Add text overlay (white text with black background)
+                        cv2.putText(img, timestamp, (10, 30), 
+                                cv2.FONT_HERSHEY_SIMPLEX, 0.6, 
+                                (0,0,0), 4, lineType=cv2.LINE_AA)
+                        cv2.putText(img, timestamp, (10, 30), 
+                                cv2.FONT_HERSHEY_SIMPLEX, 0.6, 
+                                (255,255,255), 2, lineType=cv2.LINE_AA)
+                        ########################################
 
-                    frames.append(img)
+                        frames.append(img)
 
                     # Optionally, once a frame has been processed, you can remove it from the buffer
                     # to prevent the dictionary from growing indefinitely:
@@ -262,12 +274,14 @@ class DisplayPoseTracker(Process):
                         results_buffer.pop(current_frame_counter)
 
                 # Combine frames from all cameras for a multi-camera display
-                if self.num_cameras > 1:
-                    combined_frame = np.hstack(frames)
-                else:
-                    combined_frame = frames[0]
-                
-                cv2.imshow(combined_window, combined_frame)        
+                if frames:
+                    print(len(frames))
+                    if self.num_cameras > 1 and len(frames)==self.num_cameras:
+                        combined_frame = concat_frames(frames)
+                    else:
+                        combined_frame = frames[0]
+                    
+                    cv2.imshow(combined_window, combined_frame)        
 
                 # Break on 'q' key press
                 if cv2.waitKey(1) & 0xFF == ord('q'):
@@ -281,10 +295,10 @@ class DisplayPoseTracker(Process):
                   bboxes,
                   resize=1280):
         
-        skeleton = self.VISUALISATION_CFG[self._skeleton]['skeleton']
-        palette = self.VISUALISATION_CFG[self._skeleton]['palette']
-        link_color = self.VISUALISATION_CFG[self._skeleton]['link_color']
-        point_color = self.VISUALISATION_CFG[self._skeleton]['point_color']
+        skeleton = self.VISUALISATION_CFG[self.skeleton]['skeleton']
+        palette = self.VISUALISATION_CFG[self.skeleton]['palette']
+        link_color = self.VISUALISATION_CFG[self.skeleton]['link_color']
+        point_color = self.VISUALISATION_CFG[self.skeleton]['point_color']
 
         scale = resize / max(frame.shape[0], frame.shape[1])
         scores = keypoints[..., 2]
@@ -296,7 +310,7 @@ class DisplayPoseTracker(Process):
             show = [1] * len(kpts)
 
             for (u, v), color in zip(skeleton, link_color):
-                if score[u] > self._thr and score[v] > self._thr:
+                if score[u] > self.thr and score[v] > self.thr:
                     cv2.line(img, kpts[u], tuple(kpts[v]), palette[color], 1,
                             cv2.LINE_AA)
                 else:

@@ -18,8 +18,8 @@ def main():
     NUM_CAMERAS = len(cameras)
     FRAME_SHAPE = (settings.height, settings.width, 3)
 
-    camera_buffers, camera_timestamps, camera_locks, frame_counters, barrier, stop_event = create_camera_shared_ressources(NUM_CAMERAS, FRAME_SHAPE)
-    pose_estimator_queues = create_pose_estimator_shared_ressources(NUM_CAMERAS)
+    camera_buffers, camera_timestamps, camera_locks, frame_counters, camera_barrier, stop_event = create_camera_shared_ressources(NUM_CAMERAS, FRAME_SHAPE)
+    pose_estimator_queues, pose_estimator_barrier = create_pose_estimator_shared_ressources(NUM_CAMERAS)
 
     # Create camera processes
     camera_processes = [
@@ -28,7 +28,7 @@ def main():
                camera_timestamps[i], 
                camera_locks[i], 
                frame_counters[i], 
-               barrier, 
+               camera_barrier, 
                stop_event, 
                FRAME_SHAPE, 
                settings.fps, 
@@ -46,6 +46,7 @@ def main():
             camera_locks[i],
             frame_counters[i],
             pose_estimator_queues[i],
+            pose_estimator_barrier,
             stop_event,
             FRAME_SHAPE)
         for i in range(NUM_CAMERAS)
