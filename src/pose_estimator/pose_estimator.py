@@ -233,15 +233,12 @@ class DisplayPoseTracker(Process):
                     try:
                         while True:
                             result = self.result_queues[i].get_nowait()
-                            # # Overwrite any previous result; we only care about the most recent
-                            # results_buffer[i] = result
                             # If this is the first result or a newer one, update the last_good_result
                             if (i not in last_good_result) or (result['frame_counter'] >= last_good_result[i]['frame_counter']):
                                 last_good_result[i] = result
                     except queue.Empty:
                         pass
 
-                
                 # Collect frames from all cameras
                 for i in range(self.num_cameras):
                     with self.camera_locks[i]:
@@ -275,38 +272,6 @@ class DisplayPoseTracker(Process):
                                 (255, 255, 255), 2, lineType=cv2.LINE_AA)
 
                     frames.append(img)
-                    # # Check if there is a matching result in the results buffer
-                    # if i in results_buffer and results_buffer[i]['frame_counter'] <= current_frame_counter:
-                    #     res = results_buffer[i]
-                    #     pose_results = res['results']
-                    #     keypoints = pose_results['keypoints']
-                    #     bboxes = pose_results['bboxes']
-
-                    #     # Visualize the pose estimation results
-                    #     img = self._visualize(frame, keypoints, bboxes)
-
-                    #     # Optimization 2: Add timestamp overlay
-                    #     ########################################
-                    #     # Add text overlay (white text with black background)
-                    #     cv2.putText(img, timestamp, (10, 30), 
-                    #             cv2.FONT_HERSHEY_SIMPLEX, 0.6, 
-                    #             (0,0,0), 4, lineType=cv2.LINE_AA)
-                    #     cv2.putText(img, timestamp, (10, 30), 
-                    #             cv2.FONT_HERSHEY_SIMPLEX, 0.6, 
-                    #             (255,255,255), 2, lineType=cv2.LINE_AA)
-                    #     ########################################
-
-                    #     frames.append(img)
-                    
-                    # else :
-                    #     # Optionally, if no matching result is found, you could append the raw frame
-                    #     # or log that the pose estimation result is not yet ready.
-                    #     frames.append(frame)
-
-                    # # Optionally, once a frame has been processed, you can remove it from the buffer
-                    # # to prevent the dictionary from growing indefinitely:
-                    # if current_frame_counter in results_buffer:
-                    #     results_buffer.pop(current_frame_counter)
 
                 # Combine frames from all cameras for a multi-camera display
                 if frames:
