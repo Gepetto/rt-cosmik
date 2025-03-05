@@ -5,7 +5,8 @@ import quadprog
 from typing import Dict, List
 from collections import deque
 import numpy as np 
-import fatropy.spectool as sp
+import time
+# import fatropy.spectool as sp
 
 def quadprog_solve_qp(P: np.ndarray, q: np.ndarray, G: np.ndarray=None, h: np.ndarray=None, A: np.ndarray=None, b: np.ndarray=None):
     """_Set up the qp solver using quadprog API_
@@ -338,385 +339,385 @@ class RT_IK:
 
         return q
 
-class RT_SWIKA:
-    """_Class to manage multi body Sliding Window IK problem using fatrop solver_
-    """
-    def __init__(self,model: pin.Model, deque_dict_m: deque, x_list: List, keys_to_track_list: List, T: int, dt: float, dict_dof_to_keypoints=None, with_freeflyer=True) -> None:
+# class RT_SWIKA:
+#     """_Class to manage multi body Sliding Window IK problem using fatrop solver_
+#     """
+#     def __init__(self,model: pin.Model, deque_dict_m: deque, x_list: List, keys_to_track_list: List, T: int, dt: float, dict_dof_to_keypoints=None, with_freeflyer=True) -> None:
        
-        """ _Init of the class _
+#         """ _Init of the class _
 
-        Args:
-            model (pin.Model): _Pinocchio biomechanical model_
-            deque_dict_m (deque): _a deque containing the measures of the landmarks_
-            x_list (List): _list of states_
-            q_list (List): _list of joint angles (include the freeflyer if there is one)_
-            keys_to_track_list (List): _name of the points to track from the dictionnary_
-            T (int): _Size of the window_
-            dt (float): _Sampling rate of the data_
-            dict_dof_to_keypoints (Dict): _a dictionnary linking frame of pinocchio model to measurements. Default to None if the pinocchio model has the same frame naming than the measurements_
-            with_freeflyer (boolean): _tells if the pinocchio model has a ff or not. Default to True.
-        """
+#         Args:
+#             model (pin.Model): _Pinocchio biomechanical model_
+#             deque_dict_m (deque): _a deque containing the measures of the landmarks_
+#             x_list (List): _list of states_
+#             q_list (List): _list of joint angles (include the freeflyer if there is one)_
+#             keys_to_track_list (List): _name of the points to track from the dictionnary_
+#             T (int): _Size of the window_
+#             dt (float): _Sampling rate of the data_
+#             dict_dof_to_keypoints (Dict): _a dictionnary linking frame of pinocchio model to measurements. Default to None if the pinocchio model has the same frame naming than the measurements_
+#             with_freeflyer (boolean): _tells if the pinocchio model has a ff or not. Default to True.
+#         """
         
-        self._model = model
-        self._nq = self._model.nq
-        self._nv = self._model.nv
-        self._data = self._model.createData()
-        self._deque_dict_m = deque_dict_m
-        self._x_list = x_list
-        self._keys_to_track_list = keys_to_track_list
-        self._T = T
-        self._dt = dt # TO SET UP : FRAMERATE OF THE DATA
+#         self._model = model
+#         self._nq = self._model.nq
+#         self._nv = self._model.nv
+#         self._data = self._model.createData()
+#         self._deque_dict_m = deque_dict_m
+#         self._x_list = x_list
+#         self._keys_to_track_list = keys_to_track_list
+#         self._T = T
+#         self._dt = dt # TO SET UP : FRAMERATE OF THE DATA
 
-        # Ensure dict_dof_to_keypoints is either a valid dictionary or None
-        self._dict_dof_to_keypoints = dict_dof_to_keypoints if dict_dof_to_keypoints is not None else None
-        self._with_freeflyer = with_freeflyer
+#         # Ensure dict_dof_to_keypoints is either a valid dictionary or None
+#         self._dict_dof_to_keypoints = dict_dof_to_keypoints if dict_dof_to_keypoints is not None else None
+#         self._with_freeflyer = with_freeflyer
 
-        # Casadi framework 
-        self._cmodel = cpin.Model(self._model)
-        self._cdata = self._cmodel.createData()
+#         # Casadi framework 
+#         self._cmodel = cpin.Model(self._model)
+#         self._cdata = self._cmodel.createData()
 
-        q = casadi.SX.sym("q",self._nq) # q
-        dq = casadi.SX.sym("dq",self._nv) # dq
-        ddq = casadi.SX.sym("ddq",self._nv) # ddq
+#         q = casadi.SX.sym("q",self._nq) # q
+#         dq = casadi.SX.sym("dq",self._nv) # dq
+#         ddq = casadi.SX.sym("ddq",self._nv) # ddq
 
-        # States
-        x = casadi.vertcat(q,dq)
-        # Controls
-        u = ddq
+#         # States
+#         x = casadi.vertcat(q,dq)
+#         # Controls
+#         u = ddq
 
-        self._integrate = casadi.Function('integrate',[ q,dq ],[cpin.integrate(self._cmodel,q,dq) ])
+#         self._integrate = casadi.Function('integrate',[ q,dq ],[cpin.integrate(self._cmodel,q,dq) ])
 
-        # The self.xdot will be a casadi function mapping:  state,control -> [velocity,acceleration]
-        self._xdot = casadi.Function('xdot', [x,u], [casadi.vertcat(x[self._nq:], u)])
+#         # The self.xdot will be a casadi function mapping:  state,control -> [velocity,acceleration]
+#         self._xdot = casadi.Function('xdot', [x,u], [casadi.vertcat(x[self._nq:], u)])
 
-        self._nx = x.numel()
-        self._nu = u.numel()
+#         self._nx = x.numel()
+#         self._nu = u.numel()
 
-        cpin.framesForwardKinematics(self._cmodel, self._cdata, q)
+#         cpin.framesForwardKinematics(self._cmodel, self._cdata, q)
 
-        self._new_key_list = []
-        cfunction_list = []
-        for key in self._keys_to_track_list:
-            index_mk = self._cmodel.getFrameId(key)
-            if index_mk < len(self._model.frames.tolist()): # Check that the frame is in the model
-                new_key = key.replace('.','')
-                self._new_key_list.append(key)
-                function_mk = casadi.Function(f'f_{new_key}',[q],[self._cdata.oMf[index_mk].translation])
-                cfunction_list.append(function_mk)
+#         self._new_key_list = []
+#         cfunction_list = []
+#         for key in self._keys_to_track_list:
+#             index_mk = self._cmodel.getFrameId(key)
+#             if index_mk < len(self._model.frames.tolist()): # Check that the frame is in the model
+#                 new_key = key.replace('.','')
+#                 self._new_key_list.append(key)
+#                 function_mk = casadi.Function(f'f_{new_key}',[q],[self._cdata.oMf[index_mk].translation])
+#                 cfunction_list.append(function_mk)
 
-        self._cfunction_dict=dict(zip(self._new_key_list,cfunction_list))
+#         self._cfunction_dict=dict(zip(self._new_key_list,cfunction_list))
 
-    def solve_swika_casadi(self)->np.ndarray:
-        x_list = self._x_list
-        lstm_dict_list = list(self._deque_dict_m)
+#     def solve_swika_casadi(self)->np.ndarray:
+#         x_list = self._x_list
+#         lstm_dict_list = list(self._deque_dict_m)
         
-        # Casadi optimization class
-        opti = casadi.Opti()
+#         # Casadi optimization class
+#         opti = casadi.Opti()
 
-        X = []
-        U = []
+#         X = []
+#         U = []
 
-        for k in range(self._T):
-            X.append(opti.variable(self._nx))
-            U.append(opti.variable(self._nu))
+#         for k in range(self._T):
+#             X.append(opti.variable(self._nx))
+#             U.append(opti.variable(self._nu))
 
-        X0 = opti.parameter(self._nx)
-        opti.set_value(X0, x_list[0])
+#         X0 = opti.parameter(self._nx)
+#         opti.set_value(X0, x_list[0])
 
-        cost = 0
+#         cost = 0
 
-        for k in range(self._T):
-            # Markers tracking cost function
-            for key in self._cfunction_dict.keys():
-                marker_meas = opti.parameter(len(lstm_dict_list[k][key]),1)
-                opti.set_value(marker_meas, lstm_dict_list[k][key])
-                cost+=10*casadi.sumsqr(marker_meas-self._cfunction_dict[key](X[k][:self._nq]))
+#         for k in range(self._T):
+#             # Markers tracking cost function
+#             for key in self._cfunction_dict.keys():
+#                 marker_meas = opti.parameter(len(lstm_dict_list[k][key]),1)
+#                 opti.set_value(marker_meas, lstm_dict_list[k][key])
+#                 cost+=10*casadi.sumsqr(marker_meas-self._cfunction_dict[key](X[k][:self._nq]))
 
-            # Control regul
-            cost += 1e-5*casadi.sumsqr(U[k])
+#             # Control regul
+#             cost += 1e-5*casadi.sumsqr(U[k])
 
-            # State regul
-            cost += 1e-3*casadi.sumsqr(X[k]-X0)
+#             # State regul
+#             cost += 1e-3*casadi.sumsqr(X[k]-X0)
 
-            if k != self._T-1:
-                # Euler integration
-                qnext=self._integrate(X[k][:self._nq],X[k][self._nq:]*self._dt)
-                dqnext=X[k][self._nq:]+U[k]*self._dt
+#             if k != self._T-1:
+#                 # Euler integration
+#                 qnext=self._integrate(X[k][:self._nq],X[k][self._nq:]*self._dt)
+#                 dqnext=X[k][self._nq:]+U[k]*self._dt
 
-                xnext = casadi.vertcat(qnext,dqnext)
+#                 xnext = casadi.vertcat(qnext,dqnext)
 
-                # Multiple shooting gap-closing constraint
-                opti.subject_to(X[k+1]==xnext)
+#                 # Multiple shooting gap-closing constraint
+#                 opti.subject_to(X[k+1]==xnext)
                 
-            # Set the constraint for the joint limits
-            if self._with_freeflyer:
-                for i in range(7,self._nv):
-                    opti.subject_to(opti.bounded(self._model.lowerPositionLimit[i],X[k][i],self._model.upperPositionLimit[i]))
-                    # opti.subject_to(casadi.sumsqr(X[k][3:7])==1)
-            else : 
-                for i in range(self._nv):
-                    opti.subject_to(opti.bounded(self._model.lowerPositionLimit[i],X[k][i],self._model.upperPositionLimit[i]))
+#             # Set the constraint for the joint limits
+#             if self._with_freeflyer:
+#                 for i in range(7,self._nv):
+#                     opti.subject_to(opti.bounded(self._model.lowerPositionLimit[i],X[k][i],self._model.upperPositionLimit[i]))
+#                     # opti.subject_to(casadi.sumsqr(X[k][3:7])==1)
+#             else : 
+#                 for i in range(self._nv):
+#                     opti.subject_to(opti.bounded(self._model.lowerPositionLimit[i],X[k][i],self._model.upperPositionLimit[i]))
                 
-            opti.set_initial(X[k],x_list[k])
+#             opti.set_initial(X[k],x_list[k])
 
-        X = casadi.hcat(X)
+#         X = casadi.hcat(X)
         
-        opti.minimize(cost)
+#         opti.minimize(cost)
 
-        options = {}
-        options["expand"] = True
-        options["fatrop"] = {"mu_init": 0.01}
-        options["fatrop"]={"max_iter":50}
-        options["fatrop"]={"tol":1e-3}
-        options["structure_detection"] = "auto"
-        options["debug"] = False
+#         options = {}
+#         options["expand"] = True
+#         options["fatrop"] = {"mu_init": 0.01}
+#         options["fatrop"]={"max_iter":50}
+#         options["fatrop"]={"tol":1e-3}
+#         options["structure_detection"] = "auto"
+#         options["debug"] = False
 
-        # (codegen of helper functions)
-        options["jit"] = True
-        # options["jit_name"] = "tmp_casadi_compiler_shell"
-        options["jit_temp_suffix"] = False
-        # options["compiler"] = "shell"
-        # options["jit_cleanup"]=False
-        options["jit_options"] = {"flags": ["-O3"],"compiler": "ccache clang"}
+#         # (codegen of helper functions)
+#         options["jit"] = True
+#         # options["jit_name"] = "tmp_casadi_compiler_shell"
+#         options["jit_temp_suffix"] = False
+#         # options["compiler"] = "shell"
+#         # options["jit_cleanup"]=False
+#         options["jit_options"] = {"flags": ["-O3"],"compiler": "ccache clang"}
 
-        opti.solver("fatrop",options)
+#         opti.solver("fatrop",options)
 
-        sol = opti.solve()
+#         sol = opti.solve()
 
-        new_X = sol.value(X).T
-        solved_x_list = [new_X[i] for i in range(new_X.shape[0])] 
+#         new_X = sol.value(X).T
+#         solved_x_list = [new_X[i] for i in range(new_X.shape[0])] 
 
-        return sol, solved_x_list #X with Dq but also Q with ff quat 
+#         return sol, solved_x_list #X with Dq but also Q with ff quat 
 
-class RT_SWIKA_Spectool:
-    """_Class to manage multi body Sliding Window IK problem using fatrop solver and spectool formulation_
-    """
-    def __init__(self,model: pin.Model, deque_dict_m: deque, x_list: List, keys_to_track_list: List, N: int, dt: float, dict_dof_to_keypoints=None, with_freeflyer=True) -> None:
+# class RT_SWIKA_Spectool:
+#     """_Class to manage multi body Sliding Window IK problem using fatrop solver and spectool formulation_
+#     """
+#     def __init__(self,model: pin.Model, deque_dict_m: deque, x_list: List, keys_to_track_list: List, N: int, dt: float, dict_dof_to_keypoints=None, with_freeflyer=True) -> None:
        
-        """ _Init of the class _
+#         """ _Init of the class _
 
-        Args:
-            model (pin.Model): _Pinocchio biomechanical model_
-            deque_dict_m (deque): _a deque containing the measures of the landmarks_
-            x_list (List): _list of states_
-            keys_to_track_list (List): _name of the points to track from the dictionnary_
-            N (int): _Size of the window_
-            dt (float): _Sampling rate of the data_
-            dict_dof_to_keypoints (Dict): _a dictionnary linking frame of pinocchio model to measurements. Default to None if the pinocchio model has the same frame naming than the measurements_
-            with_freeflyer (boolean): _tells if the pinocchio model has a ff or not. Default to True.
-        """
+#         Args:
+#             model (pin.Model): _Pinocchio biomechanical model_
+#             deque_dict_m (deque): _a deque containing the measures of the landmarks_
+#             x_list (List): _list of states_
+#             keys_to_track_list (List): _name of the points to track from the dictionnary_
+#             N (int): _Size of the window_
+#             dt (float): _Sampling rate of the data_
+#             dict_dof_to_keypoints (Dict): _a dictionnary linking frame of pinocchio model to measurements. Default to None if the pinocchio model has the same frame naming than the measurements_
+#             with_freeflyer (boolean): _tells if the pinocchio model has a ff or not. Default to True.
+#         """
         
-        self._model = model
-        self._nq = self._model.nq
-        self._nv = self._model.nv
-        self._data = self._model.createData()
-        self._deque_dict_m = deque_dict_m
-        self._x_list = x_list
-        self._keys_to_track_list = keys_to_track_list
-        self._N = N
-        self._dt = dt # TO SET UP : FRAMERATE OF THE DATA
+#         self._model = model
+#         self._nq = self._model.nq
+#         self._nv = self._model.nv
+#         self._data = self._model.createData()
+#         self._deque_dict_m = deque_dict_m
+#         self._x_list = x_list
+#         self._keys_to_track_list = keys_to_track_list
+#         self._N = N
+#         self._dt = dt # TO SET UP : FRAMERATE OF THE DATA
 
-        # Ensure dict_dof_to_keypoints is either a valid dictionary or None
-        self._dict_dof_to_keypoints = dict_dof_to_keypoints if dict_dof_to_keypoints is not None else None
-        self._with_freeflyer = with_freeflyer
+#         # Ensure dict_dof_to_keypoints is either a valid dictionary or None
+#         self._dict_dof_to_keypoints = dict_dof_to_keypoints if dict_dof_to_keypoints is not None else None
+#         self._with_freeflyer = with_freeflyer
 
-        # Joint limits
-        self._qplus = casadi.DM(self._model.upperPositionLimit)
-        self._qminus = casadi.DM(self._model.lowerPositionLimit) 
+#         # Joint limits
+#         self._qplus = casadi.DM(self._model.upperPositionLimit)
+#         self._qminus = casadi.DM(self._model.lowerPositionLimit) 
 
-        # Casadi framework 
-        self._cmodel = cpin.Model(self._model)
-        self._cdata = self._cmodel.createData()
+#         # Casadi framework 
+#         self._cmodel = cpin.Model(self._model)
+#         self._cdata = self._cmodel.createData()
 
-        cq = casadi.SX.sym("q",self._nq) # q
-        cdq = casadi.SX.sym("dq",self._nv) # dq
+#         cq = casadi.SX.sym("q",self._nq) # q
+#         cdq = casadi.SX.sym("dq",self._nv) # dq
 
-        self._integrate = casadi.Function('integrate',[ cq,cdq ],[cpin.integrate(self._cmodel,cq,cdq) ])
+#         self._integrate = casadi.Function('integrate',[ cq,cdq ],[cpin.integrate(self._cmodel,cq,cdq) ])
 
-        cpin.framesForwardKinematics(self._cmodel, self._cdata, cq)
+#         cpin.framesForwardKinematics(self._cmodel, self._cdata, cq)
 
-        markers_est = []
-        for key in self._keys_to_track_list:
-            index_mk = self._cmodel.getFrameId(key)
-            if index_mk < len(self._model.frames.tolist()): # Check that the frame is in the model
-                markers_est = casadi.horzcat(markers_est,self._cdata.oMf[index_mk].translation) # Concatenate the markers positions, size (3 x Nb of markers)
+#         markers_est = []
+#         for key in self._keys_to_track_list:
+#             index_mk = self._cmodel.getFrameId(key)
+#             if index_mk < len(self._model.frames.tolist()): # Check that the frame is in the model
+#                 markers_est = casadi.horzcat(markers_est,self._cdata.oMf[index_mk].translation) # Concatenate the markers positions, size (3 x Nb of markers)
 
-        self._fmarkers_est = casadi.Function('function_markers_est', [cq], [casadi.reshape(markers_est, len(self._keys_to_track_list)*3, 1)]) # reorganize the markers as [x0, y0, z0, ..., xi, yi, zi, ..., xN, yN, zN], size (1 x 3*Nb of markers)
+#         self._fmarkers_est = casadi.Function('function_markers_est', [cq], [casadi.reshape(markers_est, len(self._keys_to_track_list)*3, 1)]) # reorganize the markers as [x0, y0, z0, ..., xi, yi, zi, ..., xN, yN, zN], size (1 x 3*Nb of markers)
 
-        # self._fun = self.sp_setup()
+#         # self._fun = self.sp_setup()
     
-    def sp_setup(self, marker_array)->sp.Ocp.to_function:
-        dt = self._dt
-        N = self._N
+#     def sp_setup(self, marker_array)->sp.Ocp.to_function:
+#         dt = self._dt
+#         N = self._N
 
-        ocp = sp.Ocp()
+#         ocp = sp.Ocp()
 
-        stage = ocp.new_stage(N)
+#         stage = ocp.new_stage(N)
 
-        X0 = ocp.parameter(self._nq+self._nv)
-        marker_meas = ocp.parameter(len(self._keys_to_track_list)*3, grid ='control')
-        ocp.set_initial(marker_meas, marker_array)
+#         X0 = ocp.parameter(self._nq+self._nv)
+#         marker_meas = ocp.parameter(len(self._keys_to_track_list)*3, grid ='control')
+#         ocp.set_initial(marker_meas, marker_array)
 
-        x = ocp.state(self._nq+self._nv)
-        u = ocp.control(self._nv)
+#         x = ocp.state(self._nq+self._nv)
+#         u = ocp.control(self._nv)
 
-        # Euler integration
-        qnext=self._integrate(x[:self._nq],x[self._nq:]*self._dt)
-        dqnext=x[self._nq:]+u*self._dt
-        xnext = casadi.vertcat(qnext,dqnext)
+#         # Euler integration
+#         qnext=self._integrate(x[:self._nq],x[self._nq:]*self._dt)
+#         dqnext=x[self._nq:]+u*self._dt
+#         xnext = casadi.vertcat(qnext,dqnext)
 
-        stage.set_next(x, xnext)
+#         stage.set_next(x, xnext)
 
-        # Define the constraints
-        if self._with_freeflyer:
-            stage.subject_to(casadi.vertcat(self._qminus[7:] <= x[7:self._nq], x[7:self._nq] <= self._qplus[7:]), sp.t0, sp.mid, sp.tf)
-        else:
-            stage.subject_to(casadi.vertcat(self._qminus <= x[:self._nq], x[:self._nq] <= self._qplus), sp.t0, sp.mid, sp.tf)
+#         # Define the constraints
+#         if self._with_freeflyer:
+#             stage.subject_to(casadi.vertcat(self._qminus[7:] <= x[7:self._nq], x[7:self._nq] <= self._qplus[7:]), sp.t0, sp.mid, sp.tf)
+#         else:
+#             stage.subject_to(casadi.vertcat(self._qminus <= x[:self._nq], x[:self._nq] <= self._qplus), sp.t0, sp.mid, sp.tf)
 
-        # Define the cost function
-        stage.add_objective(10*casadi.sumsqr(marker_meas-self._fmarkers_est(x[:self._nq])), sp.t0, sp.mid, sp.tf)
-        stage.add_objective(1e-3*casadi.sumsqr(x-X0), sp.t0, sp.mid, sp.tf)
-        stage.add_objective(1e-5*casadi.sumsqr(u), sp.t0, sp.mid)
+#         # Define the cost function
+#         stage.add_objective(10*casadi.sumsqr(marker_meas-self._fmarkers_est(x[:self._nq])), sp.t0, sp.mid, sp.tf)
+#         stage.add_objective(1e-3*casadi.sumsqr(x-X0), sp.t0, sp.mid, sp.tf)
+#         stage.add_objective(1e-5*casadi.sumsqr(u), sp.t0, sp.mid)
 
-        ocp.solver("fatrop")#, {"expand":True, "jit":True})  
-        ocp_fun = ocp.to_function("ocp", [X0], [ocp.sample(x)[1]])
-        return ocp_fun
+#         ocp.solver("fatrop")#, {"expand":True, "jit":True})  
+#         ocp_fun = ocp.to_function("ocp", [X0], [ocp.sample(x)[1]])
+#         return ocp_fun
 
-    def solve_swika_fatrop(self)->tuple:
-        x_list = self._x_list
-        lstm_dict_list = list(self._deque_dict_m)
+#     def solve_swika_fatrop(self)->tuple:
+#         x_list = self._x_list
+#         lstm_dict_list = list(self._deque_dict_m)
 
-        # Convert the list of dictionaries to a NumPy array
-        array_data = np.array([np.hstack([d[marker] for marker in self._keys_to_track_list]) for d in lstm_dict_list])
-        print(array_data.shape)
+#         # Convert the list of dictionaries to a NumPy array
+#         array_data = np.array([np.hstack([d[marker] for marker in self._keys_to_track_list]) for d in lstm_dict_list])
+#         print(array_data.shape)
 
-        fun = self.sp_setup(array_data)
+#         fun = self.sp_setup(array_data)
 
-        results = fun(np.array(x_list[0]))
+#         results = fun(np.array(x_list[0]))
 
-        return results
+#         return results
 
-class RT_SWIKA_Spectool_ustage:
-    """_Class to manage multi body Sliding Window IK problem using fatrop solver and spectool formulation_
-    """
-    def __init__(self,model: pin.Model, deque_dict_m: deque, x_list: List, u_list: List, keys_to_track_list: List, N: int, dt: float, dict_dof_to_keypoints=None, with_freeflyer=True) -> None:
+# class RT_SWIKA_Spectool_ustage:
+#     """_Class to manage multi body Sliding Window IK problem using fatrop solver and spectool formulation_
+#     """
+#     def __init__(self,model: pin.Model, deque_dict_m: deque, x_list: List, u_list: List, keys_to_track_list: List, N: int, dt: float, dict_dof_to_keypoints=None, with_freeflyer=True) -> None:
        
-        """ _Init of the class _
+#         """ _Init of the class _
 
-        Args:
-            model (pin.Model): _Pinocchio biomechanical model_
-            deque_dict_m (deque): _a deque containing the measures of the landmarks_
-            x_list (List): _list of states for warm start_
-            u_list (List): _list of controls for warm start_
-            keys_to_track_list (List): _name of the points to track from the dictionnary_
-            N (int): _Size of the window_
-            dt (float): _Sampling rate of the data_
-            dict_dof_to_keypoints (Dict): _a dictionnary linking frame of pinocchio model to measurements. Default to None if the pinocchio model has the same frame naming than the measurements_
-            with_freeflyer (boolean): _tells if the pinocchio model has a ff or not. Default to True.
-        """
+#         Args:
+#             model (pin.Model): _Pinocchio biomechanical model_
+#             deque_dict_m (deque): _a deque containing the measures of the landmarks_
+#             x_list (List): _list of states for warm start_
+#             u_list (List): _list of controls for warm start_
+#             keys_to_track_list (List): _name of the points to track from the dictionnary_
+#             N (int): _Size of the window_
+#             dt (float): _Sampling rate of the data_
+#             dict_dof_to_keypoints (Dict): _a dictionnary linking frame of pinocchio model to measurements. Default to None if the pinocchio model has the same frame naming than the measurements_
+#             with_freeflyer (boolean): _tells if the pinocchio model has a ff or not. Default to True.
+#         """
         
-        self._model = model
-        self._nq = self._model.nq
-        self._nv = self._model.nv
-        self._data = self._model.createData()
-        self._deque_dict_m = deque_dict_m
-        self._x_list = x_list
-        self._u_list = u_list
-        self._keys_to_track_list = keys_to_track_list
-        self._N = N
-        self._dt = dt # TO SET UP : FRAMERATE OF THE DATA
+#         self._model = model
+#         self._nq = self._model.nq
+#         self._nv = self._model.nv
+#         self._data = self._model.createData()
+#         self._deque_dict_m = deque_dict_m
+#         self._x_list = x_list
+#         self._u_list = u_list
+#         self._keys_to_track_list = keys_to_track_list
+#         self._N = N
+#         self._dt = dt # TO SET UP : FRAMERATE OF THE DATA
 
-        # Ensure dict_dof_to_keypoints is either a valid dictionary or None
-        self._dict_dof_to_keypoints = dict_dof_to_keypoints if dict_dof_to_keypoints is not None else None
-        self._with_freeflyer = with_freeflyer
+#         # Ensure dict_dof_to_keypoints is either a valid dictionary or None
+#         self._dict_dof_to_keypoints = dict_dof_to_keypoints if dict_dof_to_keypoints is not None else None
+#         self._with_freeflyer = with_freeflyer
 
-        # Joint limits
-        self._qplus = casadi.DM(self._model.upperPositionLimit)
-        self._qminus = casadi.DM(self._model.lowerPositionLimit) 
+#         # Joint limits
+#         self._qplus = casadi.DM(self._model.upperPositionLimit)
+#         self._qminus = casadi.DM(self._model.lowerPositionLimit) 
 
-        # Casadi framework 
-        self._cmodel = cpin.Model(self._model)
-        self._cdata = self._cmodel.createData()
+#         # Casadi framework 
+#         self._cmodel = cpin.Model(self._model)
+#         self._cdata = self._cmodel.createData()
 
-        cq = casadi.SX.sym("q",self._nq) # q
-        cdq = casadi.SX.sym("dq",self._nv) # dq
+#         cq = casadi.SX.sym("q",self._nq) # q
+#         cdq = casadi.SX.sym("dq",self._nv) # dq
 
-        self._integrate = casadi.Function('integrate',[ cq,cdq ],[cpin.integrate(self._cmodel,cq,cdq) ])
+#         self._integrate = casadi.Function('integrate',[ cq,cdq ],[cpin.integrate(self._cmodel,cq,cdq) ])
 
-        cpin.framesForwardKinematics(self._cmodel, self._cdata, cq)
+#         cpin.framesForwardKinematics(self._cmodel, self._cdata, cq)
 
-        markers_est = []
-        for key in self._keys_to_track_list:
-            index_mk = self._cmodel.getFrameId(key)
-            if index_mk < len(self._model.frames.tolist()): # Check that the frame is in the model
-                markers_est = casadi.horzcat(markers_est,self._cdata.oMf[index_mk].translation) # Concatenate the markers positions, size (3 x Nb of markers)
+#         markers_est = []
+#         for key in self._keys_to_track_list:
+#             index_mk = self._cmodel.getFrameId(key)
+#             if index_mk < len(self._model.frames.tolist()): # Check that the frame is in the model
+#                 markers_est = casadi.horzcat(markers_est,self._cdata.oMf[index_mk].translation) # Concatenate the markers positions, size (3 x Nb of markers)
 
-        self._fmarkers_est = casadi.Function('function_markers_est', [cq], [casadi.reshape(markers_est, 1, len(self._keys_to_track_list)*3)]) # reorganize the markers as [x0, y0, z0, ..., xi, yi, zi, ..., xN, yN, zN], size (1 x 3*Nb of markers)
+#         self._fmarkers_est = casadi.Function('function_markers_est', [cq], [casadi.reshape(markers_est, 1, len(self._keys_to_track_list)*3)]) # reorganize the markers as [x0, y0, z0, ..., xi, yi, zi, ..., xN, yN, zN], size (1 x 3*Nb of markers)
 
-        self._fun = self.sp_setup()
+#         self._fun = self.sp_setup()
     
-    def sp_setup(self)->sp.Ocp.to_function:
-        # Define ocp 
-        ocp = sp.Ocp()
+#     def sp_setup(self)->sp.Ocp.to_function:
+#         # Define ocp 
+#         ocp = sp.Ocp()
 
-        # Define parameters 
-        X0 = ocp.parameter(self._nq+self._nv)
-        X_ws = ocp.parameter(self._nq+self._nv) 
-        U_ws = ocp.parameter(self._nv)
-        marker_meas = ocp.parameter(self._N, len(self._keys_to_track_list)*3)
+#         # Define parameters 
+#         X0 = ocp.parameter(self._nq+self._nv)
+#         X_ws = ocp.parameter(self._nq+self._nv) 
+#         U_ws = ocp.parameter(self._nv)
+#         marker_meas = ocp.parameter(self._N, len(self._keys_to_track_list)*3)
 
-        # Define variables
-        x = ocp.state(self._nq+self._nv)
-        u = ocp.control(self._nv)
-        dt = self._dt
-        N = self._N
+#         # Define variables
+#         x = ocp.state(self._nq+self._nv)
+#         u = ocp.control(self._nv)
+#         dt = self._dt
+#         N = self._N
 
-        # Define the dynamics
-        # Euler integration
-        qnext=self._integrate(x[:self._nq],x[self._nq:]*self._dt)
-        dqnext=x[self._nq:]+u*self._dt
-        xnext = casadi.vertcat(qnext,dqnext)
+#         # Define the dynamics
+#         # Euler integration
+#         qnext=self._integrate(x[:self._nq],x[self._nq:]*self._dt)
+#         dqnext=x[self._nq:]+u*self._dt
+#         xnext = casadi.vertcat(qnext,dqnext)
 
-        dyns = [xnext for i in range(N-1)]
+#         dyns = [xnext for i in range(N-1)]
 
-        # Define the cost function
-        costs = [10*casadi.sumsqr(marker_meas[i,:]-self._fmarkers_est(x[:self._nq])) + 1e-3*casadi.sumsqr(x-X0) + 1e-5*casadi.sumsqr(u) for i in range(N)]
+#         # Define the cost function
+#         costs = [10*casadi.sumsqr(marker_meas[i,:]-self._fmarkers_est(x[:self._nq])) + 1e-3*casadi.sumsqr(x-X0) + 1e-5*casadi.sumsqr(u) for i in range(N)]
         
-        # Define the constraints
-        if self._with_freeflyer:
-            constr = [casadi.vertcat(self._qminus[7:] <= x[7:self._nq], x[7:self._nq] <= self._qplus[7:]) for i in range(N)]
-        else:
-            constr = [casadi.vertcat(self._qminus <= x[:self._nq], x[:self._nq] <= self._qplus) for i in range(N)]
+#         # Define the constraints
+#         if self._with_freeflyer:
+#             constr = [casadi.vertcat(self._qminus[7:] <= x[7:self._nq], x[7:self._nq] <= self._qplus[7:]) for i in range(N)]
+#         else:
+#             constr = [casadi.vertcat(self._qminus <= x[:self._nq], x[:self._nq] <= self._qplus) for i in range(N)]
 
-        # Running stages 
-        for dyni, costi, contri in zip(dyns[:-1], costs[:-1], constr[:-1]):
-            ustagei = ocp.new_ustage()
-            ustagei.set_next(x, dyni)
-            ustagei.add_objective(costi)
-            ustagei.subject_to(contri)
+#         # Running stages 
+#         for dyni, costi, contri in zip(dyns[:-1], costs[:-1], constr[:-1]):
+#             ustagei = ocp.new_ustage()
+#             ustagei.set_next(x, dyni)
+#             ustagei.add_objective(costi)
+#             ustagei.subject_to(contri)
 
-        # Terminal stage 
-        ustageN = ocp.new_ustage()
-        ustageN.subject_to(constr[-1])
-        ustageN.add_objective(costs[-1])
+#         # Terminal stage 
+#         ustageN = ocp.new_ustage()
+#         ustageN.subject_to(constr[-1])
+#         ustageN.add_objective(costs[-1])
 
-        # Warm start 
-        ocp.set_initial(x,X_ws) 
-        ocp.set_initial(u,U_ws) 
+#         # Warm start 
+#         ocp.set_initial(x,X_ws) 
+#         ocp.set_initial(u,U_ws) 
 
-        ocp.solver("fatrop", {"expand":True, "jit":True}, {"warm_start_init_point":True, "bound_push":1e-7,"warm_start_mult_bound_push":1e-7,"tol":1e-3, "mu_init":1e-5})  #  
-        ocp_fun = ocp.to_function("ocp", [X_ws, U_ws, X0, marker_meas], [ocp.sample(x)[1], ocp.sample(u)[1]])
-        return ocp_fun
+#         ocp.solver("fatrop", {"expand":True, "jit":True}, {"warm_start_init_point":True, "bound_push":1e-7,"warm_start_mult_bound_push":1e-7,"tol":1e-3, "mu_init":1e-5})  #  
+#         ocp_fun = ocp.to_function("ocp", [X_ws, U_ws, X0, marker_meas], [ocp.sample(x)[1], ocp.sample(u)[1]])
+#         return ocp_fun
 
-    def solve_swika_fatrop(self)->tuple:
-        x_list = self._x_list
-        u_list = self._u_list
-        lstm_dict_list = list(self._deque_dict_m)
+#     def solve_swika_fatrop(self)->tuple:
+#         x_list = self._x_list
+#         u_list = self._u_list
+#         lstm_dict_list = list(self._deque_dict_m)
 
-        # Convert the list of dictionaries to a NumPy array
-        array_data = np.array([np.hstack([d[marker] for marker in self._keys_to_track_list]) for d in lstm_dict_list])
+#         # Convert the list of dictionaries to a NumPy array
+#         array_data = np.array([np.hstack([d[marker] for marker in self._keys_to_track_list]) for d in lstm_dict_list])
 
-        x_sol, u_sol = self._fun(np.array(x_list[-1]), np.array(u_list[-1]), np.array(x_list[-1]), array_data)
+#         x_sol, u_sol = self._fun(np.array(x_list[-1]), np.array(u_list[-1]), np.array(x_list[-1]), array_data)
 
-        return x_sol, u_sol
+#         return x_sol, u_sol
 

@@ -200,14 +200,14 @@ def main():
                 else :
                     keypoints_list.append(keypoints.reshape((26,2)).flatten())
                     
-                # if not visualize(
-                #         frame,
-                #         results,
-                #         args.output_dir,
-                #         idx,
-                #         frame_idx + idx,
-                #         skeleton_type=args.skeleton):
-                #     break
+                if not visualize(
+                        frame,
+                        results,
+                        args.output_dir,
+                        idx,
+                        frame_idx + idx,
+                        skeleton_type=args.skeleton):
+                    break
 
             if len(keypoints_list)!=2: #number of cams
                 pass

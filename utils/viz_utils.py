@@ -201,7 +201,7 @@ def visualize(frame,
               idx,
               frame_id,
               thr=0.5,
-              resize=1280,
+              resize=640,
               skeleton_type='coco'):
 
     skeleton = VISUALIZATION_CFG[skeleton_type]['skeleton']
