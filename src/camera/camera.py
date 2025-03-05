@@ -93,10 +93,17 @@ class Camera(Process):
             cap.release()
 
 class DisplayConsumer(Process):
-    def __init__(self, camera_buffers, camera_locks, stop_event, frame_shape, num_cameras):
+    def __init__(self, 
+                 camera_buffers, 
+                 camera_locks, 
+                 timestamp_buffers, 
+                 stop_event, 
+                 frame_shape, 
+                 num_cameras):
         super().__init__()
         self.camera_buffers = camera_buffers
         self.camera_locks = camera_locks
+        self.timestamp_buffers = timestamp_buffers
         self.frame_shape = frame_shape  # (height, width, channels)
         self.num_cameras = num_cameras
         self.stop_event = stop_event
@@ -120,8 +127,7 @@ class DisplayConsumer(Process):
                         # Optimization 2: Add timestamp overlay
                         ########################################
                         # Get current timestamp
-                        from datetime import datetime
-                        timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S.%f")[:-3]
+                        timestamp = self.timestamp_buffers[i][:26].decode('utf-8').strip('\0')
                         
                         # Add text overlay (white text with black background)
                         cv2.putText(frame, timestamp, (10, 30), 

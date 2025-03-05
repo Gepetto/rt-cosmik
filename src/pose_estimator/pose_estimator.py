@@ -6,6 +6,7 @@ from typing import List, Tuple
 import time
 from src.utils.linear_algebra_utils import reproject, concat_frames, reproject_four_frames, reproject
 from multiprocessing import Process, Value
+import torch
 
 class PoseTrackerEstimator:
     def __init__(self, det_model, pose_model, device='cuda', thr=0.1, skeleton = 'body26'):
@@ -126,6 +127,50 @@ class BatchPoseTrackerEstimator:
 
         return True
 
+class PoseTrackerProcess(Process):
+    def __init__(self, 
+                 DET_MODEL_PATH, 
+                 POSE_MODEL_PATH, 
+                 cam_id, 
+                 camera_buffer, 
+                 camera_lock, 
+                 camera_frame_counter, 
+                 timestamp_buffer,
+                 result_queue, 
+                 stop_event, 
+                 frame_shape, 
+                 ):
+        super().__init__()
+        self.cam_id = cam_id
+        self.camera_buffer = camera_buffer
+        self.camera_lock = camera_lock
+        self.camera_frame_counter = camera_frame_counter
+        self.timestamp_buffer = timestamp_buffer
+        self.frame_shape = frame_shape  # (height, width, channels)
+        self.result_queue = result_queue
+        self.stop_event = stop_event
+
+        self.device = 'cuda' if torch.cuda.is_available() else 'cpu'
+        self.tracker = PoseTrackerEstimator(DET_MODEL_PATH, POSE_MODEL_PATH, device=self.device)
+
+        # State tracking
+        self.last_processed = 0  # Last processed frame number
+
+    def run(self):
+        try:
+            while not self.stop_event.is_set():
+                with self.camera_lock:
+                    arr = np.frombuffer(self.camera_buffer, dtype=np.uint8)
+                    frame = arr.reshape(self.frame_shape).copy()
+                    timestamp = self.timestamp_buffer[:26].decode('utf-8').strip('\0')
+
+                    if self.camera_frame_counter.value > self.last_processed:
+                        results = self.tracker.estimate(frame)
+                        self.result_queue.put((timestamp, results))
+                        self.last_processed = self.camera_frame_counter.value
+        finally:
+            pass
+                
 class DisplayPoseTracker(Process):
     def __init__(self, DET_MODEL_PATH, POSE_MODEL_PATH, camera_buffers, camera_locks, stop_event, frame_shape, num_cameras):
         super().__init__()
