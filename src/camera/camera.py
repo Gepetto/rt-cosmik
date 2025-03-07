@@ -35,7 +35,6 @@ class Camera(Process):
             raise ValueError("Timestamp buffer must be exactly 26 characters")
 
     def run(self):
-        self.barrier.wait()
         # Initialize camera once at start
         cap = cv2.VideoCapture(self.cam_id, cv2.CAP_V4L2)
 
@@ -63,6 +62,8 @@ class Camera(Process):
                 f"Buffer size mismatch. Expected {expected_size} elements, "
                 f"got {actual_size}. Check frame_shape: {self.frame_shape}"
             )
+        
+        self.barrier.wait()
 
         # Main capture loop
         try: 
