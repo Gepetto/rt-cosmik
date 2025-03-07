@@ -10,7 +10,7 @@ import torch
 import queue
 
 class PoseTrackerEstimator:
-    def __init__(self, det_model, pose_model, device='cuda', thr=0.3, skeleton = 'body26'):
+    def __init__(self, det_model, pose_model, device='cuda', thr=0.1, skeleton = 'body26'):
         self._det_model = det_model
         self._pose_model = pose_model
         self._device = device
@@ -83,9 +83,9 @@ class BatchPoseTrackerEstimator:
         self.states =  [self.tracker.create_state(det_interval=1, det_min_bbox_size=100, keypoint_sigmas=self.sigmas) for _ in range(batch_size)]
 
     def estimate(self, frames: List[np.ndarray])-> Tuple[np.ndarray, np.ndarray, np.ndarray]:
-        t0 = time.time()
+        # t0 = time.time()
         results = self.tracker.batch(self.states, frames, detects=[-1]*self._batch_size)
-        print("time of inference :", time.time()-t0)
+        # print("time of inference :", time.time()-t0)
         # keypoints, bboxes, _ = results
         # keypoints = (keypoints[..., :2] ).astype(float)
         return results
