@@ -10,7 +10,7 @@ import torch
 import queue
 
 class PoseTrackerEstimator:
-    def __init__(self, det_model, pose_model, device='cuda', thr=0.1, skeleton = 'body26'):
+    def __init__(self, det_model, pose_model, device='cuda', thr=0.3, skeleton = 'body26'):
         self._det_model = det_model
         self._pose_model = pose_model
         self._device = device

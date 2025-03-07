@@ -7,7 +7,7 @@ from settings import Settings
 settings=Settings()
 import os 
 # Get the directory where the script is located
-script_directory = os.path.dirname(os.path.abspath(__file__))
+script_directory = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 class VideoBenchmarker:
     def __init__(self, video_paths, det_model, pose_model):
