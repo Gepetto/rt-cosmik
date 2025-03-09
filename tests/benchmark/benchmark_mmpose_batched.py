@@ -2,39 +2,36 @@ import cv2
 import time
 import numpy as np
 from multiprocessing import Process, Queue, Event, Barrier, set_start_method
-from src.pose_estimator.pose_estimator import PoseTrackerEstimator
+from src.pose_estimator.pose_estimator import BatchPoseTrackerEstimator
 from settings import Settings
 import os 
 
 script_directory = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 settings = Settings()
 
-def worker_fn(worker_id, video_path, det_model, pose_model, barrier, result_queue, stop_event):
+def worker_fn(video_paths, det_model, pose_model, barrier, result_queue, stop_event):
     """Worker process handling video processing"""
-    print(f"Beginning for worker {worker_id}")
-    cap = cv2.VideoCapture(video_path)
-    tracker = PoseTrackerEstimator(det_model, pose_model)
+    print(f"Beginning for worker")
+    caps = [cv2.VideoCapture(video_path) for video_path in video_paths]
+    tracker = BatchPoseTrackerEstimator(len(video_paths),det_model, pose_model)
     
     # Warmup
-    _ = tracker.estimate(np.zeros((720, 1280, 3), dtype=np.uint8))
+    _ = tracker.estimate([np.zeros((720, 1280, 3), dtype=np.uint8) for _ in range(len(video_paths))])
     
     while not stop_event.is_set():
         barrier.wait()  # Sync to start processing
-        ret, frame = cap.read()
-        if not ret:
-            break
-        
+        frames = [cap.read()[1] for cap in caps]
+
         start_time = time.perf_counter()
-        results, _ = tracker.estimate(frame)
-        # if not tracker.visualize(frame,results,worker_id):
+        results = tracker.estimate(frames)
+        # if not tracker.visualize(frames,results):
         #     break
         end_time = time.perf_counter()
         
-        result_queue.put((worker_id, start_time, end_time, results))
-        
         barrier.wait()  # Sync after processing
     
-    cap.release()
+    for cap in caps:
+        cap.release()
 
 class VideoBenchmarker:
     def __init__(self, video_paths, det_model, pose_model, barrier, result_queue, stop_event):
@@ -45,8 +42,8 @@ class VideoBenchmarker:
         self.workers = [
             Process(
                 target=worker_fn,
-                args=(i, video_path, det_model, pose_model, barrier, result_queue, stop_event)
-            ) for i, video_path in enumerate(video_paths)
+                args=(video_paths, det_model, pose_model, barrier, result_queue, stop_event)
+            )
         ]
 
     def run_benchmark(self):
@@ -83,7 +80,7 @@ def main():
     POSE_MODEL = settings.pose_model_path
 
     # Using 'fork' start method by default on Linux
-    barrier = Barrier(len(VIDEO_PATHS) + 1)  # +1 for main process
+    barrier = Barrier(2)  # +1 for main process
     result_queue = Queue()
     stop_event = Event()
 

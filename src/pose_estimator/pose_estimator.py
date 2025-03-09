@@ -10,7 +10,7 @@ import torch
 import queue
 
 class PoseTrackerEstimator:
-    def __init__(self, det_model, pose_model, device='cuda', thr=0.3, skeleton = 'body26'):
+    def __init__(self, det_model, pose_model, device='cuda', thr=0.1, skeleton = 'body26'):
         self._det_model = det_model
         self._pose_model = pose_model
         self._device = device
@@ -22,13 +22,8 @@ class PoseTrackerEstimator:
         self.state =  self.tracker.create_state(det_interval=1, det_min_bbox_size=100, keypoint_sigmas=self.sigmas)
 
     def estimate(self, frame):
-        t0 = time.time()
         results = self.tracker(self.state, frame, detect=-1)
-        t_inf = time.time()-t0
-        # print("time of inference :", t_inf)
-        # keypoints, bboxes, _ = results
-        # keypoints = (keypoints[..., :2] ).astype(float)
-        return results, t_inf
+        return results
     
     def visualize(self, 
                   frame,
@@ -83,11 +78,7 @@ class BatchPoseTrackerEstimator:
         self.states =  [self.tracker.create_state(det_interval=1, det_min_bbox_size=100, keypoint_sigmas=self.sigmas) for _ in range(batch_size)]
 
     def estimate(self, frames: List[np.ndarray])-> Tuple[np.ndarray, np.ndarray, np.ndarray]:
-        t0 = time.time()
         results = self.tracker.batch(self.states, frames, detects=[-1]*self._batch_size)
-        print("time of inference :", time.time()-t0)
-        # keypoints, bboxes, _ = results
-        # keypoints = (keypoints[..., :2] ).astype(float)
         return results
     
     def visualize(self, 
@@ -193,6 +184,61 @@ class PoseTrackerProcess(Process):
                 self.last_processed = current_counter
             else:
                 time.sleep(0.001) # prevent CPU hogging
+
+class BatchPoseTrackerProcess(Process):
+    def __init__(self, 
+                 DET_MODEL_PATH, 
+                 POSE_MODEL_PATH, 
+                 camera_buffers, 
+                 camera_timestamps,
+                 camera_locks, 
+                 stop_event, 
+                 frame_shape, 
+                 num_cameras,
+                 ):
+        super().__init__()
+        self.DET_MODEL_PATH = DET_MODEL_PATH
+        self.POSE_MODEL_PATH = POSE_MODEL_PATH
+        self.camera_buffers = camera_buffers
+        self.camera_timestamps = camera_timestamps
+        self.camera_locks = camera_locks
+        self.frame_shape = frame_shape  # (height, width, channels)
+        self.stop_event = stop_event
+        self.num_cameras = num_cameras
+
+        self.device = 'cuda' if torch.cuda.is_available() else 'cpu'
+
+    def run(self):
+        self.tracker = BatchPoseTrackerEstimator(self.num_cameras,self.DET_MODEL_PATH, self.POSE_MODEL_PATH, device=self.device)
+        # Warmup
+        _ = self.tracker.estimate([np.zeros(self.frame_shape, dtype=np.uint8) for _ in range(self.num_cameras)])
+
+        try:
+            while not self.stop_event.is_set():
+                    frames = []
+                    for lock, buffer, cam_ts in zip(self.camera_locks, self.camera_buffers, self.camera_timestamps):
+                        with lock:
+                            # Read and copy shared data atomically
+                            arr = np.frombuffer(buffer, dtype=np.uint8)
+                            frame = arr.reshape(self.frame_shape).copy()
+                            # Get current timestamp
+                            timestamp = bytes(cam_ts[:]).decode().strip('\x00')
+                            # Add timestamp overlay (white text with black outline for readability)
+                            cv2.putText(frame, timestamp, (10, 30),
+                                        cv2.FONT_HERSHEY_SIMPLEX, 0.6,
+                                        (0, 0, 0), 4, lineType=cv2.LINE_AA)
+                            cv2.putText(frame, timestamp, (10, 30),
+                                        cv2.FONT_HERSHEY_SIMPLEX, 0.6,
+                                    (255, 255, 255), 2, lineType=cv2.LINE_AA)
+                            frames.append(frame)
+
+                    # Perform heavy processing without holding the lock
+                    results = self.tracker.estimate(frames)
+                    if not self.tracker.visualize(frames, results):
+                        break
+        finally:        
+            cv2.destroyAllWindows()
+
                 
 class DisplayPoseTracker(Process):
     def __init__(self, 
