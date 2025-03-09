@@ -3,7 +3,7 @@ settings = Settings()
 
 from src.camera.cam_utils import list_cameras
 from src.camera.camera import Camera, DisplayConsumer
-from src.utils.mp_utils import create_camera_shared_ressources
+from src.utils.mp_utils import create_camera_shared_ressources, create_pipeline_shared_ressources
 from src.saver.video_saver import VideoSaverProcess
 from src.pipeline import PipelineProcess
 
@@ -14,6 +14,8 @@ def main():
 
     camera_buffers, camera_timestamps, camera_locks, frame_counters, camera_barrier, stop_event = create_camera_shared_ressources(NUM_CAMERAS, FRAME_SHAPE)
     
+    results_queues = create_pipeline_shared_ressources()
+
     # Create camera processes
     camera_processes = [
         Camera(list(cameras.keys())[i], 
