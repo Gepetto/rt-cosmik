@@ -13,7 +13,6 @@ def main():
     FRAME_SHAPE = (settings.height, settings.width, 3)
 
     camera_buffers, camera_timestamps, camera_locks, frame_counters, camera_barrier, stop_event = create_camera_shared_ressources(NUM_CAMERAS, FRAME_SHAPE)
-    
     results_queues = create_pipeline_shared_ressources()
 
     # Create camera processes
@@ -46,7 +45,15 @@ def main():
             )
             video_savers.append(vs)
     
-    pipeline = 
+    pipeline = PipelineProcess(settings,
+                               camera_buffers,
+                               camera_timestamps,
+                               camera_locks,
+                               frame_counters,
+                               results_queues,
+                               stop_event,
+                               frame_shape=FRAME_SHAPE,
+                               num_cameras=NUM_CAM)
 
     processes = camera_processes + video_savers + [pipeline]
 
