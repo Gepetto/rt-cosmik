@@ -1,6 +1,10 @@
 from dataclasses import dataclass, field
+import os 
+
 @dataclass
 class Settings:
+    cosmik_path: str = field(init=False)
+    
     # SAVE 
     SAVE_VID: bool = False
     SAVE_CSV: bool = False
@@ -17,9 +21,9 @@ class Settings:
     viewer: str = "gv" # viewer type: gv or ros
     
     # CALIB
-    cam_calib_path: str = "" # relative path to the camera calibration file
-    human_calib_path: str = "" # relative path to the human calibration file
-    robot_calib_path: str = "" # relative path to the robot calibration file
+    cam_calib_path: str = field(init=False) # relative path to the camera calibration file
+    human_calib_path: str = field(init=False)  # relative path to the human calibration file
+    robot_calib_path: str = field(init=False)  # relative path to the robot calibration file
 
     # FILTER PARAMS
     order: int = 4
@@ -28,6 +32,9 @@ class Settings:
     filter_type: str = "lowpass"
 
     # IK AND DATA HANDLING
+    # Ik type
+    ik_type: str = 'mhe' # either 'mhe' for SWIKA or 'qp' for sample by sample qp
+    
     # For planar case 
     side_to_track: str =  "right" # bilateral (if we want to track both side, i.e., lifting), right or left
 
@@ -44,6 +51,9 @@ class Settings:
     ])
     
     # OPENCAP 
+    # AUGMENTER MODEL 
+    augmenter_model: str = field(init=False)
+
     # HUMAN ANTHROPOMETRY
     human_height: float = 1.81
     human_mass: float = 74.0   
@@ -86,5 +96,8 @@ class Settings:
 
     def __post_init__(self):
         self.dt = 1 / self.fps  # Compute `dt` after initialization
-
-
+        self.cosmik_path =  os.path.dirname(os.path.abspath(__file__))
+        self.cam_calib_path = os.path.join(self.cosmik_path,"config/cam_params")
+        self.human_calib_path = os.path.join(self.cosmik_path,"config/human_params")
+        self.robot_calib_path = os.path.join(self.cosmik_path,"config/robot_params")
+        self.augmenter_path = os.path.join(self.cosmik_path,"src/augmenter/augmentation_model")
