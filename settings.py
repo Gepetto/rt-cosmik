@@ -101,5 +101,5 @@ class Settings:
         self.cam_calib_path = str(Path(self.cosmik_path) / "config/cam_params")
         self.human_calib_path = str(Path(self.cosmik_path) / "config/human_params")
         self.robot_calib_path = str(Path(self.cosmik_path) / "config/robot_params")
-        self.augmenter_path = str(Path(self.cosmik_path) / "src/augmenter/augmentation_model")
+        self.augmenter_path = str(Path(self.cosmik_path) / "src/rtcosmik/augmenter/augmentation_model")
         self.dt = 1 / self.fs
