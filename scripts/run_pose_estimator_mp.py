@@ -1,7 +1,5 @@
-from settings import Settings
-settings = Settings()
-
 import time
+from src.rtcosmik.config_loader import settings
 from src.rtcosmik.camera.cam_utils import list_cameras
 from src.rtcosmik.camera.camera import Camera
 from src.rtcosmik.pose_estimator.pose_estimator import DisplayPoseTracker, PoseTrackerProcess

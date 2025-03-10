@@ -7,20 +7,18 @@ setup(
     version='0.1.0',
     packages=find_packages(where='src'),
     package_dir={'': 'src'},
+    scripts=[os.path.join('scripts', f) for f in os.listdir('scripts') if f.endswith('.py')],
     
-    # Install executable scripts
-    scripts=[f'scripts/{f}' for f in os.listdir('scripts') if f.endswith('.py')],
-    
-    # ROS data files
+    # Include settings.py as package data
     data_files=[
-        (os.path.join('share', 'rtcosmik'), ['package.xml']),
-        (os.path.join('share', 'rtcosmik/launch'), glob('launch/*')),
-        (os.path.join('share', 'rtcosmik/config'), glob('config/*')),
+        ('share/rtcosmik', ['settings.py']),  # For installed version
+        (os.path.join('share', 'rtcosmik'), glob('config/*')),
+        (os.path.join('share', 'rtcosmik'), glob('launch/*')),
     ],
     
     install_requires=[
         'numpy',
         'opencv-python',
-        # Add other ROS/python dependencies from package.xml
+        'dataclasses; python_version<"3.7"',
     ],
 )

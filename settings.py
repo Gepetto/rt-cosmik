@@ -1,5 +1,6 @@
 from dataclasses import dataclass, field
 import os 
+from pathlib import Path
 
 @dataclass
 class Settings:
@@ -95,9 +96,10 @@ class Settings:
 
 
     def __post_init__(self):
-        self.dt = 1 / self.fps  # Compute `dt` after initialization
-        self.cosmik_path =  os.path.dirname(os.path.abspath(__file__))
-        self.cam_calib_path = os.path.join(self.cosmik_path,"config/cam_params")
-        self.human_calib_path = os.path.join(self.cosmik_path,"config/human_params")
-        self.robot_calib_path = os.path.join(self.cosmik_path,"config/robot_params")
-        self.augmenter_path = os.path.join(self.cosmik_path,"src/augmenter/augmentation_model")
+        # Use Pathlib for better path handling
+        self.cosmik_path = str(Path(__file__).parent.resolve())
+        self.cam_calib_path = str(Path(self.cosmik_path) / "config/cam_params")
+        self.human_calib_path = str(Path(self.cosmik_path) / "config/human_params")
+        self.robot_calib_path = str(Path(self.cosmik_path) / "config/robot_params")
+        self.augmenter_path = str(Path(self.cosmik_path) / "src/augmenter/augmentation_model")
+        self.dt = 1 / self.fps

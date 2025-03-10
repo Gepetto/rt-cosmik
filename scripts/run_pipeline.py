@@ -1,6 +1,4 @@
-from settings import Settings
-settings = Settings()
-
+from src.rtcosmik.config_loader import settings
 from src.rtcosmik.camera.cam_utils import list_cameras
 from src.rtcosmik.camera.camera import Camera, DisplayConsumer
 from src.rtcosmik.utils.mp_utils import create_camera_shared_ressources, create_pipeline_shared_ressources
