@@ -34,7 +34,12 @@ class Settings:
 
     # IK AND DATA HANDLING
     # Ik type
-    ik_type: str = 'mhe' # either 'mhe' for SWIKA or 'qp' for sample by sample qp
+    ik_type: str ="mhe" # either "mhe" for SWIKA or "sbs" for sample by sample qp
+    
+    # if ik_type = "mhe"
+    ik_code: str = "python" # either "python" or "c" 
+    cost_weights: list = field(default_factory=lambda: [1, 1e-3, 1e-5])
+    N: int = 10 # number of time steps
     
     # For planar case 
     side_to_track: str =  "right" # bilateral (if we want to track both side, i.e., lifting), right or left

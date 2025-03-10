@@ -27,6 +27,7 @@ class PipelineProcess(Process):
                  num_cameras: int = 2
                  ):
         super().__init__()
+        # Settings related parameters
         self.DET_MODEL_PATH = settings.det_model_path
         self.POSE_MODEL_PATH = settings.pose_model_path
         self.AUGMENTER_PATH = settings.augmenter_path
@@ -39,6 +40,9 @@ class PipelineProcess(Process):
         self.dt = settings.dt
         self.keys_to_track_list = settings.keys_to_track_list
         self.ik_type = settings.ik_type
+        self.ik_code = settings.ik_code
+        self.cost_weights = settings.cost_weights
+        self.N = settings.N
 
         self.device = 'cuda' if torch.cuda.is_available() else 'cpu'
 
@@ -142,7 +146,7 @@ class PipelineProcess(Process):
                                 
                                 self.human_model = rescale_human_model(self.human_model, mks_dict)
                                 
-                                if self.ik_type == 'qp':
+                                if self.ik_type == 'sbs':
                                     q = pin.neutral(self.human_model)
                                     ik_class = RT_IK(self.human_model, mks_dict, q, self.keys_to_track_list, self.dt)
 
@@ -150,21 +154,32 @@ class PipelineProcess(Process):
                                     ik_class._q0 = q
 
                                 elif self.ik_type == 'mhe':
-                                    pass
+                                    ik_class = RT_SWIKA(self.human_model, self.keys_to_track_list, self.N)
+
+                                    x_array = np.zeros((self.human_model.nq+self.human_model.nv, self.N))
+                                    x_array[6,:]=1
+                                    u_array = np.zeros((self.human_model.nv, self.N))
+                                    deque_lstm_dict = deque(maxlen=self.N)
+                                    for k in range(self.N):
+                                        deque_lstm_dict.append(mks_dict)
+
+                                    array_data = np.array([np.hstack([d[marker] for marker in self.keys_to_track_list]) for d in deque_lstm_dict]).T
+
+                                    x_array, u_array = ik_class.solve(x_array, u_array, array_data, x_array[:,-1], self.cost_weights, self.dt)
 
                                 else : 
-                                    raise ValueError("Invalid ik type, should be qp or mhe")
+                                    raise ValueError("Invalid ik type, should be sbs (sample by sample) or mhe (moving horizon estimation)")
 
                                 self.first_sample = False
                             
                             else:
-                                if self.ik_type == 'qp':
-                                    kp_dict = dict(zip(self.keypoints_names,filtered_keypoints_buffer[-1]))
-                                    self.results_queues[0].put((output_time_str, kp_dict))
+                                kp_dict = dict(zip(self.keypoints_names,filtered_keypoints_buffer[-1]))
+                                self.results_queues[0].put((output_time_str, kp_dict))
 
-                                    mks_dict = dict(zip(self.marker_names, augmented_markers))
-                                    self.results_queues[1].put((output_time_str, mks_dict))
-                                    
+                                mks_dict = dict(zip(self.marker_names, augmented_markers))
+                                self.results_queues[1].put((output_time_str, mks_dict))
+                                
+                                if self.ik_type == 'sbs':
                                     ### IK calculations
                                     ik_class._dict_m = mks_dict
                                     q = ik_class.solve_ik_sample_quadprog() 
@@ -172,10 +187,14 @@ class PipelineProcess(Process):
                                     ik_class._q0 = q
                                     
                                 elif self.ik_type == 'mhe':
-                                    pass
+                                    deque_lstm_dict.append(mks_dict)
+                                    array_data = np.array([np.hstack([d[marker] for marker in self.keys_to_track_list]) for d in deque_lstm_dict]).T
+                                    x_array, u_array = ik_class.solve(x_array, u_array, array_data, x_array[:,-1], self.cost_weights, self.dt)
 
+                                    q = x_array[:self.human_model.nq,-1]
+                                    self.results_queues[2].put((output_time_str, q))
                                 else : 
-                                    raise ValueError("Invalid ik type, should be qp or mhe")
+                                    raise ValueError("Invalid ik type, should be sbs (sample by sample) or mhe (moving horizon estimation)")
 
         finally: 
             print("Pipeline process stopped")       
