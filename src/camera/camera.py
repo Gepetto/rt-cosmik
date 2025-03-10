@@ -92,6 +92,7 @@ class Camera(Process):
 
         finally:
             cap.release()
+            print(f"Process for Camera {self.cam_id} terminated.")
 
 class DisplayConsumer(Process):
     def __init__(self, 
@@ -160,3 +161,4 @@ class DisplayConsumer(Process):
                     break
         finally:        
             cv2.destroyAllWindows()
+            print("Display process terminated.")

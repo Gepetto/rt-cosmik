@@ -238,6 +238,7 @@ class BatchPoseTrackerProcess(Process):
                         break
         finally:        
             cv2.destroyAllWindows()
+            print(f"Process for BatchPoseTracker terminated.")
 
                 
 class DisplayPoseTracker(Process):
@@ -333,6 +334,7 @@ class DisplayPoseTracker(Process):
                     break
         finally:        
             cv2.destroyAllWindows()
+            print(f"Process for DisplayPoseTracker terminated.")
 
     def _visualize(self, 
                   frame,

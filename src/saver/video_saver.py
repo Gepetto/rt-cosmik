@@ -78,3 +78,4 @@ class VideoSaverProcess(Process):
         
         finally:
             vs.close()
+            print(f"VideoSaverProcess for Camera {self.camera_id} terminated.")

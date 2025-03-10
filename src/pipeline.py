@@ -3,6 +3,7 @@ from src.augmenter.marker_augmenter import augmentTRC, loadModel
 from src.filtering.iir import IIR
 from src.ik.ik import RT_IK, RT_SWIKA
 from src.utils.calib_utils import load_camera_parameters,load_world_transformation
+from src.human_model.human_model import build_dummy_model, rescale_human_model
 
 from settings import Settings
 from collections import dequeu
@@ -79,83 +80,86 @@ class PipelineProcess(Process):
             _ = self.tracker.estimate([np.zeros(self.frame_shape, dtype=np.uint8) for _ in range(self.num_cameras)])
 
             try:
-            while not self.stop_event.is_set():
-                    frames = []
-                    timestamps = []
-                    keypoints_list = []
-                    for lock, buffer, cam_ts in zip(self.camera_locks, self.camera_buffers, self.camera_timestamps):
-                        with lock:
-                            # Read and copy shared data atomically
-                            arr = np.frombuffer(buffer, dtype=np.uint8)
-                            frame = arr.reshape(self.frame_shape).copy()
-                            # Get current timestamp
-                            timestamp = bytes(cam_ts[:]).decode().strip('\x00')
-                            frames.append(frame)
-                            timestamps.append(timestamp)
-                    
-                    results = self.tracker.estimate(frames)
-
-                    if results is None:
-                        pass
-                    else :
-                        for res in results: 
-                            keypoints_list.append(res[..., :2].astype(float))
-
-                        keypoints_in_cam = triangulate_points(keypoints_list, self.mtxs, self.dists, self.projections)
-                        keypoints_in_world = np.array([np.dot(self.world_R1_cam,point) + self.world_T1_cam for point in keypoints_in_cam])
-
-                        if self.first_sample:
-                            for k in range(self.buffer_max_len):
-                                self.keypoints_buffer.append(keypoints_in_world)  #add the 1st frame 30 times
-                        else:
-                            self.keypoints_buffer.append(keypoints_in_world) #add the keypoints to the buffer normally 
+                while not self.stop_event.is_set():
+                        frames = []
+                        timestamps = []
+                        keypoints_list = []
+                        for lock, buffer, cam_ts in zip(self.camera_locks, self.camera_buffers, self.camera_timestamps):
+                            with lock:
+                                # Read and copy shared data atomically
+                                arr = np.frombuffer(buffer, dtype=np.uint8)
+                                frame = arr.reshape(self.frame_shape).copy()
+                                # Get current timestamp
+                                timestamp = bytes(cam_ts[:]).decode().strip('\x00')
+                                frames.append(frame)
+                                timestamps.append(timestamp)
                         
-                        if len(self.keypoints_buffer) == self.buffer_max_len:
-                            keypoints_buffer_array = np.array(self.keypoints_buffer)
+                        results = self.tracker.estimate(frames)
 
-                            # Filter keypoints in world to remove noisy artefacts 
-                            filtered_keypoints_buffer = self.iir_filter.filter(np.reshape(keypoints_buffer_array,(self.buffer_max_len, 3*len(self.keypoints_names))))
-                            filtered_keypoints_buffer = np.reshape(filtered_keypoints_buffer,(self.buffer_max_len, len(self.keypoints_names), 3))
+                        if results is None:
+                            pass
+                        else :
+                            for res in results: 
+                                keypoints_list.append(res[..., :2].astype(float))
 
-                            augmented_markers = augmentTRC(filtered_keypoints_buffer, subject_mass=self.subject_mass, subject_height=self.subject_height, models = self.warmed_augmenter_model,
-                                        augmenterDir=self.AUGMENTER_PATH, augmenter_model='v0.3')
-                            
-                            if len(augmented_markers) % 3 != 0:
-                                raise ValueError("The length of the list must be divisible by 3.")
-
-                            augmented_markers = np.array(augmented_markers).reshape(-1, 3)
+                            keypoints_in_cam = triangulate_points(keypoints_list, self.mtxs, self.dists, self.projections)
+                            keypoints_in_world = np.array([np.dot(self.world_R1_cam,point) + self.world_T1_cam for point in keypoints_in_cam])
 
                             if self.first_sample:
-                                kp_dict = dict(zip(self.keypoints_names,filtered_keypoints_buffer[-1]))
-                                mks_dict = dict(zip(self.marker_names, augmented_markers))
-                                
-                                self.human_model = rescale_human_model(self.human_model, kp_dict, mks_dict)
-                                
-                                if self.ik_type == 'qp':
-                                    q = pin.neutral(self.human_model)
-                                    ik_class = RT_IK(self.human_model, mks_dict, q, self.keys_to_track_list, self.dt)
-
-                                    q = ik_class.solve_ik_sample_casadi()
-                                    ik_class._q0 = q
-
-                                elif self.ik_type == 'mhe':
-
-                                else : 
-                                    raise ValueError("Invalid ik type, should be qp or mhe")
-
-                                self.first_sample = False
-                            
+                                for k in range(self.buffer_max_len):
+                                    self.keypoints_buffer.append(keypoints_in_world)  #add the 1st frame 30 times
                             else:
-                                if self.ik_type == 'qp':
-                                    kp_dict = dict(zip(keypoints_names,filtered_keypoints_buffer[-1]))
-                                    mks_dict = dict(zip(marker_names, augmented_markers))
-                                    
-                                    ### IK calculations
-                                    ik_class._dict_m= mks_dict
-                                    q = ik_class.solve_ik_sample_quadprog() 
-                                    ik_class._q0 = q
-                                    
-                                elif self.ik_type == 'mhe':
+                                self.keypoints_buffer.append(keypoints_in_world) #add the keypoints to the buffer normally 
+                            
+                            if len(self.keypoints_buffer) == self.buffer_max_len:
+                                keypoints_buffer_array = np.array(self.keypoints_buffer)
 
-                                else : 
-                                    raise ValueError("Invalid ik type, should be qp or mhe")
+                                # Filter keypoints in world to remove noisy artefacts 
+                                filtered_keypoints_buffer = self.iir_filter.filter(np.reshape(keypoints_buffer_array,(self.buffer_max_len, 3*len(self.keypoints_names))))
+                                filtered_keypoints_buffer = np.reshape(filtered_keypoints_buffer,(self.buffer_max_len, len(self.keypoints_names), 3))
+
+                                augmented_markers = augmentTRC(filtered_keypoints_buffer, subject_mass=self.subject_mass, subject_height=self.subject_height, models = self.warmed_augmenter_model,
+                                            augmenterDir=self.AUGMENTER_PATH, augmenter_model='v0.3')
+                                
+                                if len(augmented_markers) % 3 != 0:
+                                    raise ValueError("The length of the list must be divisible by 3.")
+
+                                augmented_markers = np.array(augmented_markers).reshape(-1, 3)
+
+                                if self.first_sample:
+                                    kp_dict = dict(zip(self.keypoints_names,filtered_keypoints_buffer[-1]))
+                                    mks_dict = dict(zip(self.marker_names, augmented_markers))
+                                    
+                                    self.human_model = rescale_human_model(self.human_model, kp_dict, mks_dict)
+                                    
+                                    if self.ik_type == 'qp':
+                                        q = pin.neutral(self.human_model)
+                                        ik_class = RT_IK(self.human_model, mks_dict, q, self.keys_to_track_list, self.dt)
+
+                                        q = ik_class.solve_ik_sample_casadi()
+                                        ik_class._q0 = q
+
+                                    elif self.ik_type == 'mhe':
+
+                                    else : 
+                                        raise ValueError("Invalid ik type, should be qp or mhe")
+
+                                    self.first_sample = False
+                                
+                                else:
+                                    if self.ik_type == 'qp':
+                                        kp_dict = dict(zip(keypoints_names,filtered_keypoints_buffer[-1]))
+                                        mks_dict = dict(zip(marker_names, augmented_markers))
+                                        
+                                        ### IK calculations
+                                        ik_class._dict_m = mks_dict
+                                        q = ik_class.solve_ik_sample_quadprog() 
+                                        ik_class._q0 = q
+                                        
+                                    elif self.ik_type == 'mhe':
+
+                                    else : 
+                                        raise ValueError("Invalid ik type, should be qp or mhe")
+
+            finally: 
+                print("Pipeline process stopped")       
