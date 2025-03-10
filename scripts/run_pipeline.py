@@ -7,6 +7,9 @@ from src.utils.mp_utils import create_camera_shared_ressources, create_pipeline_
 from src.saver.video_saver import VideoSaverProcess
 from src.pipeline import PipelineProcess
 
+import time
+from multiprocessing import set_start_method
+
 def main():
     cameras = list_cameras()
     NUM_CAMERAS = len(cameras)
@@ -53,7 +56,7 @@ def main():
                                results_queues,
                                stop_event,
                                frame_shape=FRAME_SHAPE,
-                               num_cameras=NUM_CAM)
+                               num_cameras=NUM_CAMERAS)
 
     processes = camera_processes + video_savers + [pipeline]
 
