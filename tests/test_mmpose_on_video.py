@@ -3,7 +3,7 @@ import cv2
 
 DET_MODEL_PATH = '/root/workspace/mmdeploy/rtmpose-trt/rtmdet-nano'
 POSE_MODEL_PATH = '/root/workspace/mmdeploy/rtmpose-trt/rtmpose-m'
-VIDEO_PATH = '/root/workspace/ros_ws/src/rt-cosmik/tests/videos/andy.mp4'
+VIDEO_PATH = '/root/workspace/ros_ws/src/rt-cosmik/tests/videos/bedlam.mp4'
 
 pose_estimator = PoseTrackerEstimator(det_model=DET_MODEL_PATH, pose_model=POSE_MODEL_PATH, device='cpu')
 
