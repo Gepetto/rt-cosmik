@@ -1,5 +1,4 @@
-from settings import Settings
-settings = Settings()
+from rtcosmik.config_loader import settings
 if settings.viewer == 'ros':
     from .ros_viewer import ros_init, publish_keypoints_as_marker_array, publish_augmented_markers, publish_kinematics
 else: # default to gepetto viewer

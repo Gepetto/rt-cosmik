@@ -6,7 +6,6 @@ from rtcosmik.ik.ik import RT_IK, RT_SWIKA
 from rtcosmik.camera.cam_utils import load_camera_parameters,load_world_transformation
 from rtcosmik.human_model.pin_model import build_dummy_model, rescale_human_model
 
-from settings import Settings
 from collections import deque
 import torch
 import numpy as np
@@ -17,7 +16,7 @@ from typing import List
 
 class PipelineProcess(Process):
     def __init__(self, 
-                 settings: Settings,
+                 settings,
                  camera_buffers: List[Array],
                  camera_timestamp_buffers: List[Array], # Character array for timestamp
                  camera_locks: List[Lock],
