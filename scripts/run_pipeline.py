@@ -10,6 +10,7 @@ from src.rtcosmik.camera.camera import Camera, DisplayConsumer
 from src.rtcosmik.utils.mp_utils import create_camera_shared_ressources, create_pipeline_shared_ressources
 from src.rtcosmik.saver.video_saver import VideoSaverProcess
 from src.rtcosmik.pipeline.pipeline import PipelineProcess
+from src.rtcosmik.viewer.viewer import ViewerProcess
 
 import time
 from multiprocessing import set_start_method
@@ -61,8 +62,12 @@ def main():
                                stop_event,
                                frame_shape=FRAME_SHAPE,
                                num_cameras=NUM_CAMERAS)
+    
+    viewer = ViewerProcess(results_queues,
+                           stop_event,
+                           freeflyer=True)
 
-    processes = camera_processes + video_savers + [pipeline]
+    processes = camera_processes + video_savers + [pipeline, viewer]
 
     # Start processes
     for p in processes:

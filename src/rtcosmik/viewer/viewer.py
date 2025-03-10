@@ -51,20 +51,16 @@ class Viewer:
 
 class ViewerProcess(Process):
     def __init__(self,
-                 robot_urdf: str,
-                 package_dir: str,
                  result_queues: List[Queue],
                  stop_event: Event,
-                 keypoint_names: List[str],
-                 marker_names: List[str],
                  freeflyer=False):
         super().__init__()
-        self.robot_urdf = robot_urdf
-        self.package_dir = package_dir
+        self.robot_urdf = settings.urdf_path
+        self.package_dir = settings.meshes_path
         self.result_queues = result_queues
         self.stop_event = stop_event
-        self.keypoint_names = keypoint_names
-        self.marker_names = marker_names
+        self.keypoint_names = settings.keypoint_names
+        self.marker_names = settings.marker_names
         self.freeflyer = freeflyer
         if self.freeflyer:
             self.freeflyer_ori = np.array([[1,0,0],[0,0,-1],[0,1,0]])

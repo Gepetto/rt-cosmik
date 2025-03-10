@@ -20,7 +20,9 @@ class Settings:
 
     # VIEWER PARAMS
     viewer: str = "gv" # viewer type: gv or ros
-    
+    urdf_path: str = field(init=False) # relative path to the robot urdf
+    meshes_path: str = field(init=False) # relative path to the robot meshes
+
     # CALIB
     cam_calib_path: str = field(init=False) # relative path to the camera calibration file
     human_calib_path: str = field(init=False)  # relative path to the human calibration file
@@ -107,4 +109,6 @@ class Settings:
         self.human_calib_path = str(Path(self.cosmik_path) / "config/human_params")
         self.robot_calib_path = str(Path(self.cosmik_path) / "config/robot_params")
         self.augmenter_path = str(Path(self.cosmik_path) / "src/rtcosmik/augmenter/augmentation_model")
+        self.urdf_path = str(Path(self.cosmik_path) / "urdf/human.urdf")
+        self.meshes_path = str(Path(self.cosmik_path) / "meshes/new_meshes")
         self.dt = 1 / self.fs
