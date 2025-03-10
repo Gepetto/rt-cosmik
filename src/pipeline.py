@@ -130,7 +130,7 @@ class PipelineProcess(Process):
                                     kp_dict = dict(zip(self.keypoints_names,filtered_keypoints_buffer[-1]))
                                     mks_dict = dict(zip(self.marker_names, augmented_markers))
                                     
-                                    self.human_model = rescale_human_model(self.human_model, kp_dict, mks_dict)
+                                    self.human_model = rescale_human_model(self.human_model, mks_dict)
                                     
                                     if self.ik_type == 'qp':
                                         q = pin.neutral(self.human_model)

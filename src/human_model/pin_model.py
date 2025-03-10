@@ -6,6 +6,306 @@ from typing import List, Tuple, Dict
 from utils.linear_algebra_utils import col_vector_3D
 from .model_utils import construct_segments_frames, get_segments_mks_dict, get_local_mks_positions, get_local_segments_positions
 
+def build_dummy_model()->pin.Model:
+    # MODEL GENERATION 
+    inertia = pin.Inertia.Zero()
+    model= pin.Model() # pin model
+
+    # pelvis with Freeflyer
+    IDX_PELV_JF = model.addJoint(0,pin.JointModelFreeFlyer(),pin.SE3(np.array([[1,0,0],[0,0,-1],[0,1,0]]), np.matrix([0,0,0]).T),'root_joint')
+    pelvis = pin.Frame('pelvis',IDX_PELV_JF,0,pin.SE3(np.eye(3), np.matrix([0,0,0]).T),pin.FrameType.OP_FRAME, inertia)
+    IDX_PELV_SF = model.addFrame(pelvis,False)
+
+    # Lumbar L5-S1 flexion/extension
+    IDX_L5S1_JF = model.addJoint(IDX_PELV_JF,pin.JointModelRZ(),pin.SE3(np.eye(3), np.matrix([0, 0, 0]).T),'middle_lumbar_Z') 
+    torso = pin.Frame('torso_z',IDX_L5S1_JF,idx_frame,pin.SE3(np.eye(3),np.matrix([0,0,0]).T),pin.FrameType.OP_FRAME, inertia)
+    IDX_TORSO_SF = model.addFrame(torso,False)
+    idx_frame = IDX_TORSO_SF
+
+    # Lumbar L5-S1 external/internal rotation
+    IDX_L5S1_R_EXT_INT_JF = model.addJoint(IDX_L5S1_JF,pin.JointModelRY(),pin.SE3(np.eye(3), np.matrix([0, 0, 0]).T),'middle_lumbar_Y') 
+    torso = pin.Frame('torso',IDX_L5S1_R_EXT_INT_JF,idx_frame,pin.SE3(np.eye(3), np.matrix([0, 0, 0]).T),pin.FrameType.OP_FRAME, inertia)
+    IDX_TORSO_SF = model.addFrame(torso,False)
+    idx_frame = IDX_TORSO_SF
+
+    # Right Shoulder ZXY
+    IDX_SH_Z_JF_R = model.addJoint(IDX_L5S1_R_EXT_INT_JF,pin.JointModelRZ(),pin.SE3(np.eye(3), np.matrix([0.00805, 0.4067, 0.2037]).T),'right_shoulder_Z') # Hardcoded dummy values
+    upperarmR = pin.Frame('upperarm_z_R',IDX_SH_Z_JF_R,idx_frame,pin.SE3(np.eye(3), np.matrix([0,0,0]).T),pin.FrameType.OP_FRAME, inertia)
+    IDX_UPA_SF_R = model.addFrame(upperarmR,False)
+    idx_frame = IDX_UPA_SF_R
+
+    IDX_SH_X_JF_R = model.addJoint(IDX_SH_Z_JF_R,pin.JointModelRX(),pin.SE3(np.eye(3), np.matrix([0,0,0]).T),'right_shoulder_X') 
+    upperarmR = pin.Frame('upperarm_x_R',IDX_SH_X_JF_R,idx_frame,pin.SE3(np.eye(3), np.matrix([0,0,0]).T),pin.FrameType.OP_FRAME, inertia)
+    IDX_UPA_SF_R = model.addFrame(upperarmR,False)
+    idx_frame = IDX_UPA_SF_R
+
+    IDX_SH_Y_JF_R = model.addJoint(IDX_SH_X_JF_R,pin.JointModelRY(),pin.SE3(np.eye(3), np.matrix([0,0,0]).T),'right_shoulder_Y') 
+    upperarmR = pin.Frame('upperarmR',IDX_SH_Y_JF_R,idx_frame,pin.SE3(np.eye(3), np.matrix([0,0,0]).T),pin.FrameType.OP_FRAME, inertia)
+    IDX_UPA_SF_R = model.addFrame(upperarmR,False)
+    idx_frame = IDX_UPA_SF_R
+
+    # Right Elbow ZY 
+    IDX_EL_Z_JF_R = model.addJoint(IDX_SH_Y_JF_R,pin.JointModelRZ(),pin.SE3(np.eye(3), np.matrix([0, -0.2737, 0]).T),'right_elbow_Z') 
+    lowerarmR = pin.Frame('lowerarm_z',IDX_EL_Z_JF_R,idx_frame,pin.SE3(np.eye(3), np.matrix([0,0,0]).T),pin.FrameType.OP_FRAME, inertia)
+    IDX_LOA_SF = model.addFrame(lowerarmR,False)
+    idx_frame = IDX_LOA_SF
+
+    IDX_EL_Y_JF = model.addJoint(IDX_EL_Z_JF_R,pin.JointModelRY(),pin.SE3(np.eye(3), np.matrix([0,0,0]).T),'right_elbow_Y') 
+    lowerarmR = pin.Frame('lowerarmR',IDX_EL_Y_JF,idx_frame,pin.SE3(np.eye(3), np.matrix([0,0,0]).T),pin.FrameType.OP_FRAME, inertia)
+    IDX_LOA_SF = model.addFrame(lowerarmR,False)
+    idx_frame = IDX_LOA_SF
+
+    # Left shoulder ZXY
+    IDX_SH_Z_JF_L = model.addJoint(IDX_L5S1_R_EXT_INT_JF, pin.JointModelRZ(), pin.SE3(np.eye(3), np.matrix([0.00805, 0.4067, -0.2037]).T), 'left_shoulder_Z') 
+    upperarmL = pin.Frame('upperarm_z_L', IDX_SH_Z_JF_L, idx_frame, pin.SE3(np.eye(3), np.matrix([0,0,0]).T), pin.FrameType.OP_FRAME, inertia)
+    IDX_UPA_SF_L = model.addFrame(upperarmL, False)
+    idx_frame = IDX_UPA_SF_L
+
+    IDX_SH_X_JF_L = model.addJoint(IDX_SH_Z_JF_L, pin.JointModelRX(), pin.SE3(np.eye(3), np.matrix([0,0,0]).T), 'left_shoulder_X') 
+    upperarmL = pin.Frame('upperarm_x_L', IDX_SH_X_JF_L, idx_frame, pin.SE3(np.eye(3), np.matrix([0,0,0]).T), pin.FrameType.OP_FRAME, inertia)
+    IDX_UPA_SF_L = model.addFrame(upperarmL, False)
+    idx_frame = IDX_UPA_SF_L
+
+    IDX_SH_Y_JF_L = model.addJoint(IDX_SH_X_JF_L, pin.JointModelRY(), pin.SE3(np.eye(3), np.matrix([0,0,0]).T), 'left_shoulder_Y') 
+    upperarmL = pin.Frame('upperarmL', IDX_SH_Y_JF_L, idx_frame, pin.SE3(np.eye(3), np.matrix([0,0,0]).T), pin.FrameType.OP_FRAME, inertia)
+    IDX_UPA_SF_L = model.addFrame(upperarmL, False)
+    idx_frame = IDX_UPA_SF_L
+
+    # Left Elbow ZY
+    IDX_EL_Z_JF_L = model.addJoint(IDX_SH_Y_JF_L, pin.JointModelRZ(), pin.SE3(np.eye(3), np.matrix([0, -0.2737, 0]).T), 'left_elbow_Z')
+    lowerarmL = pin.Frame('lowerarm_z_L', IDX_EL_Z_JF_L, idx_frame, pin.SE3(np.eye(3), np.matrix([0,0,0]).T), pin.FrameType.OP_FRAME, inertia)
+    IDX_LOA_SF_L = model.addFrame(lowerarmL, False)
+    idx_frame = IDX_LOA_SF_L
+
+    IDX_EL_Y_JF_L = model.addJoint(IDX_EL_Z_JF_L, pin.JointModelRY(), pin.SE3(np.eye(3), np.matrix([0,0,0]).T), 'left_elbow_Y') 
+    lowerarmL = pin.Frame('lowerarmL', IDX_EL_Y_JF_L, idx_frame, pin.SE3(np.eye(3), np.matrix([0,0,0]).T), pin.FrameType.OP_FRAME, inertia)
+    IDX_LOA_SF_L = model.addFrame(lowerarmL, False)
+    idx_frame = IDX_LOA_SF_L
+
+    # Right Hip ZXY
+    IDX_HIP_Z_JF = model.addJoint(IDX_PELV_JF,pin.JointModelRZ(),pin.SE3(np.eye(3), np.matrix([0.053375, -0.0749, 0.079975]).T),'right_hip_Z') 
+    thighR = pin.Frame('thigh_z',IDX_HIP_Z_JF,idx_frame,pin.SE3(np.eye(3), np.matrix([0,0,0]).T),pin.FrameType.OP_FRAME, inertia)
+    IDX_THIGH_SF = model.addFrame(thighR,False)
+    idx_frame = IDX_THIGH_SF
+
+    IDX_HIP_X_JF = model.addJoint(IDX_HIP_Z_JF,pin.JointModelRX(),pin.SE3(np.eye(3), np.matrix([0,0,0]).T),'right_hip_X') 
+    thighR = pin.Frame('thigh_x',IDX_HIP_X_JF,idx_frame,pin.SE3(np.eye(3), np.matrix([0,0,0]).T),pin.FrameType.OP_FRAME, inertia)
+    IDX_THIGH_SF = model.addFrame(thighR,False)
+    idx_frame = IDX_THIGH_SF
+
+    IDX_HIP_Y_JF = model.addJoint(IDX_HIP_X_JF,pin.JointModelRY(),pin.SE3(np.eye(3), np.matrix([0,0,0]).T),'right_hip_Y') 
+    thighR = pin.Frame('thighR',IDX_HIP_Y_JF,idx_frame,pin.SE3(np.eye(3), np.matrix([0,0,0]).T),pin.FrameType.OP_FRAME, inertia)
+    IDX_THIGH_SF = model.addFrame(thighR,False)
+    idx_frame = IDX_THIGH_SF
+
+    # Right Knee Z
+    IDX_KNEE_Z_JF = model.addJoint(IDX_HIP_X_JF,pin.JointModelRZ(),pin.SE3(np.eye(3), np.matrix([0, -0.427, 0]).T),'right_knee_Z') 
+    shankR = pin.Frame('shankR',IDX_KNEE_Z_JF,idx_frame,pin.SE3(np.eye(3), np.matrix([0,0,0]).T),pin.FrameType.OP_FRAME, inertia)
+    IDX_SHANK_SF = model.addFrame(shankR,False)
+    idx_frame = IDX_SHANK_SF
+
+    # Right Ankle Z
+    IDX_ANKLE_Z_JF = model.addJoint(IDX_KNEE_Z_JF,pin.JointModelRZ(),pin.SE3(np.eye(3), np.matrix([0, -0.42805, 0]).T),'right_ankle_Z') 
+    footR = pin.Frame('footR',IDX_ANKLE_Z_JF,idx_frame,pin.SE3(np.eye(3), np.matrix([0,0,0]).T),pin.FrameType.OP_FRAME, inertia)
+    IDX_SFOOT_SF = model.addFrame(footR,False)
+    idx_frame = IDX_SFOOT_SF
+
+    # Left Hip ZXY
+    IDX_HIP_Z_JF_L = model.addJoint(IDX_PELV_JF, pin.JointModelRZ(), pin.SE3(np.eye(3), np.matrix([0.053375, -0.0749, -0.079975]).T), 'left_hip_Z') 
+    thighL = pin.Frame('thigh_z_L', IDX_HIP_Z_JF_L, idx_frame, pin.SE3(np.eye(3), np.matrix([0,0,0]).T), pin.FrameType.OP_FRAME, inertia)
+    IDX_TGH_SF_L = model.addFrame(thighL, False)
+    idx_frame = IDX_TGH_SF_L
+
+    IDX_HIP_X_JF_L = model.addJoint(IDX_HIP_Z_JF_L,pin.JointModelRX(),pin.SE3(np.eye(3), np.matrix([0,0,0]).T),'left_hip_X') 
+    thighL = pin.Frame('thigh_x_L',IDX_HIP_X_JF_L,idx_frame,pin.SE3(np.eye(3), np.matrix([0,0,0]).T),pin.FrameType.OP_FRAME, inertia)
+    IDX_THIGH_SF = model.addFrame(thighL,False)
+    idx_frame = IDX_TGH_SF_L
+
+    IDX_HIP_Y_JF_L = model.addJoint(IDX_HIP_X_JF_L, pin.JointModelRY(), pin.SE3(np.eye(3), np.matrix([0,0,0]).T), 'left_hip_Y') 
+    thighL = pin.Frame('thighL', IDX_HIP_Y_JF_L, idx_frame, pin.SE3(np.eye(3), np.matrix([0,0,0]).T), pin.FrameType.OP_FRAME, inertia)
+    IDX_TGH_SF_L = model.addFrame(thighL, False)
+    idx_frame = IDX_TGH_SF_L
+
+    # Left Knee Z
+    IDX_KNEE_Z_JF_L = model.addJoint(IDX_HIP_Y_JF_L,pin.JointModelRZ(),pin.SE3(np.eye(3), np.matrix([0, -0.427, 0]).T),'left_knee_Z') 
+    shankR = pin.Frame('shankL',IDX_KNEE_Z_JF_L,idx_frame,pin.SE3(np.eye(3), np.matrix([0,0,0]).T),pin.FrameType.OP_FRAME, inertia)
+    IDX_SHANK_SF_L = model.addFrame(shankR,False)
+    idx_frame = IDX_SHANK_SF_L
+
+    # Left Ankle Z
+    IDX_ANKLE_Z_JF_L = model.addJoint(IDX_KNEE_Z_JF_L,pin.JointModelRZ(),pin.SE3(np.eye(3), np.matrix([0, -0.42805, 0]).T),'left_ankle_Z') 
+    footL = pin.Frame('footL',IDX_ANKLE_Z_JF_L,idx_frame,pin.SE3(np.eye(3), np.matrix([0,0,0]).T),pin.FrameType.OP_FRAME, inertia)
+    IDX_SFOOT_SF_L = model.addFrame(footL,False)
+    idx_frame = IDX_SFOOT_SF_L
+
+    model.upperPositionLimit[7:] = np.array([5*np.pi/36,         #L5S1_FE + 
+                                          np.pi/3,             #L5S1_R_EXT_INT +
+                                          np.pi,               #Shoulder_Z_R +
+                                          np.pi/3,             #Shoulder_X_R +
+                                          np.pi/2,             #Shoulder_Y_R +
+                                          5*np.pi/6,           #Elbow_Z_R +
+                                          np.pi,               #Elbow_Y_R + 
+                                          np.pi,               #Shoulder_Z_L +
+                                          np.pi,               #Shoulder_X_L +
+                                          np.pi/2,             #Shoulder_Y_L +
+                                          5*np.pi/6,           #Elbow_Z_L +
+                                          0.2,               #Elbow_Y_L +
+                                          np.pi/2,             #Hip_Z_R +
+                                          np.pi/3,             #Hip_X_R +
+                                          np.pi/3,             #Hip_Y_R +
+                                          0,                   #Knee_Z_R +
+                                          np.pi/4,             #Ankle_Z_R +
+                                          np.pi/2,           #Hip_Z_L +
+                                          np.pi/2,             #Hip_X_L +
+                                          np.pi/2,             #Hip_Y_L +
+                                          0,                   #Knee_Z_L +
+                                          np.pi/4,             #Ankle_Z_L +
+                                          ]) 
+    
+    model.lowerPositionLimit[7:] = np.array([-np.pi/2,           #L5S1_FE -
+                                            -np.pi/3,            #L5S1_R_EXT_INT -
+                                            -np.pi,              #Shoulder_Z_R -
+                                            -np.pi,              #Shoulder_X_R -
+                                            -np.pi/2,            #Shoulder_Y_R -
+                                            0,                   #Elbow_Z_R -
+                                            -0.2,                #Elbow_Y_R -
+                                            -np.pi,              #Shoulder_Z_L -
+                                            -np.pi/3,            #Shoulder_X_L -
+                                            -np.pi/2,            #Shoulder_Y_L -
+                                            0,                   #Elbow_Z_L -
+                                            -np.pi,          #Elbow_Y_L -
+                                            -np.pi/3,            #Hip_Z_R -
+                                            -np.pi/2,            #Hip_X_R -
+                                            -np.pi/2,            #Hip_Y_R -
+                                            -5*np.pi/6,          #Knee_Z_R -
+                                            -np.pi/2,          #Ankle_Z_R -
+                                            -np.pi/3,            #Hip_Z_L -
+                                            -np.pi/3,            #Hip_X_L -
+                                            -np.pi/3,             #Hip_Y_L -
+                                            -5*np.pi/6,          #Knee_Z_L -
+                                            -np.pi/2,          #Ankle_Z_L -
+                                            ])
+        
+    return model
+
+def rescale_human_model(model: pin.Model, mks_dict: Dict)->pin.Model:
+    inertia = pin.Inertia.Zero()
+
+    sgts_poses = construct_segments_frames(mks_dict)
+    sgts_mks_dict = get_segments_mks_dict()
+    mks_local_positions = get_local_mks_positions(sgts_poses, mks_dict, sgts_mks_dict)
+    local_segments_positions = get_local_segments_positions(sgts_poses)
+
+    # Add markers data
+    IDX_PELVF = model.getFrameId('pelvis')
+    IDX_PELV_JF = model.getJointId('root_joint')
+    for i in sgts_mks_dict["pelvis"]:
+        frame = pin.Frame(i,IDX_PELV_JF,IDX_PELVF,pin.SE3(np.eye(3,3), np.matrix(mks_local_positions[i]).T),pin.FrameType.OP_FRAME, inertia) 
+        idx_frame = model.addFrame(frame,False)
+
+    IDX_TORSOF = model.getFrameId('torso')
+    IDX_L5S1_R_EXT_INT_JF = model.getJointId('middle_lumbar_Y')
+    for i in sgts_mks_dict["torso"]:
+        frame = pin.Frame(i,IDX_L5S1_R_EXT_INT_JF,IDX_TORSOF,pin.SE3(np.eye(3,3), np.matrix(mks_local_positions[i]+ local_segments_positions['torso']).T),pin.FrameType.OP_FRAME, inertia) 
+        idx_frame = model.addFrame(frame,False)
+    
+    IDX_UPARF = model.getFrameId('upperarmR')
+    IDX_SH_Y_JF_R = model.getJointId('right_shoulder_Y')
+    for i in sgts_mks_dict["upperarmR"]:
+        frame = pin.Frame(i,IDX_SH_Y_JF_R,IDX_UPARF,pin.SE3(np.eye(3,3), np.matrix(mks_local_positions[i]).T),pin.FrameType.OP_FRAME, inertia) 
+        idx_frame = model.addFrame(frame,False)
+
+    IDX_LOARF = model.getFrameId('lowerarmR')
+    IDX_EL_Y_JF = model.getJointId('right_elbow_Y')
+    for i in sgts_mks_dict["lowerarmR"]:
+        frame = pin.Frame(i,IDX_EL_Y_JF,IDX_LOARF,pin.SE3(np.eye(3,3), np.matrix(mks_local_positions[i]).T),pin.FrameType.OP_FRAME, inertia) 
+        idx_frame = model.addFrame(frame,False)
+
+    IDX_UPALF = model.getFrameId('upperarmL')
+    IDX_SH_Y_JF_L = model.getJointId('left_shoulder_Y')
+    for i in sgts_mks_dict["upperarmL"]:
+        frame = pin.Frame(i, IDX_SH_Y_JF_L, IDX_UPALF, pin.SE3(np.eye(3), np.matrix(mks_local_positions[i]).T), pin.FrameType.OP_FRAME, inertia)
+        idx_frame = model.addFrame(frame, False)
+
+    IDX_LOALF = model.getFrameId('lowerarmL')
+    IDX_EL_Y_JF_L = model.getJointId('left_elbow_Y')
+    for i in sgts_mks_dict["lowerarmL"]:
+        frame = pin.Frame(i, IDX_EL_Y_JF_L, IDX_LOALF, pin.SE3(np.eye(3), np.matrix(mks_local_positions[i]).T), pin.FrameType.OP_FRAME, inertia)
+        idx_frame = model.addFrame(frame, False)
+
+    IDX_THIGHRF = model.getFrameId('thighR')
+    IDX_HIP_Y_JF = model.getJointId('right_hip_Y')
+    for i in sgts_mks_dict["thighR"]:
+        frame = pin.Frame(i,IDX_HIP_Y_JF,IDX_THIGHRF,pin.SE3(np.eye(3,3), np.matrix(mks_local_positions[i]).T),pin.FrameType.OP_FRAME, inertia) 
+        idx_frame = model.addFrame(frame,False)
+
+    IDX_SHANKRF = model.getFrameId('shankR')
+    IDX_KNEE_Z_JF = model.getJointId('right_knee_Z')
+    for i in sgts_mks_dict["shankR"]:
+        frame = pin.Frame(i,IDX_KNEE_Z_JF,IDX_SHANKRF,pin.SE3(np.eye(3,3), np.matrix(mks_local_positions[i]).T),pin.FrameType.OP_FRAME, inertia) 
+        idx_frame = model.addFrame(frame,False)
+
+    IDX_FOOTRF = model.getFrameId('footR')
+    IDX_ANKLE_Z_JF = model.getJointId('right_ankle_Z')
+    for i in sgts_mks_dict["footR"]:
+        frame = pin.Frame(i,IDX_ANKLE_Z_JF,IDX_FOOTRF,pin.SE3(np.eye(3,3), np.matrix(mks_local_positions[i]).T),pin.FrameType.OP_FRAME, inertia) 
+        idx_frame = model.addFrame(frame,False)
+
+    IDX_THIGHLF = model.getFrameId('thighL')
+    IDX_HIP_Y_JF_L = model.getJointId('left_hip_Y')
+    for i in sgts_mks_dict["thighL"]:
+        frame = pin.Frame(i, IDX_HIP_Y_JF_L, IDX_THIGHLF, pin.SE3(np.eye(3), np.matrix(mks_local_positions[i]).T), pin.FrameType.OP_FRAME, inertia)
+        idx_frame = model.addFrame(frame, False)
+
+    IDX_SHANKLF = model.getFrameId('shankL')
+    IDX_KNEE_Z_JF_L = model.getJointId('left_knee_Z')
+    for i in sgts_mks_dict["shankL"]:
+        frame = pin.Frame(i, IDX_KNEE_Z_JF_L, IDX_SHANKLF, pin.SE3(np.eye(3), np.matrix(mks_local_positions[i]).T), pin.FrameType.OP_FRAME, inertia)
+        idx_frame = model.addFrame(frame, False)
+    
+    IDX_FOOTLF = model.getFrameId('footL')
+    IDX_ANKLE_Z_JF_L = model.getJointId('left_ankle_Z')
+    for i in sgts_mks_dict["footL"]:
+        frame = pin.Frame(i, IDX_ANKLE_Z_JF_L, IDX_FOOTLF, pin.SE3(np.eye(3), np.matrix(mks_local_positions[i]).T), pin.FrameType.OP_FRAME, inertia)
+        idx_frame = model.addFrame(frame, False)
+
+    # Segment lengths scaling
+    IDX_SH_Z_JF_R = model.getJointId('right_shoulder_Z')
+    model.jointPlacements[IDX_SH_Z_JF_R].translation[:] = np.array(local_segments_positions['upperarmR'] + local_segments_positions['torso']).reshape(3,1)
+    
+    IDX_EL_Z_JF_R = model.getJointId('right_elbow_Z')
+    model.jointPlacements[IDX_EL_Z_JF_R].translation[:] = np.array(local_segments_positions['lowerarmR']).reshape(3,1)
+
+    IDX_SH_Z_JF_L = model.getJointId('left_shoulder_Z')
+    model.jointPlacements[IDX_SH_Z_JF_L].translation[:] = np.array(local_segments_positions['upperarmL'] + local_segments_positions['torso']).reshape(3,1)
+
+    IDX_EL_Z_JF_L = model.getJointId('left_elbow_Z')
+    model.jointPlacements[IDX_EL_Z_JF_L].translation[:] = np.array(local_segments_positions['lowerarmL']).reshape(3,1)
+
+    IDX_HIP_Z_JF_R = model.getJointId('right_hip_Z')
+    model.jointPlacements[IDX_HIP_Z_JF_R].translation[:] = np.array(local_segments_positions['thighR']).reshape(3,1)
+
+    IDX_KNEE_Z_JF_R = model.getJointId('right_knee_Z')
+    model.jointPlacements[IDX_KNEE_Z_JF_R].translation[:] = np.array(local_segments_positions['shankR']).reshape(3,1)
+
+    IDX_ANKLE_Z_JF_R = model.getJointId('right_ankle_Z')
+    model.jointPlacements[IDX_ANKLE_Z_JF_R].translation[:] = np.array(local_segments_positions['footR']).reshape(3,1)
+
+    IDX_HIP_Z_JF_L = model.getJointId('left_hip_Z')
+    model.jointPlacements[IDX_HIP_Z_JF_L].translation[:] = np.array(local_segments_positions['thighL']).reshape(3,1)
+
+    IDX_KNEE_Z_JF_L = model.getJointId('left_knee_Z')
+    model.jointPlacements[IDX_KNEE_Z_JF_L].translation[:] = np.array(local_segments_positions['shankL']).reshape(3,1)
+
+    IDX_ANKLE_Z_JF_L = model.getJointId('left_ankle_Z')
+    model.jointPlacements[IDX_ANKLE_Z_JF_L].translation[:] = np.array(local_segments_positions['footL']).reshape(3,1)
+
+    return model
+
+    
+    
+    
+
 
 def build_model(mocap_mks_positions: Dict, meshes_folder_path: str)->Tuple[pin.Model,pin.Model, Dict]:
     """_Build the biomechanical model associated to one exercise for one subject_
@@ -33,8 +333,8 @@ def build_model(mocap_mks_positions: Dict, meshes_folder_path: str)->Tuple[pin.M
 
     # MODEL GENERATION 
     inertia = pin.Inertia.Zero()
-    model= pin.Model() #Modèle géométrique
-    geom_model = pin.GeometryModel() #Modèle pour l'affichage
+    model= pin.Model() # pin model
+    geom_model = pin.GeometryModel() # geometry model
 
     # pelvis with Freeflyer
     IDX_PELV_JF = model.addJoint(0,pin.JointModelFreeFlyer(),pin.SE3(np.array([[1,0,0],[0,0,-1],[0,1,0]]), np.matrix([0,0,0]).T),'root_joint')
