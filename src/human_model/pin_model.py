@@ -14,7 +14,7 @@ def build_dummy_model()->pin.Model:
     # pelvis with Freeflyer
     IDX_PELV_JF = model.addJoint(0,pin.JointModelFreeFlyer(),pin.SE3(np.array([[1,0,0],[0,0,-1],[0,1,0]]), np.matrix([0,0,0]).T),'root_joint')
     pelvis = pin.Frame('pelvis',IDX_PELV_JF,0,pin.SE3(np.eye(3), np.matrix([0,0,0]).T),pin.FrameType.OP_FRAME, inertia)
-    IDX_PELV_SF = model.addFrame(pelvis,False)
+    idx_frame = model.addFrame(pelvis,False)
 
     # Lumbar L5-S1 flexion/extension
     IDX_L5S1_JF = model.addJoint(IDX_PELV_JF,pin.JointModelRZ(),pin.SE3(np.eye(3), np.matrix([0, 0, 0]).T),'middle_lumbar_Z') 
@@ -301,11 +301,6 @@ def rescale_human_model(model: pin.Model, mks_dict: Dict)->pin.Model:
     model.jointPlacements[IDX_ANKLE_Z_JF_L].translation[:] = np.array(local_segments_positions['footL']).reshape(3,1)
 
     return model
-
-    
-    
-    
-
 
 def build_model(mocap_mks_positions: Dict, meshes_folder_path: str)->Tuple[pin.Model,pin.Model, Dict]:
     """_Build the biomechanical model associated to one exercise for one subject_

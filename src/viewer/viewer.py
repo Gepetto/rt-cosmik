@@ -4,45 +4,99 @@ if settings.viewer == 'ros':
     from .ros_viewer import ros_init, publish_keypoints_as_marker_array, publish_augmented_markers, publish_kinematics
 else: # default to gepetto viewer
     from .gv_viewer import gv_init, place_objects
-
+from multiprocessing import Process, Queue, Event
+from src.human_model.urdf_model import Robot
+from typing import List
+import numpy as np
 class Viewer:
     def __init__(self, model, geom_model, visual_model, keypoint_names, marker_names, freeflyer=False):
-        self._model = model
-        self._geom_model = geom_model 
-        self._visual_model = visual_model
-        self._keypoint_names = keypoint_names
-        self._marker_names = marker_names
-        self._freeflyer = freeflyer
-        self._viewer_type = settings.viewer
+        self.model = model
+        self.geom_model = geom_model 
+        self.visual_model = visual_model
+        self.keypoint_names = keypoint_names
+        self.marker_names = marker_names
+        self.freeflyer = freeflyer
+        self.viewer_type = settings.viewer
 
         # Gepetto viewer specific
-        self._viz = None
+        self.viz = None
 
         # ROS specific publishers
-        self._marker_pub = None
-        self._keypoints_pub = None
-        self._q_pub = None
-        self._br = None
+        self.marker_pub = None
+        self.keypoints_pub = None
+        self.q_pub = None
+        self.br = None
         
-        if self._viewer_type == 'ros':
-            self._keypoints_pub, self._marker_pub, self._q_pub, self._br = ros_init(self._freeflyer)
+        if self.viewer_type == 'ros':
+            self.keypoints_pub, self.marker_pub, self.q_pub, self.br = ros_init(self.freeflyer)
         else :
-            self._viz = gv_init(self._model, self._geom_model, self._visual_model, self._keypoint_names, self._marker_names)
+            self.viz = gv_init(self.model, self.geom_model, self.visual_model, self.keypoint_names, self.marker_names)
     
     def display_q(self, q):
-        if self._viewer_type == 'ros':
-            publish_kinematics(q, self._q_pub, self._model.names, self._br)
+        if self.viewer_type == 'ros':
+            publish_kinematics(q, self.q_pub, self.model.names, self.br)
         else:
-            self._viz.display(q)
+            self.viz.display(q)
 
     def display_keypoints(self, pos_keypoints_dict):
-        if self._viewer_type == 'ros':
-            publish_keypoints_as_marker_array(list(pos_keypoints_dict.values()), self._keypoints_pub, pos_keypoints_dict.keys())
+        if self.viewer_type == 'ros':
+            publish_keypoints_as_marker_array(list(pos_keypoints_dict.values()), self.keypoints_pub, pos_keypoints_dict.keys())
         else:
-            place_objects(self._viz, self._keypoint_names, pos_keypoints_dict)
+            place_objects(self.viz, self.keypoint_names, pos_keypoints_dict)
 
     def display_markers(self, pos_markers_dict):
-        if self._viewer_type == 'ros':
-            publish_augmented_markers(list(pos_markers_dict.values()), self._marker_pub, pos_markers_dict.keys())
+        if self.viewer_type == 'ros':
+            publish_augmented_markers(list(pos_markers_dict.values()), self.marker_pub, pos_markers_dict.keys())
         else:
-            place_objects(self._viz, self._marker_names, pos_markers_dict)
+            place_objects(self.viz, self.marker_names, pos_markers_dict)
+
+class ViewerProcess(Process):
+    def __init__(self,
+                 robot_urdf: str,
+                 package_dir: str,
+                 result_queues: List[Queue],
+                 stop_event: Event,
+                 keypoint_names: List[str],
+                 marker_names: List[str],
+                 freeflyer=False):
+        super().__init__()
+        self.robot_urdf = robot_urdf
+        self.package_dir = package_dir
+        self.result_queues = result_queues
+        self.stop_event = stop_event
+        self.keypoint_names = keypoint_names
+        self.marker_names = marker_names
+        self.freeflyer = freeflyer
+        if self.freeflyer:
+            self.freeflyer_ori = np.array([[1,0,0],[0,0,-1],[0,1,0]])
+        else:
+            self.freeflyer_ori = None
+
+        self.robot = Robot(self.robot_urdf, 
+                           self.package_dir, 
+                           self.freeflyer, 
+                           self.freeflyer_ori)
+        
+        self.model = self.robot.model
+        self.geom_model = self.robot.geom_model
+        self.visual_model = self.robot.visual_model
+
+        self.viewer = Viewer(self.model, 
+                             self.geom_model, 
+                             self.visual_model, 
+                             self.keypoint_names, 
+                             self.marker_names, 
+                             self.freeflyer)
+
+    def run(self):
+        try: 
+            while not self.stop_event.is_set():
+                kpts_dict = self.result_queues[0].get()
+                mks_dict = self.result_queues[1].get()
+                q = self.result_queues[2].get()
+
+                self.viewer.display_keypoints(kpts_dict)
+                self.viewer.display_markers(mks_dict)
+                self.viewer.display_q(q)
+        finally:
+            print("Viewer process stopped")

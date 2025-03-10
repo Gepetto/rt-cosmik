@@ -81,10 +81,10 @@ class TestViewerGV(unittest.TestCase):
         self.assertEqual(kp_names, dummy_keypoint_names)
         self.assertEqual(mk_names, dummy_marker_names)
         self.assertTrue(hasattr(v._viz, 'display'))
-        self.assertIsNone(v._keypoints_pub)
-        self.assertIsNone(v._marker_pub)
-        self.assertIsNone(v._q_pub)
-        self.assertIsNone(v._br)
+        self.assertIsNone(v.keypoints_pub)
+        self.assertIsNone(v.marker_pub)
+        self.assertIsNone(v.q_pub)
+        self.assertIsNone(v.br)
 
     def test_display_q(self):
         """Test that display_q delegates to the FakeGV.display method."""
@@ -92,8 +92,8 @@ class TestViewerGV(unittest.TestCase):
                    dummy_keypoint_names, dummy_marker_names, freeflyer=False)
         test_q = [0.1, 0.2, 0.3]
         v.display_q(test_q)
-        self.assertTrue(v._viz.display_called)
-        self.assertEqual(v._viz.last_q, test_q)
+        self.assertTrue(v.viz.display_called)
+        self.assertEqual(v.viz.last_q, test_q)
 
     def test_display_keypoints(self):
         """Test that display_keypoints calls place_objects with the correct arguments."""
@@ -101,9 +101,9 @@ class TestViewerGV(unittest.TestCase):
                    dummy_keypoint_names, dummy_marker_names, freeflyer=False)
         dummy_keypoints = {'kp1': [1, 2, 3], 'kp2': [4, 5, 6]}
         v.display_keypoints(dummy_keypoints)
-        self.assertTrue(v._viz.place_objects_called)
-        self.assertEqual(v._viz.last_names, dummy_keypoint_names)
-        self.assertEqual(v._viz.last_pos_dict, dummy_keypoints)
+        self.assertTrue(v.viz.place_objects_called)
+        self.assertEqual(v.viz.last_names, dummy_keypoint_names)
+        self.assertEqual(v.viz.last_pos_dict, dummy_keypoints)
 
     def test_display_markers(self):
         """Test that display_markers calls place_objects with the correct arguments."""
@@ -111,9 +111,9 @@ class TestViewerGV(unittest.TestCase):
                    dummy_keypoint_names, dummy_marker_names, freeflyer=False)
         dummy_markers = {'mk1': [7, 8, 9], 'mk2': [10, 11, 12]}
         v.display_markers(dummy_markers)
-        self.assertTrue(v._viz.place_objects_called)
-        self.assertEqual(v._viz.last_names, dummy_marker_names)
-        self.assertEqual(v._viz.last_pos_dict, dummy_markers)
+        self.assertTrue(v.viz.place_objects_called)
+        self.assertEqual(v.viz.last_names, dummy_marker_names)
+        self.assertEqual(v.viz.last_pos_dict, dummy_markers)
 
 if __name__ == '__main__':
     unittest.main()

@@ -11,7 +11,11 @@ class Robot(RobotWrapper):
     Args:
         RobotWrapper (_type_): _description_
     """
-    def __init__(self,robot_urdf,package_dirs,isFext=False,freeflyer_ori =None,):
+    def __init__(self,
+                 robot_urdf,
+                 package_dirs,
+                 isFext=False,
+                 freeflyer_ori = None):
         """_Init of the robot class. User can choose between floating base or not and to set the transformation matrix for this floating base._
 
         Args:
