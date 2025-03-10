@@ -7,7 +7,7 @@ import sys
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '../../..')))
 import unittest
 import tempfile
-from src.saver.video_saver import VideoSaver
+from src.rtcosmik.saver.video_saver import VideoSaver
 
 class TestVideoSaver(unittest.TestCase):
     def setUp(self):

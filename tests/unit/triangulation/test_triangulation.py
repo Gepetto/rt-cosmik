@@ -4,9 +4,9 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '../.
 
 import numpy as np
 import pandas as pd
-from utils.calib_utils import load_camera_parameters,load_world_transformation
-from triangulation.triangulation import triangulate_offline
-from utils.read_write_utils import read_mmpose_file, save_to_csv
+from src.rtcosmik.camera.cam_utils import load_camera_parameters,load_world_transformation
+from src.rtcosmik.triangulation.triangulation import triangulate_offline
+from src.rtcosmik.utils.read_write_utils import read_mmpose_file, save_to_csv
 
 #check paths in load_camera_parameters and load_world_transformation
 num_keypoints=26 

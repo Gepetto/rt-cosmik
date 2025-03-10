@@ -5,7 +5,7 @@ from src.camera.cam_utils import list_cameras
 from src.camera.camera import Camera, DisplayConsumer
 from src.utils.mp_utils import create_camera_shared_ressources, create_pipeline_shared_ressources
 from src.saver.video_saver import VideoSaverProcess
-from src.pipeline import PipelineProcess
+from src.rtcosmik.pipeline.pipeline import PipelineProcess
 
 import time
 from multiprocessing import set_start_method

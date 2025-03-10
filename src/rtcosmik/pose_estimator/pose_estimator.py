@@ -5,7 +5,7 @@ import numpy as np
 from typing import List, Tuple
 import time
 from multiprocessing import Process
-from src.utils.linear_algebra_utils import concat_frames
+from rtcosmik.utils.linear_algebra_utils import concat_frames
 import torch
 import queue
 

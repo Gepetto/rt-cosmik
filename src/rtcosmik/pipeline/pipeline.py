@@ -1,10 +1,10 @@
-from src.triangulation.triangulation import triangulate_points
-from src.augmenter.marker_augmenter import augmentTRC, loadModel
-from src.pose_estimator.pose_estimator import BatchPoseTrackerEstimator
-from src.filtering.iir import IIR
-from src.ik.ik import RT_IK, RT_SWIKA
-from src.camera.cam_utils import load_camera_parameters,load_world_transformation
-from src.human_model.pin_model import build_dummy_model, rescale_human_model
+from rtcosmik.triangulation.triangulation import triangulate_points
+from rtcosmik.augmenter.marker_augmenter import augmentTRC, loadModel
+from rtcosmik.pose_estimator.pose_estimator import BatchPoseTrackerEstimator
+from rtcosmik.filtering.iir import IIR
+from rtcosmik.ik.ik import RT_IK, RT_SWIKA
+from rtcosmik.camera.cam_utils import load_camera_parameters,load_world_transformation
+from rtcosmik.human_model.pin_model import build_dummy_model, rescale_human_model
 
 from settings import Settings
 from collections import deque

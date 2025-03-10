@@ -2,13 +2,13 @@ import cv2
 import numpy as np
 from datetime import datetime
 import multiprocessing as mp
-from multiprocessing import Process, Value, Lock, Barrier, Event
+from multiprocessing import Process, Array, Value, Lock, Barrier, Event
 
 class Camera(Process):
     def __init__(self, 
                  cam_id: int,
-                 shared_buffer: mp.Array,
-                 timestamp_buffer: mp.Array, # Character array for timestamp
+                 shared_buffer: Array,
+                 timestamp_buffer: Array, # Character array for timestamp
                  lock: Lock,
                  frame_counter: Value,
                  barrier: Barrier,

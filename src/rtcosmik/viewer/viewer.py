@@ -5,7 +5,7 @@ if settings.viewer == 'ros':
 else: # default to gepetto viewer
     from .gv_viewer import gv_init, place_objects
 from multiprocessing import Process, Queue, Event
-from src.human_model.urdf_model import Robot
+from rtcosmik.human_model.urdf_model import Robot
 from typing import List
 import numpy as np
 class Viewer:

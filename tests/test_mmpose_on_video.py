@@ -1,4 +1,4 @@
-from src.pose_estimator.pose_estimator import PoseTrackerEstimator
+from src.rtcosmik.pose_estimator.pose_estimator import PoseTrackerEstimator
 import cv2
 
 DET_MODEL_PATH = '/root/workspace/mmdeploy/rtmpose-trt/rtmdet-nano'

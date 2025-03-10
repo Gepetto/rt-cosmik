@@ -52,10 +52,10 @@ def fake_place_objects(viz, names, pos_dict):
 
 # --- Patch the Viewer Module --- #
 # Import the viewer module now that the sys.path is adjusted.
-from src.viewer.viewer import Viewer
+from src.rtcosmik.viewer.viewer import Viewer
 
 # Override settings and viewer-specific functions in the viewer module.
-import src.viewer.viewer as viewer_module
+import src.rtcosmik.viewer.viewer as viewer_module
 viewer_module.settings = DummySettings()
 viewer_module.gv_init = fake_gv_init
 viewer_module.place_objects = fake_place_objects
