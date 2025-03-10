@@ -2,10 +2,10 @@ from settings import Settings
 settings = Settings()
 
 import time
-from src.camera.cam_utils import list_cameras
-from src.camera.camera import Camera
-from src.pose_estimator.pose_estimator import DisplayPoseTracker, PoseTrackerProcess
-from src.utils.mp_utils import create_camera_shared_ressources, create_pose_estimator_shared_ressources
+from src.rtcosmik.camera.cam_utils import list_cameras
+from src.rtcosmik.camera.camera import Camera
+from src.rtcosmik.pose_estimator.pose_estimator import DisplayPoseTracker, PoseTrackerProcess
+from src.rtcosmik.utils.mp_utils import create_camera_shared_ressources, create_pose_estimator_shared_ressources
 from multiprocessing import set_start_method
 
 def main():

@@ -1,10 +1,10 @@
 from settings import Settings
 settings = Settings()
 
-from src.camera.cam_utils import list_cameras
-from src.camera.camera import Camera, DisplayConsumer
-from src.utils.mp_utils import create_camera_shared_ressources, create_pipeline_shared_ressources
-from src.saver.video_saver import VideoSaverProcess
+from src.rtcosmik.camera.cam_utils import list_cameras
+from src.rtcosmik.camera.camera import Camera, DisplayConsumer
+from src.rtcosmik.utils.mp_utils import create_camera_shared_ressources, create_pipeline_shared_ressources
+from src.rtcosmik.saver.video_saver import VideoSaverProcess
 from src.rtcosmik.pipeline.pipeline import PipelineProcess
 
 import time
