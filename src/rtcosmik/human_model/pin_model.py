@@ -3,7 +3,7 @@ import numpy as np
 import hppfcl as fcl
 from scipy.spatial.transform import Rotation as R
 from typing import List, Tuple, Dict
-from utils.linear_algebra_utils import col_vector_3D
+from rtcosmik.utils.linear_algebra_utils import col_vector_3D
 from .model_utils import construct_segments_frames, get_segments_mks_dict, get_local_mks_positions, get_local_segments_positions
 
 def build_dummy_model()->pin.Model:

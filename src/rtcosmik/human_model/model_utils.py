@@ -3,7 +3,7 @@ import numpy as np
 import hppfcl as fcl
 from scipy.spatial.transform import Rotation as R
 from typing import List, Tuple, Dict
-from utils.linear_algebra_utils import col_vector_3D
+from rtcosmik.utils.linear_algebra_utils import col_vector_3D
 
 
 def check_orthogonality(matrix: np.ndarray):

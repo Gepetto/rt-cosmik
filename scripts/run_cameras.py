@@ -22,7 +22,7 @@ def main():
                camera_barrier, 
                stop_event, 
                FRAME_SHAPE, 
-               settings.fps, 
+               settings.fs, 
                settings.fourcc)
         for i in range(NUM_CAMERAS)
     ]
@@ -47,7 +47,7 @@ def main():
                 frame_counter=frame_counters[i],
                 frame_shape=FRAME_SHAPE,
                 save_dir=settings.SAVE_DIR,
-                fps=settings.fps,
+                fps=settings.fs,
                 stop_event=stop_event
             )
             video_savers.append(vs)

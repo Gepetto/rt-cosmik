@@ -29,7 +29,7 @@ def main():
                camera_barrier, 
                stop_event, 
                FRAME_SHAPE, 
-               settings.fps, 
+               settings.fs, 
                settings.fourcc)
         for i in range(NUM_CAMERAS)
     ]

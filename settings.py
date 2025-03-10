@@ -12,7 +12,7 @@ class Settings:
     SAVE_DIR: str = "/root/workspace/ros_ws/src/rt-cosmik/output" # abs path to the save folder
 
     # CAM PARAMS
-    fps: int = 40
+    fs: int = 40
     dt: float = field(init=False)  # Mark `dt` as excluded from the constructor
     width: int = 1280 # image resolution
     height: int = 720 # image resolution
@@ -102,4 +102,4 @@ class Settings:
         self.human_calib_path = str(Path(self.cosmik_path) / "config/human_params")
         self.robot_calib_path = str(Path(self.cosmik_path) / "config/robot_params")
         self.augmenter_path = str(Path(self.cosmik_path) / "src/augmenter/augmentation_model")
-        self.dt = 1 / self.fps
+        self.dt = 1 / self.fs

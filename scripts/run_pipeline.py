@@ -1,3 +1,9 @@
+import sys
+import os
+
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__)))) # Repo root
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "src")) # src dir
+
 from src.rtcosmik.config_loader import settings
 from src.rtcosmik.camera.cam_utils import list_cameras
 from src.rtcosmik.camera.camera import Camera, DisplayConsumer
@@ -26,7 +32,7 @@ def main():
                camera_barrier, 
                stop_event, 
                FRAME_SHAPE, 
-               settings.fps, 
+               settings.fs, 
                settings.fourcc)
         for i in range(NUM_CAMERAS)
     ]
@@ -41,7 +47,7 @@ def main():
                 frame_counter=frame_counters[i],
                 frame_shape=FRAME_SHAPE,
                 save_dir=settings.SAVE_DIR,
-                fps=settings.fps,
+                fps=settings.fs,
                 stop_event=stop_event
             )
             video_savers.append(vs)
