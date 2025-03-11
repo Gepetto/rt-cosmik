@@ -110,5 +110,5 @@ class Settings:
         self.robot_calib_path = str(Path(self.cosmik_path) / "config/robot_params")
         self.augmenter_path = str(Path(self.cosmik_path) / "src/rtcosmik/augmenter/augmentation_model")
         self.urdf_path = str(Path(self.cosmik_path) / "urdf/human.urdf")
-        self.meshes_path = str(Path(self.cosmik_path) / "meshes/new_meshes")
+        self.meshes_path = str(Path(self.cosmik_path) / "meshes")
         self.dt = 1 / self.fs
