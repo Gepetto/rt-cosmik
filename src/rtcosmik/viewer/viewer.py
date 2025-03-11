@@ -41,13 +41,13 @@ class Viewer:
         if self.viewer_type == 'ros':
             publish_keypoints_as_marker_array(list(pos_keypoints_dict.values()), self.keypoints_pub, pos_keypoints_dict.keys())
         else:
-            place_objects(self.viz, self.keypoint_names, pos_keypoints_dict)
+            place_objects(self.viz, pos_keypoints_dict)
 
     def display_markers(self, pos_markers_dict):
         if self.viewer_type == 'ros':
             publish_augmented_markers(list(pos_markers_dict.values()), self.marker_pub, pos_markers_dict.keys())
         else:
-            place_objects(self.viz, self.marker_names, pos_markers_dict)
+            place_objects(self.viz, pos_markers_dict)
 
 class ViewerProcess(Process):
     def __init__(self,
@@ -87,10 +87,11 @@ class ViewerProcess(Process):
         
         try: 
             while not self.stop_event.is_set():
-                kpts_dict = self.result_queues[0].get()
-                mks_dict = self.result_queues[1].get()
-                q = self.result_queues[2].get()
+                output_time, kpts_dict = self.result_queues[0].get()
+                _, mks_dict = self.result_queues[1].get()
+                _, q = self.result_queues[2].get()
 
+                print("in viewer, timestamp is :", output_time)
                 self.viewer.display_keypoints(kpts_dict)
                 self.viewer.display_markers(mks_dict)
                 self.viewer.display_q(q)
