@@ -61,6 +61,7 @@ class PipelineProcess(Process):
         self.num_cameras = num_cameras
 
         self.first_sample = True
+        self.last_frame_counters = [0] * self.num_cameras
 
     def run(self):
         self.buffer_max_len = 30
@@ -96,22 +97,29 @@ class PipelineProcess(Process):
                 frames = []
                 timestamps = []
                 keypoints_list = []
-                for lock, buffer, cam_ts in zip(self.camera_locks, self.camera_buffers, self.camera_timestamps):
+                new_counters = []
+                for i, (lock, buffer, cam_ts, frame_counter) in enumerate(zip(self.camera_locks, self.camera_buffers, self.camera_timestamps, self.camera_frame_counters)):
                     with lock:
-                        # Read and copy shared data atomically
-                        arr = np.frombuffer(buffer, dtype=np.uint8)
-                        frame = arr.reshape(self.frame_shape).copy()
-                        # Get current timestamp
-                        timestamp = bytes(cam_ts[:]).decode().strip('\x00')
+                        #  Only accept data if this camera has produced a new frame
+                        if frame_counter.value > self.last_frame_counters[i]:
+                            # Read and copy shared data atomically
+                            arr = np.frombuffer(buffer, dtype=np.uint8)
+                            frame = arr.reshape(self.frame_shape).copy()
+                            # Get current timestamp
+                            timestamp = bytes(cam_ts[:]).decode().strip('\x00')
 
-                        if timestamp == '': # empty data
-                            continue
-                        else:
-                            frames.append(frame)
-                            timestamps.append(timestamp)
+                            if timestamp == '': # empty data
+                                continue
+                            else:
+                                frames.append(frame)
+                                timestamps.append(timestamp)
+                            new_counters.append(frame_counter.value)
 
                 if len(timestamps)!=self.num_cameras and len(frames)!=self.num_cameras:
                     continue
+
+                # Update the last processed frame counters so the same frame is not processed twice
+                self.last_frame_counters = new_counters.copy()
 
                 # Convert to Unix timestamps (float)
                 unix_timestamps = [datetime.strptime(ts, "%Y-%m-%d %H:%M:%S.%f").timestamp() for ts in timestamps]
