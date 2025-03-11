@@ -59,7 +59,7 @@ class ViewerProcess(Process):
         self.package_dir = settings.meshes_path
         self.result_queues = result_queues
         self.stop_event = stop_event
-        self.keypoint_names = settings.keypoint_names
+        self.keypoints_names = settings.keypoints_names
         self.marker_names = settings.marker_names
         self.freeflyer = freeflyer
         if self.freeflyer:
@@ -67,6 +67,8 @@ class ViewerProcess(Process):
         else:
             self.freeflyer_ori = None
 
+
+    def run(self):
         self.robot = Robot(self.robot_urdf, 
                            self.package_dir, 
                            self.freeflyer, 
@@ -79,11 +81,10 @@ class ViewerProcess(Process):
         self.viewer = Viewer(self.model, 
                              self.geom_model, 
                              self.visual_model, 
-                             self.keypoint_names, 
+                             self.keypoints_names, 
                              self.marker_names, 
                              self.freeflyer)
-
-    def run(self):
+        
         try: 
             while not self.stop_event.is_set():
                 kpts_dict = self.result_queues[0].get()
@@ -94,4 +95,4 @@ class ViewerProcess(Process):
                 self.viewer.display_markers(mks_dict)
                 self.viewer.display_q(q)
         finally:
-            print("Viewer process stopped")
+            print("Viewer process terminated")

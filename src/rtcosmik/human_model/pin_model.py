@@ -271,34 +271,34 @@ def rescale_human_model(model: pin.Model, mks_dict: Dict)->pin.Model:
 
     # Segment lengths scaling
     IDX_SH_Z_JF_R = model.getJointId('right_shoulder_Z')
-    model.jointPlacements[IDX_SH_Z_JF_R].translation[:] = np.array(local_segments_positions['upperarmR'] + local_segments_positions['torso']).reshape(3,1)
+    model.jointPlacements[IDX_SH_Z_JF_R].translation[:] = np.array(local_segments_positions['upperarmR'] + local_segments_positions['torso'])
     
     IDX_EL_Z_JF_R = model.getJointId('right_elbow_Z')
-    model.jointPlacements[IDX_EL_Z_JF_R].translation[:] = np.array(local_segments_positions['lowerarmR']).reshape(3,1)
+    model.jointPlacements[IDX_EL_Z_JF_R].translation[:] = np.array(local_segments_positions['lowerarmR'])
 
     IDX_SH_Z_JF_L = model.getJointId('left_shoulder_Z')
-    model.jointPlacements[IDX_SH_Z_JF_L].translation[:] = np.array(local_segments_positions['upperarmL'] + local_segments_positions['torso']).reshape(3,1)
+    model.jointPlacements[IDX_SH_Z_JF_L].translation[:] = np.array(local_segments_positions['upperarmL'] + local_segments_positions['torso'])
 
     IDX_EL_Z_JF_L = model.getJointId('left_elbow_Z')
-    model.jointPlacements[IDX_EL_Z_JF_L].translation[:] = np.array(local_segments_positions['lowerarmL']).reshape(3,1)
+    model.jointPlacements[IDX_EL_Z_JF_L].translation[:] = np.array(local_segments_positions['lowerarmL'])
 
     IDX_HIP_Z_JF_R = model.getJointId('right_hip_Z')
-    model.jointPlacements[IDX_HIP_Z_JF_R].translation[:] = np.array(local_segments_positions['thighR']).reshape(3,1)
+    model.jointPlacements[IDX_HIP_Z_JF_R].translation[:] = np.array(local_segments_positions['thighR'])
 
     IDX_KNEE_Z_JF_R = model.getJointId('right_knee_Z')
-    model.jointPlacements[IDX_KNEE_Z_JF_R].translation[:] = np.array(local_segments_positions['shankR']).reshape(3,1)
+    model.jointPlacements[IDX_KNEE_Z_JF_R].translation[:] = np.array(local_segments_positions['shankR'])
 
     IDX_ANKLE_Z_JF_R = model.getJointId('right_ankle_Z')
-    model.jointPlacements[IDX_ANKLE_Z_JF_R].translation[:] = np.array(local_segments_positions['footR']).reshape(3,1)
+    model.jointPlacements[IDX_ANKLE_Z_JF_R].translation[:] = np.array(local_segments_positions['footR'])
 
     IDX_HIP_Z_JF_L = model.getJointId('left_hip_Z')
-    model.jointPlacements[IDX_HIP_Z_JF_L].translation[:] = np.array(local_segments_positions['thighL']).reshape(3,1)
+    model.jointPlacements[IDX_HIP_Z_JF_L].translation[:] = np.array(local_segments_positions['thighL'])
 
     IDX_KNEE_Z_JF_L = model.getJointId('left_knee_Z')
-    model.jointPlacements[IDX_KNEE_Z_JF_L].translation[:] = np.array(local_segments_positions['shankL']).reshape(3,1)
+    model.jointPlacements[IDX_KNEE_Z_JF_L].translation[:] = np.array(local_segments_positions['shankL'])
 
     IDX_ANKLE_Z_JF_L = model.getJointId('left_ankle_Z')
-    model.jointPlacements[IDX_ANKLE_Z_JF_L].translation[:] = np.array(local_segments_positions['footL']).reshape(3,1)
+    model.jointPlacements[IDX_ANKLE_Z_JF_L].translation[:] = np.array(local_segments_positions['footL'])
 
     return model
 

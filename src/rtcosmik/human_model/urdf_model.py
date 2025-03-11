@@ -2,8 +2,8 @@ from pinocchio.robot_wrapper import RobotWrapper
 import pinocchio as pin
 import numpy as np 
 from typing import List, Tuple, Dict
-from human_model.model_utils import get_torso_pose
-from utils.linear_algebra_utils import col_vector_3D
+from rtcosmik.human_model.model_utils import get_torso_pose
+from rtcosmik.utils.linear_algebra_utils import col_vector_3D
 
 class Robot(RobotWrapper):
     """_Class to load a given urdf_

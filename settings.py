@@ -36,7 +36,7 @@ class Settings:
 
     # IK AND DATA HANDLING
     # Ik type
-    ik_type: str ="mhe" # either "mhe" for SWIKA or "sbs" for sample by sample qp
+    ik_type: str ="sbs" # either "mhe" for SWIKA or "sbs" for sample by sample qp
     
     # if ik_type = "mhe"
     ik_code: str = "python" # either "python" or "c" 
