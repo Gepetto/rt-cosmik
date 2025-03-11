@@ -4,7 +4,7 @@ from rtcosmik.pose_estimator.pose_estimator import BatchPoseTrackerEstimator
 from rtcosmik.filtering.iir import IIR
 from rtcosmik.ik.ik import RT_IK, RT_SWIKA
 from rtcosmik.camera.cam_utils import load_camera_parameters,load_world_transformation
-from rtcosmik.human_model.pin_model import build_dummy_model, rescale_human_model
+from rtcosmik.human_model.pin_model import build_model_no_visuals
 
 from collections import deque
 import torch
@@ -67,9 +67,6 @@ class PipelineProcess(Process):
         self.buffer_max_len = 30
         self.keypoints_buffer = deque(maxlen=self.buffer_max_len)
         self.warmed_augmenter_model = loadModel(augmenterDir=self.AUGMENTER_PATH, augmenterModelName="LSTM",augmenter_model='v0.3')
-
-        # Pinocchio related 
-        self.human_model = build_dummy_model()
 
         #load camera param and config
         self.mtxs, self.dists, self.projections, self.rotations, self.translations = load_camera_parameters(self.CAM_CONFIG_PATH)
@@ -169,7 +166,7 @@ class PipelineProcess(Process):
                             kp_dict = dict(zip(self.keypoints_names,filtered_keypoints_buffer[-1]))
                             mks_dict = dict(zip(self.marker_names, augmented_markers))
                             
-                            self.human_model = rescale_human_model(self.human_model, mks_dict)
+                            self.human_model = build_model_no_visuals(mks_dict)
                             
                             if self.ik_type == 'sbs':
                                 q = pin.neutral(self.human_model)

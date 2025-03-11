@@ -5,6 +5,7 @@ else: # default to gepetto viewer
     from .gv_viewer import gv_init, place_objects
 from multiprocessing import Process, Queue, Event
 from rtcosmik.human_model.urdf_model import Robot
+from rtcosmik.human_model.pin_model import build_dummy_model
 from typing import List
 import numpy as np
 class Viewer:
@@ -69,14 +70,18 @@ class ViewerProcess(Process):
 
 
     def run(self):
-        self.robot = Robot(self.robot_urdf, 
-                           self.package_dir, 
-                           self.freeflyer, 
-                           self.freeflyer_ori)
+        # self.robot = Robot(self.robot_urdf, 
+        #                    self.package_dir, 
+        #                    self.freeflyer, 
+        #                    self.freeflyer_ori)
+        #
+        # self.model = self.robot.model
+        # self.geom_model = self.robot.geom_model
+        # self.visual_model = self.robot.visual_model
         
-        self.model = self.robot.model
-        self.geom_model = self.robot.geom_model
-        self.visual_model = self.robot.visual_model
+        self.model, self.geom_model, _ = build_dummy_model(self.package_dir)
+        
+        self.visual_model = self.geom_model.copy()
 
         self.viewer = Viewer(self.model, 
                              self.geom_model, 
