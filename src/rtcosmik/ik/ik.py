@@ -468,7 +468,7 @@ class RT_SWIKA:
         if self._code == 'c': # Use codegen 
             ocp_fun = casadi.external('ocp','./ocp_O3.so')
         elif self._code == 'python': 
-            ocp_fun = self.create_ocp()
+            ocp_fun = self._ocp_func
         else : 
             raise ValueError('Code should be either c or python')
 
