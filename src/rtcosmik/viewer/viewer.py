@@ -9,6 +9,7 @@ from rtcosmik.human_model.pin_model import build_dummy_model
 from rtcosmik.saver.csv_saver import CSVSaver
 from typing import List
 import numpy as np
+from collections import OrderedDict
 
 class Viewer:
     def __init__(self, model, geom_model, visual_model, keypoint_names, marker_names, freeflyer=False):
@@ -66,7 +67,7 @@ class ViewerProcess(Process):
         self.num_cameras = num_cameras
         self.keypoints_names = settings.keypoints_names
         self.marker_names = settings.marker_names
-        self.joint_angles_names = settings.joint_angle_names
+        self.joint_angles_names = settings.joint_angles_names
         self.freeflyer = freeflyer
         if self.freeflyer:
             self.freeflyer_ori = np.array([[1,0,0],[0,0,-1],[0,1,0]])
@@ -135,9 +136,81 @@ class ViewerProcess(Process):
                 for i in range(len(self.joint_angles_names)):
                     q_dict_to_save[self.joint_angles_names[i]]=q[i]
                 
-                self.csv_saver.save_keypoints(kpts_dict_to_save)
-                self.csv_saver.save_markers(mks_dict_to_save)
-                self.csv_saver.save_joint_angles(q_dict_to_save)
+                # Build the ordered keypoints dict according to the header order.
+                ordered_keypoints = OrderedDict()
+                for header_key in self.keypoints_header:
+                    # Handle frame keys directly.
+                    if header_key.startswith("Frame_"):
+                        ordered_keypoints[header_key] = kpts_dict_to_save.get(header_key, None)
+                    else:
+                        # Check if header already contains a coordinate suffix.
+                        if header_key.endswith('_x') or header_key.endswith('_y') or header_key.endswith('_z'):
+                            base, comp = header_key.rsplit('_', 1)
+                            arr = kpts_dict_to_save.get(base)
+                            if arr is not None and hasattr(arr, '__getitem__') and len(arr) >= 3:
+                                if comp == "x":
+                                    ordered_keypoints[header_key] = float(arr[0])
+                                elif comp == "y":
+                                    ordered_keypoints[header_key] = float(arr[1])
+                                elif comp == "z":
+                                    ordered_keypoints[header_key] = float(arr[2])
+                            else:
+                                ordered_keypoints[header_key] = None
+                        else:
+                            # If the header does not contain a suffix, assume it's a base key and generate three entries.
+                            base = header_key
+                            arr = kpts_dict_to_save.get(base)
+                            if arr is not None and hasattr(arr, '__getitem__') and len(arr) >= 3:
+                                ordered_keypoints[base + '_x'] = float(arr[0])
+                                ordered_keypoints[base + '_y'] = float(arr[1])
+                                ordered_keypoints[base + '_z'] = float(arr[2])
+                            else:
+                                ordered_keypoints[base + '_x'] = None
+                                ordered_keypoints[base + '_y'] = None
+                                ordered_keypoints[base + '_z'] = None
+
+                # Build the ordered markers dict similarly.
+                ordered_markers = OrderedDict()
+                for header_key in self.markers_header:
+                    if header_key.startswith("Frame_"):
+                        ordered_markers[header_key] = mks_dict_to_save.get(header_key, None)
+                    else:
+                        if header_key.endswith('_x') or header_key.endswith('_y') or header_key.endswith('_z'):
+                            base, comp = header_key.rsplit('_', 1)
+                            arr = mks_dict_to_save.get(base)
+                            if arr is not None and hasattr(arr, '__getitem__') and len(arr) >= 3:
+                                if comp == "x":
+                                    ordered_markers[header_key] = float(arr[0])
+                                elif comp == "y":
+                                    ordered_markers[header_key] = float(arr[1])
+                                elif comp == "z":
+                                    ordered_markers[header_key] = float(arr[2])
+                            else:
+                                ordered_markers[header_key] = None
+                        else:
+                            base = header_key
+                            arr = mks_dict_to_save.get(base)
+                            if arr is not None and hasattr(arr, '__getitem__') and len(arr) >= 3:
+                                ordered_markers[base + '_x'] = float(arr[0])
+                                ordered_markers[base + '_y'] = float(arr[1])
+                                ordered_markers[base + '_z'] = float(arr[2])
+                            else:
+                                ordered_markers[base + '_x'] = None
+                                ordered_markers[base + '_y'] = None
+                                ordered_markers[base + '_z'] = None
+
+                # Joint angles are assumed to be scalars.
+                ordered_joint_angles = OrderedDict(
+                    (key, q_dict_to_save.get(key, None)) for key in self.joint_angles_header
+                )
+
+                # (Optional) Debug prints to verify the ordered dictionaries:
+                print("Ordered keypoints:", ordered_keypoints)
+                print("Ordered markers:", ordered_markers)
+
+                self.csv_saver.save_keypoints(ordered_keypoints)
+                self.csv_saver.save_markers(ordered_markers)
+                self.csv_saver.save_joint_angles(ordered_joint_angles)
 
         finally:
             print("Viewer process terminated")

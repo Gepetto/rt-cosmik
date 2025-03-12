@@ -65,6 +65,7 @@ def main():
     
     viewer = ViewerProcess(results_queues,
                            stop_event,
+                           num_cameras=NUM_CAMERAS,
                            freeflyer=True)
 
     processes = camera_processes + video_savers + [pipeline, viewer]
