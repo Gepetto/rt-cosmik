@@ -842,7 +842,12 @@ def build_dummy_model_no_visuals()->pin.Model:
     # pelvis with Freeflyer
     IDX_PELV_JF = model.addJoint(0,pin.JointModelFreeFlyer(),pin.SE3(np.array([[1,0,0],[0,0,-1],[0,1,0]]), np.matrix([0,0,0]).T),'root_joint')
     pelvis = pin.Frame('pelvis',IDX_PELV_JF,0,pin.SE3(np.eye(3), np.matrix([0,0,0]).T),pin.FrameType.OP_FRAME, inertia)
-    idx_frame = model.addFrame(pelvis,False)
+    IDX_PELV_SF = model.addFrame(pelvis,False)
+    # Add markers data
+    idx_frame = IDX_PELV_SF
+    for i in ['r.PSIS_study', 'L.PSIS_study', 'r.ASIS_study', 'L.ASIS_study']:
+        frame = pin.Frame(i,IDX_PELV_JF,idx_frame,pin.SE3(np.eye(3,3), np.matrix([0,0,0]).T),pin.FrameType.OP_FRAME, inertia) 
+        idx_frame = model.addFrame(frame,False)
 
     # Lumbar L5-S1 flexion/extension
     IDX_L5S1_JF = model.addJoint(IDX_PELV_JF,pin.JointModelRZ(),pin.SE3(np.eye(3), np.matrix([0, 0, 0]).T),'middle_lumbar_Z') 
@@ -855,6 +860,10 @@ def build_dummy_model_no_visuals()->pin.Model:
     torso = pin.Frame('torso',IDX_L5S1_R_EXT_INT_JF,idx_frame,pin.SE3(np.eye(3), np.matrix([0, 0, 0]).T),pin.FrameType.OP_FRAME, inertia)
     IDX_TORSO_SF = model.addFrame(torso,False)
     idx_frame = IDX_TORSO_SF
+
+    for i in ['r_shoulder_study', 'L_shoulder_study', 'C7_study']:
+        frame = pin.Frame(i,IDX_L5S1_R_EXT_INT_JF,idx_frame,pin.SE3(np.eye(3,3), np.matrix([0, 0, 0]).T),pin.FrameType.OP_FRAME, inertia) 
+        idx_frame = model.addFrame(frame,False)
 
     # Right Shoulder ZXY
     IDX_SH_Z_JF_R = model.addJoint(IDX_L5S1_R_EXT_INT_JF,pin.JointModelRZ(),pin.SE3(np.eye(3), np.matrix([0.00805, 0.4067, 0.2037]).T),'right_shoulder_Z') # Hardcoded dummy values
@@ -872,6 +881,10 @@ def build_dummy_model_no_visuals()->pin.Model:
     IDX_UPA_SF_R = model.addFrame(upperarmR,False)
     idx_frame = IDX_UPA_SF_R
 
+    for i in ['r_melbow_study', 'r_lelbow_study']:
+        frame = pin.Frame(i,IDX_SH_Y_JF_R,idx_frame,pin.SE3(np.eye(3,3), np.matrix([0, 0, 0]).T),pin.FrameType.OP_FRAME, inertia) 
+        idx_frame = model.addFrame(frame,False)
+
     # Right Elbow ZY 
     IDX_EL_Z_JF_R = model.addJoint(IDX_SH_Y_JF_R,pin.JointModelRZ(),pin.SE3(np.eye(3), np.matrix([0, -0.2737, 0]).T),'right_elbow_Z') 
     lowerarmR = pin.Frame('lowerarm_z',IDX_EL_Z_JF_R,idx_frame,pin.SE3(np.eye(3), np.matrix([0,0,0]).T),pin.FrameType.OP_FRAME, inertia)
@@ -882,6 +895,10 @@ def build_dummy_model_no_visuals()->pin.Model:
     lowerarmR = pin.Frame('lowerarmR',IDX_EL_Y_JF,idx_frame,pin.SE3(np.eye(3), np.matrix([0,0,0]).T),pin.FrameType.OP_FRAME, inertia)
     IDX_LOA_SF = model.addFrame(lowerarmR,False)
     idx_frame = IDX_LOA_SF
+
+    for i in ['r_lwrist_study', 'r_mwrist_study']:
+        frame = pin.Frame(i,IDX_EL_Y_JF,idx_frame,pin.SE3(np.eye(3,3), np.matrix([0, 0, 0]).T),pin.FrameType.OP_FRAME, inertia) 
+        idx_frame = model.addFrame(frame,False)
 
     # Left shoulder ZXY
     IDX_SH_Z_JF_L = model.addJoint(IDX_L5S1_R_EXT_INT_JF, pin.JointModelRZ(), pin.SE3(np.eye(3), np.matrix([0.00805, 0.4067, -0.2037]).T), 'left_shoulder_Z') 
@@ -899,6 +916,10 @@ def build_dummy_model_no_visuals()->pin.Model:
     IDX_UPA_SF_L = model.addFrame(upperarmL, False)
     idx_frame = IDX_UPA_SF_L
 
+    for i in ['L_melbow_study', 'L_lelbow_study']:
+        frame = pin.Frame(i, IDX_SH_Y_JF_L, idx_frame, pin.SE3(np.eye(3), np.matrix([0, 0, 0]).T), pin.FrameType.OP_FRAME, inertia)
+        idx_frame = model.addFrame(frame, False)
+
     # Left Elbow ZY
     IDX_EL_Z_JF_L = model.addJoint(IDX_SH_Y_JF_L, pin.JointModelRZ(), pin.SE3(np.eye(3), np.matrix([0, -0.2737, 0]).T), 'left_elbow_Z')
     lowerarmL = pin.Frame('lowerarm_z_L', IDX_EL_Z_JF_L, idx_frame, pin.SE3(np.eye(3), np.matrix([0,0,0]).T), pin.FrameType.OP_FRAME, inertia)
@@ -909,6 +930,10 @@ def build_dummy_model_no_visuals()->pin.Model:
     lowerarmL = pin.Frame('lowerarmL', IDX_EL_Y_JF_L, idx_frame, pin.SE3(np.eye(3), np.matrix([0,0,0]).T), pin.FrameType.OP_FRAME, inertia)
     IDX_LOA_SF_L = model.addFrame(lowerarmL, False)
     idx_frame = IDX_LOA_SF_L
+
+    for i in ['L_lwrist_study', 'L_mwrist_study']:
+        frame = pin.Frame(i, IDX_EL_Y_JF_L, idx_frame, pin.SE3(np.eye(3), np.matrix([0, 0, 0]).T), pin.FrameType.OP_FRAME, inertia)
+        idx_frame = model.addFrame(frame, False)
 
     # Right Hip ZXY
     IDX_HIP_Z_JF = model.addJoint(IDX_PELV_JF,pin.JointModelRZ(),pin.SE3(np.eye(3), np.matrix([0.053375, -0.0749, 0.079975]).T),'right_hip_Z') 
@@ -926,17 +951,29 @@ def build_dummy_model_no_visuals()->pin.Model:
     IDX_THIGH_SF = model.addFrame(thighR,False)
     idx_frame = IDX_THIGH_SF
 
+    for i in ['r_knee_study', 'r_mknee_study','r_thigh2_study', 'r_thigh3_study', 'r_thigh1_study']:
+        frame = pin.Frame(i,IDX_HIP_Y_JF,idx_frame,pin.SE3(np.eye(3,3), np.matrix([0, 0, 0]).T),pin.FrameType.OP_FRAME, inertia) 
+        idx_frame = model.addFrame(frame,False)
+
     # Right Knee Z
     IDX_KNEE_Z_JF = model.addJoint(IDX_HIP_X_JF,pin.JointModelRZ(),pin.SE3(np.eye(3), np.matrix([0, -0.427, 0]).T),'right_knee_Z') 
     shankR = pin.Frame('shankR',IDX_KNEE_Z_JF,idx_frame,pin.SE3(np.eye(3), np.matrix([0,0,0]).T),pin.FrameType.OP_FRAME, inertia)
     IDX_SHANK_SF = model.addFrame(shankR,False)
     idx_frame = IDX_SHANK_SF
 
+    for i in ['r_ankle_study', 'r_mankle_study','r_sh3_study', 'r_sh2_study', 'r_sh1_study']:
+        frame = pin.Frame(i,IDX_KNEE_Z_JF,idx_frame,pin.SE3(np.eye(3,3), np.matrix([0, 0, 0]).T),pin.FrameType.OP_FRAME, inertia) 
+        idx_frame = model.addFrame(frame,False)
+
     # Right Ankle Z
     IDX_ANKLE_Z_JF = model.addJoint(IDX_KNEE_Z_JF,pin.JointModelRZ(),pin.SE3(np.eye(3), np.matrix([0, -0.42805, 0]).T),'right_ankle_Z') 
     footR = pin.Frame('footR',IDX_ANKLE_Z_JF,idx_frame,pin.SE3(np.eye(3), np.matrix([0,0,0]).T),pin.FrameType.OP_FRAME, inertia)
     IDX_SFOOT_SF = model.addFrame(footR,False)
     idx_frame = IDX_SFOOT_SF
+
+    for i in ['r_calc_study' ,'r_5meta_study','r_toe_study']:
+        frame = pin.Frame(i,IDX_ANKLE_Z_JF,idx_frame,pin.SE3(np.eye(3,3), np.matrix([0, 0, 0]).T),pin.FrameType.OP_FRAME, inertia) 
+        idx_frame = model.addFrame(frame,False)
 
     # Left Hip ZXY
     IDX_HIP_Z_JF_L = model.addJoint(IDX_PELV_JF, pin.JointModelRZ(), pin.SE3(np.eye(3), np.matrix([0.053375, -0.0749, -0.079975]).T), 'left_hip_Z') 
@@ -954,17 +991,29 @@ def build_dummy_model_no_visuals()->pin.Model:
     IDX_TGH_SF_L = model.addFrame(thighL, False)
     idx_frame = IDX_TGH_SF_L
 
+    for i in ['L_knee_study', 'L_mknee_study','L_thigh2_study', 'L_thigh3_study', 'L_thigh1_study']:
+        frame = pin.Frame(i, IDX_HIP_Y_JF_L, idx_frame, pin.SE3(np.eye(3), np.matrix([0, 0, 0]).T), pin.FrameType.OP_FRAME, inertia)
+        idx_frame = model.addFrame(frame, False)
+
     # Left Knee Z
     IDX_KNEE_Z_JF_L = model.addJoint(IDX_HIP_Y_JF_L,pin.JointModelRZ(),pin.SE3(np.eye(3), np.matrix([0, -0.427, 0]).T),'left_knee_Z') 
     shankR = pin.Frame('shankL',IDX_KNEE_Z_JF_L,idx_frame,pin.SE3(np.eye(3), np.matrix([0,0,0]).T),pin.FrameType.OP_FRAME, inertia)
     IDX_SHANK_SF_L = model.addFrame(shankR,False)
     idx_frame = IDX_SHANK_SF_L
 
+    for i in ['L_ankle_study', 'L_mankle_study','L_sh3_study', 'L_sh2_study', 'L_sh1_study']:
+        frame = pin.Frame(i,IDX_KNEE_Z_JF_L,idx_frame,pin.SE3(np.eye(3,3), np.matrix([0, 0, 0]).T),pin.FrameType.OP_FRAME, inertia) 
+        idx_frame = model.addFrame(frame,False)
+
     # Left Ankle Z
     IDX_ANKLE_Z_JF_L = model.addJoint(IDX_KNEE_Z_JF_L,pin.JointModelRZ(),pin.SE3(np.eye(3), np.matrix([0, -0.42805, 0]).T),'left_ankle_Z') 
     footL = pin.Frame('footL',IDX_ANKLE_Z_JF_L,idx_frame,pin.SE3(np.eye(3), np.matrix([0,0,0]).T),pin.FrameType.OP_FRAME, inertia)
     IDX_SFOOT_SF_L = model.addFrame(footL,False)
     idx_frame = IDX_SFOOT_SF_L
+
+    for i in ['L_calc_study', 'L_5meta_study', 'L_toe_study']:
+        frame = pin.Frame(i,IDX_ANKLE_Z_JF_L,idx_frame,pin.SE3(np.eye(3,3), np.matrix([0,0,0]).T),pin.FrameType.OP_FRAME, inertia) 
+        idx_frame = model.addFrame(frame,False)
 
     model.upperPositionLimit[7:] = np.array([5*np.pi/36,         #L5S1_FE + 
                                           np.pi/3,             #L5S1_R_EXT_INT +
