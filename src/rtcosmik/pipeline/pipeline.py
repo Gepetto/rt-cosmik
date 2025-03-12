@@ -93,7 +93,6 @@ class PipelineProcess(Process):
         try:
             while not self.stop_event.is_set():
                 frames = []
-                timestamps = []
                 keypoints_list = []
                 new_counters = []
                 for i, (lock, buffer, cam_ts, frame_counter) in enumerate(zip(self.camera_locks, self.camera_buffers, self.camera_timestamps, self.camera_frame_counters)):
@@ -110,20 +109,13 @@ class PipelineProcess(Process):
                                 continue
                             else:
                                 frames.append(frame)
-                                timestamps.append(timestamp)
                             new_counters.append(frame_counter.value)
 
-                if len(timestamps)!=self.num_cameras and len(frames)!=self.num_cameras:
+                if len(frames)!=self.num_cameras:
                     continue
 
                 # Update the last processed frame counters so the same frame is not processed twice
                 self.last_frame_counters = new_counters.copy()
-
-                # Convert to Unix timestamps (float)
-                unix_timestamps = [datetime.strptime(ts, "%Y-%m-%d %H:%M:%S.%f").timestamp() for ts in timestamps]
-                output_timestamp = max(unix_timestamps)
-                # Convert back to a formatted string if needed
-                output_time_str = datetime.fromtimestamp(output_timestamp).strftime("%Y-%m-%d %H:%M:%S.%f")
 
                 results = self.tracker.estimate(frames)
 
@@ -197,16 +189,16 @@ class PipelineProcess(Process):
                         
                         else:
                             kp_dict = dict(zip(self.keypoints_names,filtered_keypoints_buffer[-1]))
-                            self.results_queues[0].put((output_time_str, kp_dict))
+                            self.results_queues[0].put((new_counters, kp_dict))
 
                             mks_dict = dict(zip(self.marker_names, augmented_markers))
-                            self.results_queues[1].put((output_time_str, mks_dict))
+                            self.results_queues[1].put((new_counters, mks_dict))
                             
                             if self.ik_type == 'sbs':
                                 ### IK calculations
                                 ik_class._dict_m = mks_dict
                                 q = ik_class.solve_ik_sample_quadprog() 
-                                self.results_queues[2].put((output_time_str, q))
+                                self.results_queues[2].put((new_counters, q))
                                 ik_class._q0 = q
                                 
                             elif self.ik_type == 'mhe':
@@ -215,7 +207,7 @@ class PipelineProcess(Process):
                                 x_array, u_array = ik_class.solve(x_array, u_array, array_data, x_array[:,-1], self.cost_weights, self.dt)
 
                                 q = x_array[:self.human_model.nq,-1]
-                                self.results_queues[2].put((output_time_str, q))
+                                self.results_queues[2].put((new_counters, q))
                             else : 
                                 raise ValueError("Invalid ik type, should be sbs (sample by sample) or mhe (moving horizon estimation)")
                             

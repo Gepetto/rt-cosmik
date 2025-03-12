@@ -8,7 +8,7 @@ class Settings:
     
     # SAVE 
     SAVE_VID: bool = False
-    SAVE_CSV: bool = False
+    SAVE_CSV: bool = True
     SAVE_DIR: str = "/root/workspace/ros_ws/src/rt-cosmik/output" # abs path to the save folder
 
     # CAM PARAMS
@@ -35,6 +35,16 @@ class Settings:
     filter_type: str = "lowpass"
 
     # IK AND DATA HANDLING
+    # For whole body model :
+    joint_angles_names = ['FF_X', 'FF_Y', 'FF_Z', 'FF_quatx','FF_quaty'
+                          'FF_quatz', 'FF_quatw', 'Lumbar_flex_ext', 'Lumbar_int_ext_rot'
+                          'Rshoulder_flex_ext', 'Rshoulder_abd_add', 'Rshoulder_int_ext_rot'
+                          'Relbow_flex_ext', 'Relbow_pron_supi', 'Lshoulder_flex_ext',
+                          'Lshoulder_abd_add', 'Lshoulder_int_ext_rot', 'Lelbow_flex_ext',
+                          'Lelbow_pron_supi','Rhip_flex_ext','Rhip_abd_add','Rhip_int_ext_rot',
+                          'Rknee_flex_ext','Rankle_flex_ext','Lhip_flex_ext', 'Lhip_abd_add', 
+                          'Lhip_int_ext_rot', 'Lknee_flex_ext', 'Lankle_flex_ext']
+
     # Ik type
     ik_type: str ="sbs" # either "mhe" for SWIKA or "sbs" for sample by sample qp
     

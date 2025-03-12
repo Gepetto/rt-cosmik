@@ -16,7 +16,8 @@ class CSVSaver:
         # Ensure headers are immutable and ordered
         self.keypoints_header = []
         for el in keypoints_header:
-            if el == 'Time':
+            el_split = el.split('_')
+            if el_split[0] == 'Frame':
                 self.keypoints_header.append(el)
             else : 
                 self.keypoints_header.append(el+'_x')
@@ -25,7 +26,8 @@ class CSVSaver:
 
         self.markers_header = []
         for el in markers_header:
-            if el == 'Time':
+            el_split = el.split('_')
+            if el_split[0] == 'Frame':
                 self.markers_header.append(el)
             else :
                 self.markers_header.append(el+'_x')
