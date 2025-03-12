@@ -205,8 +205,8 @@ class ViewerProcess(Process):
                 )
 
                 # (Optional) Debug prints to verify the ordered dictionaries:
-                print("Ordered keypoints:", ordered_keypoints)
-                print("Ordered markers:", ordered_markers)
+                # print("Ordered keypoints:", ordered_keypoints)
+                # print("Ordered markers:", ordered_markers)
 
                 self.csv_saver.save_keypoints(ordered_keypoints)
                 self.csv_saver.save_markers(ordered_markers)

@@ -446,7 +446,7 @@ class RT_SWIKA:
         ### Define the solver
         options = {}
         options["expand"] = True
-        options["fatrop"] = {"mu_init": 1e-5, 'warm_start_mult_bound_push' : 1e-7, "bound_push":1e-7, "tol":1e-1, "linsol_iterative_refinement":False}#, "warm_start_init_point":True}
+        options["fatrop"] = {"print_level":0, "mu_init": 1e-5, 'warm_start_mult_bound_push' : 1e-7, "bound_push":1e-7, "tol":1e-1, "linsol_iterative_refinement":False}#, "warm_start_init_point":True}
         options["structure_detection"] = "auto"
         options["debug"] = False
 
