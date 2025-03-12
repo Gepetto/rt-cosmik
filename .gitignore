@@ -22,3 +22,4 @@ data_to_process/
 panda_with_box_base.urdf.xacro
 panda_with_box_base.urdf
 fatrop_generated/
+ocp.c
