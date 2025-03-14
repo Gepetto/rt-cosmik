@@ -31,7 +31,7 @@ class Settings:
     # FILTER PARAMS
     order: int = 4
     system_freq: int = 40 # For now the system update time is at around 0.034 ms so around 30 Hz 
-    cutoff_freq: float = 10
+    cutoff_freq: float = 7
     filter_type: str = "lowpass"
 
     # IK AND DATA HANDLING

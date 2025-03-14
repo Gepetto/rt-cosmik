@@ -435,7 +435,7 @@ class RT_SWIKA:
         # Cost function 
         cost = 0
         # Markers tracking
-        cost+=cost_weights[0]*casadi.sumsqr(marker_meas-fmarkers_est.map(self._N, "thread", 4)(X))
+        cost+=cost_weights[0]*casadi.sumsqr(marker_meas-fmarkers_est.map(self._N)(X))
         # State regul
         cost += cost_weights[1]*casadi.sumsqr(X-X0)
         # Control regul
@@ -445,8 +445,11 @@ class RT_SWIKA:
 
         ### Define the solver
         options = {}
+        options["verbose_init"] = False
+        options["verbose"] = False
+        options["print_time"] = False
         options["expand"] = True
-        options["fatrop"] = {"print_level":0, "mu_init": 1e-5, 'warm_start_mult_bound_push' : 1e-7, "bound_push":1e-7, "tol":1e-1, "linsol_iterative_refinement":False}#, "warm_start_init_point":True}
+        options["fatrop"] = {"print_level":0, "max_iter":7, "mu_init": 1e-5, 'warm_start_mult_bound_push' : 1e-7, "bound_push":1e-7, "tol":1e-1, "linsol_iterative_refinement":False}#, "warm_start_init_point":True}
         options["structure_detection"] = "auto"
         options["debug"] = False
 
