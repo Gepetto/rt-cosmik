@@ -202,20 +202,14 @@ class PipelineProcess(Process):
                                 ik_class._q0 = q
                                 
                             elif self.ik_type == 'mhe':
-                                time_init_swika = time.perf_counter()
                                 deque_lstm_dict.append(mks_dict)
                                 array_data = np.array([np.hstack([d[marker] for marker in self.keys_to_track_list]) for d in deque_lstm_dict]).T
                                 
-                                time_init_solve =time.perf_counter()
                                 x_array, u_array = ik_class.solve(x_array, u_array, array_data, x_array[:,-1], self.cost_weights, self.dt)
-                                time_end_solve = time.perf_counter()
-                                print("Time to solve = ", time_end_solve-time_init_solve)
 
                                 q = pin.neutral(self.human_model)
                                 q[:] = np.array(x_array[:self.human_model.nq,-1]).flatten()
                                 self.results_queues[2].put((new_counters, q))
-                                time_end_swika = time.perf_counter()
-                                print("Time to perform SWIKA = ", time_end_swika-time_init_swika)
                             else : 
                                 raise ValueError("Invalid ik type, should be sbs (sample by sample) or mhe (moving horizon estimation)")
                             
