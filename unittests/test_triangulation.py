@@ -26,8 +26,9 @@ script_directory = os.path.dirname(os.path.abspath(__file__))
 parent_directory = os.path.dirname(script_directory)
 
 liste_fichiers = [
-    '/root/workspace/ros_ws/src/rt-cosmik/output/frontal_plan/cam_1.csv',
-    '/root/workspace/ros_ws/src/rt-cosmik/output/frontal_plan/cam_2.csv'
+    '/root/workspace/ros_ws/src/rt-cosmik/output/keypoints_output_0.csv',
+    '/root/workspace/ros_ws/src/rt-cosmik/output/keypoints_output_1.csv',
+    '/root/workspace/ros_ws/src/rt-cosmik/output/keypoints_output_2.csv'
 
 ]
 donnees_cameras=[]
@@ -41,13 +42,18 @@ for donnee_camera in donnees_cameras:
     uvs_camera = uvs_camera.reshape(-1, nombre_points, 2)
     uvs.append(uvs_camera)
 
-K1, D1 = load_cam_params(os.path.join(parent_directory,"config/cam_params/c1_params_color_test_test.yaml"))
-K2, D2 = load_cam_params(os.path.join(parent_directory,"config/cam_params/c2_params_color_test_test.yaml"))
-R,T = load_cam_to_cam_params(os.path.join(parent_directory,"config/cam_params/c1_to_c2_params_color_test_test.yaml"))
-mtxs, dists, projections, rotations, translations = get_cameras_params(K1, D1, K2, D2, R, T)
+K3, D3 = load_cam_params(os.path.join(parent_directory,"config/cam_params/c3_params_color.yaml")) #cam principale
+K1, D1 = load_cam_params(os.path.join(parent_directory,"config/cam_params/c1_params_color.yaml"))
+K2, D2 = load_cam_params(os.path.join(parent_directory,"config/cam_params/c2_params_color.yaml"))
+
+
+R1,T1 = load_cam_to_cam_params(os.path.join(parent_directory,"config/cam_params/c1_to_c3_params_color.yaml"))
+R2,T2 = load_cam_to_cam_params(os.path.join(parent_directory,"config/cam_params/c2_to_c3_params_color.yaml"))
+
+mtxs, dists, projections, rotations, translations = get_cameras_params(K3, D3, K1, D1, R1, T1, K2, D2, R2, T2)
 
 ### Loading camera pose 
-cam_R1_world, cam_T1_world = load_cam_pose(os.path.join(parent_directory,'config/cam_params/camera1_pose_test_test.yaml'))
+cam_R1_world, cam_T1_world = load_cam_pose(os.path.join(parent_directory,'config/cam_params/camera3_pose.yaml'))
 # Inverse the pose to get cam in world frame 
 world_R1_cam = cam_R1_world.T
 world_T1_cam = -cam_R1_world.T@cam_T1_world
@@ -75,7 +81,7 @@ for frame_idx in range(num_frames):
 # Convert to DataFrame
 df = pd.DataFrame(keypoints_in_world_list)
 
-output_csv_path = "/root/workspace/ros_ws/src/rt-cosmik/output/frontal_plan/keypoints_3d.csv"
+output_csv_path = "/root/workspace/ros_ws/src/rt-cosmik/output/keypoints_3d.csv"
 
 # Save to CSV without header/index
 df.to_csv(output_csv_path, index=False, header=False)

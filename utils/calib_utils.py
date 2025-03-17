@@ -663,7 +663,7 @@ def list_cameras_with_v4l2():
         print("Error using v4l2-ctl:", e)
     return cameras
 
-def get_cameras_params(K1, D1, K2, D2, R, T):
+def get_cameras_params(K1, D1, K2, D2, R, T, K3, D3,R1,T1):
     dict_cam = {
         "cam1": {
             "mtx":np.array(K1),
@@ -680,6 +680,13 @@ def get_cameras_params(K1, D1, K2, D2, R, T):
             "dist":D2,
             "rotation":R,
             "translation":T,
+        },
+
+        "cam3": {
+            "mtx":np.array(K3),
+            "dist":D3,
+            "rotation":R1,
+            "translation":T1,
         },
     }
 

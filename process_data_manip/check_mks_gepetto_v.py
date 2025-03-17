@@ -31,7 +31,7 @@ import pandas as pd
 mks_names = ["Nose","LEye","REye","LEar","REar","LShoulder","RShoulder","LElbow","RElbow","LWrist","RWrist","LHip","RHip","LKnee","Rknee","LAnkle","RAnkle","Head","Neck","Hip","LBigToe","RBigToe","LSmallToe", "RSmallToe", "LHeel","RHeel"]
 
 
-fichier_csv_mks = '/root/workspace/ros_ws/src/rt-cosmik/output/keypoints_3d_test.csv'
+fichier_csv_mks = '/root/workspace/ros_ws/src/rt-cosmik/output/keypoints_3d.csv'
 data = pd.read_csv(fichier_csv_mks, header=None)  #read all data (pas de ligne en trop)
 
 # fichier_csv_mks = 'mks_mocap_test_2.csv'
