@@ -6,6 +6,35 @@ from typing import List, Tuple, Dict
 from rtcosmik.utils.linear_algebra_utils import col_vector_3D
 from .model_utils import construct_segments_frames, get_segments_mks_dict, get_local_mks_positions, get_local_segments_positions
 
+#### MODEL DESCRIPTION ####
+#  Joint 0 universe  
+#  Joint 1 root_joint: parent=0
+# #   Joint 2 L5S1_FE: parent=1
+# #   Joint 3 L5S1_R_EXT_INT: parent=2
+# #   Joint 4 Neck_FE: parent=3
+# #   Joint 5 Neck_LAT_BEND: parent=4
+# #   Joint 6 Neck_R_EXT_INT: parent=5
+#   Joint 7 Shoulder_Z_R: parent=3     7.0*np.pi/6    -np.pi/2.0
+#   Joint 8 Shoulder_X_R: parent=7     0.6        -np.pi,
+#   Joint 9 Shoulder_Y_R: parent=8     np.pi/2.0 + 0.5     -np.pi/3
+#   Joint 10 Elbow_Z_R: parent=9      np.pi            0.0
+#   Joint 11 Elbow_Y_R: parent=10      3*np.pi/4        -np.pi/6
+# #   Joint 12 Shoulder_Z_L: parent=3   
+# #   Joint 13 Shoulder_X_L: parent=12
+# #   Joint 14 Shoulder_Y_L: parent=13
+# #   Joint 15 Elbow_Z_L: parent=14        
+# #   Joint 16 Elbow_Y_L: parent=15
+#   Joint 17 Hip_Z_R: parent=1
+#   Joint 18 Hip_X_R: parent=17
+#   Joint 19 Hip_Y_R: parent=18
+#   Joint 20 Knee_Z_R: parent=19
+#   Joint 21 Ankle_Z_R: parent=20
+# #   Joint 22 Hip_Z_L: parent=1
+# #   Joint 23 Hip_X_L: parent=22
+# #   Joint 24 Hip_Y_L: parent=23
+# #   Joint 25 Knee_Z_L: parent=24
+# #   Joint 26 Ankle_Z_L: parent=25
+
 def build_model_no_visuals(mocap_mks_positions: Dict)->pin.Model:
     """_Build the biomechanical model associated to one exercise for one subject_
 
@@ -317,6 +346,34 @@ def build_model(mocap_mks_positions: Dict, meshes_folder_path: str)->Tuple[pin.M
     geom_model.addGeometryObject(abdomen_visual)
     visuals_dict["abdomen"] = abdomen_visual
 
+    # Cervical ZXY
+    IDX_NECK_Z_JF = model.addJoint(IDX_L5S1_R_EXT_INT_JF,pin.JointModelRZ(),pin.SE3(np.eye(3), np.matrix(local_segments_positions['head'] + local_segments_positions['torso']).T),'cervical_Z')
+    head = pin.Frame('head_z',IDX_NECK_Z_JF,idx_frame,pin.SE3(np.eye(3), np.matrix([0,0,0]).T),pin.FrameType.OP_FRAME, inertia)
+    IDX_HEAD_SF = model.addFrame(head,False)
+    idx_frame = IDX_HEAD_SF
+
+    IDX_NECK_X_JF = model.addJoint(IDX_NECK_Z_JF,pin.JointModelRX(),pin.SE3(np.eye(3), np.matrix([0,0,0]).T),'cervical_X')
+    head = pin.Frame('head_x',IDX_NECK_X_JF,idx_frame,pin.SE3(np.eye(3), np.matrix([0,0,0]).T),pin.FrameType.OP_FRAME, inertia)
+    IDX_HEAD_SF = model.addFrame(head,False)
+    idx_frame = IDX_HEAD_SF
+
+    IDX_NECK_Y_JF = model.addJoint(IDX_NECK_X_JF,pin.JointModelRY(),pin.SE3(np.eye(3), np.matrix([0,0,0]).T),'cervical_Y')
+    head = pin.Frame('head',IDX_NECK_Y_JF,idx_frame,pin.SE3(np.eye(3), np.matrix([0,0,0]).T),pin.FrameType.OP_FRAME, inertia)
+    IDX_HEAD_SF = model.addFrame(head,False)
+    idx_frame = IDX_HEAD_SF
+
+    for i in sgts_mks_dict["head"]:
+        frame = pin.Frame(i,IDX_NECK_Y_JF,idx_frame,pin.SE3(np.eye(3,3), np.matrix(mks_local_positions[i]).T),pin.FrameType.OP_FRAME, inertia) 
+        idx_frame = model.addFrame(frame,False)
+
+    head_visual = pin.GeometryObject('head', IDX_HEAD_SF, IDX_NECK_Y_JF, mesh_loader.load(meshes_folder_path+'/head_mesh.STL'), pin.SE3(np.eye(3), np.matrix([0., 0., 0.]).T), meshes_folder_path+'/head_mesh.STL', np.array([0.0065, 0.0065, 0.0065]), True, body_color)
+    geom_model.addGeometryObject(head_visual)
+    visuals_dict["head"] = head_visual
+
+    neck_visual = pin.GeometryObject('neck', IDX_HEAD_SF, IDX_NECK_Y_JF, mesh_loader.load(meshes_folder_path+'/neck_mesh.STL'), pin.SE3(np.eye(3), np.matrix([0., 0., 0.]).T), meshes_folder_path+'/neck_mesh.STL', np.array([0.0065, 0.0065, 0.0065]), True, body_color)
+    geom_model.addGeometryObject(neck_visual)
+    visuals_dict["neck"] = neck_visual
+
     # Right Shoulder ZXY
     IDX_SH_Z_JF_R = model.addJoint(IDX_L5S1_R_EXT_INT_JF,pin.JointModelRZ(),pin.SE3(np.eye(3), np.matrix(local_segments_positions['upperarmR'] + local_segments_positions['torso']).T),'right_shoulder_Z') 
     upperarmR = pin.Frame('upperarm_z_R',IDX_SH_Z_JF_R,idx_frame,pin.SE3(np.eye(3), np.matrix([0,0,0]).T),pin.FrameType.OP_FRAME, inertia)
@@ -533,8 +590,11 @@ def build_model(mocap_mks_positions: Dict, meshes_folder_path: str)->Tuple[pin.M
     geom_model.addGeometryObject(foot_visual_L)
     visuals_dict["foot_L"] = foot_visual_L
 
-    model.upperPositionLimit[7:] = np.array([5*np.pi/36,         #L5S1_FE + 
+    model.upperPositionLimit[7:] = np.array([5*np.pi/36,       #L5S1_FE + 
                                           np.pi/3,             #L5S1_R_EXT_INT +
+                                          np.pi/2,             # Neck_Z +
+                                          np.pi/2,             # Neck_X +
+                                          np.pi/2,             # Neck_Y +
                                           np.pi,               #Shoulder_Z_R +
                                           np.pi/3,             #Shoulder_X_R +
                                           np.pi/2,             #Shoulder_Y_R +
@@ -544,13 +604,13 @@ def build_model(mocap_mks_positions: Dict, meshes_folder_path: str)->Tuple[pin.M
                                           np.pi,               #Shoulder_X_L +
                                           np.pi/2,             #Shoulder_Y_L +
                                           5*np.pi/6,           #Elbow_Z_L +
-                                          0.2,               #Elbow_Y_L +
+                                          0.2,                 #Elbow_Y_L +
                                           np.pi/2,             #Hip_Z_R +
                                           np.pi/3,             #Hip_X_R +
                                           np.pi/3,             #Hip_Y_R +
                                           0,                   #Knee_Z_R +
                                           np.pi/4,             #Ankle_Z_R +
-                                          np.pi/2,           #Hip_Z_L +
+                                          np.pi/2,             #Hip_Z_L +
                                           np.pi/2,             #Hip_X_L +
                                           np.pi/2,             #Hip_Y_L +
                                           0,                   #Knee_Z_L +
@@ -559,6 +619,9 @@ def build_model(mocap_mks_positions: Dict, meshes_folder_path: str)->Tuple[pin.M
     
     model.lowerPositionLimit[7:] = np.array([-np.pi/2,           #L5S1_FE -
                                             -np.pi/3,            #L5S1_R_EXT_INT -
+                                            -np.pi/2,            # Neck_Z -
+                                            -np.pi/2,            # Neck_X -
+                                            -np.pi/2,            # Neck_Y -
                                             -np.pi,              #Shoulder_Z_R -
                                             -np.pi,              #Shoulder_X_R -
                                             -np.pi/2,            #Shoulder_Y_R -
@@ -568,43 +631,20 @@ def build_model(mocap_mks_positions: Dict, meshes_folder_path: str)->Tuple[pin.M
                                             -np.pi/3,            #Shoulder_X_L -
                                             -np.pi/2,            #Shoulder_Y_L -
                                             0,                   #Elbow_Z_L -
-                                            -np.pi,          #Elbow_Y_L -
+                                            -np.pi,              #Elbow_Y_L -
                                             -np.pi/3,            #Hip_Z_R -
                                             -np.pi/2,            #Hip_X_R -
                                             -np.pi/2,            #Hip_Y_R -
                                             -5*np.pi/6,          #Knee_Z_R -
-                                            -np.pi/2,          #Ankle_Z_R -
+                                            -np.pi/2,            #Ankle_Z_R -
                                             -np.pi/3,            #Hip_Z_L -
                                             -np.pi/3,            #Hip_X_L -
-                                            -np.pi/3,             #Hip_Y_L -
+                                            -np.pi/3,            #Hip_Y_L -
                                             -5*np.pi/6,          #Knee_Z_L -
-                                            -np.pi/2,          #Ankle_Z_L -
+                                            -np.pi/2,            #Ankle_Z_L -
                                             ])
     
     return model, geom_model, visuals_dict
-
-#   Joint 2 L5S1_FE: parent=1
-#   Joint 3 L5S1_R_EXT_INT: parent=2
-#   Joint 4 Shoulder_Z_R: parent=3     7.0*np.pi/6    -np.pi/2.0
-#   Joint 5 Shoulder_X_R: parent=4     0.6        -np.pi,
-#   Joint 6 Shoulder_Y_R: parent=5     np.pi/2.0 + 0.5     -np.pi/3
-#   Joint 7 Elbow_Z_R: parent=6      np.pi            0.0
-#   Joint 8 Elbow_Y_R: parent=7      3*np.pi/4        -np.pi/6
-# #   Joint 9 Shoulder_Z_L: parent=3   
-# #   Joint 10 Shoulder_X_L: parent=9
-# #   Joint 11 Shoulder_Y_L: parent=10
-# #   Joint 12 Elbow_Z_L: parent=11        
-# #   Joint 13 Elbow_Y_L: parent=12
-#   Joint 14 Hip_Z_R: parent=1
-#   Joint 15 Hip_X_R: parent=14
-#   Joint 16 Hip_Y_R: parent=15
-#   Joint 17 Knee_Z_R: parent=15
-#   Joint 18 Ankle_Z_R: parent=17
-# #   Joint 19 Hip_Z_L: parent=1
-# #   Joint 20 Hip_X_L: parent=19
-# #   Joint 21 Hip_Y_L: parent=20
-# #   Joint 22 Knee_Z_L: parent=21
-# #   Joint 23 Ankle_Z_L: parent=22
 
 def build_dummy_model(meshes_folder_path: str)->Tuple[pin.Model,pin.Model, Dict]:
     """_Build the biomechanical model associated to one exercise for one subject_

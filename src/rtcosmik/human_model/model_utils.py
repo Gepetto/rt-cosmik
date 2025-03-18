@@ -46,6 +46,41 @@ def orthogonalize_matrix(matrix:np.ndarray)->np.ndarray:
         orthogonal_matrix = U @ Vt
     return orthogonal_matrix
 
+def get_head_pose(mocap_mks_positions):
+    """
+    Calculate the pose of the head based on motion capture marker positions.
+    The function computes a 4x4 transformation matrix representing the pose of the head.
+    The matrix includes rotation and translation components derived from the positions
+    of specific markers.
+    Parameters:
+    mocap_mks_positions (dict): A dictionary containing the positions of motion capture markers.
+                                Expected keys are 'Neck', 'midHip', 'C7_study', 'CV7', 'SJN', 
+                                'HeadR', 'HeadL', 'RSAT', and 'LSAT'. Each key should map to a 
+                                numpy array of shape (3,).
+    Returns:
+    numpy.ndarray: A 4x4 transformation matrix representing the head pose.
+    """
+
+    pose = np.eye(4,4)
+    X, Y, Z, head_center = [], [], [], []
+
+    head_center = (mocap_mks_positions['r_shoulder_study'] + mocap_mks_positions['L_shoulder_study'])/2.0 
+    top_head = mocap_mks_positions['Head']
+    Y = (top_head - head_center).reshape(3,1)
+    Y = Y/np.linalg.norm(Y)
+
+    Z = (mocap_mks_positions['REar'] - mocap_mks_positions['LEar']).reshape(3,1)
+    Z = Z/np.linalg.norm(Z)
+    
+    X = np.cross(Y, Z, axis=0)
+    Z = np.cross(X, Y, axis=0)
+
+    pose[:3,0] = X.reshape(3,)
+    pose[:3,1] = Y.reshape(3,)
+    pose[:3,2] = Z.reshape(3,)
+    pose[:3,3] = head_center.reshape(3,)
+    pose[:3,:3] = orthogonalize_matrix(pose[:3,:3])
+    return pose
 
 #construct torso frame and get its pose from a dictionnary of mks positions and names
 def get_torso_pose(mocap_mks_positions):
@@ -524,7 +559,7 @@ def construct_segments_frames(mocap_mks_positions):
     Returns:
         dict: A dictionary where keys are segment names (e.g., 'torso', 'upperarmR') and values are the corresponding poses.
     """
-
+    head_pose = get_head_pose(mocap_mks_positions)
     torso_pose = get_torso_pose(mocap_mks_positions)
     upperarmR_pose = get_upperarmR_pose(mocap_mks_positions)
     lowerarmR_pose = get_lowerarmR_pose(mocap_mks_positions)
@@ -540,6 +575,7 @@ def construct_segments_frames(mocap_mks_positions):
     
     # Constructing the dictionary to store segment poses
     sgts_poses = {
+        "head": head_pose,
         "torso": torso_pose,
         "upperarmR": upperarmR_pose,
         "lowerarmR": lowerarmR_pose,
@@ -591,9 +627,10 @@ def compare_offsets(mocap_mks_positions, lstm_mks_positions):
 
 def get_segments_mks_dict()->Dict:
     #This fuction returns a dictionnary containing the segments names, and the corresponding list of lstm
-    #mks names attached to the segment
+    # mks names attached to the segment
     # Constructing the dictionary to store segment poses
     sgts_mks_dict = {
+        "head": ['Head', 'REar', 'LEar', 'REye', 'LEye' ],
         "torso": ['r_shoulder_study', 'L_shoulder_study', 'C7_study'],
         "upperarmR": ['r_melbow_study', 'r_lelbow_study'],
         "lowerarmR": ['r_lwrist_study', 'r_mwrist_study'],
@@ -680,6 +717,12 @@ def get_local_segments_positions(sgts_poses: Dict)->Dict:
         torso_global = sgts_poses["torso"]
         local_positions["torso"] = (np.linalg.inv(pelvis_pose) @ torso_global @ np.array([0, 0, 0, 1]))[:3]
 
+    # Head with respect to torso
+    if "head" in sgts_poses:
+        head_global = sgts_poses["head"]
+        torso_global = sgts_poses["torso"]
+        local_positions["head"] = (np.linalg.inv(torso_global) @ head_global @ np.array([0, 0, 0, 1]))[:3]
+
     # Upperarm with respect to torso
     if "upperarmR" in sgts_poses:
         upperarm_global = sgts_poses["upperarmR"]
@@ -735,21 +778,21 @@ def get_local_segments_positions(sgts_poses: Dict)->Dict:
     return local_positions
     
 
-    def get_segment_length(mocap_mks_positions: Dict):
-        sgts_poses = construct_segments_frames_challenge(mocap_mks_positions)
-        local_segments_positions = get_local_segments_positions(sgts_poses)
-        print('local_segments_positions', local_segments_positions)
-        # Calculate norms to get length of segments
-        norms = {}
-        norms['upperlegR'] = np.linalg.norm(local_segments_positions['shankR'])
-        norms['lowerlegR'] = np.linalg.norm(local_segments_positions['footR'])
-        norms['upperlegL'] = np.linalg.norm(local_segments_positions['shankL'])
-        norms['lowerlegL'] = np.linalg.norm(local_segments_positions['footL'])
+# def get_segment_length(mocap_mks_positions: Dict):
+#     sgts_poses = construct_segments_frames_challenge(mocap_mks_positions)
+#     local_segments_positions = get_local_segments_positions(sgts_poses)
+#     print('local_segments_positions', local_segments_positions)
+#     # Calculate norms to get length of segments
+#     norms = {}
+#     norms['upperlegR'] = np.linalg.norm(local_segments_positions['shankR'])
+#     norms['lowerlegR'] = np.linalg.norm(local_segments_positions['footR'])
+#     norms['upperlegL'] = np.linalg.norm(local_segments_positions['shankL'])
+#     norms['lowerlegL'] = np.linalg.norm(local_segments_positions['footL'])
 
-        norms['upperarmR'] = np.linalg.norm(local_segments_positions['upperarmR'])
-        norms['lowerarmR'] = np.linalg.norm(local_segments_positions['lowerarmR'])
-        norms['upperarmL'] = np.linalg.norm(local_segments_positions['upperarmL'])
-        norms['lowerarmL'] = np.linalg.norm(local_segments_positions['lowerarmL'])
+#     norms['upperarmR'] = np.linalg.norm(local_segments_positions['upperarmR'])
+#     norms['lowerarmR'] = np.linalg.norm(local_segments_positions['lowerarmR'])
+#     norms['upperarmL'] = np.linalg.norm(local_segments_positions['upperarmL'])
+#     norms['lowerarmL'] = np.linalg.norm(local_segments_positions['lowerarmL'])
 
 
 
