@@ -441,7 +441,7 @@ class RT_SWIKA:
         # Control regul
         cost += cost_weights[2]*casadi.sumsqr(U)
         
-#         opti.minimize(cost)
+        opti.minimize(cost)
 
         ### Define the solver
         options = {}
