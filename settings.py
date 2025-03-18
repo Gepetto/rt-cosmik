@@ -38,6 +38,7 @@ class Settings:
     # For whole body model :
     joint_angles_names = ['FF_X', 'FF_Y', 'FF_Z', 'FF_quatx','FF_quaty',
                           'FF_quatz', 'FF_quatw', 'Lumbar_flex_ext', 'Lumbar_int_ext_rot',
+                          'Cervical_flex_ext', 'Cervical_lat_bend', 'Cervical_int_ext_rot',
                           'Rshoulder_flex_ext', 'Rshoulder_abd_add', 'Rshoulder_int_ext_rot',
                           'Relbow_flex_ext', 'Relbow_pron_supi', 'Lshoulder_flex_ext',
                           'Lshoulder_abd_add', 'Lshoulder_int_ext_rot', 'Lelbow_flex_ext',
@@ -90,6 +91,7 @@ class Settings:
     
     # Add this to the class definition
     keys_to_track_list: list = field(default_factory=lambda: [
+        'Head', 'Nose', 'REar', 'LEar', 'REye', 'LEye',
         'C7_study', 
         'r.ASIS_study', 'L.ASIS_study', 
         'r.PSIS_study', 'L.PSIS_study', 

@@ -158,7 +158,11 @@ class PipelineProcess(Process):
                         if self.first_sample:
                             kp_dict = dict(zip(self.keypoints_names,filtered_keypoints_buffer[-1]))
                             mks_dict = dict(zip(self.marker_names, augmented_markers))
-                            
+
+                            # Adds head keypoints in lstm output for head tracking
+                            keys_to_add = ['Nose', 'Head', 'REar', 'LEar', 'REye', 'LEye']
+                            mks_dict.update({key: kp_dict[key] for key in keys_to_add})
+
                             self.human_model = build_model_no_visuals(mks_dict)
                             
                             if self.ik_type == 'sbs':
@@ -192,6 +196,9 @@ class PipelineProcess(Process):
                             self.results_queues[0].put((new_counters, kp_dict))
 
                             mks_dict = dict(zip(self.marker_names, augmented_markers))
+                            # Adds head keypoints in lstm output for head tracking
+                            keys_to_add = ['Nose', 'Head', 'REar', 'LEar', 'REye', 'LEye']
+                            mks_dict.update({key: kp_dict[key] for key in keys_to_add})
                             self.results_queues[1].put((new_counters, mks_dict))
                             
                             if self.ik_type == 'sbs':
