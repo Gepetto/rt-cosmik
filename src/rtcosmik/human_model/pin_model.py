@@ -81,6 +81,26 @@ def build_model_no_visuals(mocap_mks_positions: Dict)->pin.Model:
         frame = pin.Frame(i,IDX_L5S1_R_EXT_INT_JF,idx_frame,pin.SE3(np.eye(3,3), np.matrix(mks_local_positions[i]+ local_segments_positions['torso']).T),pin.FrameType.OP_FRAME, inertia) 
         idx_frame = model.addFrame(frame,False)
 
+    # Cervical ZXY
+    IDX_NECK_Z_JF = model.addJoint(IDX_L5S1_R_EXT_INT_JF,pin.JointModelRZ(),pin.SE3(np.eye(3), np.matrix(local_segments_positions['head'] + local_segments_positions['torso']).T),'cervical_Z')
+    head = pin.Frame('head_z',IDX_NECK_Z_JF,idx_frame,pin.SE3(np.eye(3), np.matrix([0,0,0]).T),pin.FrameType.OP_FRAME, inertia)
+    IDX_HEAD_SF = model.addFrame(head,False)
+    idx_frame = IDX_HEAD_SF
+
+    IDX_NECK_X_JF = model.addJoint(IDX_NECK_Z_JF,pin.JointModelRX(),pin.SE3(np.eye(3), np.matrix([0,0,0]).T),'cervical_X')
+    head = pin.Frame('head_x',IDX_NECK_X_JF,idx_frame,pin.SE3(np.eye(3), np.matrix([0,0,0]).T),pin.FrameType.OP_FRAME, inertia)
+    IDX_HEAD_SF = model.addFrame(head,False)
+    idx_frame = IDX_HEAD_SF
+
+    IDX_NECK_Y_JF = model.addJoint(IDX_NECK_X_JF,pin.JointModelRY(),pin.SE3(np.eye(3), np.matrix([0,0,0]).T),'cervical_Y')
+    head = pin.Frame('head',IDX_NECK_Y_JF,idx_frame,pin.SE3(np.eye(3), np.matrix([0,0,0]).T),pin.FrameType.OP_FRAME, inertia)
+    IDX_HEAD_SF = model.addFrame(head,False)
+    idx_frame = IDX_HEAD_SF
+
+    for i in sgts_mks_dict["head"]:
+        frame = pin.Frame(i,IDX_NECK_Y_JF,idx_frame,pin.SE3(np.eye(3,3), np.matrix(mks_local_positions[i]).T),pin.FrameType.OP_FRAME, inertia) 
+        idx_frame = model.addFrame(frame,False)
+
     # Right Shoulder ZXY
     IDX_SH_Z_JF_R = model.addJoint(IDX_L5S1_R_EXT_INT_JF,pin.JointModelRZ(),pin.SE3(np.eye(3), np.matrix(local_segments_positions['upperarmR'] + local_segments_positions['torso']).T),'right_shoulder_Z') 
     upperarmR = pin.Frame('upperarm_z_R',IDX_SH_Z_JF_R,idx_frame,pin.SE3(np.eye(3), np.matrix([0,0,0]).T),pin.FrameType.OP_FRAME, inertia)
@@ -230,8 +250,11 @@ def build_model_no_visuals(mocap_mks_positions: Dict)->pin.Model:
         frame = pin.Frame(i,IDX_ANKLE_Z_JF_L,idx_frame,pin.SE3(np.eye(3,3), np.matrix(mks_local_positions[i]).T),pin.FrameType.OP_FRAME, inertia) 
         idx_frame = model.addFrame(frame,False)
     
-    model.upperPositionLimit[7:] = np.array([5*np.pi/36,         #L5S1_FE + 
+    model.upperPositionLimit[7:] = np.array([5*np.pi/36,       #L5S1_FE + 
                                           np.pi/3,             #L5S1_R_EXT_INT +
+                                          np.pi/2,             # Neck_Z +
+                                          np.pi/2,             # Neck_X +
+                                          np.pi/2,             # Neck_Y +
                                           np.pi,               #Shoulder_Z_R +
                                           np.pi/3,             #Shoulder_X_R +
                                           np.pi/2,             #Shoulder_Y_R +
@@ -241,13 +264,13 @@ def build_model_no_visuals(mocap_mks_positions: Dict)->pin.Model:
                                           np.pi,               #Shoulder_X_L +
                                           np.pi/2,             #Shoulder_Y_L +
                                           5*np.pi/6,           #Elbow_Z_L +
-                                          0.2,               #Elbow_Y_L +
+                                          0.2,                 #Elbow_Y_L +
                                           np.pi/2,             #Hip_Z_R +
                                           np.pi/3,             #Hip_X_R +
                                           np.pi/3,             #Hip_Y_R +
                                           0,                   #Knee_Z_R +
                                           np.pi/4,             #Ankle_Z_R +
-                                          np.pi/2,           #Hip_Z_L +
+                                          np.pi/2,             #Hip_Z_L +
                                           np.pi/2,             #Hip_X_L +
                                           np.pi/2,             #Hip_Y_L +
                                           0,                   #Knee_Z_L +
@@ -256,6 +279,9 @@ def build_model_no_visuals(mocap_mks_positions: Dict)->pin.Model:
     
     model.lowerPositionLimit[7:] = np.array([-np.pi/2,           #L5S1_FE -
                                             -np.pi/3,            #L5S1_R_EXT_INT -
+                                            -np.pi/2,            # Neck_Z -
+                                            -np.pi/2,            # Neck_X -
+                                            -np.pi/2,            # Neck_Y -
                                             -np.pi,              #Shoulder_Z_R -
                                             -np.pi,              #Shoulder_X_R -
                                             -np.pi/2,            #Shoulder_Y_R -
@@ -265,17 +291,17 @@ def build_model_no_visuals(mocap_mks_positions: Dict)->pin.Model:
                                             -np.pi/3,            #Shoulder_X_L -
                                             -np.pi/2,            #Shoulder_Y_L -
                                             0,                   #Elbow_Z_L -
-                                            -np.pi,          #Elbow_Y_L -
+                                            -np.pi,              #Elbow_Y_L -
                                             -np.pi/3,            #Hip_Z_R -
                                             -np.pi/2,            #Hip_X_R -
                                             -np.pi/2,            #Hip_Y_R -
                                             -5*np.pi/6,          #Knee_Z_R -
-                                            -np.pi/2,          #Ankle_Z_R -
+                                            -np.pi/2,            #Ankle_Z_R -
                                             -np.pi/3,            #Hip_Z_L -
                                             -np.pi/3,            #Hip_X_L -
-                                            -np.pi/3,             #Hip_Y_L -
+                                            -np.pi/3,            #Hip_Y_L -
                                             -5*np.pi/6,          #Knee_Z_L -
-                                            -np.pi/2,          #Ankle_Z_L -
+                                            -np.pi/2,            #Ankle_Z_L -
                                             ])
     
     return model
