@@ -722,6 +722,30 @@ def build_dummy_model(meshes_folder_path: str)->Tuple[pin.Model,pin.Model, Dict]
     geom_model.addGeometryObject(abdomen_visual)
     visuals_dict["abdomen"] = abdomen_visual
 
+    # Cervical ZXY
+    IDX_NECK_Z_JF = model.addJoint(IDX_L5S1_R_EXT_INT_JF,pin.JointModelRZ(),pin.SE3(np.eye(3), np.matrix([0, 0.33, 0]).T),'cervical_Z')
+    head = pin.Frame('head_z',IDX_NECK_Z_JF,idx_frame,pin.SE3(np.eye(3), np.matrix([0,0,0]).T),pin.FrameType.OP_FRAME, inertia)
+    IDX_HEAD_SF = model.addFrame(head,False)
+    idx_frame = IDX_HEAD_SF
+
+    IDX_NECK_X_JF = model.addJoint(IDX_NECK_Z_JF,pin.JointModelRX(),pin.SE3(np.eye(3), np.matrix([0,0,0]).T),'cervical_X')
+    head = pin.Frame('head_x',IDX_NECK_X_JF,idx_frame,pin.SE3(np.eye(3), np.matrix([0,0,0]).T),pin.FrameType.OP_FRAME, inertia)
+    IDX_HEAD_SF = model.addFrame(head,False)
+    idx_frame = IDX_HEAD_SF
+
+    IDX_NECK_Y_JF = model.addJoint(IDX_NECK_X_JF,pin.JointModelRY(),pin.SE3(np.eye(3), np.matrix([0,0,0]).T),'cervical_Y')
+    head = pin.Frame('head',IDX_NECK_Y_JF,idx_frame,pin.SE3(np.eye(3), np.matrix([0,0,0]).T),pin.FrameType.OP_FRAME, inertia)
+    IDX_HEAD_SF = model.addFrame(head,False)
+    idx_frame = IDX_HEAD_SF
+
+    head_visual = pin.GeometryObject('head', IDX_HEAD_SF, IDX_NECK_Y_JF, mesh_loader.load(meshes_folder_path+'/head_mesh.STL'), pin.SE3(np.eye(3), np.matrix([0., 0., 0.]).T), meshes_folder_path+'/head_mesh.STL', np.array([0.0065, 0.0065, 0.0065]), True, body_color)
+    geom_model.addGeometryObject(head_visual)
+    visuals_dict["head"] = head_visual
+
+    neck_visual = pin.GeometryObject('neck', IDX_HEAD_SF, IDX_NECK_Y_JF, mesh_loader.load(meshes_folder_path+'/neck_mesh.STL'), pin.SE3(np.eye(3), np.matrix([0., 0., 0.]).T), meshes_folder_path+'/neck_mesh.STL', np.array([0.0065, 0.0065, 0.0065]), True, body_color)
+    geom_model.addGeometryObject(neck_visual)
+    visuals_dict["neck"] = neck_visual
+
     # Right Shoulder ZXY
     IDX_SH_Z_JF_R = model.addJoint(IDX_L5S1_R_EXT_INT_JF,pin.JointModelRZ(),pin.SE3(np.eye(3), np.matrix([0.00805, 0.4067, 0.2037]).T),'right_shoulder_Z') 
     upperarmR = pin.Frame('upperarm_z_R',IDX_SH_Z_JF_R,idx_frame,pin.SE3(np.eye(3), np.matrix([0,0,0]).T),pin.FrameType.OP_FRAME, inertia)
