@@ -630,7 +630,7 @@ def get_segments_mks_dict()->Dict:
     # mks names attached to the segment
     # Constructing the dictionary to store segment poses
     sgts_mks_dict = {
-        "head": ['Head', 'REar', 'LEar', 'REye', 'LEye' ],
+        "head": ['Head', 'Nose', 'REar', 'LEar', 'REye', 'LEye' ],
         "torso": ['r_shoulder_study', 'L_shoulder_study', 'C7_study'],
         "upperarmR": ['r_melbow_study', 'r_lelbow_study'],
         "lowerarmR": ['r_lwrist_study', 'r_mwrist_study'],

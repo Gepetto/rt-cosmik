@@ -29,8 +29,8 @@ def gv_init(model, geom_model, visual_model, keypoint_names=None, marker_names=N
 
     # Init objects to show 
     # Frame axis for frame in the pinocchio model 
-    # for frame in model.frames.tolist():
-    #     viz.viewer.gui.addXYZaxis('world/'+frame.name,[1,0,0,1],0.01,0.1)
+    for frame in model.frames.tolist():
+        viz.viewer.gui.addXYZaxis('world/'+frame.name,[1,0,0,1],0.01,0.1)
     
     # Keypoints
     if keypoint_names is not None : 

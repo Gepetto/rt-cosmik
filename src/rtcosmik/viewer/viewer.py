@@ -2,8 +2,9 @@ from rtcosmik.config_loader import settings
 if settings.viewer == 'ros':
     from .ros_viewer import ros_init, publish_keypoints_as_marker_array, publish_augmented_markers, publish_kinematics
 else: # default to gepetto viewer
-    from .gv_viewer import gv_init, place_objects
+    from .gv_viewer import gv_init, place_objects, place
 from multiprocessing import Process, Queue, Event
+import pinocchio as pin 
 from rtcosmik.human_model.urdf_model import Robot
 from rtcosmik.human_model.pin_model import build_dummy_model
 from rtcosmik.saver.csv_saver import CSVSaver
@@ -14,6 +15,7 @@ from collections import OrderedDict
 class Viewer:
     def __init__(self, model, geom_model, visual_model, keypoint_names, marker_names, freeflyer=False):
         self.model = model
+        self.data = self.model.createData()
         self.geom_model = geom_model 
         self.visual_model = visual_model
         self.keypoint_names = keypoint_names
@@ -39,6 +41,10 @@ class Viewer:
         if self.viewer_type == 'ros':
             publish_kinematics(q, self.q_pub, self.model.names, self.br)
         else:
+            pin.framesForwardKinematics(self.model, self.data,q)
+            for frame in self.model.frames.tolist():
+                M = self.data.oMf[self.model.getFrameId(frame.name)]
+                place(self.viz, 'world/'+frame.name,  M)
             self.viz.display(q)
 
     def display_keypoints(self, pos_keypoints_dict):

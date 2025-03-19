@@ -337,6 +337,7 @@ class RT_IK:
         q = sol.value(Q)
 
         return q
+    
 class RT_SWIKA:
     def __init__(self, pin_model: pin.Model, keys_to_track: List, N: int, dict_dof_to_keypoints: Dict=None, with_freeflyer=True, code: str ='c'):
         # Initialize the Pinocchio model

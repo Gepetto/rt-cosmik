@@ -723,7 +723,7 @@ def build_dummy_model(meshes_folder_path: str)->Tuple[pin.Model,pin.Model, Dict]
     visuals_dict["abdomen"] = abdomen_visual
 
     # Cervical ZXY
-    IDX_NECK_Z_JF = model.addJoint(IDX_L5S1_R_EXT_INT_JF,pin.JointModelRZ(),pin.SE3(np.eye(3), np.matrix([0, 0.33, 0]).T),'cervical_Z')
+    IDX_NECK_Z_JF = model.addJoint(IDX_L5S1_R_EXT_INT_JF,pin.JointModelRZ(),pin.SE3(np.eye(3), np.matrix([0, 0.43, 0]).T),'cervical_Z')
     head = pin.Frame('head_z',IDX_NECK_Z_JF,idx_frame,pin.SE3(np.eye(3), np.matrix([0,0,0]).T),pin.FrameType.OP_FRAME, inertia)
     IDX_HEAD_SF = model.addFrame(head,False)
     idx_frame = IDX_HEAD_SF
