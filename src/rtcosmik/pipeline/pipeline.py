@@ -196,10 +196,11 @@ class PipelineProcess(Process):
                             self.results_queues[0].put((new_counters, kp_dict))
 
                             mks_dict = dict(zip(self.marker_names, augmented_markers))
+                            self.results_queues[1].put((new_counters, mks_dict))
+
                             # Adds head keypoints in lstm output for head tracking
                             keys_to_add = ['Nose', 'Head', 'REar', 'LEar', 'REye', 'LEye']
                             mks_dict.update({key: kp_dict[key] for key in keys_to_add})
-                            self.results_queues[1].put((new_counters, mks_dict))
                             
                             if self.ik_type == 'sbs':
                                 ### IK calculations
