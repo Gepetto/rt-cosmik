@@ -3,7 +3,7 @@ import numpy as np
 
 
 
-input_file_path = 'mks_lstm/augmented_markers_positions_test_2.csv'  
+input_file_path = '/root/workspace/ros_ws/src/rt-cosmik/output/augmented_markers_positions.csv'  
 output_file_path = 'augmented_markers_positions_by_rows.csv'
 # header = [
 #     'Time', 'r.ASIS_study', 'L.ASIS_study', 'r.PSIS_study', 'L.PSIS_study', 'r_knee_study',
