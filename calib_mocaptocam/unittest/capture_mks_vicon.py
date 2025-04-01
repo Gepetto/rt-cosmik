@@ -35,17 +35,17 @@ while True:
         print("Exiting receiver.")
         break
 
-    if is_saving:
-        data, addr = sock.recvfrom(1024)  # Buffer size 1024 bytes
-        decoded_data = data.decode("utf-8")  # Decode the received bytes into a string
+    # if is_saving:
+    data, addr = sock.recvfrom(4096)  # Buffer size 1024 bytes
+    decoded_data = data.decode("utf-8")  # Decode the received bytes into a string
 
-        print(f"Received from {addr}: {decoded_data}")  # Print received data
+    print(f"Received from {addr}: {decoded_data}")  # Print received data
 
-        # Get current timestamp
-        timestamp = datetime.now().isoformat('_')
+    # Get current timestamp
+    timestamp = datetime.now().isoformat('_')
 
-        # Save to CSV
-        with open(filename, "a", newline="") as csv_datafile:
-            csv_writer = csv.writer(csv_datafile)
-            csv_writer.writerow([timestamp, decoded_data])  # Write timestamp and data
+    # Save to CSV
+    with open(filename, "a", newline="") as csv_datafile:
+        csv_writer = csv.writer(csv_datafile)
+        csv_writer.writerow([timestamp, decoded_data])  # Write timestamp and data
 
