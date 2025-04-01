@@ -49,12 +49,13 @@ detector = cv2.aruco.ArucoDetector(aruco_dict, parameters)
 
 # Load camera calibration parameters
 mtxs, dists, projections, rotations, translations = load_camera_parameters(settings.cam_calib_path)
-camera_matrix = mtxs[1]  # Assuming you're using the second camera
-dist_coeffs = dists[1]
+camera_matrix = mtxs[0]  # Assuming you're using the second camera
+dist_coeffs = dists[0]
+print(camera_matrix)
 
 # Input directory containing images
-input_dir = "/root/workspace/ros_ws/src/rt-cosmik/output/"  # Update with actual path
-output_dir = "/root/workspace/ros_ws/src/rt-cosmik/output/estimated"
+input_dir = "/root/workspace/ros_ws/src/rt-cosmik/output/test4"  # Update with actual path
+output_dir = "/root/workspace/ros_ws/src/rt-cosmik/output/estimated_4"
 
 # Create output directory if it doesn't exist
 os.makedirs(output_dir, exist_ok=True)

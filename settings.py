@@ -18,6 +18,10 @@ class Settings:
     height: int = 720 # image resolution
     fourcc: str = "MJPG" # video codec
 
+    # HUMAN ANTHROPOMETRY
+    human_height: float = 1.81
+    human_mass: float = 74.0   
+
     # VIEWER PARAMS
     viewer: str = "gv" # viewer type: gv or ros
     urdf_path: str = field(init=False) # relative path to the robot urdf
@@ -73,9 +77,6 @@ class Settings:
     # AUGMENTER MODEL 
     augmenter_model: str = field(init=False)
 
-    # HUMAN ANTHROPOMETRY
-    human_height: float = 1.81
-    human_mass: float = 74.0   
 
     # MARKER SET 
     marker_names: list = field(default_factory=lambda: [

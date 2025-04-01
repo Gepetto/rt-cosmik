@@ -6,46 +6,16 @@ import numpy as np
 import pandas as pd
 import time
 from pinocchio.visualize import GepettoVisualizer
+from utils import *
 
-mks_data_file = "output/test1/mks_data.csv"         # Contains markers data in one column ("mks_data")
-# aruco_data_file = "/root/workspace/ros_ws/src/linear-algebra-toolkit/data/pose_aruco.csv"   
-aruco_data_file = "output/test1/pose_aruco.csv"    # Contains the ArUco point coordinates
-transformation_file = "output/test1/soder.txt"  # Contains the transformation matrix and parameters
+no_test = "webcam"
+# mks_data_file = "/root/workspace/ros_ws/src/rt-cosmik/output/mks_data.csv"
 
-# --- Load your transformation parameters using your own function ---
-# (Assuming the load_transformation() function is defined somewhere accessible.)
-def load_transformation(file_path):
-    """
-    Loads the transformation parameters (R, d, s, rms) from a text file.
+mks_data_file =f"output/test{no_test}/mks_data.csv"         # Contains markers data in one column ("mks_data")
+aruco_data_file = f"output/test{no_test}/pose_aruco.csv"    # Contains the ArUco point coordinates
+transformation_file = f"output/test{no_test}/soder.txt"  # Contains the transformation matrix and parameters
 
-    Parameters:
-    file_path: str
-        Path to the file from which the transformation parameters will be read.
-
-    Returns:
-    R: ndarray
-        Rotation matrix (3x3)
-    d: ndarray
-        Translation vector (3,)
-    s: float
-        Scale factor
-    rms: float
-        Root mean square fit error
-    """
-    with open(file_path, 'r') as f:
-        lines = f.readlines()
-        R_start = lines.index("Rotation Matrix (R):\n") + 1
-        R = np.loadtxt(lines[R_start:R_start + 3])
-        d_start = lines.index("Translation Vector (d):\n") + 1
-        d = np.loadtxt(lines[d_start:d_start + 1]).flatten()
-        s_line = next(line for line in lines if line.startswith("Scale Factor (s):"))
-        s = float(s_line.split(":")[1].strip())
-        rms_line = next(line for line in lines if line.startswith("RMS Error:"))
-        rms = float(rms_line.split(":")[1].strip())
-    return R, d, s, rms
-
-
-# Load transformation parameters (R, d, s, rms)
+# Load transformation parameters (R, d, s, rms) from soder
 R_trans, d_trans, s_trans, rms_error = load_transformation(transformation_file)
 # Now, any point p in the other coordinate system is transformed via:
 #   p_global = R_trans @ (p * s_trans) + d_trans
@@ -72,22 +42,13 @@ except Exception as err:
 # Add a base axis for reference
 viz.viewer.gui.addXYZaxis('world/base_frame', [1, 0, 0, 1], 0.05, 0.3)
 
-# Function to compute local frame from three points
-def calculate_frame(A, B, C):
-    BA = A - B
-    BC = C - B
-    x = BA / np.linalg.norm(BA)
-    y = BC / np.linalg.norm(BC)
-    z = np.cross(x, y)
-    z = z / np.linalg.norm(z)
-    x = np.cross(y, z)
-    y = np.cross(z, x)
-    return np.column_stack((x, y, z))
 
 # Prepare spheres and frame in the viewer
-viz.viewer.gui.addSphere('world/A', 0.01, [1, 0, 0, 1])         # Marker A: red
-viz.viewer.gui.addSphere('world/B', 0.01, [0, 1, 0, 1])         # Marker B: green
-viz.viewer.gui.addSphere('world/C', 0.01, [0, 0, 1, 1])         # Marker C: blue
+viz.viewer.gui.addSphere('world/A', 0.05, [1, 0, 0, 1])         # Marker A: red
+viz.viewer.gui.addSphere('world/B', 0.05, [0, 1, 0, 1])         # Marker B: green
+viz.viewer.gui.addSphere('world/C', 0.05, [0, 0, 1, 1])         # Marker C: blue
+viz.viewer.gui.addSphere('world/D', 0.05, [1, 1, 1, 1])         # Marker C: blue
+
 viz.viewer.gui.addSphere('world/Barycenter', 0.01, [1, 1, 0, 1])  # Barycenter: yellow
 viz.viewer.gui.addXYZaxis('world/local_frame', [1, 0, 1, 1], 0.03, 0.2)
 viz.viewer.gui.addSphere('world/aruco', 0.01, [0.5, 0, 0.5, 1])   # ArUco point: purple
@@ -96,22 +57,29 @@ viz.viewer.gui.addSphere('world/aruco', 0.01, [0.5, 0, 0.5, 1])   # ArUco point:
 place = lambda name, pos: viz.viewer.gui.applyConfiguration(name, list(pos) + [0, 0, 0, 1])
 
 # Assume the number of frames in mks_array and aruco_df match.
+print(len(mks_array))
+print(len(aruco_df))
 num_frames = min(len(mks_array), len(aruco_df))
 
 for i in range(num_frames):
     # Extract marker positions from mks_data
     A = mks_array[i, :3]
     B = mks_array[i, 3:6]
-    C = mks_array[i, -3:]
+    C = mks_array[i, 6:9]
+    D = mks_array[i, 9:]
     barycenter = (A + C) / 2
-
     R_local = calculate_frame(A, B, C)
+    barycenter_local_frame = transform_to_local_frame(barycenter, B, R_local)
+    barycenter_local_frame[2] = barycenter_local_frame[2]- 0.01
+    barycenter_global_frame = transform_to_global_frame(barycenter_local_frame, B, R_local)
 
     # Display markers and barycenter
     place('world/A', A)
     place('world/B', B)
     place('world/C', C)
-    place('world/Barycenter', barycenter)
+    place('world/D', D)
+
+    place('world/Barycenter', barycenter_global_frame)
     # For the local frame, we update its origin at B.
     # Here we display an axis: we set its position to B and update orientation.
     # (For orientation, we convert the rotation matrix to a quaternion via pinocchio)
@@ -122,7 +90,8 @@ for i in range(num_frames):
     # Get the translation vector from the CSV (the point in the other coordinate system)
     tvec = np.array([aruco_df.loc[i, 'tvec_x'], aruco_df.loc[i, 'tvec_y'], aruco_df.loc[i, 'tvec_z']])
     # Transform it into the global frame
-    aruco_global = np.transpose(R_trans) @ (tvec - d_trans) 
+    # aruco_global = np.transpose(R_trans) @ (tvec - d_trans) if soder gives u mocap to cam
+    aruco_global = R_trans @ tvec + d_trans  #if soder gives u cam to mocap
     place('world/aruco', aruco_global)
     
     viz.viewer.gui.refresh()
