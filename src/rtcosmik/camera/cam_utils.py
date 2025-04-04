@@ -112,6 +112,27 @@ def load_cam_to_cam_params(path):
     cv_file.release()
     return R, T
 
+def load_global_cam_params(path, cam_index):
+    """
+    Loads the global camera transformation parameters for a specified camera
+    from a YAML file. This function reads the rotation matrix (R) and translation
+    vector (T) stored under the keys 'camera_{cam_index}_R' and 'camera_{cam_index}_T'.
+    
+    Args:
+        path (str): The file path to the YAML file.
+        cam_index (int): The camera index to load.
+        
+    Returns:
+        tuple: A tuple containing:
+            - R (numpy.ndarray): The rotation matrix.
+            - T (numpy.ndarray): The translation vector.
+    """
+    cv_file = cv.FileStorage(path, cv.FILE_STORAGE_READ)
+    R = cv_file.getNode(f'camera_{cam_index}_R').mat()
+    T = cv_file.getNode(f'camera_{cam_index}_T').mat()
+    cv_file.release()
+    return R, T
+
 
 def load_cam_pose(filename):
     """

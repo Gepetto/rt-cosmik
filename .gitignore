@@ -2,6 +2,8 @@
 src/rtcosmik.egg-info/
 cams_calibration/images_calib_cam_1/
 cams_calibration/images_calib_cam_2/
+cams_calibration/images_calib_cam_3/
+cams_calibration/images_calib_cam_4/
 cams_calibration/images_robot_base_cam_1/
 cams_calibration/images_robot_base_cam_2/
 cams_calibration/images_world_cam_1/
