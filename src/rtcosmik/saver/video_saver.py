@@ -3,6 +3,8 @@ import os
 from multiprocessing import Process
 import numpy as np
 import time 
+from multiprocessing import Value
+
 
 class VideoSaver:
     def __init__(self, camera_id, save_dir, fps=40, frame_size=(720, 1280)):  # Updated frame_size
@@ -34,7 +36,7 @@ class VideoSaver:
         self.close()
 
 class VideoSaverProcess(Process):
-    def __init__(self, camera_id, shared_buffer, lock, frame_counter, frame_shape, save_dir, fps, stop_event):
+    def __init__(self, camera_id, shared_buffer, lock, frame_counter, frame_shape, save_dir, fps, stop_event, saving_flag: Value):
         super().__init__()
         self.camera_id = camera_id
         self.shared_buffer = shared_buffer
@@ -46,6 +48,8 @@ class VideoSaverProcess(Process):
         self.stop_event = stop_event
         self.last_frame_count = 0
         self.target_delay = 1.0 / fps  # Time between frames (e.g., 0.04s for 25 FPS)
+
+        self.saving_flag = saving_flag
         
     def run(self):
         vs = VideoSaver(
@@ -71,7 +75,9 @@ class VideoSaverProcess(Process):
                         frame = arr.reshape(self.frame_shape).copy()
                         
                         # Write frame
-                        vs.write_frame(frame)
+                        # Check if saving is enabled
+                        if self.saving_flag is not None and self.saving_flag.value:
+                            vs.write_frame(frame)
                         self.last_frame_count = current_count
                 
                 last_time = time.monotonic()

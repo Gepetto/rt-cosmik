@@ -14,8 +14,11 @@ from src.rtcosmik.viewer.viewer import ViewerProcess
 
 import time
 from multiprocessing import set_start_method
+from multiprocessing import Value
 
 def main():
+    saving_enabled = Value('b', False)
+
     cameras = list_cameras()
     NUM_CAMERAS = len(cameras)
     FRAME_SHAPE = (settings.height, settings.width, 3)
@@ -49,7 +52,8 @@ def main():
                 frame_shape=FRAME_SHAPE,
                 save_dir=settings.SAVE_DIR,
                 fps=settings.fs,
-                stop_event=stop_event
+                stop_event=stop_event,
+                saving_flag=saving_enabled 
             )
             video_savers.append(vs)
     
@@ -66,9 +70,10 @@ def main():
     viewer = ViewerProcess(results_queues,
                            stop_event,
                            num_cameras=NUM_CAMERAS,
-                           freeflyer=True)
+                           freeflyer=True,
+                           saving_flag=saving_enabled)
 
-    processes = camera_processes + video_savers + [pipeline, viewer]
+    processes = camera_processes  +video_savers+ [pipeline, viewer]
 
     # Start processes
     for p in processes:
