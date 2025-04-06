@@ -109,18 +109,26 @@ if __name__ == '__main__':
     #                 'l_knee', 'r_mknee', 'l_mknee', 'r_ankle', 'l_ankle', 'r_mankle',
     #                 'l_mankle', 'r_5meta', 'l_5meta', 'r_big_toe', 'l_big_toe', 'l_calc', 'r_calc', 'C7']
     
+    
     #LSTM marker names
+    # marker_names = ['r.ASIS_study','L.ASIS_study','r.PSIS_study','L.PSIS_study','r_knee_study',
+    #                 'r_mknee_study','r_ankle_study','r_mankle_study','r_toe_study','r_5meta_study',
+    #                 'r_calc_study','L_knee_study','L_mknee_study','L_ankle_study','L_mankle_study',
+    #                 'L_toe_study','L_calc_study','L_5meta_study','r_shoulder_study','L_shoulder_study',
+    #                 'C7_study','r_lelbow_study', 'r_melbow_study','r_lwrist_study','r_mwrist_study','L_lelbow_study','L_melbow_study',
+    #                 'L_lwrist_study','L_mwrist_study']
 
-
-    marker_names = ['r.ASIS_study','L.ASIS_study','r.PSIS_study','L.PSIS_study','r_knee_study',
-                    'r_mknee_study','r_ankle_study','r_mankle_study','r_toe_study','r_5meta_study',
-                    'r_calc_study','L_knee_study','L_mknee_study','L_ankle_study','L_mankle_study',
-                    'L_toe_study','L_calc_study','L_5meta_study','r_shoulder_study','L_shoulder_study',
-                    'C7_study','r_lelbow_study', 'r_melbow_study','r_lwrist_study','r_mwrist_study','L_lelbow_study','L_melbow_study',
-                    'L_lwrist_study','L_mwrist_study']
+    #Full marker names
+    marker_names = ['sternum', 'rshoulder', 'lshoulder', 'r_lelbow', 'l_lelbow', 'r_melbow', 'l_melbow', 'r_lwrist', 'l_lwrist', 
+                    'r_mwrist', 'l_mwrist', 'r_ASIS', 'l_ASIS', 'r_PSIS', 'l_PSIS', 'r_knee', 'l_knee', 
+                    'r_mknee', 'l_mknee', 'r_ankle', 'l_ankle', 'r_mankle', 'l_mankle', 'r_5meta', 
+                    'l_5meta', 'r_toe', 'l_toe', 'r_big_toe', 'l_big_toe', 'l_calc', 'r_calc', 'r_bpinky', 
+                    'l_bpinky', 'r_tpinky', 'l_tpinky', 'r_bindex', 'l_bindex', 'r_tindex', 'l_tindex', 
+                    'r_tmiddle', 'l_tmiddle', 'r_tring', 'l_tring', 'r_bthumb', 'l_bthumb', 'r_tthumb', 
+                    'l_tthumb', 'C7', 'L2', 'T11', 'T6'] 
     
     # Path to CSV file with marker trajectories.
-    markers_csv = os.path.join(script_dir, 'amass', 'smplh', f'{motion}_mks_lstm.csv')
+    markers_csv = os.path.join(script_dir, 'amass', 'smplh', f'{motion}_mks_2.csv')
     markers_list = load_marker_data(markers_csv, marker_names)
     
     # Initialize the Gepetto Viewer
