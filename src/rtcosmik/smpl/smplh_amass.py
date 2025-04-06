@@ -27,7 +27,7 @@ subject_gender = subject_gender.decode('utf-8') if isinstance(subject_gender, by
 print('Subject gender:', subject_gender)
 
 print('Data keys:', list(bdata.keys()))
-
+# print("num markers:", bdata['labels'])
 # Define the number of shape and DMPL coefficients
 num_betas = 16  # total shape coefficients
 num_dmpls = 8   # number of DMPL parameters to use
