@@ -3,7 +3,7 @@ import numpy as np
 import hppfcl as fcl
 from scipy.spatial.transform import Rotation as R
 from typing import List, Tuple, Dict
-from rtcosmik.utils.linear_algebra_utils import col_vector_3D
+from src.rtcosmik.utils.linear_algebra_utils import col_vector_3D
 
 
 def check_orthogonality(matrix: np.ndarray):
@@ -551,7 +551,7 @@ def get_footL_pose(mocap_mks_positions):
 #Construct challenge segments frames from mocap mks
 # - mocap_mks_positions is a dictionnary of mocap mks names and 3x1 global positions
 # - returns sgts_poses which correspond to a dictionnary to segments poses and names, constructed from mks global positions
-def construct_segments_frames(mocap_mks_positions): 
+def construct_segments_frames(mocap_mks_positions, head=True): 
     """
     Constructs a dictionary of segment poses from motion capture marker positions.
     Args:
@@ -559,8 +559,12 @@ def construct_segments_frames(mocap_mks_positions):
     Returns:
         dict: A dictionary where keys are segment names (e.g., 'torso', 'upperarmR') and values are the corresponding poses.
     """
-    head_pose = get_head_pose(mocap_mks_positions)
+
     torso_pose = get_torso_pose(mocap_mks_positions)
+    if head:
+        head_pose = get_head_pose(mocap_mks_positions)
+    else:
+        head_pose = np.eye(4)
     upperarmR_pose = get_upperarmR_pose(mocap_mks_positions)
     lowerarmR_pose = get_lowerarmR_pose(mocap_mks_positions)
     upperarmL_pose = get_upperarmL_pose(mocap_mks_positions)
