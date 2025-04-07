@@ -92,16 +92,16 @@ def animate_all(viz, markers_list, vertices, marker_names, vertex_factor=1, dela
     
     # Create the initial vertex spheres.
     for idx in selected_indices:
-        viz.viewer.gui.addSphere(f'world/v_{idx}', 0.002, [0, 0, 1, 0.8])
+        viz.viewer.gui.addSphere(f'world/v_{idx}', 0.005, [0, 0, 1, 0.6])
     
     # Optionally add marker spheres if not already added.
     for marker in marker_names:
         viz.viewer.gui.addSphere('world/' + marker, 0.008, [1, 0, 0, 1])
     
     # Compute segments from the first frame and add coordinate axes for each segment.
-    initial_segments = construct_segments_frames(markers_list[0], head=False)
+    initial_segments = construct_segments_frames(markers_list[0], with_head=False)
     for seg_name in initial_segments.keys():
-        viz.viewer.gui.addXYZaxis('world/' + seg_name, [255, 0, 0, 1], 0.008, 0.08)
+        viz.viewer.gui.addXYZaxis('world/' + seg_name, [255, 0, 0, 1], 0.01, 0.08)
     
     # Animation loop.
     for i in range(num_frames):
@@ -121,7 +121,7 @@ def animate_all(viz, markers_list, vertices, marker_names, vertex_factor=1, dela
             place(viz, f'world/v_{idx}', T)
         
         # Compute segment frames from marker data and update their axes.
-        segments = construct_segments_frames(markers_list[i], head=False)
+        segments = construct_segments_frames(markers_list[i], with_head=False)
         for seg_name, pose in segments.items():
             # Convert the 4x4 pose to a pin.SE3 object.
             M = pin.SE3(pose[:3, :3], pose[:3, 3].reshape(3, 1))

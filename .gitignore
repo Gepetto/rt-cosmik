@@ -1,6 +1,9 @@
 **/__pycache__/
 src/rtcosmik.egg-info/
 src/rtcosmik/smpl/models
+src/rtcosmik/smpl/amass/smplh/*
+src/rtcosmik/smpl/amass/smplx/*
+src/rtcosmik/smpl/amass/smpl/*
 cams_calibration/images_calib_cam_1/
 cams_calibration/images_calib_cam_2/
 cams_calibration/images_robot_base_cam_1/

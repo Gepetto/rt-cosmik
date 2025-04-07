@@ -261,7 +261,7 @@ class RT_IK:
             rmse = self.calculate_RMSE_dicts(self._dict_m,self._dict_m_est)
             nb_iter+=1
 
-        return q0
+        return q0, rmse
     
     def solve_ik_sample_casadi(self) -> np.ndarray:
         # Parameters
@@ -336,7 +336,7 @@ class RT_IK:
         # Get the optimized joint angles
         q = sol.value(Q)
 
-        return q
+        return q, cost
     
 class RT_SWIKA:
     def __init__(self, pin_model: pin.Model, keys_to_track: List, N: int, dict_dof_to_keypoints: Dict=None, with_freeflyer=True, code: str ='c'):

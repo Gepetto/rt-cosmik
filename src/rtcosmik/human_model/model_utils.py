@@ -629,8 +629,8 @@ def get_footL_pose(mocap_mks_positions):
 #Construct challenge segments frames from mocap mks
 # - mocap_mks_positions is a dictionnary of mocap mks names and 3x1 global positions
 # - returns sgts_poses which correspond to a dictionnary to segments poses and names, constructed from mks global positions
-def construct_segments_frames(mocap_mks_positions, head=True): 
-    """
+def construct_segments_frames(mocap_mks_positions, with_head=False): 
+    """/home/madjel/Projects/gitpackages/rt-cosmik/meshes
     Constructs a dictionary of segment poses from motion capture marker positions.
     Args:
         mocap_mks_positions (dict): A dictionary containing the positions of motion capture markers.
@@ -639,7 +639,7 @@ def construct_segments_frames(mocap_mks_positions, head=True):
     """
 
     torso_pose = get_torso_pose(mocap_mks_positions)
-    if head:
+    if with_head:
         head_pose = get_head_pose(mocap_mks_positions)
     else:
         head_pose = np.eye(4)
@@ -723,10 +723,10 @@ def get_segments_mks_dict()->Dict:
         "upperarmL" : ['L_melbow_study', 'L_lelbow_study'],
         "lowerarmL": ['L_lwrist_study', 'L_mwrist_study'],
         "pelvis": ['r.PSIS_study', 'L.PSIS_study', 'r.ASIS_study', 'L.ASIS_study'],
-        "thighR": ['r_knee_study', 'r_mknee_study','r_thigh2_study', 'r_thigh3_study', 'r_thigh1_study'],
-        "thighL": ['L_knee_study', 'L_mknee_study','L_thigh2_study', 'L_thigh3_study', 'L_thigh1_study'],
-        "shankR": ['r_ankle_study', 'r_mankle_study','r_sh3_study', 'r_sh2_study', 'r_sh1_study'],
-        "shankL": ['L_ankle_study', 'L_mankle_study','L_sh3_study', 'L_sh2_study', 'L_sh1_study'],
+        "thighR": ['r_knee_study', 'r_mknee_study'],
+        "thighL": ['L_knee_study', 'L_mknee_study'],
+        "shankR": ['r_ankle_study', 'r_mankle_study'],
+        "shankL": ['L_ankle_study', 'L_mankle_study'],
         "footR": ['r_calc_study' ,'r_5meta_study','r_toe_study'],
         "footL": ['L_calc_study', 'L_5meta_study', 'L_toe_study']
     }
