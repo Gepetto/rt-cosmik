@@ -20,9 +20,10 @@ import csv
 from utils.read_write_utils import read_mks_data
 from utils.settings import Settings
 from utils.iir import IIR
+from utils.model_utils import Robot
 
 
-data_markers_mocap = pd.read_csv(os.path.join(rt_cosmik_path,'/root/workspace/ros_ws/src/rt-cosmik/output/frontal_plan/augmented_data.csv')) 
+data_markers_mocap = pd.read_csv(os.path.join(rt_cosmik_path,'/root/workspace/ros_ws/src/rt-cosmik/output/prez/markers.csv')) 
 # data_markers = pd.read_csv(os.path.join(rt_cosmik_path,'process_data_manip/mks_lstm/augmented_markers_positions_test_2.csv')) 
 
 
@@ -41,6 +42,9 @@ start_sample_dict = result_markers[start_sample]
 
 
 human_model, human_geom_model, visuals_dict = build_model_challenge(start_sample_dict, start_sample_dict, meshes_folder_path)
+# robot = Robot("/root/workspace/ros_ws/src/rt-cosmik/urdf/human.urdf","/root/workspace/ros_ws/src/rt-cosmik",True,np.array([[1,0,0],[0,-1,0],[0,0,1]]))
+# human_model_urdf = robot.model 
+# human_geom_model_urdf = robot.visual_model
 
 
 # VISUALIZATION
@@ -64,13 +68,18 @@ except AttributeError as err:
     print(err)
     sys.exit(0)
 
+import gepetto as gep
+viz.viewer.gui.setBackgroundColor1("python-pinocchio", gep.color.Color.white)
+viz.viewer.gui.setBackgroundColor2("python-pinocchio", gep.color.Color.white)
+viz.viewer.gui.addLight("light", "python-pinocchio", 360, gep.color.Color.white)
+
 #markers spheres (model and measured)
 for marker in result_markers[1].keys():
     if marker == "L_lwrist_study" or marker == "r_lwrist_study":
         viz.viewer.gui.addSphere('world/'+marker,0.01,[1,0,0,1])
-        viz.viewer.gui.addSphere('world/'+marker+"_m",0.01,[0,1,1,1])
+        viz.viewer.gui.addSphere('world/'+marker+"_m",0.01,[0,1,0,1])
     else :
-        viz.viewer.gui.addSphere('world/'+marker,0.01,[0,0,1,1])
+        viz.viewer.gui.addSphere('world/'+marker,0.01,[1,0,0,1])
         viz.viewer.gui.addSphere('world/'+marker+"_m",0.01,[0,1,0,1])
 
 #model frames
