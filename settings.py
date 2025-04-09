@@ -51,7 +51,7 @@ class Settings:
                           'Lhip_int_ext_rot', 'Lknee_flex_ext', 'Lankle_flex_ext']
 
     # Ik type
-    ik_type: str ="mhe" # either "mhe" for SWIKA or "sbs" for sample by sample qp
+    ik_type: str ="sbs" # either "mhe" for SWIKA or "sbs" for sample by sample qp
     
     # if ik_type = "mhe"
     ik_code: str = "python" # either "python" or "c" 
@@ -63,7 +63,7 @@ class Settings:
 
     #MMPOSE MODELS (here body 26)
     det_model_path: str = "/root/workspace/mmdeploy/rtmpose-trt/rtmdet-nano" # absolute path
-    pose_model_path: str = "/root/workspace/mmdeploy/rtmpose-trt/rtmpose-s" # absolute path 
+    pose_model_path: str = "/root/workspace/mmdeploy/rtmpose-trt/rtmpose-m" # absolute path 
 
     keypoints_names: list = field(default_factory=lambda: [
         "Nose", "LEye", "REye", "LEar", "REar", 
