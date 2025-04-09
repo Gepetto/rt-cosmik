@@ -4,8 +4,10 @@ import pandas as pd
 
 from utils import *
 
-no_test = 8
-df = pd.read_csv(f"output/test{no_test}/mks_data.csv")
+no_test = "calib_mocap_2_cam"
+# df = pd.read_csv(f"output/test{no_test}/mks_data.csv")
+
+df = pd.read_csv(f"/root/workspace/ros_ws/src/rt-cosmik/output/{no_test}/mks_data.csv")
 mks_array = np.array([list(map(float, row.split(";"))) for row in df["mks_data"]])
 barycenter_global_list = []
   
@@ -30,5 +32,5 @@ for i in range (len(mks_array)):
 
 # Convert to DataFrame and save to CSV
 barycenter_global_df = pd.DataFrame(barycenter_global_list, columns=["Bx", "By", "Bz"])
-barycenter_global_df.to_csv(f"output/test{no_test}/barycenter_raw.csv", index=False)
+barycenter_global_df.to_csv(f"output/{no_test}/barycenter_raw.csv", index=False)
 

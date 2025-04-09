@@ -8,12 +8,12 @@ import time
 from pinocchio.visualize import GepettoVisualizer
 from utils import *
 
-no_test = "webcam"
+no_test = "calib_mocap_2_cam"
 # mks_data_file = "/root/workspace/ros_ws/src/rt-cosmik/output/mks_data.csv"
 
-mks_data_file =f"output/test{no_test}/mks_data.csv"         # Contains markers data in one column ("mks_data")
-aruco_data_file = f"output/test{no_test}/pose_aruco.csv"    # Contains the ArUco point coordinates
-transformation_file = f"output/test{no_test}/soder.txt"  # Contains the transformation matrix and parameters
+mks_data_file =f"output/{no_test}/mks_data.csv"         # Contains markers data in one column ("mks_data")
+aruco_data_file = f"output/{no_test}/pose_aruco.csv"    # Contains the ArUco point coordinates
+transformation_file = f"output/{no_test}/soder.txt"  # Contains the transformation matrix and parameters
 
 # Load transformation parameters (R, d, s, rms) from soder
 R_trans, d_trans, s_trans, rms_error = load_transformation(transformation_file)

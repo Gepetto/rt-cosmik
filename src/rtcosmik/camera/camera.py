@@ -2,7 +2,136 @@ import cv2
 import numpy as np
 from datetime import datetime
 import multiprocessing as mp
-from multiprocessing import Process, Array, Value, Lock, Barrier, Event
+from multiprocessing import Process, Array, Value, Lock, Barrier, Event, Queue
+import logging
+import select
+import socket
+
+
+# Function to get the latest UDP message
+# Function to get the latest UDP message
+def get_latest_message(sock):
+    latest_data = None
+    while True:
+        # Use select to check if there is data available
+        ready = select.select([sock], [], [], 0)
+        if ready[0]:
+            try:
+                data, addr = sock.recvfrom(4096)
+                latest_data = data  # keep updating, so last one wins
+            except BlockingIOError:
+                break
+        else:
+            break
+    return latest_data
+
+class CameraUDP(Process):
+    def __init__(self, 
+                 cam_id: int,
+                 shared_buffer: Array,
+                 timestamp_buffer: Array, 
+                 lock: Lock,
+                 frame_counter: Value,
+                 barrier: Barrier,
+                 stop_event: Event,
+                 udp_data_buffer: Array,  # Shared buffer for UDP data
+                 frame_shape: tuple = (720, 1280, 3),
+                 cam_fps: int = None,
+                 cam_fourcc: str = "MJPG",
+                 udp_ip: str = "172.20.183.220", 
+                 udp_port: int = 44445):
+        super().__init__()
+        self.cam_id = cam_id
+        self.shared_buffer = shared_buffer
+        self.timestamp_buffer = timestamp_buffer  
+        self.lock = lock
+        self.frame_counter = frame_counter
+        self.barrier = barrier
+        self.stop_event = stop_event
+        self.frame_shape = frame_shape
+        self.cam_fps = cam_fps
+        self.cam_fourcc = cam_fourcc
+        self.udp_ip = udp_ip
+        self.udp_port = udp_port
+        self.udp_data_buffer = udp_data_buffer
+        
+        # Validate timestamp buffer size
+        if len(timestamp_buffer) != 26:
+            raise ValueError("Timestamp buffer must be exactly 26 characters")
+        
+        # UDP socket configuration
+        if cam_id == 0:
+            self.sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+            self.sock.bind((self.udp_ip, self.udp_port))
+
+    def run(self):
+        cap = cv2.VideoCapture(self.cam_id, cv2.CAP_V4L2)
+
+        if not cap.isOpened():
+            raise Exception(f"Camera {self.cam_id} could not be opened.")
+        
+        if self.cam_fourcc:
+            cap.set(cv2.CAP_PROP_FOURCC, cv2.VideoWriter_fourcc(*self.cam_fourcc))
+        if self.frame_shape:
+            cap.set(cv2.CAP_PROP_FRAME_HEIGHT, self.frame_shape[0])
+            cap.set(cv2.CAP_PROP_FRAME_WIDTH, self.frame_shape[1])
+        if self.cam_fps:
+            cap.set(cv2.CAP_PROP_FPS, self.cam_fps)
+
+        arr = np.frombuffer(self.shared_buffer, dtype=np.uint8)
+        try:
+            frame_buffer = arr.reshape(self.frame_shape)
+        except ValueError:
+            actual_size = arr.size
+            expected_size = np.prod(self.frame_shape)
+            raise RuntimeError(
+                f"Buffer size mismatch. Expected {expected_size} elements, "
+                f"got {actual_size}. Check frame_shape: {self.frame_shape}"
+            )
+        
+        self.barrier.wait()
+
+        try:
+            while not self.stop_event.is_set():
+                # Receive UDP data
+                if self.cam_id == 0:
+                    data = get_latest_message(self.sock)
+                    udp_data = None
+                    if data is not None:
+                        udp_data = data.decode("utf-8")
+                        print(f"Received UDP data: {udp_data}")
+                        
+                        # Write UDP data into the shared buffer
+                        with self.lock:
+                            for i in range(len(udp_data)):
+                                if i < len(self.udp_data_buffer):
+                                    self.udp_data_buffer[i] = ord(udp_data[i])
+                                
+                # Read frame from the camera
+                ret, frame = cap.read()
+                if not ret:
+                    print(f"Failed to read frame from camera {self.cam_id}.")
+                    continue
+
+                # Validate frame before processing
+                if frame.size != np.prod(self.frame_shape):
+                    print(f"Frame size mismatch: {frame.shape} vs {self.frame_shape}")
+                    continue
+
+                # Generate timestamp
+                timestamp_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S.%f")
+                
+                # Resize and ensure 3 channels
+                resized = cv2.resize(frame, (self.frame_shape[1], self.frame_shape[0]))
+
+                with self.lock:
+                    np.copyto(frame_buffer, resized)
+                    self.timestamp_buffer[:26] = timestamp_str.ljust(26, '\0').encode('utf-8')
+                    self.frame_counter.value += 1
+
+        finally:
+            cap.release()
+            print(f"Process for Camera {self.cam_id} terminated.")
 
 class Camera(Process):
     def __init__(self, 
