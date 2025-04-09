@@ -10,8 +10,8 @@ import select
 
 
 # Create output directory if it doesn't exist
-no_test = 8
-output_dir = f"/root/workspace/ros_ws/src/rt-cosmik/output/test{no_test}"
+no_test = "calib_mocap_2_cam"
+output_dir = f"/root/workspace/ros_ws/src/rt-cosmik/output/{no_test}"
 pose_csv_file = os.path.join(output_dir, "pose_aruco.csv")
 udp_csv_file = os.path.join(output_dir, "mks_data.csv")
 
@@ -31,7 +31,7 @@ def get_latest_message(sock):
     return latest_data
 
 # UDP Configuration
-ip = "172.20.164.200"  # The IP the receiver listens on
+ip = "172.20.183.220"  # The IP the receiver listens on
 port = 44445  # The port to receive data on
 
 # Create a UDP socket
@@ -51,7 +51,7 @@ dist_coeffs = dists[0]
 print(camera_matrix)
 
 # Open webcam
-cap = cv2.VideoCapture(2)
+cap = cv2.VideoCapture(4)
 cap.set(cv2.CAP_PROP_FOURCC, cv2.VideoWriter_fourcc(*'YUYV'))
 cap.set(cv2.CAP_PROP_FRAME_WIDTH, settings.width)
 cap.set(cv2.CAP_PROP_FRAME_HEIGHT, settings.height)
@@ -79,7 +79,9 @@ while True:
     # print(time.time())
     # Receive UDP data
     data = get_latest_message(sock)
-    decoded_data = data.decode("utf-8")
+    # print(data)
+    if data is not None:
+        decoded_data = data.decode("utf-8")
     ret, frame = cap.read()
     timestamp = time.strftime("%Y%m%d_%H%M%S")
 

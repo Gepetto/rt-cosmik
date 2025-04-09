@@ -7,9 +7,10 @@ class Settings:
     cosmik_path: str = field(init=False)
     
     # SAVE 
+    no_trial = "trial1"
     SAVE_VID: bool = True
     SAVE_CSV: bool = True
-    SAVE_DIR: str = "/root/workspace/ros_ws/src/rt-cosmik/output" # abs path to the save folder
+    SAVE_DIR: str = f"/root/workspace/ros_ws/src/rt-cosmik/output/{no_trial}" # abs path to the save folder
 
     # CAM PARAMS
     fs: int = 40
