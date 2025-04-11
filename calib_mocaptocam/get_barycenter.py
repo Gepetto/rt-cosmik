@@ -4,7 +4,7 @@ import pandas as pd
 
 from utils import *
 
-no_test = "calib_mocap_2_cam"
+no_test = "calib_mocap_2_cam1"
 # df = pd.read_csv(f"output/test{no_test}/mks_data.csv")
 
 df = pd.read_csv(f"/root/workspace/ros_ws/src/rt-cosmik/output/{no_test}/mks_data.csv")

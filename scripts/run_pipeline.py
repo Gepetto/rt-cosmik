@@ -92,9 +92,9 @@ def main():
                            freeflyer=True,
                            saving_flag=saving_enabled)
 
-    vicon = UDPDataSaverProcess(ip= "172.20.167.86",
-                                 port=44445, output_dir= settings.SAVE_DIR,
-                                 stop_event= stop_event, saving_flag =saving_enabled)
+    # vicon = UDPDataSaverProcess(ip= "172.20.167.86",
+    #                              port=44445, output_dir= settings.SAVE_DIR,
+    #                              stop_event= stop_event, saving_flag =saving_enabled)
 
     # udp_data_saver_process = UDPDataSaver(saving_flag=saving_enabled, 
     #                                       udp_data_buffer=udp_data_buffer, 

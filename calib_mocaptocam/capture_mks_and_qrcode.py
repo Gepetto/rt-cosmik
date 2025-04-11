@@ -10,7 +10,7 @@ import select
 
 
 # Create output directory if it doesn't exist
-no_test = "calib_mocap_2_cam"
+no_test = "calib_mocap_2_cam1"
 output_dir = f"/root/workspace/ros_ws/src/rt-cosmik/output/{no_test}"
 pose_csv_file = os.path.join(output_dir, "pose_aruco.csv")
 udp_csv_file = os.path.join(output_dir, "mks_data.csv")
@@ -23,6 +23,7 @@ def get_latest_message(sock):
         if ready[0]:
             try:
                 data, addr = sock.recvfrom(4096)
+                # print(data)
                 latest_data = data  # keep updating, so last one wins
             except BlockingIOError:
                 break
@@ -46,12 +47,12 @@ detector = cv2.aruco.ArucoDetector(aruco_dict, parameters)
 
 # Load camera calibration parameters
 mtxs, dists, projections, rotations, translations = load_camera_parameters(settings.cam_calib_path)
-camera_matrix = mtxs[0]  
-dist_coeffs = dists[0]
+camera_matrix = mtxs[1]  
+dist_coeffs = dists[1]
 print(camera_matrix)
 
 # Open webcam
-cap = cv2.VideoCapture(4)
+cap = cv2.VideoCapture(3)
 cap.set(cv2.CAP_PROP_FOURCC, cv2.VideoWriter_fourcc(*'YUYV'))
 cap.set(cv2.CAP_PROP_FRAME_WIDTH, settings.width)
 cap.set(cv2.CAP_PROP_FRAME_HEIGHT, settings.height)
@@ -82,6 +83,7 @@ while True:
     # print(data)
     if data is not None:
         decoded_data = data.decode("utf-8")
+        
     ret, frame = cap.read()
     timestamp = time.strftime("%Y%m%d_%H%M%S")
 
