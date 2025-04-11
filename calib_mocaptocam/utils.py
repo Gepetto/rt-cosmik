@@ -1,6 +1,7 @@
 import numpy as np
 import pandas as pd
 import cv2
+import cv2 as cv
 # Function to compute local frame from three points
 def calculate_frame(A, B, C):
     # Step 1: Compute the vectors BA and BC
@@ -69,6 +70,32 @@ def load_transformation(file_path):
         rms_line = next(line for line in lines if line.startswith("RMS Error:"))
         rms = float(rms_line.split(":")[1].strip())
     return R, d, s, rms
+
+def save_cam_to_cam_params(mtx1, dist1, mtx2, dist2, R, T, rmse, path):
+    """
+    Save stereo camera calibration parameters to a file.
+    Args:
+        mtx1 (numpy.ndarray): Camera matrix for the first camera.
+        dist1 (numpy.ndarray): Distortion coefficients for the first camera.
+        mtx2 (numpy.ndarray): Camera matrix for the second camera.
+        dist2 (numpy.ndarray): Distortion coefficients for the second camera.
+        R (numpy.ndarray): Rotation matrix between the two cameras.
+        T (numpy.ndarray): Translation vector between the two cameras.
+        rmse (float): Root Mean Square Error of the calibration.
+        path (str): Path to the file where the parameters will be saved.
+    Returns:
+        None
+    """
+    cv_file = cv.FileStorage(path, cv.FILE_STORAGE_WRITE)
+    cv_file.write('K1', mtx1)
+    cv_file.write('D1', dist1)
+    cv_file.write('K2', mtx2)
+    cv_file.write('D2', dist2)
+    cv_file.write('R', R)
+    cv_file.write('T', T)
+    cv_file.write('rmse', rmse)
+    # note you *release* you don't close() a FileStorage object
+    cv_file.release()
 
 def rotation_matrix_to_rodrigues(R):
     """Convert a rotation matrix to a Rodrigues rotation vector."""
