@@ -7,7 +7,7 @@ class Settings:
     cosmik_path: str = field(init=False)
     
     # SAVE 
-    no_trial = "trial1"
+    no_trial = "trial_welding_robot"
     SAVE_VID: bool = True
     SAVE_CSV: bool = True
     SAVE_DIR: str = f"/root/workspace/ros_ws/src/rt-cosmik/output/{no_trial}" # abs path to the save folder

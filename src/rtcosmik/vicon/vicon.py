@@ -54,7 +54,7 @@ class UDPDataSaverProcess(Process):
                 break
 
             decoded_data = data.decode("utf-8")
-            logger.info(f"Received from {addr}: {decoded_data}")
+            # logger.info(f"Received from {addr}: {decoded_data}")
 
             # Check the shared saving flag; if active, save the data.
             if self.saving_flag.value:
