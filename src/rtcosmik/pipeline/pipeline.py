@@ -118,7 +118,7 @@ class PipelineProcess(Process):
                 self.last_frame_counters = new_counters.copy()
 
                 results = self.tracker.estimate(frames)
-                self.tracker.visualize(frames, results)
+                # self.tracker.visualize(frames, results)
 
                 for res in results: 
                     keypoints, bboxes, _ = res

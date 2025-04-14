@@ -92,16 +92,16 @@ def main():
                            freeflyer=True,
                            saving_flag=saving_enabled)
 
-    # vicon = UDPDataSaverProcess(ip= "172.20.167.86",
-    #                              port=44445, output_dir= settings.SAVE_DIR,
-    #                              stop_event= stop_event, saving_flag =saving_enabled)
+    vicon = UDPDataSaverProcess(ip= "172.20.183.220",
+                                 port=44445, output_dir= settings.SAVE_DIR,
+                                 stop_event= stop_event, saving_flag =saving_enabled)
 
     # udp_data_saver_process = UDPDataSaver(saving_flag=saving_enabled, 
     #                                       udp_data_buffer=udp_data_buffer, 
     #                                       save_dir=settings.SAVE_DIR, 
     #                                       stop_event=stop_event)
 
-    processes = camera_processes  +video_savers+ [pipeline, viewer]
+    processes = camera_processes  +video_savers+ [pipeline, viewer,vicon]
 
     # Start processes
     for p in processes:

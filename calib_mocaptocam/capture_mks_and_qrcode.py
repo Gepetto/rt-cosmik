@@ -52,7 +52,7 @@ dist_coeffs = dists[1]
 print(camera_matrix)
 
 # Open webcam
-cap = cv2.VideoCapture(3)
+cap = cv2.VideoCapture(1)
 cap.set(cv2.CAP_PROP_FOURCC, cv2.VideoWriter_fourcc(*'YUYV'))
 cap.set(cv2.CAP_PROP_FRAME_WIDTH, settings.width)
 cap.set(cv2.CAP_PROP_FRAME_HEIGHT, settings.height)
