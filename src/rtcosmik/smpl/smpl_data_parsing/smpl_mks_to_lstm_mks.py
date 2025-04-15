@@ -1,5 +1,6 @@
 import pandas as pd
 import numpy as np
+import argparse
 
 def load_marker_data(csv_file, marker_names):
     """
@@ -109,12 +110,21 @@ inverse_name_map = {new: old for old, new in name_map.items()}
 import sys
 import os
 
-motion = 'lift_box_poses'
+parser = argparse.ArgumentParser(description='SMPL visualization')
+parser.add_argument('--data-path',
+                        help='data path',
+                        dest='data_path',
+                        default='',
+                        type=str)
+opt = parser.parse_args()
+data_path = opt.data_path
+
+motion = data_path.split('/')[-1][:-10]
 script_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
 sys.path.append(script_dir)
 
 # Path to CSV file with marker trajectories.
-input_csv = os.path.join(script_dir, 'amass', 'smplh', f'{motion}_mks_2.csv')
+input_csv = os.path.join(script_dir, 'hybrik', 'smplx', f'{motion}', f'{motion}_mks_2.csv')
 
 # Load only the desired markers from the CSV file.
 markers_list = load_marker_data(input_csv, marker_names)
@@ -157,7 +167,7 @@ for frame in formatted_markers_list:
 df_formatted = pd.DataFrame(rows)
 
 # Write the formatted data to a new CSV file.
-output_csv = os.path.join(script_dir, 'amass', 'smplh', f'{motion}_mks_lstm.csv')
+output_csv = os.path.join(script_dir, 'hybrik', 'smplx', f'{motion}', f'{motion}_mks_lstm.csv')
 df_formatted.to_csv(output_csv, index=False)
 
 print(f"✅ Formatted data saved to {output_csv}")
