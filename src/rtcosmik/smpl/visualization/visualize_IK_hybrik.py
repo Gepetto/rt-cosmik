@@ -189,7 +189,7 @@ def calculate_ik(human_model, markers_list):
     ik_class = RT_IK(human_model, start_sample_dict, q, keys_to_track_list, dt)
 
     # Warm-start the IK with a CasADi-based solution.
-    q, _ = ik_class.solve_ik_sample_casadi()
+    q, cost = ik_class.solve_ik_sample_casadi()
     viz.display(q)
     ik_class._q0 = q
     print("Initial configuration q:", q)
@@ -202,7 +202,8 @@ def calculate_ik(human_model, markers_list):
         mks_dict = markers_list[ii]
         ik_class._dict_m = mks_dict
         # Solve IK for the current frame.
-        q, cost = ik_class.solve_ik_sample_quadprog()
+        # q, cost = ik_class.solve_ik_sample_quadprog()
+        q, cost = ik_class.solve_ik_sample_casadi()
         pin.forwardKinematics(human_model, human_data, q)
         pin.updateFramePlacements(human_model, human_data)
 
@@ -223,8 +224,8 @@ def calculate_ik(human_model, markers_list):
         ik_class._q0 = q 
         q_list.append(q)
         cost_list.append(cost)
-        print(q[3], q[4], q[5])
-    return q_list, cost_list,M_model_list
+
+    return q_list, cost_list, M_model_list
 
 
 # -----------------------------
@@ -307,7 +308,7 @@ if __name__ == '__main__':
     viz.viewer.gui.setBackgroundColor1('python-pinocchio', [1, 1, 1, 1])
     viz.viewer.gui.setBackgroundColor2('python-pinocchio', [1, 1, 1, 1])
     
-    q_list, cost_list,M_model_list = calculate_ik(human_model, markers_list)
+    q_list, cost_list, M_model_list = calculate_ik(human_model, markers_list)
 
     cost = 0.0
     for cost_i in cost_list:
