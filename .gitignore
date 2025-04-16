@@ -4,7 +4,9 @@ src/rtcosmik/smpl/models
 src/rtcosmik/smpl/amass/smplh/*
 src/rtcosmik/smpl/amass/smplx/*
 src/rtcosmik/smpl/amass/smpl/*
-src/rtcosmik/smpl/hybrik/*
+src/rtcosmik/smpl/hybrik/smplx/*
+src/rtcosmik/smpl/hybrik/smpl/*
+src/rtcosmik/smpl/hybrik/smplh/*
 cams_calibration/images_calib_cam_1/
 cams_calibration/images_calib_cam_2/
 cams_calibration/images_robot_base_cam_1/
