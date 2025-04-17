@@ -86,7 +86,7 @@ def load_vertices_data(csv_file):
 
 # -----------------------------
 # Function to animate markers, vertices, and segments in Gepetto Viewer.
-def animate_all(viz, markers_list, vertices, marker_names,q, M_model_list, with_vertices=True, vertex_factor=1, delay=0.03):
+def animate_all(viz, markers_list, vertices, marker_names,q, M_model_list, with_vertices=False, vertex_factor=1, delay=0.03):
     """
     Animate markers, vertices, and body segments in Gepetto Viewer.
     
@@ -237,6 +237,14 @@ if __name__ == '__main__':
                     help='name of the motion',
                     default='',
                     type=str)
+    parser.add_argument('--vertices',
+                    help='show vertices or not',
+                    default=False,
+                    type=bool)
+    parser.add_argument('--vertex-factor',
+                    help='vertex factor',
+                    default=100,
+                    type=int)
 
 
     opt = parser.parse_args()
@@ -315,7 +323,7 @@ if __name__ == '__main__':
     print("average cost:", cost/len(cost_list))
     
     # Animate markers, vertices, and segments.
-    animate_all(viz, markers_list, vertices, marker_names, q_list, M_model_list,vertex_factor=100, delay=0.01)
+    animate_all(viz, markers_list, vertices, marker_names, q_list, M_model_list, with_vertices=opt.vertices, vertex_factor=opt.vertex_factor, delay=0.01)
     
     # Optionally, save the computed joint angles (q_list) and marker model positions (M_model_list)
     # For example:
