@@ -99,15 +99,16 @@ if __name__ == '__main__':
     import sys
 
     parser = argparse.ArgumentParser(description='SMPL visualization')
-    parser.add_argument('--data-path',
-                        help='data path',
-                        dest='data_path',
-                        default='',
-                        type=str)
-    opt = parser.parse_args()
-    data_path = opt.data_path
+    parser.add_argument('motion',
+                    help='name of the motion',
+                    default='',
+                    type=str)
 
-    motion = data_path.split('/')[-1][:-13]
+
+    opt = parser.parse_args()
+
+    motion = opt.motion
+
     script_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
     sys.path.append(script_dir)
     
@@ -137,7 +138,7 @@ if __name__ == '__main__':
                     'l_tthumb', 'C7', 'L2', 'T11', 'T6'] 
     
     # Path to CSV file with marker trajectories.
-    markers_csv = os.path.join(script_dir, 'amass', 'smplx', f'{motion}_mks_2.csv')
+    markers_csv = os.path.join(script_dir, 'hybrik', 'smplx', f'res_{motion}_x', f'res_{motion}_x_mks_2.csv')
     markers_list = load_marker_data(markers_csv, marker_names)
     
     # Initialize the Gepetto Viewer
