@@ -317,6 +317,63 @@ def read_joint_angles(directory_name:str)->np.ndarray:
     q=np.array(q)
     return q
 
+def read_joint_angles_wholebody(file_path, start_sample):
+
+    dofs_names  = ['FF_X', 'FF_Y', 'FF_Z', 'FF_quatx','FF_quaty',
+                          'FF_quatz', 'FF_quatw', 'Lumbar_flex_ext', 'Lumbar_int_ext_rot',
+                          'Cervical_flex_ext', 'Cervical_lat_bend', 'Cervical_int_ext_rot',
+                          'Rshoulder_flex_ext', 'Rshoulder_abd_add', 'Rshoulder_int_ext_rot',
+                          'Relbow_flex_ext', 'Relbow_pron_supi', 'Lshoulder_flex_ext',
+                          'Lshoulder_abd_add', 'Lshoulder_int_ext_rot', 'Lelbow_flex_ext',
+                          'Lelbow_pron_supi','Rhip_flex_ext','Rhip_abd_add','Rhip_int_ext_rot',
+                          'Rknee_flex_ext','Rankle_flex_ext','Lhip_flex_ext', 'Lhip_abd_add', 
+                          'Lhip_int_ext_rot', 'Lknee_flex_ext', 'Lankle_flex_ext']
+    q = []
+    with open(file_path, mode='r') as csv_file:
+        csv_reader = csv.reader(csv_file)
+        #Skip the header 
+        header = next(csv_reader)
+        
+        # Read all rows into memory to count total rows
+        all_rows = list(csv_reader)
+        total_rows = len(all_rows)
+        # print(total_rows)
+        
+        #  determine indices of columns
+        indices = [header.index(name) for name in dofs_names if name in header]
+        
+        # Start reading from the start_sampleth row and stop before the last end_sample rows
+        for row in all_rows[start_sample:total_rows]:
+            # Extract values for the specified columns
+            selected_values = [float(row[i]) for i in indices]
+            q.append(selected_values)
+    
+    return np.array(q)
+
+def read_specific_joint(file_path, dofs_list,start_sample):
+
+    q = []
+    with open(file_path, mode='r') as csv_file:
+        csv_reader = csv.reader(csv_file)
+        #Skip the header 
+        header = next(csv_reader)
+        
+        # Read all rows into memory to count total rows
+        all_rows = list(csv_reader)
+        total_rows = len(all_rows)
+        # print(total_rows)
+        
+        #  determine indices of columns
+        indices = [header.index(name) for name in dofs_list if name in header]
+        
+        # Start reading from the start_sampleth row and stop before the last end_sample rows
+        for row in all_rows[start_sample:total_rows]:
+            # Extract values for the specified columns
+            selected_values = [float(row[i]) for i in indices]
+            q.append(selected_values)
+    
+    return np.array(q)
+
 def read_joint_positions(file_path):
     with open(file_path, 'r') as f:
         lines = f.readlines()
@@ -507,3 +564,58 @@ def read_mks_data(data_markers, start_sample=0):
     start_sample_mks = result_markers[start_sample]
     
     return result_markers, start_sample_mks
+
+def parse_marker_csv(path_to_csv, mks_names, column_name='marker_data', delimiter=';'):
+    """
+    Parses a CSV containing marker data stored as a single delimited string per row.
+
+    Args:
+        path_to_csv (str): Path to the CSV file.
+        mks_names (list): List of marker names.
+        column_name (str): Name of the column containing the marker data. Default is 'marker_data'.
+        delimiter (str): Delimiter used in the marker data string. Default is ';'.
+
+    Returns:
+        list of dict: Each element is a dictionary {marker_name: np.array([x, y, z])} for one frame.
+    """
+    df = pd.read_csv(path_to_csv)
+    expected_values = len(mks_names) * 3
+
+    if column_name not in df.columns:
+        raise ValueError(f"'{column_name}' column not found in CSV")
+
+    mks_dict = []
+    for row in df[column_name]:
+        values = list(map(float, row.split(delimiter)))
+        if len(values) != expected_values:
+            raise ValueError(f"Expected {expected_values} values, got {len(values)}")
+
+        coords = [np.array(values[i:i+3]) for i in range(0, len(values), 3)]
+        frame_data = dict(zip(mks_names, coords))
+        mks_dict.append(frame_data)
+
+    return mks_dict
+
+def marker_data_to_dataframe(df, mks_names, marker_column='marker_data', delimiter=';'):
+    """
+    Converts a single-column marker string data DataFrame to a wide format DataFrame.
+
+    Parameters:
+        df (pd.DataFrame): Original DataFrame with a 'marker_data' column.
+        mks_names (list): List of marker names.
+        marker_column (str): Name of the column with delimited marker data.
+        delimiter (str): Delimiter used in the string (default ';').
+
+    Returns:
+        pd.DataFrame: A DataFrame with columns like marker_x, marker_y, marker_z.
+    """
+    all_data = []
+    for row in df[marker_column]:
+        values = list(map(float, row.split(delimiter)))
+        all_data.append(values)
+    
+    wide_df = pd.DataFrame(all_data, columns=[
+        f"{name}_{axis}" for name in mks_names for axis in ['x', 'y', 'z']
+    ])
+    
+    return wide_df

@@ -619,6 +619,7 @@ def build_model(mocap_mks_positions: Dict, meshes_folder_path: str, with_head=Fa
     geom_model.addGeometryObject(foot_visual_L)
     visuals_dict["foot_L"] = foot_visual_L
 
+    bound_offset = 0.0
     model.upperPositionLimit[7:] = np.array([5*np.pi/36,       #L5S1_FE + 
                                           np.pi/3,             #L5S1_R_EXT_INT +
                                           np.pi,               #Shoulder_Z_R +

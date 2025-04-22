@@ -91,6 +91,15 @@ class Settings:
            'r_melbow_study','r_lwrist_study','r_mwrist_study','L_lelbow_study','L_melbow_study',
            'L_lwrist_study','L_mwrist_study'])
     
+    marker_mocap_names: list = field(default_factory=lambda: ['r.ASIS_study','L.ASIS_study','r.PSIS_study','L.PSIS_study',
+             'TV8','TV12','SJN','STRN','C7_study','r_shoulder_study','L_shoulder_study',
+             'LBHD','RBHD','LFHD','RFHD',
+             'L_lelbow_study','L_melbow_study','LUArm','L_lwrist_study','L_mwrist_study','LForearm','LHand2','LHand1','LHL2','LHM5',
+             'r_lelbow_study','r_melbow_study','RUArm','r_lwrist_study','r_mwrist_study','RForearm','RHand2','RHand1','RHL2','RHM5',
+             'L_thigh1_study','L_knee_study','L_mknee_study','L_sh1_study','L_ankle_study','L_mankle_study','L_calc_study','L_5meta_study','L_toe_study',
+             'r_thigh1_study','r_knee_study','r_mknee_study','r_sh1_study',
+             'r_ankle_study','r_mankle_study','r_calc_study','r_5meta_study','r_toe_study'])
+    
     # Add this to the class definition
     keys_to_track_list: list = field(default_factory=lambda: [
         'Head', 'Nose', 'REar', 'LEar', 'REye', 'LEye',
@@ -113,6 +122,25 @@ class Settings:
         'L_knee_study', 'L_mknee_study',
         'L_thigh1_study', 'L_thigh2_study', 'L_thigh3_study',
         'L_sh1_study', 'L_sh2_study', 'L_sh3_study'
+    ])
+
+    keys_to_track_list_mocap: list = field(default_factory=lambda: [
+        'LBHD','RBHD','LFHD','RFHD',
+        'C7_study', 
+        'r.ASIS_study', 'L.ASIS_study', 
+        'r.PSIS_study', 'L.PSIS_study', 
+        'r_shoulder_study',
+        'r_lelbow_study', 'r_melbow_study',
+        'r_lwrist_study', 'r_mwrist_study',
+        'r_ankle_study', 'r_mankle_study',
+        'r_toe_study','r_5meta_study', 'r_calc_study',
+        'r_knee_study', 'r_mknee_study',
+        'L_shoulder_study', 
+        'L_lelbow_study', 'L_melbow_study',
+        'L_lwrist_study','L_mwrist_study',
+        'L_ankle_study', 'L_mankle_study', 
+        'L_toe_study','L_5meta_study', 'L_calc_study',
+        'L_knee_study', 'L_mknee_study'
     ])
 
 
