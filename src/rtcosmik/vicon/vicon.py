@@ -2,15 +2,20 @@ import socket
 import os
 import csv
 from datetime import datetime
-from multiprocessing import Process, Value, Event, Queue,Array
+from multiprocessing import Process, Array, Value, Lock, Barrier, Event, Queue
 import logging
 import time
+import struct
+
 # Set up logging for the module
 logging.basicConfig(level=logging.INFO, 
                     format="%(asctime)s - %(levelname)s - %(message)s")
 
-class UDPDataSaverProcess(Process):
-    def __init__(self, ip: str, port: int, output_dir: str, stop_event: Event, saving_flag: Value):
+class UDPReceiver(Process):
+    def __init__(self, shared_buffer: Array,
+                 timestamp_buffer: Array, # Character array for timestamp
+                 lock: Lock,
+                 ip: str, port: int, output_dir: str, stop_event: Event, saving_flag: Value, markers_names):
         """
         :param ip: IP address to listen on.
         :param port: UDP port number.
@@ -24,13 +29,18 @@ class UDPDataSaverProcess(Process):
         self.output_dir = output_dir
         self.stop_event = stop_event
         self.saving_flag = saving_flag
+        self.markers_names =markers_names
 
-        # Ensure output directory exists and write CSV header once.
-        os.makedirs(self.output_dir, exist_ok=True)
-        self.filename = os.path.join(self.output_dir, "mks_pose.csv")
-        with open(self.filename, "w", newline="") as csv_file:
-            csv_writer = csv.writer(csv_file)
-            csv_writer.writerow(["time", "marker_data"])
+        self.shared_buffer = shared_buffer
+        self.timestamp_buffer = timestamp_buffer  # For timestamp string
+        self.lock = lock
+
+        # Validate timestamp buffer size (need 26 chars for format)
+        if len(timestamp_buffer) != 26:
+            raise ValueError("Timestamp buffer must be exactly 26 characters")
+       
+
+        self.data_length = 26+4*(len(self.markers_names) * 3)
 
     def run(self):
         logger = logging.getLogger(f"UDPDataSaverProcess-{self.pid}")
@@ -46,22 +56,26 @@ class UDPDataSaverProcess(Process):
         
         while not self.stop_event.is_set():
             try:
-                data, addr = sock.recvfrom(4096)
+                received_data, addr = sock.recvfrom(self.data_length)
             except socket.timeout:
                 continue
             except Exception as e:
                 logger.error(f"Error receiving UDP data: {e}")
                 break
 
-            decoded_data = data.decode("utf-8")
+            timestamp = str(received_data[:26])[2:][:-1]
+            aa = bytearray(received_data[26:])
             # logger.info(f"Received from {addr}: {decoded_data}")
 
-            # Check the shared saving flag; if active, save the data.
-            if self.saving_flag.value:
-                timestamp = datetime.now().isoformat('_')
-                with open(self.filename, "a", newline="") as csv_file:
-                    csv_writer = csv.writer(csv_file)
-                    csv_writer.writerow([timestamp, decoded_data])
+            unpacked = struct.unpack("<" + "f" * (len(self.markers_names) * 3), aa)
+            with self.lock:
+                self.timestamp_buffer[:26] = timestamp.ljust(26, '\0').encode('utf-8')
+
+                # copy floats
+                for i, v in enumerate(unpacked):
+                    self.shared_buffer[i] = v
+                    # print(v)
+                    
 
         sock.close()
         logger.info("UDPDataSaverProcess terminated.")
@@ -71,17 +85,24 @@ class UDPDataSaverProcess(Process):
 class UDPDataSaver(Process):
     def __init__(self, 
                  saving_flag: Value,  # Saving flag to control saving
-                 udp_data_buffer: Array,  # Shared buffer for UDP data
+                 shared_ts_udp,
+                 shared_values_udp,
+                 lock_udp,
+                 cam_event, 
                  save_dir: str,  # Directory to save CSV
                  stop_event: Event):  # Event to stop the process
         super().__init__()
         self.saving_flag = saving_flag
-        self.udp_data_buffer = udp_data_buffer
         self.save_dir = save_dir
         self.stop_event = stop_event
         self.csv_file = None
         self.csv_writer = None
         self.last_save_time = time.monotonic()
+
+        self.shared_ts_udp=shared_ts_udp
+        self.shared_values_udp=shared_values_udp
+        self.lock_udp=lock_udp
+        self.cam_event=cam_event 
 
     def run(self):
         try:
@@ -91,18 +112,17 @@ class UDPDataSaver(Process):
             self.csv_writer.writerow(['Timestamp', 'UDP Data'])  # CSV header
             
             while not self.stop_event.is_set():
-                if self.saving_flag.value:
-                    # Read the UDP data from the buffer
-                    udp_data = ''.join(chr(self.udp_data_buffer[i]) for i in range(len(self.udp_data_buffer)))
-                    
-                    if udp_data:  # If there is any UDP data to save
-                        timestamp_str = time.strftime("%Y-%m-%d %H:%M:%S", time.localtime())
-                        # Write the UDP data and timestamp to the CSV file
-                        self.csv_writer.writerow([timestamp_str, udp_data])
-                        print(f"Saving UDP data: {udp_data}")
+                self.cam_event.wait()
+                
+                with self.lock_udp:
+                    ts_udp = bytes(self.shared_ts_udp[:]).decode().strip('\x00')
+                    vals = list(self.shared_values_udp[:]) 
+                
+                self.cam_event.clear()
 
-                # Sleep briefly to prevent excessive CPU usage
-                time.sleep(0.1)
+                if self.saving_flag.value:
+                    self.csv_writer.writerow([ts_udp]+vals)
+
 
         except Exception as e:
             print(f"Error in DataSaverProcess: {e}")

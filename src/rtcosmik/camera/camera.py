@@ -7,132 +7,6 @@ import logging
 import select
 import socket
 
-
-# Function to get the latest UDP message
-# Function to get the latest UDP message
-def get_latest_message(sock):
-    latest_data = None
-    while True:
-        # Use select to check if there is data available
-        ready = select.select([sock], [], [], 0)
-        if ready[0]:
-            try:
-                data, addr = sock.recvfrom(4096)
-                latest_data = data  # keep updating, so last one wins
-            except BlockingIOError:
-                break
-        else:
-            break
-    return latest_data
-
-class CameraUDP(Process):
-    def __init__(self, 
-                 cam_id: int,
-                 shared_buffer: Array,
-                 timestamp_buffer: Array, 
-                 lock: Lock,
-                 frame_counter: Value,
-                 barrier: Barrier,
-                 stop_event: Event,
-                 udp_data_buffer: Array,  # Shared buffer for UDP data
-                 frame_shape: tuple = (720, 1280, 3),
-                 cam_fps: int = None,
-                 cam_fourcc: str = "MJPG",
-                 udp_ip: str = "172.20.183.220", 
-                 udp_port: int = 44445):
-        super().__init__()
-        self.cam_id = cam_id
-        self.shared_buffer = shared_buffer
-        self.timestamp_buffer = timestamp_buffer  
-        self.lock = lock
-        self.frame_counter = frame_counter
-        self.barrier = barrier
-        self.stop_event = stop_event
-        self.frame_shape = frame_shape
-        self.cam_fps = cam_fps
-        self.cam_fourcc = cam_fourcc
-        self.udp_ip = udp_ip
-        self.udp_port = udp_port
-        self.udp_data_buffer = udp_data_buffer
-        
-        # Validate timestamp buffer size
-        if len(timestamp_buffer) != 26:
-            raise ValueError("Timestamp buffer must be exactly 26 characters")
-        
-        # UDP socket configuration
-        if cam_id == 0:
-            self.sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-            self.sock.bind((self.udp_ip, self.udp_port))
-
-    def run(self):
-        cap = cv2.VideoCapture(self.cam_id, cv2.CAP_V4L2)
-
-        if not cap.isOpened():
-            raise Exception(f"Camera {self.cam_id} could not be opened.")
-        
-        if self.cam_fourcc:
-            cap.set(cv2.CAP_PROP_FOURCC, cv2.VideoWriter_fourcc(*self.cam_fourcc))
-        if self.frame_shape:
-            cap.set(cv2.CAP_PROP_FRAME_HEIGHT, self.frame_shape[0])
-            cap.set(cv2.CAP_PROP_FRAME_WIDTH, self.frame_shape[1])
-        if self.cam_fps:
-            cap.set(cv2.CAP_PROP_FPS, self.cam_fps)
-
-        arr = np.frombuffer(self.shared_buffer, dtype=np.uint8)
-        try:
-            frame_buffer = arr.reshape(self.frame_shape)
-        except ValueError:
-            actual_size = arr.size
-            expected_size = np.prod(self.frame_shape)
-            raise RuntimeError(
-                f"Buffer size mismatch. Expected {expected_size} elements, "
-                f"got {actual_size}. Check frame_shape: {self.frame_shape}"
-            )
-        
-        self.barrier.wait()
-
-        try:
-            while not self.stop_event.is_set():
-                # Receive UDP data
-                if self.cam_id == 0:
-                    data = get_latest_message(self.sock)
-                    udp_data = None
-                    if data is not None:
-                        udp_data = data.decode("utf-8")
-                        print(f"Received UDP data: {udp_data}")
-                        
-                        # Write UDP data into the shared buffer
-                        with self.lock:
-                            for i in range(len(udp_data)):
-                                if i < len(self.udp_data_buffer):
-                                    self.udp_data_buffer[i] = ord(udp_data[i])
-                                
-                # Read frame from the camera
-                ret, frame = cap.read()
-                if not ret:
-                    print(f"Failed to read frame from camera {self.cam_id}.")
-                    continue
-
-                # Validate frame before processing
-                if frame.size != np.prod(self.frame_shape):
-                    print(f"Frame size mismatch: {frame.shape} vs {self.frame_shape}")
-                    continue
-
-                # Generate timestamp
-                timestamp_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S.%f")
-                
-                # Resize and ensure 3 channels
-                resized = cv2.resize(frame, (self.frame_shape[1], self.frame_shape[0]))
-
-                with self.lock:
-                    np.copyto(frame_buffer, resized)
-                    self.timestamp_buffer[:26] = timestamp_str.ljust(26, '\0').encode('utf-8')
-                    self.frame_counter.value += 1
-
-        finally:
-            cap.release()
-            print(f"Process for Camera {self.cam_id} terminated.")
-
 class Camera(Process):
     def __init__(self, 
                  cam_id: int,
@@ -142,9 +16,11 @@ class Camera(Process):
                  frame_counter: Value,
                  barrier: Barrier,
                  stop_event: Event,
+                 cam_event :Event,
                  frame_shape: tuple = (720, 1280, 3),
                  cam_fps: int = None,
                  cam_fourcc: str = "MJPG"):
+        
         super().__init__()
         self.cam_id = cam_id
         self.shared_buffer = shared_buffer
@@ -153,6 +29,7 @@ class Camera(Process):
         self.frame_counter = frame_counter
         self.barrier = barrier
         self.stop_event = stop_event
+        self.cam_event = cam_event
         
         # Video capture parameters
         self.frame_shape = frame_shape  # (height, width, channels)
@@ -164,9 +41,7 @@ class Camera(Process):
             raise ValueError("Timestamp buffer must be exactly 26 characters")
 
     def run(self):
-        # Initialize camera once at start
         cap = cv2.VideoCapture(self.cam_id, cv2.CAP_V4L2)
-
         if not cap.isOpened():
             raise Exception(f"Camera {self.cam_id} could not be opened.")
         
@@ -179,52 +54,53 @@ class Camera(Process):
         if self.cam_fps:
             cap.set(cv2.CAP_PROP_FPS, self.cam_fps)
 
+        cap.set(cv2.CAP_PROP_BUFFERSIZE, 1)
 
-        # Correct frame buffer reshaping
-        arr = np.frombuffer(self.shared_buffer, dtype=np.uint8)
-        try:
-            frame_buffer = arr.reshape(self.frame_shape)
-        except ValueError:
-            actual_size = arr.size
-            expected_size = np.prod(self.frame_shape)
-            raise RuntimeError(
-                f"Buffer size mismatch. Expected {expected_size} elements, "
-                f"got {actual_size}. Check frame_shape: {self.frame_shape}"
-            )
-        
+        # reshape shared buffer once
+        arr          = np.frombuffer(self.shared_buffer, dtype=np.uint8)
+        frame_buffer = arr.reshape(self.frame_shape)
+
+        # let everyone get to this point
         self.barrier.wait()
 
-        # Main capture loop
-        try: 
+        try:
             while not self.stop_event.is_set():
-                ret, frame = cap.read()
-                if not ret:
-                    continue  # Exit on failure
+                # --- 1) all processes synchronize before grabbing next frame
+                self.barrier.wait()
 
-                # Validate frame before processing
-                if frame.size != np.prod(self.frame_shape):
-                    print(f"Frame size mismatch: {frame.shape} vs {self.frame_shape}")
+                # --- 2) tell the driver to queue the next frame
+                cap.grab()
+                self.cam_event.set()
+
+                # --- 3) wait here until everyone has grabbed
+                self.barrier.wait()
+
+                # --- 4) pull the actual image out of the buffer
+                ret, frame = cap.retrieve()
+                if not ret:
                     continue
 
-                # Generate timestamp
-                timestamp_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S.%f")
-                
-                # Resize and ensure 3 channels
+                # --- 5) timestamp right away
+                now_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S.%f")
+
+                # --- 6) resize/check, then write under lock
                 resized = cv2.resize(frame, (self.frame_shape[1], self.frame_shape[0]))
-                
-                # Update shared memory
                 with self.lock:
                     np.copyto(frame_buffer, resized)
-                    self.timestamp_buffer[:26] = timestamp_str.ljust(26, '\0').encode('utf-8')
-                    # print(self.frame_counter.value)
+                    self.timestamp_buffer[:26] = now_str.ljust(26, "\0").encode("utf-8")
                     self.frame_counter.value += 1
+                    # print(f"counters in camera {self.cam_id} :{self.frame_counter.value}")
+
+                # optional: wait here if you need a post‑write barrier
+                # self.barrier.wait()
 
         finally:
             cap.release()
-            print(f"Process for Camera {self.cam_id} terminated.")
+            print(f"Camera {self.cam_id} process exiting.")
 
 class DisplayConsumer(Process):
     def __init__(self, 
+                 frame_counters,
                  camera_buffers, 
                  camera_locks, 
                  timestamp_buffers, 
@@ -238,6 +114,9 @@ class DisplayConsumer(Process):
         self.frame_shape = frame_shape  # (height, width, channels)
         self.num_cameras = num_cameras
         self.stop_event = stop_event
+
+        self.last_frame_counters = [0] * self.num_cameras
+        self.frame_counters = frame_counters
         
     def run(self):
         window_names = [f'Camera {i}' for i in range(self.num_cameras)]
@@ -248,35 +127,35 @@ class DisplayConsumer(Process):
         try: 
             while not self.stop_event.is_set():
                 frames = []
-                
-                # Collect frames from all cameras
-                for i in range(self.num_cameras):
-                    with self.camera_locks[i]:
-                        arr = np.frombuffer(self.camera_buffers[i], dtype=np.uint8)
-                        frame = arr.reshape(self.frame_shape).copy()
-                        # Get current timestamp
-                        timestamp = bytes(self.timestamp_buffers[i][:]).decode().strip('\x00')
+                keypoints_list = []
+                new_counters = []
+                for i, (lock, buffer, cam_ts, frame_counter) in enumerate(zip(self.camera_locks, self.camera_buffers, self.timestamp_buffers, self.frame_counters)):
+                    with lock:
+                        #  Only accept data if this camera has produced a new frame
+                        if frame_counter.value > self.last_frame_counters[i]:
+                            # Read and copy shared data atomically
+                            arr = np.frombuffer(buffer, dtype=np.uint8)
+                            frame = arr.reshape(self.frame_shape).copy()
+                            # Get current timestamp
+                            timestamp = bytes(cam_ts[:]).decode().strip('\x00')
 
-                    # Optimization 2: Add timestamp overlay
-                    ########################################  
-                    # Add text overlay (white text with black background)
-                    cv2.putText(frame, timestamp, (10, 30), 
-                            cv2.FONT_HERSHEY_SIMPLEX, 0.6, 
-                            (0,0,0), 4, lineType=cv2.LINE_AA)
-                    cv2.putText(frame, timestamp, (10, 30), 
-                            cv2.FONT_HERSHEY_SIMPLEX, 0.6, 
-                            (255,255,255), 2, lineType=cv2.LINE_AA)
-                    ########################################
-                    
-                    frames.append(frame)
-
+                            if timestamp == '': # empty data
+                                continue
+                            else:
+                                frames.append(frame)
+                            new_counters.append(frame_counter.value)
+                if len(frames)!=self.num_cameras:
+                    continue
+                self.last_frame_counters = new_counters.copy()
+            
+                print(new_counters)
                 # Optimization 1: Combine all frames into single view
                 ########################################
                 # Create a horizontal stack of frames
                 combined_frame = np.hstack(frames)
                 
                 # Show combined view
-                cv2.imshow(combined_window, combined_frame)
+                cv2.imshow(combined_window,  combined_frame)
                 ########################################
                 
                 # Original individual windows display (comment out when using combined view)

@@ -9,7 +9,7 @@ from src.rtcosmik.config_loader import settings
 from src.rtcosmik.camera.cam_utils import list_cameras
 from src.rtcosmik.camera.camera import Camera, DisplayConsumer
 from src.rtcosmik.utils.mp_utils import create_camera_shared_ressources
-from src.rtcosmik.saver.video_saver import VideoSaverProcess
+from src.rtcosmik.saver.video_saver import VideoSaverProcess2
 
 def main():
     cameras = list_cameras()
@@ -34,7 +34,7 @@ def main():
     ]
 
     # Create display consumer
-    display = DisplayConsumer(
+    display = DisplayConsumer(frame_counters =frame_counters,
         camera_buffers=camera_buffers,
         camera_locks=camera_locks,
         timestamp_buffers=camera_timestamps,
@@ -46,7 +46,7 @@ def main():
     video_savers = []
     if settings.SAVE_VID:
         for i in range(NUM_CAMERAS):
-            vs = VideoSaverProcess(
+            vs = VideoSaverProcess2(
                 camera_id=list(cameras.keys())[i],
                 shared_buffer=camera_buffers[i],
                 lock=camera_locks[i],
@@ -58,7 +58,7 @@ def main():
             )
             video_savers.append(vs)
 
-    processes = camera_processes + video_savers + [display]
+    processes = camera_processes  + video_savers + [display]
 
     # Start processes
     for p in processes:
