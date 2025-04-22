@@ -7,12 +7,12 @@ sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(
 
 from src.rtcosmik.config_loader import settings
 from src.rtcosmik.camera.cam_utils import list_cameras
-from src.rtcosmik.camera.camera import Camera, DisplayConsumer, CameraUDP
-from src.rtcosmik.utils.mp_utils import create_camera_shared_ressources, create_pipeline_shared_ressources, create_queue
+from src.rtcosmik.camera.camera import Camera, DisplayConsumer
+from src.rtcosmik.utils.mp_utils import create_camera_shared_ressources, create_pipeline_shared_ressources, create_pipeline_shared_resources_with_buffers,create_udp_buffer
 from src.rtcosmik.saver.video_saver import VideoSaverProcess
 from src.rtcosmik.pipeline.pipeline import PipelineProcess
 from src.rtcosmik.viewer.viewer import ViewerProcess
-from src.rtcosmik.vicon.vicon import UDPDataSaver, UDPDataSaverProcess
+from src.rtcosmik.vicon.vicon import UDPDataSaver, UDPReceiver
 import time
 from multiprocessing import set_start_method
 from multiprocessing import Value, Array
@@ -27,7 +27,9 @@ def main():
 
     camera_buffers, camera_timestamps, camera_locks, frame_counters, camera_barrier, stop_event = create_camera_shared_ressources(NUM_CAMERAS, FRAME_SHAPE)
     results_queues = create_pipeline_shared_ressources()
-    udp_data_buffer = Array('B', [0] * 1024)  # Shared UDP data buffer
+    buffers = create_pipeline_shared_resources_with_buffers()
+    shared_ts_udp,shared_values_udp,lock_udp,cam_event = create_udp_buffer(settings.marker_names_mocap)
+
 
      # Create camera processes
     camera_processes = [
@@ -37,28 +39,13 @@ def main():
                camera_locks[i], 
                frame_counters[i], 
                camera_barrier, 
-               stop_event, 
+               stop_event,
+               cam_event, 
                FRAME_SHAPE, 
                settings.fs, 
-               settings.fourcc)
+               settings.fourcc,)
         for i in range(NUM_CAMERAS)
     ]
-
-    # camera_udp = [
-    #     CameraUDP(list(cameras.keys())[i], 
-    #            camera_buffers[i], 
-    #            camera_timestamps[i], 
-    #            camera_locks[i], 
-    #            frame_counters[i], 
-    #            camera_barrier, 
-    #            stop_event, 
-    #            udp_data_buffer,
-    #            FRAME_SHAPE, 
-    #            settings.fs, 
-    #            settings.fourcc,
-    #            udp_ip="172.20.167.86")
-    #     for i in range(NUM_CAMERAS)
-    # ]
 
     video_savers = []
     if settings.SAVE_VID:
@@ -81,27 +68,31 @@ def main():
                                camera_timestamps,
                                camera_locks,
                                frame_counters,
-                               results_queues,
+                               buffers,
                                stop_event,
                                frame_shape=FRAME_SHAPE,
                                num_cameras=NUM_CAMERAS)
     
-    viewer = ViewerProcess(results_queues,
+    viewer = ViewerProcess(buffers,
                            stop_event,
                            num_cameras=NUM_CAMERAS,
                            freeflyer=True,
                            saving_flag=saving_enabled)
 
-    vicon = UDPDataSaverProcess(ip= "172.20.183.220",
+    vicon = UDPReceiver(shared_values_udp,shared_ts_udp,lock_udp,
+                                 ip= "172.20.183.220",
                                  port=44445, output_dir= settings.SAVE_DIR,
-                                 stop_event= stop_event, saving_flag =saving_enabled)
+                                 stop_event= stop_event, saving_flag =saving_enabled, markers_names= settings.marker_names_mocap)
 
-    # udp_data_saver_process = UDPDataSaver(saving_flag=saving_enabled, 
-    #                                       udp_data_buffer=udp_data_buffer, 
-    #                                       save_dir=settings.SAVE_DIR, 
-    #                                       stop_event=stop_event)
+    udp_data_saver_process = UDPDataSaver(saving_flag=saving_enabled, 
+                                          shared_ts_udp=shared_ts_udp,
+                                          shared_values_udp=shared_values_udp,
+                                          lock_udp=lock_udp,
+                                          cam_event=cam_event, 
+                                          save_dir=settings.SAVE_DIR, 
+                                          stop_event=stop_event)
 
-    processes = camera_processes  +video_savers+ [pipeline, viewer,vicon]
+    processes = camera_processes  +video_savers+ [pipeline, viewer,vicon,udp_data_saver_process]
 
     # Start processes
     for p in processes:
