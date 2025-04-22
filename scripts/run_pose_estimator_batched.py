@@ -9,7 +9,7 @@ from src.rtcosmik.config_loader import settings
 from src.rtcosmik.camera.cam_utils import list_cameras
 from src.rtcosmik.camera.camera import Camera
 from src.rtcosmik.pose_estimator.pose_estimator import BatchPoseTrackerProcess
-from src.rtcosmik.utils.mp_utils import create_camera_shared_ressources
+from src.rtcosmik.utils.mp_utils import create_udp_buffer,create_camera_shared_ressources
 from multiprocessing import set_start_method, Barrier
 
 def main():
@@ -23,7 +23,7 @@ def main():
     FRAME_SHAPE = (settings.height, settings.width, 3)
 
     camera_buffers, camera_timestamps, camera_locks, frame_counters, camera_barrier, stop_event = create_camera_shared_ressources(NUM_CAMERAS, FRAME_SHAPE)
-
+    shared_ts_udp,shared_values_udp,lock_udp,cam_event = create_udp_buffer(settings.marker_mocap_names)
     # Create camera processes
     camera_processes = [
         Camera(list(cameras.keys())[i], 
@@ -32,10 +32,11 @@ def main():
                camera_locks[i], 
                frame_counters[i], 
                camera_barrier, 
-               stop_event, 
+               stop_event,
+               cam_event, 
                FRAME_SHAPE, 
                settings.fs, 
-               settings.fourcc)
+               settings.fourcc,)
         for i in range(NUM_CAMERAS)
     ]
 

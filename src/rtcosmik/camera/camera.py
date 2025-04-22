@@ -6,7 +6,8 @@ from multiprocessing import Process, Array, Value, Lock, Barrier, Event, Queue
 import logging
 import select
 import socket
-
+import csv 
+import time
 class Camera(Process):
     def __init__(self, 
                  cam_id: int,
@@ -70,7 +71,8 @@ class Camera(Process):
 
                 # --- 2) tell the driver to queue the next frame
                 cap.grab()
-                self.cam_event.set()
+                if self.cam_id == 0:
+                    self.cam_event.set()
 
                 # --- 3) wait here until everyone has grabbed
                 self.barrier.wait()
@@ -89,7 +91,8 @@ class Camera(Process):
                     np.copyto(frame_buffer, resized)
                     self.timestamp_buffer[:26] = now_str.ljust(26, "\0").encode("utf-8")
                     self.frame_counter.value += 1
-                    # print(f"counters in camera {self.cam_id} :{self.frame_counter.value}")
+                    print(f"counters in camera {self.cam_id} :{self.frame_counter.value}")
+                    # print(self.timestamp_buffer[:26])
 
                 # optional: wait here if you need a post‑write barrier
                 # self.barrier.wait()
@@ -170,3 +173,4 @@ class DisplayConsumer(Process):
         finally:        
             cv2.destroyAllWindows()
             print("Display process terminated.")
+
