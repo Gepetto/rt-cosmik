@@ -3,7 +3,7 @@ import numpy as np
 import hppfcl as fcl
 from scipy.spatial.transform import Rotation as R
 from typing import List, Tuple, Dict
-from rtcosmik.utils.linear_algebra_utils import col_vector_3D
+from src.rtcosmik.utils.linear_algebra_utils import col_vector_3D
 
 
 def check_orthogonality(matrix: np.ndarray):
@@ -63,17 +63,29 @@ def get_head_pose(mocap_mks_positions):
 
     pose = np.eye(4,4)
     X, Y, Z, head_center = [], [], [], []
+    if 'Head' in mocap_mks_positions:
+        head_center = (mocap_mks_positions['r_shoulder_study'] + mocap_mks_positions['L_shoulder_study'])/2.0 
+        top_head = mocap_mks_positions['Head']
+        Y = (top_head - head_center).reshape(3,1)
+        Y = Y/np.linalg.norm(Y)
 
-    head_center = (mocap_mks_positions['r_shoulder_study'] + mocap_mks_positions['L_shoulder_study'])/2.0 
-    top_head = mocap_mks_positions['Head']
-    Y = (top_head - head_center).reshape(3,1)
-    Y = Y/np.linalg.norm(Y)
+        Z = (mocap_mks_positions['REar'] - mocap_mks_positions['LEar']).reshape(3,1)
+        Z = Z/np.linalg.norm(Z)
+        
+        X = np.cross(Y, Z, axis=0)
+        Z = np.cross(X, Y, axis=0)
+    else: 
+        back_head_center = (mocap_mks_positions['RBHD']+mocap_mks_positions['LBHD'])/2.0
+        front_head_center = (mocap_mks_positions['RFHD']+mocap_mks_positions['LFHD'])/2.0
+        head_center = (mocap_mks_positions['r_shoulder_study'] + mocap_mks_positions['L_shoulder_study'])/2.0 
+        X = (front_head_center - back_head_center).reshape(3,1)
+        X = X/np.linalg.norm(X)
 
-    Z = (mocap_mks_positions['REar'] - mocap_mks_positions['LEar']).reshape(3,1)
-    Z = Z/np.linalg.norm(Z)
-    
-    X = np.cross(Y, Z, axis=0)
-    Z = np.cross(X, Y, axis=0)
+        Z = mocap_mks_positions['RBHD'] - mocap_mks_positions['LBHD']
+        Z = Z/np.linalg.norm(Z)
+
+        Y = np.cross(Z, X, axis=0)
+        Z = np.cross(X, Y, axis=0)
 
     pose[:3,0] = X.reshape(3,)
     pose[:3,1] = Y.reshape(3,)
@@ -625,11 +637,12 @@ def compare_offsets(mocap_mks_positions, lstm_mks_positions):
     for key, value in offset_rots.items():
         print(key, R.from_matrix(value).as_euler('ZYX', degrees=True), " deg")
 
-def get_segments_mks_dict()->Dict:
+def get_segments_mks_dict(mocap_mks_positions)->Dict:
     #This fuction returns a dictionnary containing the segments names, and the corresponding list of lstm
     # mks names attached to the segment
     # Constructing the dictionary to store segment poses
-    sgts_mks_dict = {
+    if 'Head' in mocap_mks_positions:
+        sgts_mks_dict = {
         "head": ['Head', 'Nose', 'REar', 'LEar', 'REye', 'LEye' ],
         "torso": ['r_shoulder_study', 'L_shoulder_study', 'C7_study'],
         "upperarmR": ['r_melbow_study', 'r_lelbow_study'],
@@ -644,6 +657,22 @@ def get_segments_mks_dict()->Dict:
         "footR": ['r_calc_study' ,'r_5meta_study','r_toe_study'],
         "footL": ['L_calc_study', 'L_5meta_study', 'L_toe_study']
     }
+    else :
+        sgts_mks_dict = {
+            "head": ['LBHD','RBHD','LFHD','RFHD'], 
+            "torso": ['r_shoulder_study', 'L_shoulder_study', 'C7_study'],
+            "upperarmR": ['r_melbow_study', 'r_lelbow_study'],
+            "lowerarmR": ['r_lwrist_study', 'r_mwrist_study'],
+            "upperarmL" : ['L_melbow_study', 'L_lelbow_study'],
+            "lowerarmL": ['L_lwrist_study', 'L_mwrist_study'],
+            "pelvis": ['r.PSIS_study', 'L.PSIS_study', 'r.ASIS_study', 'L.ASIS_study'],
+            "thighR": ['r_knee_study', 'r_mknee_study', 'r_thigh1_study'],
+            "thighL": ['L_knee_study', 'L_mknee_study', 'L_thigh1_study'],
+            "shankR": ['r_ankle_study', 'r_mankle_study', 'r_sh1_study'],
+            "shankL": ['L_ankle_study', 'L_mankle_study', 'L_sh1_study'],
+            "footR": ['r_calc_study' ,'r_5meta_study','r_toe_study'],
+            "footL": ['L_calc_study', 'L_5meta_study', 'L_toe_study']
+        }
     return sgts_mks_dict
 
 def get_subset_mks_names()->List:

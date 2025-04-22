@@ -263,80 +263,151 @@ class RT_IK:
 
         return q0
     
-    def solve_ik_sample_casadi(self) -> np.ndarray:
-        # Parameters
-        joint_to_regularize = []  # List of joints to regularize (e.g., ['RElbow_FE', 'RHip_RIE'])
-        value_to_regul = 0.001  # Regularization value for specific joints
+    # def solve_ik_sample_casadi(self) -> np.ndarray:
+    #     # Parameters
+    #     joint_to_regularize = []  # List of joints to regularize (e.g., ['RElbow_FE', 'RHip_RIE'])
+    #     value_to_regul = 0.001  # Regularization value for specific joints
 
-        # CasADi optimization class
+    #     # CasADi optimization class
+    #     opti = casadi.Opti()
+
+    #     # Variables (MX type)
+    #     DQ = opti.variable(self._nv)  # Differential joint angles
+    #     Q = self._integrate(self._q0, DQ)  # Integrated joint angles
+
+    #     # Regularization weights
+    #     omega = 1e-6 * np.ones(self._nq)  # Default regularization weight
+    #     for name in joint_to_regularize:
+    #         if name in self._mapping_joint_angle:
+    #             omega[self._mapping_joint_angle[name]] = value_to_regul  # Set specific weights
+    #         else:
+    #             raise ValueError(f"Joint '{name}' not found in the model")
+
+    #     # Precompute constant terms for the cost function
+    #     precomputed_terms = {}
+    #     for key in self._cfunction_dict.keys():
+    #         if self._dict_dof_to_keypoints:
+    #             precomputed_terms[key] = self._dict_m[self._dict_dof_to_keypoints[key]]  # Use keypoints if available
+    #         else:
+    #             precomputed_terms[key] = self._dict_m[key]  # Directly use the measurement
+
+    #     # Cost function (symbolic evaluation)
+    #     cost = 0
+    #     for key, func in self._cfunction_dict.items():
+    #         res = func(Q)  # Evaluate the function symbolically
+    #         cost += 1 * casadi.sumsqr(precomputed_terms[key] - res)  # Add to cost
+
+    #     # Joint limits constraints
+    #     if self._with_freeflyer:
+    #         for i in range(7, self._nq):  # Skip freeflyer joints (first 7)
+    #             opti.subject_to(opti.bounded(self._model.lowerPositionLimit[i], Q[i], self._model.upperPositionLimit[i]))
+    #         opti.subject_to(casadi.sumsqr(Q[3:7]) == 1)  # Quaternion normalization constraint
+    #     else:
+    #         for i in range(self._nq):  # Apply constraints to all joints
+    #             opti.subject_to(opti.bounded(self._model.lowerPositionLimit[i], Q[i], self._model.upperPositionLimit[i]))
+
+    #     # Minimize the cost function
+    #     opti.minimize(cost)
+
+    #     # Solver options
+    #     opts = {
+    #         "ipopt.print_level": 0,  # Suppress solver output
+    #         "ipopt.sb": "yes",  # Suppress banner
+    #         "ipopt.max_iter": 100,  # Maximum iterations
+    #         "ipopt.linear_solver": "mumps",  # Linear solver
+    #         "print_time": 1,  # Print timing information
+    #         "expand": True,  # Expand expressions for better performance
+    #         # "ipopt.hessian_approximation": "limited-memory",  # Hessian approximation
+    #         "ipopt.tol": 1e-3,  # Overall tolerance
+    #         "ipopt.constr_viol_tol": 1e-6,  # Constraint violation tolerance
+    #         "ipopt.compl_inf_tol": 1e-6,  # Complementarity tolerance
+    #         "ipopt.dual_inf_tol": 1e-6,  # Dual infeasibility tolerance
+    #         "ipopt.acceptable_tol": 1e-3,  # Acceptable tolerance
+    #         "ipopt.acceptable_constr_viol_tol": 1e-5  # Acceptable constraint violation tolerance
+    #     }
+
+    #     # Solve the optimization problem
+    #     opti.solver("ipopt", opts)
+    #     t0 =time.time()
+    #     sol = opti.solve()
+    #     t1 = time.time()
+    #     print("Time for opti.solve : ", t1 - t0)
+        
+    #     # Get the optimized joint angles
+    #     q = sol.value(Q)
+
+    #     return q
+    def solve_ik_sample_casadi(self)->np.ndarray:
+        joint_to_regularize = [] #['RElbow_FE','RElbow_PS','RHip_RIE']
+        value_to_regul = 0.001
+
+        # Casadi optimization class
         opti = casadi.Opti()
 
-        # Variables (MX type)
-        DQ = opti.variable(self._nv)  # Differential joint angles
-        Q = self._integrate(self._q0, DQ)  # Integrated joint angles
+        # Variables MX type
+        DQ = opti.variable(self._nv)
+        Q = self._integrate(self._q0,DQ)
 
-        # Regularization weights
-        omega = 1e-6 * np.ones(self._nq)  # Default regularization weight
-        for name in joint_to_regularize:
+        omega = 1e-6*np.ones(self._nq)
+
+        for name in joint_to_regularize :
             if name in self._mapping_joint_angle:
-                omega[self._mapping_joint_angle[name]] = value_to_regul  # Set specific weights
-            else:
-                raise ValueError(f"Joint '{name}' not found in the model")
+                omega[self._mapping_joint_angle[name]] = value_to_regul # Adapt the weight for given joints, for instance the hip Y
+            else :
+                raise ValueError("Joint to regulate not in the model")
 
-        # Precompute constant terms for the cost function
-        precomputed_terms = {}
-        for key in self._cfunction_dict.keys():
-            if self._dict_dof_to_keypoints:
-                precomputed_terms[key] = self._dict_m[self._dict_dof_to_keypoints[key]]  # Use keypoints if available
-            else:
-                precomputed_terms[key] = self._dict_m[key]  # Directly use the measurement
-
-        # Cost function (symbolic evaluation)
         cost = 0
-        for key, func in self._cfunction_dict.items():
-            res = func(Q)  # Evaluate the function symbolically
-            cost += 1 * casadi.sumsqr(precomputed_terms[key] - res)  # Add to cost
 
-        # Joint limits constraints
-        if self._with_freeflyer:
-            for i in range(7, self._nq):  # Skip freeflyer joints (first 7)
-                opti.subject_to(opti.bounded(self._model.lowerPositionLimit[i], Q[i], self._model.upperPositionLimit[i]))
-            opti.subject_to(casadi.sumsqr(Q[3:7]) == 1)  # Quaternion normalization constraint
+        if self._dict_dof_to_keypoints:
+            for key in self._cfunction_dict.keys():
+                cost+=1*casadi.sumsqr(self._dict_m[self._dict_dof_to_keypoints[key]]-self._cfunction_dict[key](Q))
         else:
-            for i in range(self._nq):  # Apply constraints to all joints
-                opti.subject_to(opti.bounded(self._model.lowerPositionLimit[i], Q[i], self._model.upperPositionLimit[i]))
+            for key in self._cfunction_dict.keys():
+                cost+=1*casadi.sumsqr(self._dict_m[key]-self._cfunction_dict[key](Q))
 
-        # Minimize the cost function
+        # Set the constraint for the joint limits
+        if self._with_freeflyer:
+            for i in range(7,self._nq):
+                opti.subject_to(opti.bounded(self._model.lowerPositionLimit[i],Q[i],self._model.upperPositionLimit[i]))
+                opti.subject_to(casadi.sumsqr(Q[3:7])==1)
+        else : 
+            for i in range(self._nq):
+                opti.subject_to(opti.bounded(self._model.lowerPositionLimit[i],Q[i],self._model.upperPositionLimit[i]))
+        
         opti.minimize(cost)
 
-        # Solver options
+        # Set Ipopt options to suppress output
         opts = {
-            "ipopt.print_level": 0,  # Suppress solver output
-            "ipopt.sb": "yes",  # Suppress banner
-            "ipopt.max_iter": 50,  # Maximum iterations
-            "ipopt.linear_solver": "mumps",  # Linear solver
-            "print_time": 1,  # Print timing information
-            "expand": True,  # Expand expressions for better performance
-            # "ipopt.hessian_approximation": "limited-memory",  # Hessian approximation
-            "ipopt.tol": 1e-3,  # Overall tolerance
+            "ipopt.print_level": 5,
+            "ipopt.sb": "yes",
+            "ipopt.max_iter": 2,
+            "ipopt.linear_solver": "mumps",
+            "print_time":1,
+            "expand": True,
+
+            # Tolerance options
+            "ipopt.tol": 1e-1,  # Overall tolerance for the optimization problem
             "ipopt.constr_viol_tol": 1e-6,  # Constraint violation tolerance
             "ipopt.compl_inf_tol": 1e-6,  # Complementarity tolerance
             "ipopt.dual_inf_tol": 1e-6,  # Dual infeasibility tolerance
-            "ipopt.acceptable_tol": 1e-3,  # Acceptable tolerance
+            "ipopt.acceptable_tol": 1e-3,  # Less strict tolerance for acceptable solutions
             "ipopt.acceptable_constr_viol_tol": 1e-5  # Acceptable constraint violation tolerance
         }
 
-        # Solve the optimization problem
         opti.solver("ipopt", opts)
-        t0 =time.time()
-        sol = opti.solve()
-        t1 = time.time()
-        print("Time for opti.solve : ", t1 - t0)
+        try:
+            sol = opti.solve()
+            q = sol.value(Q)
+        except:
+            q= opti.debug.value(Q)
+        
         
         # Get the optimized joint angles
-        q = sol.value(Q)
 
+        # Get the optimized joint angles
+        
         return q
+
     
 class RT_SWIKA:
     def __init__(self, pin_model: pin.Model, keys_to_track: List, N: int, dict_dof_to_keypoints: Dict=None, with_freeflyer=True, code: str ='c'):
@@ -450,7 +521,7 @@ class RT_SWIKA:
         options["verbose"] = False
         options["print_time"] = False
         options["expand"] = True
-        options["fatrop"] = {"print_level":0, "max_iter":7, "mu_init": 1e-5, 'warm_start_mult_bound_push' : 1e-7, "bound_push":1e-7, "tol":1e-1, "linsol_iterative_refinement":False}#, "warm_start_init_point":True}
+        options["fatrop"] = {"print_level":0, "max_iter":50} #, "mu_init": 1e-5, 'warm_start_mult_bound_push' : 1e-7, "bound_push":1e-7, "tol":1e-1, "linsol_iterative_refinement":False}#, "warm_start_init_point":True}
         options["structure_detection"] = "auto"
         options["debug"] = False
 
