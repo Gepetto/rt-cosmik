@@ -48,7 +48,7 @@ def build_model_no_visuals(mocap_mks_positions: Dict)->pin.Model:
     """
 
     sgts_poses = construct_segments_frames(mocap_mks_positions)
-    sgts_mks_dict = get_segments_mks_dict()
+    sgts_mks_dict = get_segments_mks_dict(mocap_mks_positions)
     mks_local_positions = get_local_mks_positions(sgts_poses, mocap_mks_positions, sgts_mks_dict)
     local_segments_positions = get_local_segments_positions(sgts_poses)
 
@@ -1160,7 +1160,7 @@ def rescale_human_model(model: pin.Model, mks_dict: Dict)->pin.Model:
     inertia = pin.Inertia.Zero()
 
     sgts_poses = construct_segments_frames(mks_dict)
-    sgts_mks_dict = get_segments_mks_dict()
+    sgts_mks_dict = get_segments_mks_dict(mks_dict)
     mks_local_positions = get_local_mks_positions(sgts_poses, mks_dict, sgts_mks_dict)
     local_segments_positions = get_local_segments_positions(sgts_poses)
 

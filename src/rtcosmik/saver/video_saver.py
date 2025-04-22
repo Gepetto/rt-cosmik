@@ -35,6 +35,7 @@ class VideoSaver:
     def __del__(self):
         self.close()
 
+#save frames only when saving_flag=True
 class VideoSaverProcess(Process):
     def __init__(self, camera_id, shared_buffer, lock, frame_counter, frame_shape, save_dir, fps, stop_event, saving_flag: Value):
         super().__init__()

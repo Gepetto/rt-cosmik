@@ -28,7 +28,7 @@ def main():
     camera_buffers, camera_timestamps, camera_locks, frame_counters, camera_barrier, stop_event = create_camera_shared_ressources(NUM_CAMERAS, FRAME_SHAPE)
     results_queues = create_pipeline_shared_ressources()
     buffers = create_pipeline_shared_resources_with_buffers()
-    shared_ts_udp,shared_values_udp,lock_udp,cam_event = create_udp_buffer(settings.marker_names_mocap)
+    shared_ts_udp,shared_values_udp,lock_udp,cam_event = create_udp_buffer(settings.marker_mocap_names)
 
 
      # Create camera processes
@@ -63,17 +63,33 @@ def main():
             )
             video_savers.append(vs)
     
+    # pipeline = PipelineProcess(settings,
+    #                            camera_buffers,
+    #                            camera_timestamps,
+    #                            camera_locks,
+    #                            frame_counters,
+    #                            buffers,
+    #                            stop_event,
+    #                            frame_shape=FRAME_SHAPE,
+    #                            num_cameras=NUM_CAMERAS)
+
     pipeline = PipelineProcess(settings,
                                camera_buffers,
                                camera_timestamps,
                                camera_locks,
                                frame_counters,
-                               buffers,
+                               results_queues,
                                stop_event,
                                frame_shape=FRAME_SHAPE,
                                num_cameras=NUM_CAMERAS)
     
-    viewer = ViewerProcess(buffers,
+    # viewer = ViewerProcess(buffers,
+    #                        stop_event,
+    #                        num_cameras=NUM_CAMERAS,
+    #                        freeflyer=True,
+    #                        saving_flag=saving_enabled)
+
+    viewer = ViewerProcess(results_queues,
                            stop_event,
                            num_cameras=NUM_CAMERAS,
                            freeflyer=True,
@@ -82,7 +98,7 @@ def main():
     vicon = UDPReceiver(shared_values_udp,shared_ts_udp,lock_udp,
                                  ip= "172.20.183.220",
                                  port=44445, output_dir= settings.SAVE_DIR,
-                                 stop_event= stop_event, saving_flag =saving_enabled, markers_names= settings.marker_names_mocap)
+                                 stop_event= stop_event, markers_names= settings.marker_mocap_names)
 
     udp_data_saver_process = UDPDataSaver(saving_flag=saving_enabled, 
                                           shared_ts_udp=shared_ts_udp,

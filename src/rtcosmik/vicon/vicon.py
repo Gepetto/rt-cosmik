@@ -15,20 +15,18 @@ class UDPReceiver(Process):
     def __init__(self, shared_buffer: Array,
                  timestamp_buffer: Array, # Character array for timestamp
                  lock: Lock,
-                 ip: str, port: int, output_dir: str, stop_event: Event, saving_flag: Value, markers_names):
+                 ip: str, port: int, output_dir: str, stop_event: Event, markers_names):
         """
         :param ip: IP address to listen on.
         :param port: UDP port number.
         :param output_dir: Directory where the CSV file will be saved.
         :param stop_event: A multiprocessing Event that signals shutdown.
-        :param saving_flag: A shared boolean Value. When True, saving is active.
         """
         super().__init__()
         self.ip = ip
         self.port = port
         self.output_dir = output_dir
         self.stop_event = stop_event
-        self.saving_flag = saving_flag
         self.markers_names =markers_names
 
         self.shared_buffer = shared_buffer
