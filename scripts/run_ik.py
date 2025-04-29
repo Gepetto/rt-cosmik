@@ -19,10 +19,10 @@ from src.rtcosmik.ik.ik import RT_IK,RT_SWIKA
 
 
 
-no_trial = "trial_2"
-task = "trial_lower"
-path_to_csv = f"/root/workspace/ros_ws/src/rt-cosmik/output/{no_trial}/{task}/markers.csv"
-path_to_kpt = f"/root/workspace/ros_ws/src/rt-cosmik/output/{no_trial}/{task}/keypoints.csv"
+no_trial = "trial3"
+task = "static"
+path_to_csv = f"/root/workspace/ros_ws/src/rt-cosmik/output/{no_trial}/{task}/augmented_markers.csv"
+path_to_kpt = f"/root/workspace/ros_ws/src/rt-cosmik/output/{no_trial}/{task}/3d_keypoints.csv"
 
 keys_to_add = ['Nose', 'Head', 'REar', 'LEar', 'REye', 'LEye']
 
@@ -206,10 +206,7 @@ for ii in range(start_sample,len(result_markers)):
     ik_class._q0 = q 
 
     q_list.append(q)
-    
-    
-
-
+  
 #save angles
 
 joint_angles_names = settings.joint_angles_names

@@ -6,21 +6,28 @@ from pinocchio.visualize import GepettoVisualizer
 import numpy as np
 parent_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
 sys.path.append(parent_dir)
-from read_csv_file import csv_to_dict_of_dicts
 from viz_utils import place
 import pandas as pd 
 from src.rtcosmik.config_loader import settings
 
 
-no_trial = "trial_2"
-task = "trial_lower"
-# path_to_csv = f"/root/workspace/ros_ws/src/rt-cosmik/output/{no_trial}/{task}/markers.csv"
-# lstm_names = settings.marker_names
+no_trial = "trial3"
+task = "static"
+path_to_csv = f"/root/workspace/ros_ws/src/rt-cosmik/output/{no_trial}/{task}/augmented_markers.csv"
+mks_names = settings.marker_names
 
-path_to_csv = f"/root/workspace/ros_ws/src/rt-cosmik/output/{no_trial}/{task}/keypoints.csv"
-mks_names = settings.keypoints_names
+# path_to_csv = f"/root/workspace/ros_ws/src/rt-cosmik/output/{no_trial}/{task}/3d_keypoints.csv"
+# mks_names = [
+#         "Nose", "LEye", "REye", "LEar", "REar", 
+#         "LShoulder", "RShoulder", "LElbow", "RElbow", 
+#         "LWrist", "RWrist", "LHip", "RHip", 
+#         "LKnee", "RKnee", "LAnkle", "RAnkle", "Head",
+#         "Neck", "midHip", "LBigToe", "RBigToe", "LSmallToe", "RSmallToe", "LHeel", "RHeel"
+#     ]
 
-data = pd.read_csv(path_to_csv,skiprows=1).iloc[:,2:] #read mocap data skip first row cause header and 2 columns cause no frame
+# data = pd.read_csv(path_to_csv,skiprows=1).iloc[:,2:] #read mocap data skip first row cause header and 2 columns cause no frame
+data = pd.read_csv(path_to_csv,skiprows=1)
+
 assert len(data.columns) == 3 * len(mks_names), "The number of columns does not match the expected structure."
 
 def csv_to_dict_of_dicts(df, headers):

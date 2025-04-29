@@ -10,9 +10,9 @@ from pinocchio.visualize import GepettoVisualizer
 from src.rtcosmik.utils.read_write_utils import parse_marker_csv
 from src.rtcosmik.config_loader import settings
 
-no_trial = "trial_2"
-task = "trial_upper_qp"
-path_to_csv = f"/root/workspace/ros_ws/src/rt-cosmik/output/{no_trial}/{task}/mks_pose.csv"
+no_trial = "trial3"
+task = "static"
+path_to_csv = f"/root/workspace/ros_ws/src/rt-cosmik/output/{no_trial}/{task}/mks_data_rt.csv"
 df = pd.read_csv(path_to_csv)
 
 mks_names = settings.marker_mocap_names

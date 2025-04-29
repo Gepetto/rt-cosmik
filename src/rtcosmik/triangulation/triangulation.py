@@ -72,7 +72,6 @@ def triangulate_offline(uvs, mtxs, dists, projections, R, T):
     
     for frame_idx in range(num_frames):
         points_2d_per_frame = [uv[frame_idx] for uv in uvs]
-        print(points_2d_per_frame)
         p3d_frame = triangulate_points(points_2d_per_frame, mtxs, dists, projections)
 
         #express p3d_frame in world frame

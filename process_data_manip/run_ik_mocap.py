@@ -9,7 +9,7 @@ rt_cosmik_path = os.path.dirname(script_directory)
 import numpy as np
 import pinocchio as pin
 from pinocchio.visualize import GepettoVisualizer
-from src.rtcosmik.utils.read_write_utils import read_mks_data, marker_data_to_dataframe
+from src.rtcosmik.utils.read_write_utils import read_mks_data, udp_csv_to_dataframe,marker_data_to_dataframe
 import pandas as pd
 from src.rtcosmik.viewer.gv_viewer import place, gv_init, Rquat, add_marker, add_frames
 from src.rtcosmik.config_loader import settings
@@ -23,15 +23,16 @@ mks_to_skip = ['TV8','TV12','SJN','STRN','LForearm','LUArm', 'RUArm',
                'LHand2','LHand1','LHL2','LHM5', 'RForearm','RHand2','RHand1','RHL2','RHM5', 'L_sh1_study', 'L_thigh1_study','r_sh1_study', 'r_thigh1_study']
 start_sample = 0
 
-no_trial = "trial_2"
-task = "trial_lower"
-path_to_csv = f"/root/workspace/ros_ws/src/rt-cosmik/output/{no_trial}/{task}/mks_pose.csv"
+no_trial = "trial3"
+task = "static"
+path_to_csv = f"/root/workspace/ros_ws/src/rt-cosmik/output/{no_trial}/{task}/mks_data.csv"
 mks_names = settings.marker_mocap_names
 
 #read mks data
-df_raw = pd.read_csv(path_to_csv)  # original with 'marker_data'
-df_wide = marker_data_to_dataframe(df_raw, mks_names)
+# df_raw = pd.read_csv(path_to_csv)  # original with 'marker_data'
+df_wide = udp_csv_to_dataframe(path_to_csv, mks_names)
 result_markers, start_sample_mks = read_mks_data(df_wide)
+print(start_sample_mks)
 
 #build and scale the model in sample 0 
 human_model, human_geom_model, visuals_dict = build_model(start_sample_mks,meshes_folder_path)
@@ -48,7 +49,7 @@ seg_names_mks = get_segments_mks_dict(result_markers[start_sample])
 add_frames(viz,seg_names_mks,"model", 0.012, 0.05)
 
 ### IK init 
-dt = 1/100
+dt = 1/40
 
 q = pin.neutral(human_model) # init pos
 human_data = pin.Data(human_model)
@@ -129,9 +130,9 @@ for ii in range(start_sample,len(result_markers)):
     # input()
 
 #save mks est
-df = pd.DataFrame(M_model_list)
-csv_file = os.path.join(rt_cosmik_path,f"/root/workspace/ros_ws/src/rt-cosmik/output/{no_trial}/{task}/mks_model_ipopt.csv") 
-df.to_csv(csv_file, index=False)
+# df = pd.DataFrame(M_model_list)
+# csv_file = os.path.join(rt_cosmik_path,f"/root/workspace/ros_ws/src/rt-cosmik/output/{no_trial}/{task}/mks_model_ipopt.csv") 
+# df.to_csv(csv_file, index=False)
 
 #save angles
 joint_angles_names = settings.joint_angles_names
