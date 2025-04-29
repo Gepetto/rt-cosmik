@@ -4,12 +4,12 @@ import pandas as pd
 import numpy as np
 from src.rtcosmik.config_loader import settings
 from src.rtcosmik.utils.read_write_utils import read_mks_data, marker_data_to_dataframe,read_joint_angles_wholebody,read_specific_joint
-no_trial = "trial_2"
-task = "trial_lower"
-path_mocap= f"/root/workspace/ros_ws/src/rt-cosmik/output/{no_trial}/{task}/mocap_on_cosmik_frames.csv"
 
-path_cosmik= f"/root/workspace/ros_ws/src/rt-cosmik/output/{no_trial}/{task}/q_cosmik_ipopt.csv" #real time : 9.7deg bas du corps, 11deg haut du corps.
-#offline lower 7.4deg , upper 8deg
+no_trial = "trial3"
+task = "static"
+path_mocap= f"/root/workspace/ros_ws/src/rt-cosmik/output/{no_trial}/{task}/q_mocap_ipopt.csv"
+
+path_cosmik= f"/root/workspace/ros_ws/src/rt-cosmik/output/{no_trial}/{task}/q_cosmik_ipopt.csv" 
 
 dofs  = settings.joint_angles_names
 
@@ -28,14 +28,17 @@ start_sample = 0
 # q_cosmik= read_joint_angles_wholebody(path_cosmik, start_sample)
 # q_mocap = read_joint_angles_wholebody(path_mocap, start_sample)
 
-q_cosmik= read_specific_joint(path_cosmik,lower_dof, start_sample)
-q_mocap = read_specific_joint(path_mocap,lower_dof, start_sample)
+q_cosmik= read_specific_joint(path_cosmik,lower_dof, start_sample)[10:]
+q_mocap = read_specific_joint(path_mocap,lower_dof, start_sample)[10:]
 
 rmse_list = []
 # Plot one figure per joint
 for i, name in enumerate(lower_dof):
+    
     rmse = np.sqrt(np.mean((q_mocap[:, i] - q_cosmik[:, i]) ** 2))
     rmse = rmse * (180 / np.pi)
+    # print(rmse)
+    print(name , ':', rmse)
     rmse_list.append(rmse)
     plt.figure()
     plt.plot(q_cosmik[:, i], label="Cosmik", linewidth=2, color='blue')
