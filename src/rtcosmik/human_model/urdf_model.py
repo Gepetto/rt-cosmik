@@ -4,6 +4,7 @@ import numpy as np
 from typing import List, Tuple, Dict
 from rtcosmik.human_model.model_utils import get_torso_pose
 from rtcosmik.utils.linear_algebra_utils import col_vector_3D
+from .model_utils import orthogonalize_matrix, construct_segments_frames, get_segments_mks_dict, get_local_mks_positions, get_local_segments_positions
 
 class Robot(RobotWrapper):
     """_Class to load a given urdf_
@@ -70,6 +71,39 @@ class Robot(RobotWrapper):
         ## \todo test that this is equivalent to reloading the model
         self.geom_model = self.collision_model
 
+def scale_human_model(model, mocap_mks_positions, subject_height=1.80):
+    abdomen_ratio = 0.10
+    sgts_poses = construct_segments_frames(mocap_mks_positions, with_hand=True)
+    sgts_mks_dict = get_segments_mks_dict(mocap_mks_positions)
+    mks_local_positions = get_local_mks_positions(sgts_poses, mocap_mks_positions, sgts_mks_dict)
+    local_segments_positions = get_local_segments_positions(sgts_poses)
+
+
+    model.jointPlacements[model.getJointId('left_hip_Z')].translation=local_segments_positions['thighL']
+    model.jointPlacements[model.getJointId('left_knee')].translation=local_segments_positions['shankL']
+    model.jointPlacements[model.getJointId('left_ankle_Z')].translation=local_segments_positions['footL']
+
+    model.jointPlacements[model.getJointId('middle_lumbar_Z')].translation=np.array([0,0,0])
+    # model.jointPlacements[model.getJointId('middle_thoracic_Z')].translation=np.array([0,subject_height*abdomen_ratio,0])
+    
+    model.jointPlacements[model.getJointId('middle_cervical_Z')].translation=local_segments_positions['torso']
+    model.jointPlacements[model.getJointId('left_clavicle_joint_X')].translation=local_segments_positions['torso']
+
+    model.jointPlacements[model.getJointId('left_shoulder_Z')].translation=local_segments_positions['upperarmL']
+    model.jointPlacements[model.getJointId('left_elbow_Z')].translation=local_segments_positions['lowerarmL']
+    model.jointPlacements[model.getJointId('left_wrist_Z')].translation=local_segments_positions['handL']
+
+    model.jointPlacements[model.getJointId('right_clavicle_joint_X')].translation=local_segments_positions['torso']
+
+    model.jointPlacements[model.getJointId('right_shoulder_Z')].translation=local_segments_positions['upperarmR']
+    model.jointPlacements[model.getJointId('right_elbow_Z')].translation=local_segments_positions['lowerarmR']
+    model.jointPlacements[model.getJointId('right_wrist_Z')].translation=local_segments_positions['handR']
+    model.jointPlacements[model.getJointId('right_hip_Z')].translation=local_segments_positions['thighR']
+    model.jointPlacements[model.getJointId('right_knee')].translation=local_segments_positions['shankR']
+    model.jointPlacements[model.getJointId('right_ankle_Z')].translation=local_segments_positions['footR']
+
+
+    return model
 # scale model of 5dofs
 def model_scaling_df(model, keypoints_df):
     """
