@@ -23,16 +23,17 @@ mks_to_skip = ['TV8','TV12','SJN','STRN','LForearm','LUArm', 'RUArm',
                'LHand2','LHand1','LHL2','LHM5', 'RForearm','RHand2','RHand1','RHL2','RHM5', 'L_sh1_study', 'L_thigh1_study','r_sh1_study', 'r_thigh1_study']
 start_sample = 0
 
-no_trial = "trial3"
-task = "static"
-path_to_csv = f"/root/workspace/ros_ws/src/rt-cosmik/output/{no_trial}/{task}/mks_data.csv"
+no_trial = "trial_2"
+task = "trial_lower"
+path_to_csv = f"/root/workspace/ros_ws/src/rt-cosmik/output/{no_trial}/{task}/mks_pose.csv"
 mks_names = settings.marker_mocap_names
 
 #read mks data
-# df_raw = pd.read_csv(path_to_csv)  # original with 'marker_data'
-df_wide = udp_csv_to_dataframe(path_to_csv, mks_names)
+df_raw = pd.read_csv(path_to_csv)  # original with 'marker_data'
+df_wide = marker_data_to_dataframe(df_raw,mks_names)
+# df_wide = udp_csv_to_dataframe(path_to_csv, mks_names)
 result_markers, start_sample_mks = read_mks_data(df_wide)
-print(start_sample_mks)
+# print(start_sample_mks)
 
 #build and scale the model in sample 0 
 human_model, human_geom_model, visuals_dict = build_model(start_sample_mks,meshes_folder_path)
@@ -71,8 +72,7 @@ for ii in range(start_sample,len(result_markers)):
     mks_dict = result_markers[ii]
     ik_class = RT_IK(human_model, mks_dict, q, keys_to_track_list, dt)
     # ik_class._dict_m= mks_dict
-    q = ik_class.solve_ik_sample_casadi() 
-    print(q)
+    q = ik_class.solve_ik_sample_quadprog() 
 
     pin.forwardKinematics(human_model, human_data, q)
     pin.updateFramePlacements(human_model, human_data)
@@ -130,9 +130,9 @@ for ii in range(start_sample,len(result_markers)):
     # input()
 
 #save mks est
-# df = pd.DataFrame(M_model_list)
-# csv_file = os.path.join(rt_cosmik_path,f"/root/workspace/ros_ws/src/rt-cosmik/output/{no_trial}/{task}/mks_model_ipopt.csv") 
-# df.to_csv(csv_file, index=False)
+df = pd.DataFrame(M_model_list)
+csv_file = os.path.join(rt_cosmik_path,f"/root/workspace/ros_ws/src/rt-cosmik/output/{no_trial}/{task}/mks_model_qp.csv") 
+df.to_csv(csv_file, index=False)
 
 #save angles
 joint_angles_names = settings.joint_angles_names
@@ -141,7 +141,7 @@ if len(joint_angles_names) != num_values:
     raise ValueError(f"joint_angles_names has {len(joint_angles_names)} entries but q has {num_values} DOFs.")
 
 df = pd.DataFrame(q_list, columns=joint_angles_names)
-csv_file = os.path.join(rt_cosmik_path, f"output/{no_trial}/{task}/q_mocap_ipopt.csv")
+csv_file = os.path.join(rt_cosmik_path, f"output/{no_trial}/{task}/q_mocap_qp.csv")
 df.to_csv(csv_file, index=False)
 
 

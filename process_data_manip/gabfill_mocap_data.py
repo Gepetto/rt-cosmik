@@ -6,12 +6,11 @@ import matplotlib.pyplot as plt
 from scipy.interpolate import CubicSpline
 
 no_trial = "trial3"
-task = "sit_to stand"
+task = "overhead"
 path_to_csv = f"/root/workspace/ros_ws/src/rt-cosmik/output/{no_trial}/{task}/mks_data.csv"
-output_path = f"/root/workspace/ros_ws/src/rt-cosmik/output/{no_trial}/{task}/mks_data_filled.csv"
-mks_names = settings.marker_mocap_names_tech
+mks_names = settings.marker_mocap_names
 
-def fill_gaps_with_cubic_spline(df, time_col=None):
+def fill_gaps_with_spline(df, time_col=None):
     df_interp = df.replace(0.0, np.nan)
     if time_col:
         x = df[time_col].values
@@ -28,6 +27,25 @@ def fill_gaps_with_cubic_spline(df, time_col=None):
     if time_col:
         df_interp[time_col] = x
     return df_interp
+
+# def fill_gaps_with_spline(df):
+#     """
+#     Replace 0.0 with NaN and fill gaps using cubic spline interpolation.
+    
+#     Parameters:
+#         df (pd.DataFrame): Input DataFrame with marker data.
+        
+#     Returns:
+#         pd.DataFrame: Gap-filled DataFrame.
+#     """
+#     # Replace zeros with NaN
+#     df_nan = df.replace(0.0, np.nan)
+    
+#     # Interpolate using cubic spline
+#     df_interp = df_nan.interpolate(method='spline', order=3, limit_direction='both', axis=0)
+    
+#     return df_interp
+
 
 
 def plot_marker_trajectories(df_wide, marker_names, filled_df):
@@ -71,12 +89,7 @@ def plot_marker_trajectories(df_wide, marker_names, filled_df):
 df_wide = udp_csv_to_dataframe(path_to_csv, mks_names)
 
 # Gap filling step
-df_wide_filled = fill_gaps_with_cubic_spline(df_wide)
+df_wide_filled = fill_gaps_with_spline(df_wide)
 plot_marker_trajectories(df_wide, mks_names,filled_df=df_wide_filled)
-
-mks_cols = []
-for name in mks_names:
-    mks_cols.extend([f"{name}_x", f"{name}_y", f"{name}_z"])
-
-# Save using the correct column order
-df_wide_filled[mks_cols].to_csv(output_path, index=False)
+# Continue with marker reconstruction
+# result_markers, start_sample_mks = read_mks_data(df_wide_filled)
