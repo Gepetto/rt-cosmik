@@ -564,7 +564,7 @@ def read_mks_data(data_markers, start_sample=0):
     
     return result_markers, start_sample_mks
 
-def parse_marker_csv(path_to_csv, mks_names, column_name='UDP_Data', delimiter=';'):
+def parse_marker_csv(path_to_csv, mks_names, column_name='marker_data', delimiter=';'):
     """
     Parses a CSV containing marker data stored as a single delimited string per row.
 
@@ -670,7 +670,7 @@ def plot_marker_trajectories(udp_df, marker_names):
     Plot x, y, z trajectories of each marker in its own figure with 3 subplots.
 
     Parameters:
-        df_wide (pd.DataFrame): Original marker data.
+        udp_df (pd.DataFrame): Original marker data.
         marker_names (list): List of marker names (without _x/_y/_z).
     """
     for marker in marker_names:
@@ -679,7 +679,7 @@ def plot_marker_trajectories(udp_df, marker_names):
 
         for i, axis in enumerate(axes_labels):
             col = f"{marker}_{axis}"
-            axes[i].plot(df_wide.index, df_wide[col],color='r', label='Original')
+            axes[i].plot(udp_df.index, udp_df[col],color='r', label='Original')
             axes[i].set_ylabel(f"{axis}-axis")
             axes[i].legend()
             axes[i].grid(True)
