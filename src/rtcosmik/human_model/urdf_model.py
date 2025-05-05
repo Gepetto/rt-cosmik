@@ -62,17 +62,17 @@ class Robot(RobotWrapper):
             lb[:7] = -1
             self.model.lowerPositionLimit = lb
             self.data = self.model.createData()
-        else:
-            print(self.model.upperPositionLimit)
-            # self.model.upperPositionLimit = np.array([np.pi,np.pi,np.pi/8,np.pi/8,8*np.pi/9])
-            # self.model.lowerPositionLimit = np.array([0,0,-np.pi,-10*np.pi/9,0])
+        # else:
+        #     # print(self.model.upperPositionLimit)
+        #     self.model.upperPositionLimit = np.array([np.pi,np.pi,np.pi/8,np.pi/8,8*np.pi/9])
+        #     self.model.lowerPositionLimit = np.array([0,0,-np.pi,-10*np.pi/9,0])
             # self.model.upperPositionLimit = np.array([np.pi/2,np.pi])
             # self.model.lowerPositionLimit = np.array([-np.pi/2,-1.57])
 
         ## \todo test that this is equivalent to reloading the model
         self.geom_model = self.collision_model
 
-def scale_human_model(model, mks_positions, with_hand=True,subject_height=1.80):
+def scale_human_model(model, mks_positions, with_hand=True,gender='male',subject_height=1.80):
 
     sgts_poses = construct_segments_frames(mks_positions, with_hand=with_hand, gender='male',subject_height=1.8)
     local_segments_positions = get_local_segments_positions(sgts_poses)

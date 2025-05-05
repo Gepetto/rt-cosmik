@@ -121,8 +121,11 @@ def get_torso_pose(mks_positions):
 
     Y = (trunk_center - midhip).reshape(3,1)
     Y = Y/np.linalg.norm(Y)
+    # Z = (mks_positions['r_shoulder_study'] - mks_positions['L_shoulder_study']).reshape(3,1)
+    # Z = Z/np.linalg.norm(Z)
     X = (trunk_center - mks_positions['C7_study']).reshape(3,1)
     X = X/np.linalg.norm(X)
+   
     Z = np.cross(X, Y, axis=0)
     X = np.cross(Y, Z, axis=0)
 
@@ -423,7 +426,7 @@ def get_thorax_pose(mks_positions,gender='male',subject_height= 1.80):
     # pos_torso_in_pelvis = (np.linalg.inv(get_virtual_pelvis_pose(mks_positions)) @ torso_pose)[:3,3]
 
     p_local= col_vector_3D(0.0, subject_height * abdomen_ratio,0.0)
-    p_global = (get_pelvis_pose(mks_positions)[:3,:3].reshape(3,3) @ p_local).reshape(3,1)
+    p_global = (get_pelvis_pose(mks_positions,gender)[:3,:3].reshape(3,3) @ p_local).reshape(3,1)
     
     pose = np.eye(4,4)
     X, Y, Z = [], [], []
@@ -443,7 +446,7 @@ def get_thorax_pose(mks_positions,gender='male',subject_height= 1.80):
     pose[:3,0] = X.reshape(3,)
     pose[:3,1] = Y.reshape(3,)
     pose[:3,2] = Z.reshape(3,)
-    pose[:3,3] = ((get_pelvis_pose(mks_positions)[:3,3]).reshape(3,1)+p_global).reshape(3,)
+    pose[:3,3] = ((get_pelvis_pose(mks_positions,gender)[:3,3]).reshape(3,1)+p_global).reshape(3,)
     pose[:3,:3] = orthogonalize_matrix(pose[:3,:3])
 
     return pose
@@ -521,6 +524,7 @@ def get_pelvis_pose(mks_positions, gender = 'male'):
     virtual_pelvis_pose = get_virtual_pelvis_pose(mks_positions)
     LJC = virtual_pelvis_pose[:3, 3].reshape(3,1)
 
+
     center_PSIS = (mks_positions['r.PSIS_study'] + mks_positions['L.PSIS_study']).reshape(3,1)/2.0
     center_ASIS = (mks_positions['r.ASIS_study'] + mks_positions['L.ASIS_study']).reshape(3,1)/2.0
     
@@ -541,11 +545,13 @@ def get_pelvis_pose(mks_positions, gender = 'male'):
     Y = np.cross(Z, X, axis=0)
     Z = np.cross(X, Y, axis=0)
 
+
     pose[:3,0] = X.reshape(3,)
     pose[:3,1] = Y.reshape(3,)
     pose[:3,2] = Z.reshape(3,)
     # pose[:3,3] = ((center_right_ASIS_PSIS + center_left_ASIS_PSIS)/2.0).reshape(3,)
     pose[:3,3] = LJC.reshape(3,)
+    # pose[:3,3] = (((get_thighR_pose(mks_positions)[:3,3]).reshape(3,1)+(get_thighL_pose(mks_positions)[:3,3]).reshape(3,1))/2.0).reshape(3,)
     pose[:3,:3] = orthogonalize_matrix(pose[:3,:3])
 
     return pose
@@ -564,11 +570,11 @@ def get_thighR_pose(mks_positions, gender='male'):
                    includes rotation and translation components.
     """
     if gender == 'male':
-        ratio_x = 0.095
+        ratio_x = 0.3
         ratio_y = 0.37
         ratio_z = 0.361
     else : 
-        ratio_x = 0.139
+        ratio_x = 0.3
         ratio_y = 0.336
         ratio_z = 0.372
 
@@ -611,11 +617,11 @@ def get_thighL_pose(mks_positions, gender='male'):
                    rotation and translation components.
     """
     if gender == 'male':
-        ratio_x = 0.095
+        ratio_x = 0.3
         ratio_y = 0.37
         ratio_z = 0.361
     else : 
-        ratio_x = 0.139
+        ratio_x = 0.3
         ratio_y = 0.336
         ratio_z = 0.372
 
@@ -810,7 +816,7 @@ def construct_segments_frames(mks_positions, with_hand=True, gender='male',subje
     upperarmL_pose = get_upperarmL_pose(mks_positions)
     lowerarmL_pose = get_lowerarmL_pose(mks_positions) 
     thorax_pose = get_thorax_pose(mks_positions,gender='male',subject_height=1.8)
-    pelvis_pose = get_pelvis_pose(mks_positions)
+    pelvis_pose = get_pelvis_pose(mks_positions,gender='male')
     thighR_pose = get_thighR_pose(mks_positions,gender='male')
     shankR_pose = get_shankR_pose(mks_positions)
     footR_pose = get_footR_pose(mks_positions)
@@ -1001,8 +1007,8 @@ def get_local_segments_positions(sgts_poses: Dict)->Dict:
         thorax_global = sgts_poses["thorax"]
         local_positions["torso"] = (np.linalg.inv(thorax_global) @ torso_global @ np.array([0, 0, 0, 1]))[:3]
         #need to adjust torso frame to aligned it with thorax and pelvis frames.
-        # local_positions["torso"][0]=0.0
-        # local_positions["torso"][2]=0.0
+        local_positions["torso"][0]=0.0
+        local_positions["torso"][2]=0.0
 
     # Head with respect to torso
     if "head" in sgts_poses:
