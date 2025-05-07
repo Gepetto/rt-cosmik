@@ -121,8 +121,6 @@ def get_torso_pose(mks_positions):
 
     Y = (trunk_center - midhip).reshape(3,1)
     Y = Y/np.linalg.norm(Y)
-    # Z = (mks_positions['r_shoulder_study'] - mks_positions['L_shoulder_study']).reshape(3,1)
-    # Z = Z/np.linalg.norm(Z)
     X = (trunk_center - mks_positions['C7_study']).reshape(3,1)
     X = X/np.linalg.norm(X)
    
@@ -401,10 +399,9 @@ def get_handL_pose(mks_positions):
         pose[:3,:3] = orthogonalize_matrix(pose[:3,:3])
         return pose
 
-
-
 #construct abdomen frame and get its pose (middle thoracic joint in urdf)
 def get_thorax_pose(mks_positions,gender='male',subject_height= 1.80):
+    #pelvis + distance selon y
     """
     Calculate the abdomen pose matrix from motion capture marker positions.
     The function computes the abdomen pose based on the positions of specific markers.
@@ -419,7 +416,7 @@ def get_thorax_pose(mks_positions,gender='male',subject_height= 1.80):
     numpy.ndarray: A 4x4 pose matrix representing the abdomen pose.
     """
     if gender == 'male' : 
-        abdomen_ratio = 0.0853
+        abdomen_ratio = 0.0839
     else : 
         abdomen_ratio = 0.0776
     # torso_pose = get_torso_pose(mks_positions)
@@ -436,9 +433,13 @@ def get_thorax_pose(mks_positions,gender='male',subject_height= 1.80):
     center_PSIS = (mks_positions['r.PSIS_study'] + mks_positions['L.PSIS_study']).reshape(3,1)/2.0
     center_ASIS = (mks_positions['r.ASIS_study'] + mks_positions['L.ASIS_study']).reshape(3,1)/2.0
 
+    center_right_ASIS_PSIS = (mks_positions['r.PSIS_study'] + mks_positions['r.ASIS_study']).reshape(3,1)/2.0
+    center_left_ASIS_PSIS = (mks_positions['L.PSIS_study'] + mks_positions['L.ASIS_study']).reshape(3,1)/2.0
+    
     X = center_ASIS - center_PSIS
     X = X/np.linalg.norm(X)
-    Z = mks_positions['r.ASIS_study'] - mks_positions['L.ASIS_study']
+    # Z = mks_positions['r.ASIS_study'] - mks_positions['L.ASIS_study']
+    Z = center_right_ASIS_PSIS - center_left_ASIS_PSIS
     Z = Z/np.linalg.norm(Z)
     Y = np.cross(Z, X, axis=0)
     Z = np.cross(X, Y, axis=0)
@@ -451,7 +452,7 @@ def get_thorax_pose(mks_positions,gender='male',subject_height= 1.80):
 
     return pose
 
-#get_virtual_pelvis_pose 
+#get_virtual_pelvis_pose, used to get thigh pose
 def get_virtual_pelvis_pose(mks_positions):
     """
     Calculate the pelvis pose matrix from motion capture marker positions.
@@ -540,7 +541,8 @@ def get_pelvis_pose(mks_positions, gender = 'male'):
  
     X = center_ASIS - center_PSIS
     X = X/np.linalg.norm(X)
-    Z = mks_positions['r.ASIS_study'] - mks_positions['L.ASIS_study']
+    # Z = mks_positions['r.ASIS_study'] - mks_positions['L.ASIS_study']
+    Z = center_right_ASIS_PSIS - center_left_ASIS_PSIS
     Z = Z/np.linalg.norm(Z)
     Y = np.cross(Z, X, axis=0)
     Z = np.cross(X, Y, axis=0)
@@ -549,13 +551,11 @@ def get_pelvis_pose(mks_positions, gender = 'male'):
     pose[:3,0] = X.reshape(3,)
     pose[:3,1] = Y.reshape(3,)
     pose[:3,2] = Z.reshape(3,)
-    # pose[:3,3] = ((center_right_ASIS_PSIS + center_left_ASIS_PSIS)/2.0).reshape(3,)
-    pose[:3,3] = LJC.reshape(3,)
-    # pose[:3,3] = (((get_thighR_pose(mks_positions)[:3,3]).reshape(3,1)+(get_thighL_pose(mks_positions)[:3,3]).reshape(3,1))/2.0).reshape(3,)
+    pose[:3,3] = ((center_right_ASIS_PSIS + center_left_ASIS_PSIS)/2.0).reshape(3,)
+    # pose[:3,3] = LJC.reshape(3,)
     pose[:3,:3] = orthogonalize_matrix(pose[:3,:3])
 
     return pose
-
 
 #construct thigh frames and get their poses
 def get_thighR_pose(mks_positions, gender='male'):
@@ -911,7 +911,7 @@ def get_segments_mks_dict(mks_positions)->Dict:
     else : #with mocap set
         sgts_mks_dict = {
             "head": ['LBHD','RBHD','LFHD','RFHD'], 
-            "thorax": ['C7_study'],
+            "thorax": ['C7_study','TV8','TV12','SJN','STRN'],
             "right_clavicle" : ['r_shoulder_study'],
             "left_clavicle" : ['L_shoulder_study'],
             "upperarmR": ['r_melbow_study', 'r_lelbow_study'],
@@ -981,7 +981,7 @@ def get_local_mks_positions(sgts_poses: Dict, mks_positions: Dict, sgts_mks_dict
 
     return mks_local_positions
 
-def get_local_segments_positions(sgts_poses: Dict)->Dict:
+def get_local_segments_positions(sgts_poses: Dict, with_hand=True)->Dict:
     """_Get the local positions of the segments_
 
     Args:
@@ -1007,14 +1007,14 @@ def get_local_segments_positions(sgts_poses: Dict)->Dict:
         thorax_global = sgts_poses["thorax"]
         local_positions["torso"] = (np.linalg.inv(thorax_global) @ torso_global @ np.array([0, 0, 0, 1]))[:3]
         #need to adjust torso frame to aligned it with thorax and pelvis frames.
-        local_positions["torso"][0]=0.0
-        local_positions["torso"][2]=0.0
+        # local_positions["torso"][0]=0.0
+        # local_positions["torso"][2]=0.0
 
     # Head with respect to torso
     if "head" in sgts_poses:
         head_global = sgts_poses["head"]
         torso_global = sgts_poses["torso"]
-        local_positions["head"] = (np.linalg.inv(torso_global) @ head_global @ np.array([0, 0, 0, 1]))[:3]
+        local_positions["head"] = (np.linalg.inv(thorax_global) @ head_global @ np.array([0, 0, 0, 1]))[:3]
 
     # Upperarm with respect to torso
     if "upperarmR" in sgts_poses:
@@ -1038,17 +1038,18 @@ def get_local_segments_positions(sgts_poses: Dict)->Dict:
         upperarm_global = sgts_poses["upperarmL"]
         local_positions["lowerarmL"] = (np.linalg.inv(upperarm_global) @ lowerarm_global @ np.array([0, 0, 0, 1]))[:3]
 
+    if with_hand:
     # Hand with respect to lowerarm
-    if "handR" in sgts_poses:
-        hand_global = sgts_poses["handR"]
-        lowerarm_global = sgts_poses["lowerarmR"]
-        local_positions["handR"] = (np.linalg.inv(lowerarm_global) @ hand_global @ np.array([0, 0, 0, 1]))[:3]
+        if "handR" in sgts_poses:
+            hand_global = sgts_poses["handR"]
+            lowerarm_global = sgts_poses["lowerarmR"]
+            local_positions["handR"] = (np.linalg.inv(lowerarm_global) @ hand_global @ np.array([0, 0, 0, 1]))[:3]
 
-    if "handL" in sgts_poses:
-        hand_global = sgts_poses["handL"]
-        lowerarm_global = sgts_poses["lowerarmL"]
-        local_positions["handL"] = (np.linalg.inv(lowerarm_global) @ hand_global @ np.array([0, 0, 0, 1]))[:3]
-        
+        if "handL" in sgts_poses:
+            hand_global = sgts_poses["handL"]
+            lowerarm_global = sgts_poses["lowerarmL"]
+            local_positions["handL"] = (np.linalg.inv(lowerarm_global) @ hand_global @ np.array([0, 0, 0, 1]))[:3]
+            
     # Thigh with respect to pelvis
     if "thighR" in sgts_poses:
         thigh_global = sgts_poses["thighR"]

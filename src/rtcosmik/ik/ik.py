@@ -380,7 +380,7 @@ class RT_IK:
         opts = {
             "ipopt.print_level": 5,
             "ipopt.sb": "yes",
-            "ipopt.max_iter": 2,
+            "ipopt.max_iter": 50,
             "ipopt.linear_solver": "mumps",
             "print_time":1,
             "expand": True,

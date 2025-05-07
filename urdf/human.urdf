@@ -24,7 +24,7 @@
         <visual>
 	        <origin xyz="-0.00 -0.0 0.0" rpy="0 1.57 0" /> 
             <geometry>
-		        <mesh filename="../../meshes/pelvis_mesh.STL" scale="0.006 0.0055 0.0055"/>
+		        <mesh filename="meshes/pelvis_mesh.STL" scale="0.006 0.0055 0.0055"/>
             </geometry>
             <material name="body_color">
                 <texture />
@@ -37,7 +37,7 @@
         <axis xyz="0 0 1" />
         <parent link="middle_pelvis" />
         <child link="left_upperleg_virtual" />
-        <limit effort="190" velocity="0" lower="-0.785398" upper="3.14159" />
+        <limit effort="190" velocity="0" lower="-1.047196667" upper="1.570795" />
     </joint>
     <link name="left_upperleg_virtual" />
     <joint name="left_hip_X" type="revolute">
@@ -45,13 +45,13 @@
         <axis xyz="1 0 0" />
         <parent link="left_upperleg_virtual" />
         <child link="left_upperleg_virtual_2" />
-        <limit effort="190" velocity="0" lower="-0.392699" upper="1.5708" />
+        <limit effort="190" velocity="0" lower="-1.047196667" upper="1.570795" />
     </joint>
     <link name="left_upperleg_virtual_2">
 	    <visual>
             <origin xyz="-0.00 -0.0 0.00" rpy="0.0 0 0" />
             <geometry>
-                <mesh filename="../../meshes/knee_mesh.STL" scale="0.006 0.006 0.006"/>
+                <mesh filename="meshes/knee_mesh.STL" scale="0.006 0.006 0.006"/>
             </geometry>
             <material name="body_color_L">
                 <texture />
@@ -64,7 +64,7 @@
         <axis xyz="0 1 0" />
         <parent link="left_upperleg_virtual_2" />
         <child link="left_upperleg" />
-        <limit effort="60" velocity="0" lower="-1.5708" upper="1.5708" />
+        <limit effort="60" velocity="0" lower="-1.047196667" upper="1.570795" />
     </joint>
     <link name="left_upperleg">
         <inertial>
@@ -75,7 +75,7 @@
         <visual>
             <origin xyz="0 0.0 0.0" rpy="0.0 0 0" />
             <geometry>
-                <mesh filename="../../meshes/upperleg_mesh.STL" scale="0.0063 0.0065 0.007"/>
+                <mesh filename="meshes/upperleg_mesh.STL" scale="0.0063 0.0065 0.007"/>
             </geometry>
             <material name="body_color_L">
                 <texture />
@@ -88,7 +88,7 @@
         <axis xyz="0 0 -1" />
         <parent link="left_upperleg" />
         <child link="left_lowerleg" />
-        <limit effort="168" velocity="0" lower="0" upper="2.74889" />
+        <limit effort="168" velocity="0" lower="0" upper="3.14159" />
     </joint>
     <link name="left_lowerleg">
         <inertial>
@@ -99,7 +99,7 @@
         <visual>
             <origin xyz="-0.0 -0.0 0.0" rpy="0.0 0.0 0" />
             <geometry>
-                <mesh filename="../../meshes/lowerleg_mesh.STL" scale="0.0063 0.0065 0.007"/>
+                <mesh filename="meshes/lowerleg_mesh.STL" scale="0.0063 0.0065 0.007"/>
             </geometry>
             <material name="body_color_L">
                 <texture />
@@ -112,7 +112,7 @@
         <axis xyz="0 0 1" />
         <parent link="left_lowerleg" />
         <child link="left_foot_virtual" />
-        <limit effort="126" velocity="0" lower="-0.392699" upper="1.0472" />
+        <limit effort="126" velocity="0" lower="-1.570795" upper="0.7853975" />
     </joint>
     <link name="left_foot_virtual" />
     <joint name="left_ankle_X" type="revolute">
@@ -120,7 +120,7 @@
         <axis xyz="-1 0 0" />
         <parent link="left_foot_virtual" />
         <child link="left_foot" />
-        <limit effort="20" velocity="0" lower="0" upper="0.785398" />
+        <limit effort="20" velocity="0" lower="-0.523598333" upper="0.785398" />
     </joint>
     <link name="left_foot">
         <inertial>
@@ -131,7 +131,7 @@
         <visual>
             <origin xyz="-0.0 -0.0 0.00" rpy="0 0 0" />
             <geometry>
-		        <mesh filename="../../meshes/foot_mesh.STL" scale="0.0060 0.0060 0.0060"/>
+		        <mesh filename="meshes/foot_mesh.STL" scale="0.0060 0.0060 0.0060"/>
                 <!--<box size="0.03 0.085239 0.06" />-->
             </geometry>
             <material name="body_color_L">
@@ -164,7 +164,7 @@
 	    <visual>
             <origin xyz="-0.0 0.00 -0.00" rpy="0 -0 0" />
             <geometry>
-		        <mesh filename="../../meshes/abdomen_mesh.STL" scale="0.0055 0.0055 0.0055"/>
+		        <mesh filename="meshes/abdomen_mesh.STL" scale="0.0055 0.0055 0.0055"/>
                 <!--<box size="0.15 0.161217 0.198658" />-->
             </geometry>
             <material name="body_color">
@@ -206,7 +206,7 @@
 	    <origin xyz="-0.0 -0.188511 -0.00" rpy="0 -0 0" /> 
             <geometry>
 		        <!--<box size="0.15 0.356643 0.329994" />-->
-		        <mesh filename="../../meshes/torso_mesh.STL" scale="0.0065 0.0065 0.0065"/>
+		        <mesh filename="meshes/torso_mesh.STL" scale="0.0065 0.0065 0.0065"/>
             </geometry>
             <material name="body_color">
                 <texture />
@@ -225,7 +225,7 @@
     <visual>
 	     <origin xyz="-0.0 0.00 -0.00" rpy="0 -0 0" />
             <geometry>
-		<mesh filename="../../meshes/neck_mesh.STL" scale="0.005 0.005 0.005"/>
+		<mesh filename="meshes/neck_mesh.STL" scale="0.005 0.005 0.005"/>
             </geometry>
             <material name="body_color">
                 <texture />
@@ -238,7 +238,7 @@
         <axis xyz="1 0 0" />
         <parent link="middle_head_virtual" />
         <child link="middle_head_virtual_2" />
-        <limit effort="0" velocity="0" lower="-1.0472" upper="1.0472" />
+        <limit effort="0" velocity="0" lower="-1.5708" upper="1.5708" />
     </joint>
     <link name="middle_head_virtual_2" />
     <joint name="middle_cervical_Y" type="revolute">
@@ -257,7 +257,7 @@
         <visual>
 	        <origin xyz="-0.0 0.00 -0.00" rpy="0 -0 0" />
             <geometry>
-		        <mesh filename="../../meshes/head_mesh.STL" scale="0.0055 0.0055 0.0055"/>
+		        <mesh filename="meshes/head_mesh.STL" scale="0.0055 0.0055 0.0055"/>
             </geometry>
             <material name="body_color">
                 <texture />
@@ -284,13 +284,13 @@
         <axis xyz="0 0 1" />
         <parent link="left_clavicle" />
         <child link="left_upperarm_virtual" />
-        <limit effort="92" velocity="0" lower="-2.0944" upper="0.392699" />
+        <limit effort="92" velocity="0" lower="-3.14159" upper="3.14159" />
     </joint>
     <link name="left_upperarm_virtual">
 	    <visual>
 	         <origin xyz="-0.0 0.00 -0.00" rpy="0 -0 0" />
             <geometry>
-		        <mesh filename="../../meshes/shoulder_mesh.STL" scale="0.0055 0.0055 0.0055"/>
+		        <mesh filename="meshes/shoulder_mesh.STL" scale="0.0055 0.0055 0.0055"/>
             </geometry>
             <material name="body_color_L">
                 <texture />
@@ -303,7 +303,7 @@
         <axis xyz="1 0 0" />
         <parent link="left_upperarm_virtual" />
         <child link="left_upperarm_virtual_2" />
-        <limit effort="71" velocity="0" lower="-3.14159" upper="1.0472" />
+        <limit effort="71" velocity="0" lower="-1.0472" upper="3.14159" />
     </joint>
     <link name="left_upperarm_virtual_2" />
     <joint name="left_shoulder_Y" type="revolute">
@@ -322,7 +322,7 @@
         <visual>
             <origin xyz="-0.0 0.00 -0.00" rpy="0 -0 0" />
             <geometry>
-                <mesh filename="../../meshes/upperarm_mesh.STL" scale="0.0063 0.0060 0.007"/>
+                <mesh filename="meshes/upperarm_mesh.STL" scale="0.0063 0.0060 0.007"/>
             </geometry>
             <material name="body_color_L"/>
         </visual>
@@ -332,13 +332,13 @@
         <axis xyz="0 0 1" />
         <parent link="left_upperarm" />
         <child link="left_lowerarm_virtual" />
-        <limit effort="77" velocity="0" lower="0" upper="2.74889" />
+        <limit effort="77" velocity="0" lower="0" upper="2.617991667" />
     </joint>
     <link name="left_lowerarm_virtual">
 	    <visual>
 	        <origin xyz="-0.0 0.00 -0.00" rpy="0 -0 0" /> 
             <geometry>
-		        <mesh filename="../../meshes/elbow_mesh.STL" scale="0.0055 0.0055 0.0055"/>
+		        <mesh filename="meshes/elbow_mesh.STL" scale="0.0055 0.0055 0.0055"/>
             </geometry>
             <material name="body_color_L">
                 <texture />
@@ -348,10 +348,10 @@
     </link>
     <joint name="left_elbow_Y" type="revolute">
         <origin xyz="0 0 0" rpy="0 -0 0" />
-        <axis xyz="0 -1 0" />
+        <axis xyz="0 1 0" />
         <parent link="left_lowerarm_virtual" />
         <child link="left_lowerarm" />
-        <limit effort="15" velocity="0" lower="-1.5708" upper="1.5708" />
+        <limit effort="15" velocity="0" lower="-3.14159" upper="0.2" />
     </joint>
     <link name="left_lowerarm">
         <inertial>
@@ -362,7 +362,7 @@
         <visual>
             <origin xyz="-0.0 0.00 -0.00" rpy="0 -0 0" />
             <geometry>
-                <mesh filename="../../meshes/lowerarm_mesh.STL" scale="0.0060 0.0060 0.0060"/>
+                <mesh filename="meshes/lowerarm_mesh.STL" scale="0.0060 0.0060 0.0060"/>
             </geometry>
             <material name="body_color_L">
                 <texture />
@@ -394,7 +394,7 @@
         <visual>
             <origin xyz="-0.0 0.00 -0.00" rpy="0 -0 0" />
             <geometry>
-		        <mesh filename="../../meshes/hand_mesh.STL" scale="0.0060 0.0060 0.0060"/>
+		        <mesh filename="meshes/hand_mesh.STL" scale="0.0060 0.0060 0.0060"/>
                 <!--<box size="0.03 0.085239 0.06" />-->
             </geometry>
             <material name="body_color_L">
@@ -422,13 +422,13 @@
         <axis xyz="0 0 1" />
         <parent link="right_clavicle" />
         <child link="right_upperarm_virtual" />
-        <limit effort="0" velocity="0" lower="-2.0944" upper="0.392699" />
+        <limit effort="0" velocity="0" lower="-3.14159" upper="3.14159" />
     </joint>
     <link name="right_upperarm_virtual">
         <visual>
 	        <origin xyz="-0.0 0.00 -0.00" rpy="0 -0 0" /> 
             <geometry>
-		        <mesh filename="../../meshes/shoulder_mesh.STL" scale="0.0055 0.0055 0.0055"/>
+		        <mesh filename="meshes/shoulder_mesh.STL" scale="0.0055 0.0055 0.0055"/>
             </geometry>
             <material name="body_color_R">
                 <texture />
@@ -441,7 +441,7 @@
         <axis xyz="-1 0 0" />
         <parent link="right_upperarm_virtual" />
         <child link="right_upperarm_virtual_2" />
-        <limit effort="71" velocity="0" lower="-3.14159" upper="1.0472" />
+        <limit effort="71" velocity="0" lower="-1.0472" upper="3.14159" />
     </joint>
     <link name="right_upperarm_virtual_2" />
     <joint name="right_shoulder_Y" type="revolute">
@@ -460,7 +460,7 @@
         <visual>
             <origin xyz="-0.0 0.00 -0.00" rpy="0 -0 0" />
             <geometry>
-                <mesh filename="../../meshes/upperarm_mesh.STL" scale="0.0063 0.0060 0.007"/>
+                <mesh filename="meshes/upperarm_mesh.STL" scale="0.0063 0.0060 0.007"/>
             </geometry>
             <material name="body_color_R">
                 <texture />
@@ -473,13 +473,13 @@
         <axis xyz="0 0 1" />
         <parent link="right_upperarm" />
         <child link="right_lowerarm_virtual" />
-        <limit effort="77" velocity="0" lower="0" upper="2.74889" />
+        <limit effort="77" velocity="0" lower="0" upper="2.617991667" />
     </joint>
     <link name="right_lowerarm_virtual">
         <visual>
 	        <origin xyz="-0.0 0.00 -0.00" rpy="0 -0 0" />
             <geometry>
-		        <mesh filename="../../meshes/elbow_mesh.STL" scale="0.0055 0.0055 0.0055"/>
+		        <mesh filename="meshes/elbow_mesh.STL" scale="0.0055 0.0055 0.0055"/>
             </geometry>
             <material name="body_color_R">
                 <texture />
@@ -492,7 +492,7 @@
         <axis xyz="0 1 0" />
         <parent link="right_lowerarm_virtual" />
         <child link="right_lowerarm" />
-        <limit effort="15" velocity="0" lower="-1.5708" upper="1.5708" />
+        <limit effort="15" velocity="0" lower="-0.2" upper="3.14159" />
     </joint>
     <link name="right_lowerarm">
         <inertial>
@@ -503,7 +503,7 @@
         <visual>
             <origin xyz="-0.0 0.00 -0.00" rpy="0 -0 0" />
             <geometry>
-                <mesh filename="../../meshes/lowerarm_mesh.STL" scale="0.0060 0.0060 0.0060"/>
+                <mesh filename="meshes/lowerarm_mesh.STL" scale="0.0060 0.0060 0.0060"/>
             </geometry>
             <material name="body_color_R">
                 <texture />
@@ -535,7 +535,7 @@
         <visual>
             <origin xyz="-0.0 0.00 -0.00" rpy="0 -0 0" />
             <geometry>
-		        <mesh filename="../../meshes/hand_mesh.STL" scale="0.0060 0.0060 0.0060"/>
+		        <mesh filename="meshes/hand_mesh.STL" scale="0.0060 0.0060 0.0060"/>
                 <!--<box size="0.03 0.085239 0.06" />-->
             </geometry>
             <material name="body_color_R">
@@ -549,21 +549,21 @@
         <axis xyz="0 0 1" />
         <parent link="middle_pelvis" />
         <child link="right_upperleg_virtual" />
-        <limit effort="190" velocity="0" lower="-0.785398" upper="3.14159" />
+        <limit effort="190" velocity="0" lower="-1.047196667" upper="3.14159" />
     </joint>
     <link name="right_upperleg_virtual" />
     <joint name="right_hip_X" type="revolute">
         <origin xyz="0 0 0" rpy="0 -0 0" />
-        <axis xyz="-1 0 0" />
+        <axis xyz="1 0 0" />
         <parent link="right_upperleg_virtual" />
         <child link="right_upperleg_virtual_2" />
-        <limit effort="190" velocity="0" lower="-0.392699" upper="1.5708" />
+        <limit effort="190" velocity="0" lower="-1.570795" upper="1.047196667" />
     </joint>
     <link name="right_upperleg_virtual_2">
         <visual>
             <origin xyz="-0.0 0.00 -0.00" rpy="0 -0 0" />
             <geometry>
-                <mesh filename="../../meshes/knee_mesh.STL" scale="0.006 0.006 0.006"/>
+                <mesh filename="meshes/knee_mesh.STL" scale="0.006 0.006 0.006"/>
             </geometry>
             <material name="body_color_R">
                 <texture />
@@ -573,10 +573,10 @@
     </link>
     <joint name="right_hip_Y" type="revolute">
         <origin xyz="0 0 0" rpy="0 -0 0" />
-        <axis xyz="0 -1 0" />
+        <axis xyz="0 1 0" />
         <parent link="right_upperleg_virtual_2" />
         <child link="right_upperleg" />
-        <limit effort="190" velocity="0" lower="-1.5708" upper="1.5708" />
+        <limit effort="190" velocity="0" lower="-1.570795" upper="1.047196667" />
     </joint>
     <link name="right_upperleg">
         <inertial>
@@ -587,7 +587,7 @@
         <visual>
             <origin xyz="-0.0 0.00 -0.00" rpy="0 -0 0" />
             <geometry>
-                <mesh filename="../../meshes/upperleg_mesh.STL" scale="0.0063 0.0065 0.007"/>
+                <mesh filename="meshes/upperleg_mesh.STL" scale="0.0063 0.0065 0.007"/>
             </geometry>
             <material name="body_color_R">
                 <texture />
@@ -600,7 +600,7 @@
         <axis xyz="0 0 -1" />
         <parent link="right_upperleg" />
         <child link="right_lowerleg" />
-        <limit effort="168" velocity="0" lower="0" upper="2.74889" />
+        <limit effort="168" velocity="0" lower="0" upper="3.14159" />
     </joint>
     <link name="right_lowerleg">
         <inertial>
@@ -611,7 +611,7 @@
         <visual>
             <origin xyz="-0.0 0.00 -0.00" rpy="0 -0 0" />
             <geometry>
-                <mesh filename="../../meshes/lowerleg_mesh.STL" scale="0.0063 0.0065 0.007"/>
+                <mesh filename="meshes/lowerleg_mesh.STL" scale="0.0063 0.0065 0.007"/>
             </geometry>
             <material name="body_color_R">
                 <texture />
@@ -624,7 +624,7 @@
         <axis xyz="0 0 1" />
         <parent link="right_lowerleg" />
         <child link="right_foot_virtual" />
-        <limit effort="126" velocity="0" lower="-1.0472" upper="0.392699" />
+        <limit effort="126" velocity="0" lower="-1.570795" upper="0.7853975" />
     </joint>
     <link name="right_foot_virtual" />
     <joint name="right_ankle_X" type="revolute">
@@ -632,7 +632,7 @@
         <axis xyz="1 0 0" />
         <parent link="right_foot_virtual" />
         <child link="right_foot" />
-        <limit effort="20" velocity="0" lower="0" upper="0.785398" />
+        <limit effort="20" velocity="0" lower="-0.523598333" upper="0.785398" />
     </joint>
     <link name="right_foot">
         <inertial>
@@ -643,7 +643,7 @@
         <visual>
             <origin xyz="-0.00 -0.00 0.00" rpy="0 0 0" />
             <geometry>
-		        <mesh filename="../../meshes/foot_mesh.STL" scale="0.0060 0.0060 0.0060"/>
+		        <mesh filename="meshes/foot_mesh.STL" scale="0.0060 0.0060 0.0060"/>
                 <!--<box size="0.03 0.085239 0.06" />-->
             </geometry>
             <material name="body_color_R">
