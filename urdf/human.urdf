@@ -37,7 +37,7 @@
         <axis xyz="0 0 1" />
         <parent link="middle_pelvis" />
         <child link="left_upperleg_virtual" />
-        <limit effort="190" velocity="0" lower="-1.047196667" upper="1.570795" />
+        <limit effort="190" velocity="0" lower="-1.047196667" upper="3.14159" />
     </joint>
     <link name="left_upperleg_virtual" />
     <joint name="left_hip_X" type="revolute">
