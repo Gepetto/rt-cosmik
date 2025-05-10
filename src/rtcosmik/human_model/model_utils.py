@@ -666,10 +666,10 @@ def get_segments_mks_dict(mocap_mks_positions)->Dict:
             "upperarmL" : ['L_melbow_study', 'L_lelbow_study'],
             "lowerarmL": ['L_lwrist_study', 'L_mwrist_study'],
             "pelvis": ['r.PSIS_study', 'L.PSIS_study', 'r.ASIS_study', 'L.ASIS_study'],
-            "thighR": ['r_knee_study', 'r_mknee_study', 'r_thigh1_study'],
-            "thighL": ['L_knee_study', 'L_mknee_study', 'L_thigh1_study'],
-            "shankR": ['r_ankle_study', 'r_mankle_study', 'r_sh1_study'],
-            "shankL": ['L_ankle_study', 'L_mankle_study', 'L_sh1_study'],
+            "thighR": ['r_knee_study', 'r_mknee_study'],
+            "thighL": ['L_knee_study', 'L_mknee_study'],
+            "shankR": ['r_ankle_study', 'r_mankle_study'],
+            "shankL": ['L_ankle_study', 'L_mankle_study'],
             "footR": ['r_calc_study' ,'r_5meta_study','r_toe_study'],
             "footL": ['L_calc_study', 'L_5meta_study', 'L_toe_study']
         }

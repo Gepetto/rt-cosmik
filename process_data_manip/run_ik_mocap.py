@@ -16,6 +16,7 @@ from src.rtcosmik.config_loader import settings
 from src.rtcosmik.human_model.pin_model import build_model
 from src.rtcosmik.human_model.model_utils import construct_segments_frames, get_segments_mks_dict
 from src.rtcosmik.ik.ik import RT_IK,RT_SWIKA
+from src.rtcosmik.utils.linear_algebra_utils import butterworth_filter
 
 
 
@@ -23,17 +24,16 @@ mks_to_skip = ['TV8','TV12','SJN','STRN','LForearm','LUArm', 'RUArm',
                'LHand2','LHand1','LHL2','LHM5', 'RForearm','RHand2','RHand1','RHL2','RHM5', 'L_sh1_study', 'L_thigh1_study','r_sh1_study', 'r_thigh1_study']
 start_sample = 0
 
-no_trial = "trial_2"
-task = "trial_lower"
-path_to_csv = f"/root/workspace/ros_ws/src/rt-cosmik/output/{no_trial}/{task}/mks_pose.csv"
-mks_names = settings.marker_mocap_names
+no_trial = "trial3"
+task = "sit_to_stand"
+path_to_csv = f"/root/workspace/ros_ws/src/rt-cosmik/output/{no_trial}/{task}/mks_data.csv"
+mks_names = settings.marker_mocap_names    
 
 #read mks data
 df_raw = pd.read_csv(path_to_csv)  # original with 'marker_data'
-df_wide = marker_data_to_dataframe(df_raw,mks_names)
-# df_wide = udp_csv_to_dataframe(path_to_csv, mks_names)
+# df_wide = marker_data_to_dataframe(df_raw,mks_names)
+df_wide = udp_csv_to_dataframe(path_to_csv, mks_names)
 result_markers, start_sample_mks = read_mks_data(df_wide)
-# print(start_sample_mks)
 
 #build and scale the model in sample 0 
 human_model, human_geom_model, visuals_dict = build_model(start_sample_mks,meshes_folder_path)
@@ -67,12 +67,30 @@ rmse_per_marker = {}
 q_list = []
 M_model_list = []
 
+marker_series = {name: [] for name in mks_names}
+for frame in result_markers:
+    for name in mks_names:
+        marker_series[name].append(frame[name])
+filtered_series = {}
+for name in mks_names:
+    data = np.vstack(marker_series[name])  # shape: (n_frames, 3)
+    filtered_data = butterworth_filter(data, cutoff_frequency=10, order=4, sampling_frequency=40)
+    filtered_series[name] = filtered_data
+
+# --- Step 4: Reconstruct filtered result_markers
+filtered_result_markers = []
+for i in range(len(result_markers)):
+    frame_dict = {name: filtered_series[name][i] for name in mks_names}
+    filtered_result_markers.append(frame_dict)
+
+
+# result_markers = filtered_result_markers
 for ii in range(start_sample,len(result_markers)): 
 
     mks_dict = result_markers[ii]
     ik_class = RT_IK(human_model, mks_dict, q, keys_to_track_list, dt)
     # ik_class._dict_m= mks_dict
-    q = ik_class.solve_ik_sample_quadprog() 
+    q = ik_class.solve_ik_sample_casadi() 
 
     pin.forwardKinematics(human_model, human_data, q)
     pin.updateFramePlacements(human_model, human_data)
@@ -131,7 +149,7 @@ for ii in range(start_sample,len(result_markers)):
 
 #save mks est
 df = pd.DataFrame(M_model_list)
-csv_file = os.path.join(rt_cosmik_path,f"/root/workspace/ros_ws/src/rt-cosmik/output/{no_trial}/{task}/mks_model_qp.csv") 
+csv_file = os.path.join(rt_cosmik_path,f"/root/workspace/ros_ws/src/rt-cosmik/output/{no_trial}/{task}/mks_model_ipopt.csv") 
 df.to_csv(csv_file, index=False)
 
 #save angles
@@ -141,7 +159,7 @@ if len(joint_angles_names) != num_values:
     raise ValueError(f"joint_angles_names has {len(joint_angles_names)} entries but q has {num_values} DOFs.")
 
 df = pd.DataFrame(q_list, columns=joint_angles_names)
-csv_file = os.path.join(rt_cosmik_path, f"output/{no_trial}/{task}/q_mocap_qp.csv")
+csv_file = os.path.join(rt_cosmik_path, f"output/{no_trial}/{task}/q_mocap_ipopt_filtred.csv")
 df.to_csv(csv_file, index=False)
 
 
