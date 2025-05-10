@@ -11,7 +11,7 @@ from src.rtcosmik.utils.read_write_utils import read_mmpose_file, save_to_csv
 
 #check paths in load_camera_parameters and load_world_transformation
 no_trial = "trial3"
-task = "static"
+task = "polissage_robot"
 num_keypoints=26 
 markers = [
         "Nose", "LEye", "REye", "LEar", "REar", 

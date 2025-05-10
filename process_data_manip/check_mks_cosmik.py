@@ -12,8 +12,8 @@ from src.rtcosmik.config_loader import settings
 
 
 no_trial = "trial3"
-task = "static"
-path_to_csv = f"/root/workspace/ros_ws/src/rt-cosmik/output/{no_trial}/{task}/augmented_markers.csv"
+task = "sit_to_stand"
+path_to_csv = f"/root/workspace/ros_ws/src/rt-cosmik/output/{no_trial}/{task}/augmented_markers_filtred.csv"
 mks_names = settings.marker_names
 
 # path_to_csv = f"/root/workspace/ros_ws/src/rt-cosmik/output/{no_trial}/{task}/3d_keypoints.csv"
@@ -110,7 +110,7 @@ for i in range(len(mks_dict)):
         sphere_name = f'world/{name}'
         place(viz, sphere_name, pin.SE3(np.eye(3), np.matrix(mks_dict[i][name].reshape(3,)).T))
     
-    # time.sleep(0.03)
-    input()
+    time.sleep(0.03)
+    # input()
 
 
