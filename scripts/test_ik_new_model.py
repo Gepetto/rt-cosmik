@@ -21,32 +21,31 @@ from src.rtcosmik.ik.ik import RT_IK
 
 
 
-mks_to_skip = ['LForearm','LUArm', 'RUArm',
+mks_to_skip = ['LForearm','LUArm', 'RUArm', 'RHJC_study','LHJC_study',
                'LHand2','LHand1','LHL2','LHM5', 'RForearm','RHand2','RHand1','RHL2','RHM5', 'L_sh1_study', 'L_thigh1_study','r_sh1_study', 'r_thigh1_study']
 #read mks data
-no_trial = "trial_2"
-task = "trial_polissage"
-path_to_csv = f"/root/workspace/ros_ws/src/rt-cosmik/output/{no_trial}/{task}/mks_pose.csv"
+no_trial = "trial3"
+task = "polissage_robot"
+path_to_csv = f"/root/workspace/ros_ws/src/rt-cosmik/output/{no_trial}/{task}/augmented_markers_filtred.csv"
 ###########################################################################################for cosmik data 
-# path_to_kpt = f"/root/workspace/ros_ws/src/rt-cosmik/output/{no_trial}/{task}/keypoints.csv"
+path_to_kpt = f"/root/workspace/ros_ws/src/rt-cosmik/output/{no_trial}/{task}/3d_keypoints.csv"
 
-# keys_to_add = ['Nose', 'Head', 'REar', 'LEar', 'REye', 'LEye']
+keys_to_add = ['Nose', 'Head', 'REar', 'LEar', 'REye', 'LEye']
 
-# data_markers_lstm = pd.read_csv(path_to_csv) 
-# keypoints = pd.read_csv(path_to_kpt) 
+data_markers_lstm = pd.read_csv(path_to_csv) 
+keypoints = pd.read_csv(path_to_kpt) 
 
-# columns_to_add = [col for col in keypoints.columns if any(key + '_' in col for key in keys_to_add)]
+columns_to_add = [col for col in keypoints.columns if any(key + '_' in col for key in keys_to_add)]
 
 # if len(data_markers_lstm) != len(keypoints):
 #     raise ValueError("Row count mismatch between data_markers_lstm and keypoints")
 
-# mks_data = pd.concat([data_markers_lstm, keypoints[columns_to_add].reset_index(drop=True)], axis=1)
+mks_data = pd.concat([data_markers_lstm, keypoints[columns_to_add].reset_index(drop=True)], axis=1)
 
 ###################################################################""""
 start_sample=0
 mks_names = settings.marker_mocap_names
-df_raw = pd.read_csv(path_to_csv)  # 
-mks_data = marker_data_to_dataframe(df_raw, mks_names) #marker data are string 
+# df_raw = pd.read_8data_to_dataframe(df_raw, mks_names) #marker data are string 
 # mks_data = udp_csv_to_dataframe(path_to_csv, mks_names) #float
 result_markers, start_sample_dict = read_mks_data(mks_data, start_sample=start_sample) #check the function of read 
 
@@ -61,7 +60,7 @@ human_visual_model = human.visual_model
 human_model = scale_human_model(human_model, start_sample_dict,with_hand=True,gender='male',subject_height=1.85)
 print(human_model.nq)
 
-human_model= mks_registration(human_model,start_sample_dict, with_hand=True)
+human_model= mks_registration(human_model,start_sample_dict, with_hand=False)
 
 human_data = pin.Data(human_model)
 
@@ -97,10 +96,10 @@ for joint_id in range(1, human_model.njoints):  # Skip 0 (universe)
 q = pin.neutral(human_model) # init pos
 human_data = pin.Data(human_model)
 
-dt = 1/100 #dt for qp
+dt = 1/40 #dt for qp
 #track only real markers (without technical markers)
-keys_to_track_list = [  'C7_study', 
-                        'TV8','TV12','SJN','STRN',
+keys_to_track_list = [  'Head', 'Nose', 'REar', 'LEar', 'REye', 'LEye',
+    'C7_study', 
                         'r.ASIS_study', 'L.ASIS_study', 
                         'r.PSIS_study', 'L.PSIS_study', 
 
@@ -110,7 +109,6 @@ keys_to_track_list = [  'C7_study',
                         'r_ankle_study', 'r_mankle_study',
                         'r_toe_study','r_5meta_study', 'r_calc_study',
                         'r_knee_study', 'r_mknee_study',
-                        'LBHD','RBHD','LFHD','RFHD',
                         
                         'L_shoulder_study', 
                         'L_lelbow_study', 'L_melbow_study',
@@ -143,6 +141,7 @@ for ii in range(start_sample,len(result_markers)):
     M_model_frame = {}
 
     for marker in result_markers[ii].keys():
+        # print(marker)
         if marker in mks_to_skip: 
             continue  #skip
         pos_gt = np.array(result_markers[ii][marker])
@@ -171,18 +170,18 @@ for ii in range(start_sample,len(result_markers)):
     M_model_list.append(M_model_frame)
     
     # Display frames from measurements
-    seg_frames = construct_segments_frames(mks_dict)
-    for seg_name, M in seg_frames.items():
+    # seg_frames = construct_segments_frames(mks_dict)
+    # for seg_name, M in seg_frames.items():
         
-        frame_name = f'world/{seg_name+"_meas"}'
-        frame_se3 = pin.SE3(M[:3,:3], np.matrix([M[0,3],M[1,3],M[2,3]]).T)
-        place(viz, frame_name, frame_se3)
+    #     frame_name = f'world/{seg_name+"_meas"}'
+    #     frame_se3 = pin.SE3(M[:3,:3], np.matrix([M[0,3],M[1,3],M[2,3]]).T)
+    #     place(viz, frame_name, frame_se3)
     
-    #  Display frames from human_model
-    for joint_id in range(1, human_model.njoints):  # Skip 0 (universe)
-        frame_name = f'world/{human_model.names[joint_id]+"_model"}'
-        frame_se3= human_data.oMf[human_model.getFrameId(human_model.names[joint_id])]
-        place(viz, frame_name, frame_se3)
+    # #  Display frames from human_model
+    # for joint_id in range(1, human_model.njoints):  # Skip 0 (universe)
+    #     frame_name = f'world/{human_model.names[joint_id]+"_model"}'
+    #     frame_se3= human_data.oMf[human_model.getFrameId(human_model.names[joint_id])]
+    #     place(viz, frame_name, frame_se3)
 
     #display q
     viz.display(q)

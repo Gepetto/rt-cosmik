@@ -20,8 +20,8 @@ from src.rtcosmik.ik.ik import RT_IK,RT_SWIKA
 
 
 no_trial = "trial3"
-task = "static"
-path_to_csv = f"/root/workspace/ros_ws/src/rt-cosmik/output/{no_trial}/{task}/augmented_markers.csv"
+task = "polissage_robot"
+path_to_csv = f"/root/workspace/ros_ws/src/rt-cosmik/output/{no_trial}/{task}/augmented_markers_filtred.csv"
 path_to_kpt = f"/root/workspace/ros_ws/src/rt-cosmik/output/{no_trial}/{task}/3d_keypoints.csv"
 
 keys_to_add = ['Nose', 'Head', 'REar', 'LEar', 'REye', 'LEye']
