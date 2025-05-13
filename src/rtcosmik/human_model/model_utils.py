@@ -419,10 +419,15 @@ def get_thorax_pose(mks_positions,gender='male',subject_height= 1.80):
         abdomen_ratio = 0.0839
     else : 
         abdomen_ratio = 0.0776
-    # torso_pose = get_torso_pose(mks_positions)
+    
+    pelvis_pose =(get_pelvis_pose(mks_positions,gender)[:3,3]).reshape(3,1)
+    torso_pose = (get_torso_pose(mks_positions)[:3,3]).reshape(3,1)
+    direction = torso_pose - pelvis_pose                     
+    direction = direction / np.linalg.norm(direction)  
     # pos_torso_in_pelvis = (np.linalg.inv(get_virtual_pelvis_pose(mks_positions)) @ torso_pose)[:3,3]
 
-    p_local= col_vector_3D(0.0, subject_height * abdomen_ratio,0.0)
+    p_local=col_vector_3D(0.0, subject_height * abdomen_ratio,0.0)
+
     p_global = (get_pelvis_pose(mks_positions,gender)[:3,:3].reshape(3,3) @ p_local).reshape(3,1)
     
     pose = np.eye(4,4)
@@ -447,7 +452,7 @@ def get_thorax_pose(mks_positions,gender='male',subject_height= 1.80):
     pose[:3,0] = X.reshape(3,)
     pose[:3,1] = Y.reshape(3,)
     pose[:3,2] = Z.reshape(3,)
-    pose[:3,3] = ((get_pelvis_pose(mks_positions,gender)[:3,3]).reshape(3,1)+p_global).reshape(3,)
+    pose[:3,3] = ((get_pelvis_pose(mks_positions,gender)[:3,3]).reshape(3,1)+ (direction*p_global)).reshape(3,)
     pose[:3,:3] = orthogonalize_matrix(pose[:3,:3])
 
     return pose
@@ -1007,8 +1012,6 @@ def get_local_segments_positions(sgts_poses: Dict, with_hand=True)->Dict:
         thorax_global = sgts_poses["thorax"]
         local_positions["torso"] = (np.linalg.inv(thorax_global) @ torso_global @ np.array([0, 0, 0, 1]))[:3]
         #need to adjust torso frame to aligned it with thorax and pelvis frames.
-        # local_positions["torso"][0]=0.0
-        # local_positions["torso"][2]=0.0
 
     # Head with respect to torso
     if "head" in sgts_poses:
