@@ -14,10 +14,10 @@ from src.rtcosmik.utils.linear_algebra_utils import butterworth_filter
 base_path = "/root/workspace/ros_ws/src/rt-cosmik"
 
 no_trial = "trial3"
-task = "upper"
+task = "lower"
 
-path_to_3d_kpt = os.path.join(base_path, f"output/{no_trial}/{task}/3d_keypoints.csv")
-output_csv_path = os.path.join(base_path, f"output/{no_trial}/{task}/augmented_markers_filtred.csv")
+path_to_3d_kpt = os.path.join(base_path, f"output/{no_trial}/{task}/3d_keypoints_filtred.csv")
+output_csv_path = os.path.join(base_path, f"output/{no_trial}/{task}/augmented_markers.csv")
 
 subject_mass = 75.0
 subject_height = 1.85
@@ -75,13 +75,13 @@ def main():
 
     augmented_array = np.vstack(augmented_markers_list) 
 
-    filtered_data = butterworth_filter(
-    data=augmented_array,
-    cutoff_frequency=10.0,  
-    order=5,
-    sampling_frequency=40
-    )
-    save_to_csv(filtered_data, output_csv_path, header=header)
+    # filtered_data = butterworth_filter(
+    # data=augmented_array,
+    # cutoff_frequency=10.0,  
+    # order=5,
+    # sampling_frequency=40
+    # )
+    save_to_csv(augmented_array, output_csv_path, header=header)
     
 
 if __name__ == "__main__":

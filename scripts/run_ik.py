@@ -20,9 +20,9 @@ from src.rtcosmik.ik.ik import RT_IK,RT_SWIKA
 
 
 no_trial = "trial3"
-task = "upper"
-path_to_csv = f"/root/workspace/ros_ws/src/rt-cosmik/output/{no_trial}/{task}/augmented_markers_filtred.csv"
-path_to_kpt = f"/root/workspace/ros_ws/src/rt-cosmik/output/{no_trial}/{task}/3d_keypoints.csv"
+task = "lower"
+path_to_csv = f"/root/workspace/ros_ws/src/rt-cosmik/output/{no_trial}/{task}/augmented_markers.csv"
+path_to_kpt = f"/root/workspace/ros_ws/src/rt-cosmik/output/{no_trial}/{task}/3d_keypoints_filtred.csv"
 
 keys_to_add = ['Nose', 'Head', 'REar', 'LEar', 'REye', 'LEye']
 
@@ -99,7 +99,7 @@ q = pin.neutral(human_model) # init pos
 human_data = pin.Data(human_model)
 
 dt = 1/40 #dt for qp
-keys_to_track_list = [  
+keys_to_track_list = [  'Nose', 'Head', 'REar', 'LEar', 'REye', 'LEye',
         'C7_study', 
         'r.ASIS_study', 'L.ASIS_study', 
         'r.PSIS_study', 'L.PSIS_study', 
@@ -174,11 +174,6 @@ for ii in range(start_sample,len(result_markers)):
         rmse_per_marker[marker].append(sq_error)
 
     M_model_list.append(M_model_frame)
-
-    # #save mks est
-    # df = pd.DataFrame(M_model_list)
-    # csv_file = os.path.join(rt_cosmik_path,'process_data_manip/mks_cosmik_model_test_2_modele_mocap.csv') 
-    # df.to_csv(csv_file, index=False)
     
 
     #Display frames from human_model
@@ -202,9 +197,14 @@ for ii in range(start_sample,len(result_markers)):
     ik_class._q0 = q 
 
     q_list.append(q)
-  
-#save angles
 
+
+#save mks est
+df = pd.DataFrame(M_model_list)
+csv_file = os.path.join(rt_cosmik_path,f"/root/workspace/ros_ws/src/rt-cosmik/output/{no_trial}/{task}/mks_model_cosmik_ipopt.csv") 
+df.to_csv(csv_file, index=False)
+
+#save angles
 joint_angles_names = settings.joint_angles_names
 num_values = len(q_list[0])
 if len(joint_angles_names) != num_values:
