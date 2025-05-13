@@ -20,12 +20,12 @@ from src.rtcosmik.utils.linear_algebra_utils import butterworth_filter
 
 
 
-mks_to_skip = ['TV8','TV12','SJN','STRN','LForearm','LUArm', 'RUArm',
+mks_to_skip = ['LForearm','LUArm', 'RUArm','TV8','TV12','SJN','STRN',
                'LHand2','LHand1','LHL2','LHM5', 'RForearm','RHand2','RHand1','RHL2','RHM5', 'L_sh1_study', 'L_thigh1_study','r_sh1_study', 'r_thigh1_study']
 start_sample = 0
 
 no_trial = "trial3"
-task = "sit_to_stand"
+task = "upper"
 path_to_csv = f"/root/workspace/ros_ws/src/rt-cosmik/output/{no_trial}/{task}/mks_data.csv"
 mks_names = settings.marker_mocap_names    
 
@@ -44,7 +44,7 @@ viz = gv_init(human_model,human_geom_model.copy(),human_geom_model,start_sample_
 seg_frames = construct_segments_frames(result_markers[start_sample])
 add_frames(viz,seg_frames,"meas", 0.008, 0.08)
 #model markers spheres 
-add_marker(viz,result_markers[1].keys(), 0, 1,0)
+add_marker(viz,result_markers[1].keys(),'_m', 0, 1,0)
 #model frames
 seg_names_mks = get_segments_mks_dict(result_markers[start_sample])
 add_frames(viz,seg_names_mks,"model", 0.012, 0.05)
@@ -54,8 +54,24 @@ dt = 1/40
 
 q = pin.neutral(human_model) # init pos
 human_data = pin.Data(human_model)
-keys_to_track_list = settings.keys_to_track_list_mocap
-viz.display(q)
+keys_to_track_list = [
+        'LBHD','RBHD','LFHD','RFHD',
+        'C7_study', 
+        'r.ASIS_study', 'L.ASIS_study', 
+        'r.PSIS_study', 'L.PSIS_study', 
+        'r_shoulder_study',
+        'r_lelbow_study', 'r_melbow_study',
+        'r_lwrist_study', 'r_mwrist_study',
+        'r_ankle_study', 'r_mankle_study',
+        'r_toe_study','r_5meta_study', 'r_calc_study',
+        'r_knee_study', 'r_mknee_study',
+        'L_shoulder_study', 
+        'L_lelbow_study', 'L_melbow_study',
+        'L_lwrist_study','L_mwrist_study',
+        'L_ankle_study', 'L_mankle_study', 
+        'L_toe_study','L_5meta_study', 'L_calc_study',
+        'L_knee_study', 'L_mknee_study'
+    ]
 
 ### IK calculations
 ik_class = RT_IK(human_model, start_sample_mks, q, keys_to_track_list, dt)
@@ -67,21 +83,21 @@ rmse_per_marker = {}
 q_list = []
 M_model_list = []
 
-marker_series = {name: [] for name in mks_names}
-for frame in result_markers:
-    for name in mks_names:
-        marker_series[name].append(frame[name])
-filtered_series = {}
-for name in mks_names:
-    data = np.vstack(marker_series[name])  # shape: (n_frames, 3)
-    filtered_data = butterworth_filter(data, cutoff_frequency=10, order=4, sampling_frequency=40)
-    filtered_series[name] = filtered_data
+# marker_series = {name: [] for name in mks_names}
+# for frame in result_markers:
+#     for name in mks_names:
+#         marker_series[name].append(frame[name])
+# filtered_series = {}
+# for name in mks_names:
+#     data = np.vstack(marker_series[name])  # shape: (n_frames, 3)
+#     filtered_data = butterworth_filter(data, cutoff_frequency=10, order=4, sampling_frequency=40)
+#     filtered_series[name] = filtered_data
 
-# --- Step 4: Reconstruct filtered result_markers
-filtered_result_markers = []
-for i in range(len(result_markers)):
-    frame_dict = {name: filtered_series[name][i] for name in mks_names}
-    filtered_result_markers.append(frame_dict)
+# # --- Step 4: Reconstruct filtered result_markers
+# filtered_result_markers = []
+# for i in range(len(result_markers)):
+#     frame_dict = {name: filtered_series[name][i] for name in mks_names}
+#     filtered_result_markers.append(frame_dict)
 
 
 # result_markers = filtered_result_markers
@@ -159,7 +175,7 @@ if len(joint_angles_names) != num_values:
     raise ValueError(f"joint_angles_names has {len(joint_angles_names)} entries but q has {num_values} DOFs.")
 
 df = pd.DataFrame(q_list, columns=joint_angles_names)
-csv_file = os.path.join(rt_cosmik_path, f"output/{no_trial}/{task}/q_mocap_ipopt_filtred.csv")
+csv_file = os.path.join(rt_cosmik_path, f"output/{no_trial}/{task}/q_mocap_ipopt.csv")
 df.to_csv(csv_file, index=False)
 
 

@@ -7,11 +7,15 @@ import numpy as np
 import pandas as pd
 from src.rtcosmik.camera.cam_utils import load_camera_parameters,load_world_transformation
 from src.rtcosmik.triangulation.triangulation import triangulate_offline
-from src.rtcosmik.utils.read_write_utils import read_mmpose_file, save_to_csv
+from src.rtcosmik.utils.read_write_utils import read_mmpose_file, save_to_csv,load_transformation,transform_keypoints_list_cam0_to_mocap
 
 #check paths in load_camera_parameters and load_world_transformation
 no_trial = "trial3"
-task = "polissage_robot"
+task = "upper"
+
+transformation_file = f"/root/workspace/ros_ws/src/rt-cosmik/output/{no_trial}/calib_mocap_2_cam0/soder.txt"
+R_trans, d_trans, s_trans, rms_error = load_transformation(transformation_file)
+
 num_keypoints=26 
 markers = [
         "Nose", "LEye", "REye", "LEar", "REar", 
@@ -44,8 +48,14 @@ def main():
     mtxs, dists, projections, rotations, translations = load_camera_parameters(config_path)
     world_R1_cam, world_T1_cam = load_world_transformation(config_path)
     
-    keypoints_in_world = triangulate_offline(uvs, mtxs, dists, projections, world_R1_cam, world_T1_cam)
-    save_to_csv(keypoints_in_world, output_csv_path, header=header)
+    keypoints_in_cam0_list = triangulate_offline(uvs, mtxs, dists, projections, world_R1_cam, world_T1_cam)
+
+    keypoints_in_mocap_list = transform_keypoints_list_cam0_to_mocap(
+        keypoints_in_cam0_list,
+        R_trans,
+        d_trans
+    )
+    save_to_csv(keypoints_in_mocap_list, output_csv_path, header=header)
 
 if __name__ == "__main__":
     main()
