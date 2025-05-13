@@ -12,7 +12,7 @@ from src.rtcosmik.config_loader import settings
 from src.rtcosmik.utils.read_write_utils import load_transformation
 
 no_trial = "trial3"
-task = "upper"
+task = "lower"
 path_to_csv = f"/root/workspace/ros_ws/src/rt-cosmik/output/{no_trial}/{task}/augmented_markers_filtred.csv"
 mks_names = [
            'r.ASIS_study','L.ASIS_study','r.PSIS_study','L.PSIS_study','r_knee_study',
