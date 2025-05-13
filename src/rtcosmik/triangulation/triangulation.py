@@ -76,6 +76,6 @@ def triangulate_offline(uvs, mtxs, dists, projections, R, T):
 
         #express p3d_frame in world frame
         p3d_frame_in_world= np.array([np.dot(R, point) + T for point in p3d_frame])
-        keypoints_in_world_list.append(p3d_frame_in_world.flatten().tolist())
+        keypoints_in_world_list.append(p3d_frame.flatten().tolist())
     
     return keypoints_in_world_list
