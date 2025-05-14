@@ -400,8 +400,8 @@ def read_mmpose_file(nom_fichier):
     with open(nom_fichier, 'r') as f:
         for ligne in f:
             ligne = ligne.strip().split(',')  # Séparer les valeurs par virgule
-            donnees.append([float(valeur) for valeur in ligne[:]])  # Convertir les valeurs en float, en excluant le num_sample
-    # print('donnees=',donnees)
+            donnees.append([float(valeur) for valeur in ligne[1:]])  # Convertir les valeurs en float, en excluant le num_sample
+        # print('donnees=',donnees)
     return donnees
 
 def read_mmpose_scores(liste_fichiers):
@@ -524,12 +524,11 @@ def save_q_to_csv(csv_path, q, frame_idx, formatted_timestamp):
         # Write to CSV
         csv_writer.writerow([frame_idx, formatted_timestamp]+q.tolist())  
 
-def save_to_csv(data, output_path):
-    """Save 3D keypoints to a CSV file."""
+def save_to_csv(data, output_path, header=None):
+    """Save 3D keypoints to a CSV file with optional header."""
     df = pd.DataFrame(data)
-    df.to_csv(output_path, index=False, header=False)
+    df.to_csv(output_path, index=False, header=header if header is not None else False)
     print(f"Saved {len(data)} frames to {output_path}")
-
 
 def read_mks_data(data_markers, start_sample=0):
     #the mks are ordered in a csv like this : "time,r.ASIS_study_x,r.ASIS_study_y,r.ASIS_study_z...."
@@ -619,3 +618,117 @@ def marker_data_to_dataframe(df, mks_names, marker_column='marker_data', delimit
     ])
     
     return wide_df
+
+
+def udp_csv_to_dataframe(csv_path, marker_names):
+    """
+    Preprocess a UDP CSV file into a DataFrame suitable for read_mks_data.
+
+    Parameters:
+        csv_path (str): Path to the CSV file.
+        marker_names (list): List of marker base names (without _x/_y/_z).
+
+    Returns:
+        pd.DataFrame: A DataFrame with columns formatted as marker_x, marker_y, marker_z.
+    """
+    # 1. Open manually
+    with open(csv_path, 'r') as f:
+        lines = f.readlines()
+
+    # 2. Skip the header
+    lines = lines[1:]
+
+    # 3. Prepare all rows
+    all_rows = []
+    for line in lines:
+        # Remove newline, then split
+        line = line.strip()
+        if not line:
+            continue  # skip empty lines
+        parts = line.split(",")
+        timestamp = parts[0]
+        udp_values = [float(val) for val in parts[1:]]
+        all_rows.append(udp_values)
+
+    # 4. Now create a dataframe
+    udp_df = pd.DataFrame(all_rows)
+
+    # 5. Build column names
+    new_columns = []
+    for marker in marker_names:
+        new_columns.extend([f"{marker}_x", f"{marker}_y", f"{marker}_z"])
+
+    if udp_df.shape[1] != len(new_columns):
+        raise ValueError(f"Mismatch between expected markers ({len(new_columns)}) and data columns ({udp_df.shape[1]}). Check marker list!")
+
+    udp_df.columns = new_columns
+
+    return udp_df
+#plot markers trajectories
+def plot_marker_trajectories(udp_df, marker_names):
+    """
+    Plot x, y, z trajectories of each marker in its own figure with 3 subplots.
+
+    Parameters:
+        udp_df (pd.DataFrame): Original marker data.
+        marker_names (list): List of marker names (without _x/_y/_z).
+    """
+    for marker in marker_names:
+        fig, axes = plt.subplots(6, 1, figsize=(10, 8), sharex=True)
+        axes_labels = ['x', 'y', 'z']
+
+        for i, axis in enumerate(axes_labels):
+            col = f"{marker}_{axis}"
+            axes[i].plot(udp_df.index, udp_df[col],color='r', label='Original')
+            axes[i].set_ylabel(f"{axis}-axis")
+            axes[i].legend()
+            axes[i].grid(True)
+
+        axes[-1].set_xlabel("Frame")
+        fig.suptitle(f"Marker: {marker}")
+        plt.tight_layout(rect=[0, 0, 1, 0.96])
+        plt.show()
+
+def load_transformation(file_path):
+    """
+    Loads the transformation parameters (R, d, s, rms) from a text file.
+
+    Parameters:
+    file_path: str
+        Path to the file from which the transformation parameters will be read.
+
+    Returns:
+    R: ndarray
+        Rotation matrix (3x3)
+    d: ndarray
+        Translation vector (3,)
+    s: float
+        Scale factor
+    rms: float
+        Root mean square fit error
+    """
+    with open(file_path, 'r') as f:
+        lines = f.readlines()
+        R_start = lines.index("Rotation Matrix (R):\n") + 1
+        R = np.loadtxt(lines[R_start:R_start + 3])
+        d_start = lines.index("Translation Vector (d):\n") + 1
+        d = np.loadtxt(lines[d_start:d_start + 1]).flatten()
+        s_line = next(line for line in lines if line.startswith("Scale Factor (s):"))
+        s = float(s_line.split(":")[1].strip())
+        rms_line = next(line for line in lines if line.startswith("RMS Error:"))
+        rms = float(rms_line.split(":")[1].strip())
+    return R, d, s, rms
+
+def transform_keypoints_list_cam0_to_mocap(keypoints_list, R_trans, d_trans):
+    """Apply transformation to each frame of flattened 3D keypoints."""
+    transformed_list = []
+
+    for flat_coords in keypoints_list:
+        # Convert to shape (N, 3)
+        p3d_cam0 = np.array(flat_coords).reshape(-1, 3)  # (N, 3)
+        # Apply transformation
+        p3d_mocap = (R_trans @ p3d_cam0.T).T + d_trans  # (N, 3)
+        # Flatten again
+        transformed_list.append(p3d_mocap.flatten().tolist())
+
+    return transformed_list

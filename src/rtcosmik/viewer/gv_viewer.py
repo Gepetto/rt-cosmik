@@ -52,9 +52,9 @@ def add_frames(viz,seg_frames,w,r,s):
 
 
 #add model markers
-def add_marker(viz,marker_names, r, g,b):
+def add_marker(viz,marker_names,suffix, r, g,b):
     for marker in marker_names:
-        viz.viewer.gui.addSphere('world/'+marker+"_m",0.01,[r,g,b,1])
+        viz.viewer.gui.addSphere('world/'+marker+suffix,0.01,[r,g,b,1])
 
 def Rquat(x, y, z, w):
     q = pin.Quaternion(x, y, z, w)
