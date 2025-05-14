@@ -8,12 +8,21 @@ from src.rtcosmik.camera.cam_utils import load_camera_parameters
 from src.rtcosmik.config_loader import settings
 import select
 
+no_test = "calib_mocap_2_cam1"
+cap = cv2.VideoCapture(2)
+mtxs, dists, projections, rotations, translations = load_camera_parameters(settings.cam_calib_path)
+camera_matrix = mtxs[1]  
+dist_coeffs = dists[1]
+print(camera_matrix)
 
 # Create output directory if it doesn't exist
-no_test = "calib_mocap_2_cam1"
 output_dir = f"/root/workspace/ros_ws/src/rt-cosmik/output/{no_test}"
 pose_csv_file = os.path.join(output_dir, "pose_aruco.csv")
 udp_csv_file = os.path.join(output_dir, "mks_data.csv")
+# UDP Configuration
+ip = "172.20.167.86"  # The IP the receiver listens on
+port = 44445  # The port to receive data on
+
 
 def get_latest_message(sock):
     latest_data = None
@@ -24,6 +33,7 @@ def get_latest_message(sock):
             try:
                 data, addr = sock.recvfrom(4096)
                 # print(data)
+                # print(data)
                 latest_data = data  # keep updating, so last one wins
             except BlockingIOError:
                 break
@@ -31,9 +41,6 @@ def get_latest_message(sock):
             break
     return latest_data
 
-# UDP Configuration
-ip = "172.20.183.220"  # The IP the receiver listens on
-port = 44445  # The port to receive data on
 
 # Create a UDP socket
 sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
@@ -46,13 +53,10 @@ parameters = cv2.aruco.DetectorParameters()
 detector = cv2.aruco.ArucoDetector(aruco_dict, parameters)
 
 # Load camera calibration parameters
-mtxs, dists, projections, rotations, translations = load_camera_parameters(settings.cam_calib_path)
-camera_matrix = mtxs[1]  
-dist_coeffs = dists[1]
-print(camera_matrix)
+
 
 # Open webcam
-cap = cv2.VideoCapture(1)
+
 cap.set(cv2.CAP_PROP_FOURCC, cv2.VideoWriter_fourcc(*'YUYV'))
 cap.set(cv2.CAP_PROP_FRAME_WIDTH, settings.width)
 cap.set(cv2.CAP_PROP_FRAME_HEIGHT, settings.height)

@@ -8,6 +8,8 @@ import select
 import socket
 import csv 
 import time
+import os
+
 class Camera(Process):
     def __init__(self, 
                  cam_id: int,
@@ -18,9 +20,11 @@ class Camera(Process):
                  barrier: Barrier,
                  stop_event: Event,
                  cam_event :Event,
+                 save_dir: str,
                  frame_shape: tuple = (720, 1280, 3),
                  cam_fps: int = None,
-                 cam_fourcc: str = "MJPG"):
+                 cam_fourcc: str = "MJPG",
+                 saving_flag = False):
         
         super().__init__()
         self.cam_id = cam_id
@@ -31,6 +35,8 @@ class Camera(Process):
         self.barrier = barrier
         self.stop_event = stop_event
         self.cam_event = cam_event
+        self.save_dir=save_dir
+        self.saving_flag = saving_flag
         
         # Video capture parameters
         self.frame_shape = frame_shape  # (height, width, channels)
@@ -55,7 +61,7 @@ class Camera(Process):
         if self.cam_fps:
             cap.set(cv2.CAP_PROP_FPS, self.cam_fps)
 
-        cap.set(cv2.CAP_PROP_BUFFERSIZE, 1)
+        # cap.set(cv2.CAP_PROP_BUFFERSIZE, 1)
 
         # reshape shared buffer once
         arr          = np.frombuffer(self.shared_buffer, dtype=np.uint8)
@@ -63,6 +69,8 @@ class Camera(Process):
 
         # let everyone get to this point
         self.barrier.wait()
+        self.saved_frames = []           
+        self.saved_timestamps = []
 
         try:
             while not self.stop_event.is_set():
@@ -75,7 +83,7 @@ class Camera(Process):
                     self.cam_event.set()
 
                 # --- 3) wait here until everyone has grabbed
-                self.barrier.wait()
+                # self.barrier.wait()
 
                 # --- 4) pull the actual image out of the buffer
                 ret, frame = cap.retrieve()
@@ -88,18 +96,40 @@ class Camera(Process):
                 # --- 6) resize/check, then write under lock
                 resized = cv2.resize(frame, (self.frame_shape[1], self.frame_shape[0]))
                 with self.lock:
+                    self.barrier.wait()
                     np.copyto(frame_buffer, resized)
                     self.timestamp_buffer[:26] = now_str.ljust(26, "\0").encode("utf-8")
                     self.frame_counter.value += 1
-                    # print(f"counters in camera {self.cam_id} :{self.frame_counter.value}")
-                    # print(self.timestamp_buffer[:26])
 
                 # optional: wait here if you need a post‑write barrier
                 # self.barrier.wait()
+                if self.saving_flag.value:
+                    self.saved_frames.append(resized.copy())
+                    self.saved_timestamps.append(now_str)
 
         finally:
             cap.release()
             print(f"Camera {self.cam_id} process exiting.")
+
+            #  # --- Save all frames at the end ---
+            print(os.path.join(self.save_dir, f"camera_{self.cam_id}.mp4"))
+            out = cv2.VideoWriter(
+                os.path.join(self.save_dir, f"camera_{self.cam_id}.mp4"),
+                cv2.VideoWriter_fourcc(*'mp4v'),
+                self.cam_fps,
+                (self.frame_shape[1], self.frame_shape[0])
+            )
+
+            for frame in self.saved_frames:
+                out.write(frame)
+            out.release()
+            print(f"Camera {self.cam_id} video saved.")
+
+            with open(os.path.join(self.save_dir, f"camera_{self.cam_id}_timestamps.csv"), mode='w', newline='') as f:
+                writer = csv.writer(f)
+                writer.writerow(["frame_index", "timestamp"])
+                for idx, ts in enumerate(self.saved_timestamps):
+                    writer.writerow([idx, ts])
 
 class DisplayConsumer(Process):
     def __init__(self, 
@@ -151,7 +181,7 @@ class DisplayConsumer(Process):
                     continue
                 self.last_frame_counters = new_counters.copy()
             
-                print(new_counters)
+                # print(new_counters)
                 # Optimization 1: Combine all frames into single view
                 ########################################
                 # Create a horizontal stack of frames

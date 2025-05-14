@@ -6,7 +6,7 @@ from pynput import keyboard
 
 # UDP Configuration
 ip = "172.20.183.220"
-port = 44445
+port = 5005
 
 # Create a UDP socket
 sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
