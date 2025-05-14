@@ -39,6 +39,30 @@ def transform_to_global_frame(D, origin, rotation_matrix):
     D_global =  rotation_matrix @ D + origin
     return D_global
 
+def save_transformation(file_path, R, d, s, rms):
+    """
+    Saves the transformation parameters (R, d, s, rms) to a text file.
+
+    Parameters:
+    file_path: str
+        Path to the file where the transformation parameters will be saved.
+    R: ndarray
+        Rotation matrix (3x3)
+    d: ndarray
+        Translation vector (3,)
+    s: float
+        Scale factor
+    rms: float
+        Root mean square fit error
+    """
+    with open(file_path, 'w') as f:
+        f.write("# Transformation Parameters\n")
+        f.write("Rotation Matrix (R):\n")
+        np.savetxt(f, R, fmt='%0.6f')
+        f.write("Translation Vector (d):\n")
+        np.savetxt(f, d.reshape(1, -1), fmt='%0.6f')
+        f.write(f"Scale Factor (s): {s:.6f}\n")
+        f.write(f"RMS Error: {rms:.6f}\n")
 # --- Load your transformation parameters using your own function ---
 # (Assuming the load_transformation() function is defined somewhere accessible.)
 def load_transformation(file_path):
