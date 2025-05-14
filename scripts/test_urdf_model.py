@@ -20,7 +20,7 @@ from src.rtcosmik.human_model.model_utils import get_segment_length
 
 #read mks data
 no_trial = "trial_2"
-task = "trial_upper"
+task = "trial_static"
 path_to_csv = f"/root/workspace/ros_ws/src/rt-cosmik/output/{no_trial}/{task}/mks_pose.csv"
 ###########################################################################################for cosmik data 
 # path_to_kpt = f"/root/workspace/ros_ws/src/rt-cosmik/output/{no_trial}/{task}/keypoints.csv"
@@ -56,7 +56,7 @@ human_visual_model = human.visual_model
 human_model = scale_human_model(human_model, start_sample_dict,with_hand=True,gender='male',subject_height=1.81)
 print(human_model.nq)
 
-# human_model= mks_registration(human_model,start_sample_dict, with_hand=False, gender='male',subject_height=1.81)
+human_model= mks_registration(human_model,start_sample_dict, with_hand=True, gender='male',subject_height=1.81)
 
 human_data = pin.Data(human_model)
 # human_collision_model = human.collision_model
@@ -74,16 +74,16 @@ for frame in human_model.frames.tolist():
 
 # get_segment_length(start_sample_dict)
 # measured frames
-seg_frames = construct_segments_frames(start_sample_dict)
-add_frames(viz,seg_frames,"meas", 0.008, 0.08)
-for seg_name, M in seg_frames.items():
+# seg_frames = construct_segments_frames(start_sample_dict)
+# add_frames(viz,seg_frames,"meas", 0.008, 0.08)
+# for seg_name, M in seg_frames.items():
         
-        frame_name = f'world/{seg_name+"_meas"}'
-        frame_se3 = pin.SE3(M[:3,:3], np.matrix([M[0,3],M[1,3],M[2,3]]).T)
-        place(viz, frame_name, frame_se3)
-# # #display markers
-for key in start_sample_dict.keys():
-    place(viz, 'world/'+key, pin.SE3(np.eye(3), np.array([start_sample_dict[key][0],start_sample_dict[key][1],start_sample_dict[key][2]])))
+#         frame_name = f'world/{seg_name+"_meas"}'
+#         frame_se3 = pin.SE3(M[:3,:3], np.matrix([M[0,3],M[1,3],M[2,3]]).T)
+#         place(viz, frame_name, frame_se3)
+# # # #display markers
+# for key in start_sample_dict.keys():
+#     place(viz, 'world/'+key, pin.SE3(np.eye(3), np.array([start_sample_dict[key][0],start_sample_dict[key][1],start_sample_dict[key][2]])))
 
 q =pin.neutral(human_model)
 

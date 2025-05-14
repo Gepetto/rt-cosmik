@@ -75,28 +75,28 @@ def scale_human_model(model, mks_positions, with_hand=True,gender='male',subject
     local_segments_positions = get_local_segments_positions(sgts_poses,with_hand=True)
 
     model.jointPlacements[model.getJointId('left_hip_Z')].translation=local_segments_positions['thighL']
-    model.jointPlacements[model.getJointId('left_knee')].translation=local_segments_positions['shankL']
-    model.jointPlacements[model.getJointId('left_ankle_Z')].translation=local_segments_positions['footL']
+    model.jointPlacements[model.getJointId('left_knee')].translation=col_vector_3D(0, -np.linalg.norm(local_segments_positions['shankL']),0)
+    model.jointPlacements[model.getJointId('left_ankle_Z')].translation=col_vector_3D(0, -np.linalg.norm(local_segments_positions['footL']),0)
 
     model.jointPlacements[model.getJointId('middle_lumbar_Z')].translation=np.array([0,0,0])
-    model.jointPlacements[model.getJointId('middle_thoracic_Z')].translation=local_segments_positions['thorax']
+    model.jointPlacements[model.getJointId('middle_thoracic_Z')].translation=col_vector_3D(0, np.linalg.norm(local_segments_positions['thorax']),0)
 
-    model.jointPlacements[model.getJointId('left_clavicle_joint_X')].translation=local_segments_positions['torso']
-    model.jointPlacements[model.getJointId('right_clavicle_joint_X')].translation=local_segments_positions['torso']
-    model.jointPlacements[model.getJointId('middle_cervical_Z')].translation=local_segments_positions['torso']
+    model.jointPlacements[model.getJointId('left_clavicle_joint_X')].translation=col_vector_3D(0, np.linalg.norm(local_segments_positions['torso']),0)
+    model.jointPlacements[model.getJointId('right_clavicle_joint_X')].translation=col_vector_3D(0, np.linalg.norm(local_segments_positions['torso']),0)
+    model.jointPlacements[model.getJointId('middle_cervical_Z')].translation=col_vector_3D(0, np.linalg.norm(local_segments_positions['torso']),0)
    
     model.jointPlacements[model.getJointId('left_shoulder_Z')].translation=local_segments_positions['upperarmL']
-    model.jointPlacements[model.getJointId('left_elbow_Z')].translation=local_segments_positions['lowerarmL']
+    model.jointPlacements[model.getJointId('left_elbow_Z')].translation=col_vector_3D(0, -np.linalg.norm(local_segments_positions['lowerarmL']),0)
 
     model.jointPlacements[model.getJointId('right_shoulder_Z')].translation=local_segments_positions['upperarmR']
-    model.jointPlacements[model.getJointId('right_elbow_Z')].translation=local_segments_positions['lowerarmR']
+    model.jointPlacements[model.getJointId('right_elbow_Z')].translation=col_vector_3D(0, -np.linalg.norm(local_segments_positions['lowerarmR']),0)
     model.jointPlacements[model.getJointId('right_hip_Z')].translation=local_segments_positions['thighR']
-    model.jointPlacements[model.getJointId('right_knee')].translation=local_segments_positions['shankR']
-    model.jointPlacements[model.getJointId('right_ankle_Z')].translation=local_segments_positions['footR']
+    model.jointPlacements[model.getJointId('right_knee')].translation=col_vector_3D(0, -np.linalg.norm(local_segments_positions['shankR']),0)
+    model.jointPlacements[model.getJointId('right_ankle_Z')].translation=col_vector_3D(0, -np.linalg.norm(local_segments_positions['footR']),0)
 
     if with_hand:
-        model.jointPlacements[model.getJointId('left_wrist_Z')].translation=local_segments_positions['handL']
-        model.jointPlacements[model.getJointId('right_wrist_Z')].translation=local_segments_positions['handR']
+        model.jointPlacements[model.getJointId('left_wrist_Z')].translation=col_vector_3D(0, -np.linalg.norm(local_segments_positions['handL']),0)
+        model.jointPlacements[model.getJointId('right_wrist_Z')].translation=col_vector_3D(0, -np.linalg.norm(local_segments_positions['handR']),0)
     return model
 
 def mks_registration(model,mks_positions, with_hand=True, gender='male',subject_height=1.8):
