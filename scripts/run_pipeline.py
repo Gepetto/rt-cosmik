@@ -28,7 +28,7 @@ def main():
     camera_buffers, camera_timestamps, camera_locks, frame_counters, camera_barrier, stop_event = create_camera_shared_ressources(NUM_CAMERAS, FRAME_SHAPE)
     results_queues = create_pipeline_shared_ressources()
     buffers = create_pipeline_shared_resources_with_buffers()
-    shared_ts_udp,shared_values_udp,lock_udp,cam_event = create_udp_buffer(settings.marker_mocap_names)
+    shared_ts_udp,shared_values_udp,lock_udp,cam_event,valid_event = create_udp_buffer(settings.marker_mocap_names)
 
 
      # Create camera processes
@@ -40,10 +40,12 @@ def main():
                frame_counters[i], 
                camera_barrier, 
                stop_event,
-               cam_event, 
+               cam_event,
+               settings.SAVE_DIR,
                FRAME_SHAPE, 
                settings.fs, 
-               settings.fourcc,)
+               settings.fourcc,
+               saving_flag=saving_enabled)
         for i in range(NUM_CAMERAS)
     ]
 
@@ -59,7 +61,7 @@ def main():
                 save_dir=settings.SAVE_DIR,
                 fps=settings.fs,
                 stop_event=stop_event,
-                saving_flag=saving_enabled 
+                saving_flag=saving_enabled,
             )
             video_savers.append(vs)
     
@@ -80,6 +82,7 @@ def main():
                                frame_counters,
                                results_queues,
                                stop_event,
+                               valid_event,
                                frame_shape=FRAME_SHAPE,
                                num_cameras=NUM_CAMERAS)
     
@@ -104,11 +107,12 @@ def main():
                                           shared_ts_udp=shared_ts_udp,
                                           shared_values_udp=shared_values_udp,
                                           lock_udp=lock_udp,
-                                          cam_event=cam_event, 
+                                          cam_event=cam_event,
+                                          valid_event= valid_event,
                                           save_dir=settings.SAVE_DIR, 
                                           stop_event=stop_event)
 
-    processes = camera_processes  +video_savers+ [pipeline, viewer,vicon,udp_data_saver_process]
+    processes = camera_processes + [pipeline, viewer,vicon,udp_data_saver_process]
 
     # Start processes
     for p in processes:

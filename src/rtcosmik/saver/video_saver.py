@@ -37,7 +37,7 @@ class VideoSaver:
 
 #save frames only when saving_flag=True
 class VideoSaverProcess(Process):
-    def __init__(self, camera_id, shared_buffer, lock, frame_counter, frame_shape, save_dir, fps, stop_event, saving_flag: Value):
+    def __init__(self, camera_id, shared_buffer, lock, frame_counter, frame_shape, save_dir, fps,stop_event, saving_flag: Value):
         super().__init__()
         self.camera_id = camera_id
         self.shared_buffer = shared_buffer
@@ -78,7 +78,7 @@ class VideoSaverProcess(Process):
                         # Write frame
                         # Check if saving is enabled
                         if self.saving_flag is not None and self.saving_flag.value:
-                            vs.write_frame(frame)
+                            vs.write_frame(frame) 
                         self.last_frame_count = current_count
                 
                 last_time = time.monotonic()
@@ -126,7 +126,6 @@ class VideoSaverProcess2(Process):
                         frame = arr.reshape(self.frame_shape).copy()
                         
                         # Write frame
-                        print("okkkkkkkkkkkkkkkkk")
                         vs.write_frame(frame)
                         self.last_frame_count = current_count
                 

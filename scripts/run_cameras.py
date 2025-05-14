@@ -17,7 +17,7 @@ def main():
     FRAME_SHAPE = (settings.height, settings.width, 3)
 
     camera_buffers, camera_timestamps, camera_locks, frame_counters, camera_barrier, stop_event = create_camera_shared_ressources(NUM_CAMERAS, FRAME_SHAPE)
-    shared_ts_udp,shared_values_udp,lock_udp,cam_event = create_udp_buffer(settings.marker_mocap_names)
+    shared_ts_udp,shared_values_udp,lock_udp,cam_event ,_= create_udp_buffer(settings.marker_mocap_names)
     # Create camera processes
     camera_processes = [
         Camera(list(cameras.keys())[i], 
@@ -28,6 +28,7 @@ def main():
                camera_barrier, 
                stop_event,
                cam_event, 
+               settings.SAVE_DIR,
                FRAME_SHAPE, 
                settings.fs, 
                settings.fourcc,)
@@ -59,7 +60,7 @@ def main():
             )
             video_savers.append(vs)
 
-    processes = camera_processes   + [display]
+    processes = camera_processes +video_savers  + [display]
 
     # Start processes
     for p in processes:

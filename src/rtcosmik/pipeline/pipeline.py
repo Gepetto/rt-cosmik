@@ -246,6 +246,7 @@ class PipelineProcess(Process):
                  camera_frame_counters: List[Value],
                  results_queues: List[Queue],
                  stop_event: Event,
+                 valid_event:Event,
                  frame_shape: tuple = (720, 1280, 3),
                  num_cameras: int = 2
                  ):
@@ -270,6 +271,7 @@ class PipelineProcess(Process):
         self.cost_weights = settings.cost_weights
         self.N = settings.N
 
+        self.valid_event = valid_event
         self.device = 'cuda' if torch.cuda.is_available() else 'cpu'
 
         # MP
@@ -318,29 +320,53 @@ class PipelineProcess(Process):
                 timestamps = []
                 keypoints_list = []
                 new_counters = []
-                for i, (lock, buffer, cam_ts, frame_counter) in enumerate(zip(self.camera_locks, self.camera_buffers, self.camera_timestamps, self.camera_frame_counters)):
+                camera_locks=[self.camera_locks[0],self.camera_locks[1]]
+
+                cam_ts1 = self.camera_timestamps[0]
+                cam_ts2 = self.camera_timestamps[1]
+                timestamps_buffer = [bytes(cam_ts1[:]).decode().strip('\x00'),bytes(cam_ts2[:]).decode().strip('\x00')]
+
+                camera_frame_counters = [self.camera_frame_counters[0].value,self.camera_frame_counters[1].value]
+                camera_buffers = [(np.frombuffer(self.camera_buffers[0],dtype=np.uint8)).reshape(self.frame_shape).copy(),(np.frombuffer(self.camera_buffers[1], dtype=np.uint8)).reshape(self.frame_shape).copy()]
+    
+                for i, (lock, buffer, frame_counter,ts) in enumerate(zip(camera_locks, camera_buffers, camera_frame_counters,timestamps_buffer)):
                     with lock:
+                        
                         #  Only accept data if this camera has produced a new frame
-                        if frame_counter.value > self.last_frame_counters[i]:
-                            # Read and copy shared data atomically
-                            arr = np.frombuffer(buffer, dtype=np.uint8)
-                            frame = arr.reshape(self.frame_shape).copy()
-                            # Get current timestamp
-                            timestamp = bytes(cam_ts[:]).decode().strip('\x00')
-                            if timestamp == '': # empty data
-                                continue
-                            else:
-                                frames.append(frame)
-                            timestamps.append(timestamp)
-                            new_counters.append(frame_counter.value)
-                            
+                        if frame_counter > self.last_frame_counters[i]:
+                            frames.append(buffer)
+                            new_counters.append(frame_counter)
+                            timestamps.append(ts)
+
                 if len(frames)!=self.num_cameras:
                     continue
 
+            # while not self.stop_event.is_set():
+            #     frames = []
+            #     timestamps = []
+            #     keypoints_list = []
+            #     new_counters = []
+            #     for i, (lock, buffer, cam_ts, frame_counter) in enumerate(zip(self.camera_locks, self.camera_buffers, self.camera_timestamps, self.camera_frame_counters)):
+            #         with lock:
+            #             #  Only accept data if this camera has produced a new frame
+            #             if frame_counter.value > self.last_frame_counters[i]:
+            #                 # Read and copy shared data atomically
+            #                 arr = np.frombuffer(buffer, dtype=np.uint8)
+            #                 frame = arr.reshape(self.frame_shape).copy()
+            #                 # Get current timestamp
+            #                 timestamp = bytes(cam_ts[:]).decode().strip('\x00')
+            #                 if timestamp == '': # empty data
+            #                     continue
+            #                 else:
+            #                     frames.append(frame)
+            #                 timestamps.append(timestamp)
+            #                 new_counters.append(frame_counter.value)
+                            
+            #     if len(frames)!=self.num_cameras:
+            #         continue
+
                 # Update the last processed frame counters so the same frame is not processed twice
                 self.last_frame_counters = new_counters.copy()
-                # print(new_counters)
-                # print(timestamps)
 
                 results = self.tracker.estimate(frames)
                 # self.tracker.visualize(frames, results)
@@ -357,6 +383,7 @@ class PipelineProcess(Process):
                 if len(keypoints_list)!=self.num_cameras:
                     continue
                 else:
+                    self.valid_event.set()
                     keypoints_in_cam = triangulate_points(keypoints_list, self.mtxs, self.dists, self.projections)
                     keypoints_in_world = np.array([np.dot(self.world_R1_cam,point) + self.world_T1_cam for point in keypoints_in_cam])
 
@@ -420,10 +447,10 @@ class PipelineProcess(Process):
                         else:
                             # print(new_counters)
                             kp_dict = dict(zip(self.keypoints_names,filtered_keypoints_buffer[-1]))
-                            self.results_queues[0].put((new_counters, kp_dict))
+                            self.results_queues[0].put((timestamps, kp_dict))
 
                             mks_dict = dict(zip(self.marker_names, augmented_markers))
-                            self.results_queues[1].put((new_counters, mks_dict))
+                            self.results_queues[1].put((timestamps, mks_dict))
 
                             # Adds head keypoints in lstm output for head tracking
                             keys_to_add = ['Nose', 'Head', 'REar', 'LEar', 'REye', 'LEye']
@@ -433,7 +460,7 @@ class PipelineProcess(Process):
                                 ### IK calculations
                                 ik_class._dict_m = mks_dict
                                 q = ik_class.solve_ik_sample_quadprog() 
-                                self.results_queues[2].put((new_counters, q))
+                                self.results_queues[2].put((timestamps, q))
                                 ik_class._q0 = q
                                 
                             elif self.ik_type == 'mhe':
@@ -444,7 +471,7 @@ class PipelineProcess(Process):
 
                                 q = pin.neutral(self.human_model)
                                 q[:] = np.array(x_array[:self.human_model.nq,-1]).flatten()
-                                self.results_queues[2].put((new_counters, q))
+                                self.results_queues[2].put((timestamps, q))
                             else : 
                                 raise ValueError("Invalid ik type, should be sbs (sample by sample) or mhe (moving horizon estimation)")
                             

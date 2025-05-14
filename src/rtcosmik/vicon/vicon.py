@@ -63,11 +63,12 @@ class UDPReceiver(Process):
 
             timestamp = str(received_data[:26])[2:][:-1]
             aa = bytearray(received_data[26:])
-            # logger.info(f"Received from {addr}: {decoded_data}")
+            # logger.info(f"Received from {addr}: {aa}")
 
             unpacked = struct.unpack("<" + "f" * (len(self.markers_names) * 3), aa)
             with self.lock:
                 self.timestamp_buffer[:26] = timestamp.ljust(26, '\0').encode('utf-8')
+                # print(timestamp)
 
                 # copy floats
                 for i, v in enumerate(unpacked):
@@ -86,7 +87,8 @@ class UDPDataSaver(Process):
                  shared_ts_udp,
                  shared_values_udp,
                  lock_udp,
-                 cam_event, 
+                 cam_event,
+                 valid_event,
                  save_dir: str,  # Directory to save CSV
                  stop_event: Event):  # Event to stop the process
         super().__init__()
@@ -102,24 +104,39 @@ class UDPDataSaver(Process):
         self.lock_udp=lock_udp
         self.cam_event=cam_event 
 
+        self.valid_event= valid_event
+
     def run(self):
+        time.sleep(0.6)
+        data_list = []
+        data_list_rt = []
+
         try:
             # Open CSV file to save data
-            self.csv_file = open(f"{self.save_dir}/mks_data.csv", mode='w', newline='')
+            self.csv_file = open(f"{self.save_dir}/mks_data_rt.csv", mode='w', newline='')
             self.csv_writer = csv.writer(self.csv_file)
             self.csv_writer.writerow(['Timestamp', 'UDP Data'])  # CSV header
             
             while not self.stop_event.is_set():
                 self.cam_event.wait()
-                
+                # now_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S.%f")
+                # print("timestamp vicon", now_str)
+
+
                 with self.lock_udp:
                     ts_udp = bytes(self.shared_ts_udp[:]).decode().strip('\x00')
                     vals = list(self.shared_values_udp[:]) 
+                    
                 
                 self.cam_event.clear()
-
                 if self.saving_flag.value:
-                    self.csv_writer.writerow([ts_udp]+vals)
+                # Save always when cam_event is set
+                    data_list.append([ts_udp] + vals)
+
+                    # Save also to RT list if valid_event is set
+                    if self.valid_event.is_set():
+                        data_list_rt.append([ts_udp] + vals)
+                        self.valid_event.clear()
 
 
         except Exception as e:
@@ -128,4 +145,19 @@ class UDPDataSaver(Process):
         finally:
             if self.csv_file:
                 self.csv_file.close()
+            try:
+                with open(f"{self.save_dir}/mks_data_rt.csv", mode='w', newline='') as csv_file:
+                    csv_writer = csv.writer(csv_file)
+                    csv_writer.writerow(['Timestamp', 'UDP_Data'])  # header
+                    csv_writer.writerows(data_list_rt)  # write all collected data
+            except Exception as e:
+                print(f"Error saving CSV: {e}")
+
+            try:
+                with open(f"{self.save_dir}/mks_data.csv", mode='w', newline='') as csv_file:
+                    csv_writer = csv.writer(csv_file)
+                    csv_writer.writerow(['Timestamp', 'UDP_Data'])  # header
+                    csv_writer.writerows(data_list)  # write all collected data
+            except Exception as e:
+                print(f"Error saving CSV: {e}")
             print("DataSaverProcess terminated.")

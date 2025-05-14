@@ -64,8 +64,9 @@ def create_pipeline_shared_resources_with_buffers():
     return buffers
 
 def create_udp_buffer(mks_names):
+    valid_event = mp.Event()
     cam_event = mp.Event()
     shared_ts     = mp.Array('c', 26, lock=False)
     shared_values = mp.Array('f', len(mks_names)*3, lock=False)
     lock          = mp.Lock()
-    return shared_ts,shared_values,lock,cam_event
+    return shared_ts,shared_values,lock,cam_event,valid_event

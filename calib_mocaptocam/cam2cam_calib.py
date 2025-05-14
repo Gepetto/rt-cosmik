@@ -40,20 +40,21 @@ R_c2_in_mocap, d_c2_in_mocap, _, _ = load_transformation(soder_dir + "1" + "/sod
 # R_c1_in_c2 = np.transpose(R_c1_in_mocap)@R_c2_in_mocap
 # d_c1_in_c2 = transform_to_local_frame(d_c2_in_mocap, d_c1_in_mocap, R_c1_in_mocap)
 
-# R_c1_in_c2 = np.transpose(R_c2_in_mocap)@R_c1_in_mocap
-# d_c1_in_c2 = transform_to_local_frame(d_c1_in_mocap, d_c2_in_mocap, R_c2_in_mocap)
-
-# print("rot", R_c1_in_c2)
-# print("pos", d_c1_in_c2)
-M1 = pin.SE3(R_c1_in_mocap, d_c1_in_mocap)
-M2 = pin.SE3(R_c2_in_mocap, d_c2_in_mocap)
-
-M12 = M1.inverse()*M2
-R_c1_in_c2 = M12.rotation
-d_c1_in_c2 = M12.translation
+R_c1_in_c2 = np.transpose(R_c2_in_mocap)@R_c1_in_mocap
+d_c1_in_c2 = transform_to_local_frame(d_c1_in_mocap, d_c2_in_mocap, R_c2_in_mocap)
 
 print("rot", R_c1_in_c2)
 print("pos", d_c1_in_c2)
+
+# M1 = pin.SE3(R_c1_in_mocap, d_c1_in_mocap)
+# M2 = pin.SE3(R_c2_in_mocap, d_c2_in_mocap)
+
+# M12 = M1.inverse()*M2
+# R_c1_in_c2 = M12.rotation
+# d_c1_in_c2 = M12.translation
+
+# print("rot", R_c1_in_c2)
+# print("pos", d_c1_in_c2)
 
 save_cam_to_cam_params(K1, 
                        D1, 
