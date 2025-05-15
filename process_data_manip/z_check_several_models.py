@@ -1,127 +1,129 @@
 import os
 import sys
+# Add the src folder to sys.path so that viewer modules can be found.
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '../../../src')))
 # Get the directory where the script is located
 script_directory = os.path.dirname(os.path.abspath(__file__))
-# Go one folder back
+meshes_folder_path = '/root/workspace/ros_ws/src/rt-cosmik/meshes/'
 rt_cosmik_path = os.path.dirname(script_directory)
-# Append it to sys.path
-sys.path.append(str(rt_cosmik_path))
-meshes_folder_path = os.path.join(rt_cosmik_path, 'meshes')
-
-import pandas as pd 
-import pinocchio as pin 
-from pinocchio.visualize import GepettoVisualizer, RVizVisualizer
 import numpy as np
-from utils.model_w_mocap_utils import build_model_challenge, get_segments_lstm_mks_dict_challenge, get_subset_challenge_mks_names, construct_segments_frames_challenge
-from utils.ik_utils import RT_IK
+import pinocchio as pin
+from pinocchio.visualize import GepettoVisualizer
+from src.rtcosmik.utils.read_write_utils import read_mks_data, udp_csv_to_dataframe,read_joint_angles_wholebody
+import pandas as pd
+from src.rtcosmik.viewer.gv_viewer import place, gv_init, Rquat, add_marker, add_frames
+from src.rtcosmik.config_loader import settings
+from src.rtcosmik.human_model.pin_model import build_model
+from src.rtcosmik.human_model.model_utils import construct_segments_frames, get_segments_mks_dict
+from src.rtcosmik.ik.ik import RT_IK,RT_SWIKA
+from collections import deque
 import time
-import csv
-from utils.read_write_utils import read_mks_data, read_joint_angles_wholebody
-from utils.settings import Settings
-from utils.iir import IIR
-from utils.viz_utils import place, Rquat, visualize_model_and_measurements
-
-
-q_cosmik_path = 'q/q_cosmik_qp_interpolated_33Hz.csv'
-lstm_mks = pd.read_csv(os.path.join(rt_cosmik_path,'process_data_manip/mks_lstm/augmented_markers_positions_test_2.csv')) #path to mks data
-
-q_mocap_path = 'q/q_mocap_qp_downsampled_33Hz.csv'
-mocap_mks = pd.read_csv(os.path.join(rt_cosmik_path,'process_data_manip/mks_mocap/mks_mocap_test_2.csv')) #path to mks data
-
+import matplotlib.pyplot as plt
+from src.rtcosmik.human_model.urdf_model import * 
 
 start_sample=0
-##for lstm data 
-result_markers_lstm = []
-for frame, group in lstm_mks.groupby("Frame"):
-    frame_dict = {row["Marker"]: np.array([row["X"], row["Y"], row["Z"]]) for _, row in group.iterrows()}
-    result_markers_lstm.append(frame_dict)
+no_trial = "Nicolas"
+task = "robot_polissage"
+path_to_csv_mocap = f"/root/workspace/ros_ws/src/rt-cosmik/output/{no_trial}/{task}/mks_data.csv"
+q_path_mocap= f"/root/workspace/ros_ws/src/rt-cosmik/output/{no_trial}/{task}/q_mocap_ipopt.csv"
 
-lstm_dict = result_markers_lstm[start_sample]
-# model_lstm, geom_model_lstm, visuals_dict_lstm = build_model_challenge(lstm_dict, lstm_dict, meshes_folder_path)
+mks_names = settings.marker_mocap_names
+#read mks data
+df_wide = udp_csv_to_dataframe(path_to_csv_mocap, mks_names)
+result_markers_mocap, start_sample_mks_mocap = read_mks_data(df_wide)
+
+path_to_csv_lstm = f"/root/workspace/ros_ws/src/rt-cosmik/output/{no_trial}/{task}/augmented_markers.csv"
+path_to_kpt = f"/root/workspace/ros_ws/src/rt-cosmik/output/{no_trial}/{task}/3d_keypoints_filtred.csv"
+q_path_cosmik= f"/root/workspace/ros_ws/src/rt-cosmik/output/{no_trial}/{task}/q_cosmik_ipopt.csv"
+keys_to_add = ['Nose', 'Head', 'REar', 'LEar', 'REye', 'LEye']
+data_markers_lstm = pd.read_csv(path_to_csv_lstm) 
+keypoints = pd.read_csv(path_to_kpt) 
+columns_to_add = [col for col in keypoints.columns if any(key + '_' in col for key in keys_to_add)]
+if len(data_markers_lstm) != len(keypoints):
+    raise ValueError("Row count mismatch between data_markers_lstm and keypoints")
+data_markers_lstm = pd.concat([data_markers_lstm, keypoints[columns_to_add].reset_index(drop=True)], axis=1)
+result_markers_lstm, start_sample_mks_lstm = read_mks_data(data_markers_lstm, start_sample=start_sample) #check the function of read 
 
 
-# for mocap data
-result_markers, mocap_dict = read_mks_data(mocap_mks, start_sample=start_sample) #check the function of read 
-
-mocap_dict = result_markers[start_sample]
-human_model, human_geom_model, visuals_dict = build_model_challenge(mocap_dict, mocap_dict, meshes_folder_path)
-
-model_lstm, geom_model_lstm, visuals_dict_lstm = build_model_challenge(mocap_dict, mocap_dict, meshes_folder_path)
-
-
+markers_to_display = ['r.ASIS_study','L.ASIS_study','r.PSIS_study','L.PSIS_study','r_knee_study',
+           'r_mknee_study','r_ankle_study','r_mankle_study','r_toe_study','r_5meta_study',
+           'r_calc_study','L_knee_study','L_mknee_study','L_ankle_study','L_mankle_study',
+           'L_toe_study','L_calc_study','L_5meta_study','r_shoulder_study','L_shoulder_study',
+           'C7_study',
+           'r_lelbow_study',
+           'r_melbow_study','r_lwrist_study','r_mwrist_study','L_lelbow_study','L_melbow_study',
+           'L_lwrist_study','L_mwrist_study']
+#load urdf mocap
+human = Robot('/root/workspace/ros_ws/src/rt-cosmik/urdf/human.urdf',rt_cosmik_path,isFext=True) 
+human_model = human.model
+human_data = human.data
+human_collision_model = human.collision_model
+human_visual_model = human.visual_model
+human_model = scale_human_model(human_model, start_sample_mks_mocap,with_hand=True,gender='male',subject_height=1.85)
+human_model= mks_registration(human_model,start_sample_mks_mocap, with_hand=True)
+human_data = pin.Data(human_model)
 # VISUALIZATION
+ 
+  
 
-viz = GepettoVisualizer(human_model,human_geom_model.copy(),human_geom_model)
-
-try:
-    viz.initViewer()
-except ImportError as err:
-    print(
-        "Error while initializing the viewer. It seems you should install gepetto-viewer"
-    )
-    print(err)
-    sys.exit(0)
-
-try:
-    viz.loadViewerModel("model_mocap")
-except AttributeError as err:
-    print(
-        "Error while loading the viewer model. It seems you should start gepetto-viewer"
-    )
-    print(err)
-    sys.exit(0)
-
-viz_lstm = GepettoVisualizer(model_lstm,geom_model_lstm.copy(),geom_model_lstm)
-viz_lstm.initViewer()
-viz_lstm.loadViewerModel("model_cosmik")
-
-
-seg_names_mks = get_segments_lstm_mks_dict_challenge()
-
-for name, visual in visuals_dict.items():
+viz = gv_init(human_model,human_collision_model,human_visual_model,start_sample_mks_mocap)
+for visual in human_visual_model.geometryObjects:
     viz.viewer.gui.setColor(viz.getViewerNodeName(visual, pin.GeometryType.VISUAL), [1, 0, 0, 0.5])
 
-for name, visual in visuals_dict_lstm.items():
+#load urdf cosmik
+human_cosmik = Robot('/root/workspace/ros_ws/src/rt-cosmik/urdf/human.urdf',rt_cosmik_path,isFext=True) 
+human_model_cosmik = human_cosmik.model
+human_data_cosmik = human_cosmik.data
+human_collision_model_cosmik = human_cosmik.collision_model
+human_visual_model_cosmik = human_cosmik.visual_model
+#scale the model to data
+human_model = scale_human_model(human_model_cosmik, start_sample_mks_lstm,with_hand=True,gender='male',subject_height=1.85)
+human_model= mks_registration(human_model_cosmik,start_sample_mks_lstm, with_hand=False)
+human_data_cosmik = pin.Data(human_model_cosmik)
+###visualization
+viz_lstm = GepettoVisualizer(human_model_cosmik,human_collision_model_cosmik.copy(),human_visual_model_cosmik)
+viz_lstm.initViewer()
+viz_lstm.loadViewerModel("model_cosmik")
+for visual in human_visual_model_cosmik.geometryObjects:
     viz_lstm.viewer.gui.setColor(viz_lstm.getViewerNodeName(visual, pin.GeometryType.VISUAL), [0, 1, 0, 0.5])
 
-
-
-data_lstm = model_lstm.createData()
-q_cosmik = read_joint_angles_wholebody(q_cosmik_path, 0, 0)
+#measured frames
+# seg_frames = construct_segments_frames(result_markers_mocap[start_sample])
+# add_frames(viz,seg_frames,"meas", 0.008, 0.08)
+#model markers spheres 
+add_marker(viz,start_sample_mks_mocap,"_mocap", 1, 0,0)
+add_marker(viz,start_sample_mks_lstm,"_cosmik", 0, 1,0)
+#model frames
+seg_names_mks = get_segments_mks_dict(result_markers_mocap[start_sample])
+seg_names_mks_cosmik = get_segments_mks_dict(result_markers_lstm[start_sample])
+# add_frames(viz,seg_names_mks,"model", 0.012, 0.05)
 
 
 data = human_model.createData()
-q_mocap = read_joint_angles_wholebody(q_mocap_path, 35, 34)
+data_cosmik = human_model_cosmik.createData()
+q_mocap = read_joint_angles_wholebody(q_path_mocap, start_sample)
+q_cosmik= read_joint_angles_wholebody(q_path_cosmik, start_sample)
 
-for seg_name, mks in seg_names_mks.items():
-    viz.viewer.gui.addXYZaxis(f'world/{seg_name}', [255, 0., 0, 1.], 0.008, 0.08)
-    for mk_name in mks:
-            sphere_name_mocap = f'world/{mk_name}_mocap'
-            sphere_name_cosmik = f'world/{mk_name}_cosmik'
-            print(sphere_name_cosmik)
-            viz.viewer.gui.addSphere(sphere_name_mocap, 0.01, [255, 0., 0, 1.])
-            viz_lstm.viewer.gui.addSphere(sphere_name_cosmik, 0.01, [0, 255., 0, 1.])
-input()
-for i in range(len(q_cosmik)):
+for i in range(len(q_mocap)):
     
-    print(q_mocap[i])
     pin.forwardKinematics(human_model, data, q_mocap[i])
     pin.updateFramePlacements(human_model, data)
 
-    pin.forwardKinematics(model_lstm, data_lstm, q_cosmik[i])
-    pin.updateFramePlacements(model_lstm, data_lstm)
+    pin.forwardKinematics(human_model_cosmik, data_cosmik, q_cosmik[i])
+    pin.updateFramePlacements(human_model_cosmik, data_cosmik)
 
     viz.display(q_mocap[i])
     viz_lstm.display(q_cosmik[i])
 
-    for seg_name, mks in seg_names_mks.items():
         #Display markers from model
-            for mk_name in mks:
-                sphere_name_mocap = f'world/{mk_name}_mocap'
-                sphere_name_cosmik = f'world/{mk_name}_cosmik'
-                mk_position_mocap = data.oMf[human_model.getFrameId(mk_name)].translation
-                mk_position_cosmik = data_lstm.oMf[model_lstm.getFrameId(mk_name)].translation
-                place(viz, sphere_name_mocap, pin.SE3(np.eye(3), np.matrix(mk_position_mocap.reshape(3,)).T))
-                place(viz_lstm, sphere_name_cosmik, pin.SE3(np.eye(3), np.matrix(mk_position_cosmik.reshape(3,)).T))
-    time.sleep(0.01)
+    for mk_name in markers_to_display:
+        sphere_name_mocap = f'world/{mk_name}_mocap'
+        sphere_name_cosmik = f'world/{mk_name}_cosmik'
+        mk_position_mocap = data.oMf[human_model.getFrameId(mk_name)].translation
+        mk_position_cosmik = data_cosmik.oMf[human_model_cosmik.getFrameId(mk_name)].translation
+        place(viz, sphere_name_mocap, pin.SE3(np.eye(3), np.matrix(mk_position_mocap.reshape(3,)).T))
+        place(viz_lstm, sphere_name_cosmik, pin.SE3(np.eye(3), np.matrix(mk_position_cosmik.reshape(3,)).T))
+
+    time.sleep(0.05)
+
     # input()

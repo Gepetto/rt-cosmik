@@ -75,17 +75,14 @@ def get_head_pose(mks_positions):
         X = np.cross(Y, Z, axis=0)
         Z = np.cross(X, Y, axis=0)
     else: 
-        back_head_center = (mks_positions['RBHD']+mks_positions['LBHD'])/2.0
-        front_head_center = (mks_positions['RFHD']+mks_positions['LFHD'])/2.0
         head_center = (mks_positions['r_shoulder_study'] + mks_positions['L_shoulder_study'])/2.0 
-        X = (front_head_center - back_head_center).reshape(3,1)
+        X = mks_positions['FHD'] - mks_positions['BHD']
         X = X/np.linalg.norm(X)
-
-        Z = mks_positions['RBHD'] - mks_positions['LBHD']
+        Z = mks_positions['RHD'] - mks_positions['LHD']
         Z = Z/np.linalg.norm(Z)
-
         Y = np.cross(Z, X, axis=0)
         Z = np.cross(X, Y, axis=0)
+
 
     pose[:3,0] = X.reshape(3,)
     pose[:3,1] = Y.reshape(3,)
@@ -915,7 +912,7 @@ def get_segments_mks_dict(mks_positions)->Dict:
     }
     else : #with mocap set
         sgts_mks_dict = {
-            "head": ['LBHD','RBHD','LFHD','RFHD'], 
+            "head": ['BHD','RHD','LHD','FHD'],
             "thorax": ['C7_study','TV8','TV12','SJN','STRN'],
             "right_clavicle" : ['r_shoulder_study'],
             "left_clavicle" : ['L_shoulder_study'],

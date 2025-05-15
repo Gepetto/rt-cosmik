@@ -9,14 +9,24 @@ sys.path.append(parent_dir)
 from viz_utils import place
 import pandas as pd 
 from src.rtcosmik.config_loader import settings
+from src.rtcosmik.utils.read_write_utils import load_transformation
 
-
-no_trial = "trial3"
-task = "static"
+no_trial = "Nicolas"
+task = "walk"
 path_to_csv = f"/root/workspace/ros_ws/src/rt-cosmik/output/{no_trial}/{task}/augmented_markers.csv"
-mks_names = settings.marker_names
+mks_names = [
+           'r.ASIS_study','L.ASIS_study','r.PSIS_study','L.PSIS_study','r_knee_study',
+           'r_mknee_study','r_ankle_study','r_mankle_study','r_toe_study','r_5meta_study',
+           'r_calc_study','L_knee_study','L_mknee_study','L_ankle_study','L_mankle_study',
+           'L_toe_study','L_calc_study','L_5meta_study','r_shoulder_study','L_shoulder_study',
+           'C7_study','r_thigh1_study','r_thigh2_study','r_thigh3_study','L_thigh1_study',
+           'L_thigh2_study','L_thigh3_study','r_sh1_study','r_sh2_study','r_sh3_study',
+           'L_sh1_study','L_sh2_study','L_sh3_study','RHJC_study','LHJC_study','r_lelbow_study',
+           'r_melbow_study','r_lwrist_study','r_mwrist_study','L_lelbow_study','L_melbow_study',
+           'L_lwrist_study','L_mwrist_study']
 
-# path_to_csv = f"/root/workspace/ros_ws/src/rt-cosmik/output/{no_trial}/{task}/3d_keypoints.csv"
+
+# path_to_csv = f"/root/workspace/ros_ws/src/rt-cosmik/output/{no_trial}/{task}/3d_keypoints_filtred.csv"
 # mks_names = [
 #         "Nose", "LEye", "REye", "LEar", "REar", 
 #         "LShoulder", "RShoulder", "LElbow", "RElbow", 
@@ -105,12 +115,11 @@ for name in mks_names:
 
 for i in range(len(mks_dict)):
     for name in mks_names:
-        # print(name)
-        # print(mks_dict[i][name])
         sphere_name = f'world/{name}'
-        place(viz, sphere_name, pin.SE3(np.eye(3), np.matrix(mks_dict[i][name].reshape(3,)).T))
+        position_mks= mks_dict[i][name].reshape(3,).T
+        place(viz, sphere_name, pin.SE3(np.eye(3), position_mks.reshape(3,)))
     
-    # time.sleep(0.03)
-    input()
+    time.sleep(0.03)
+    # input()
 
 

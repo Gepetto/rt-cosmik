@@ -72,6 +72,9 @@ for frame in human_model.frames.tolist():
     viz.viewer.gui.addXYZaxis('world/'+frame.name,[1,0,0,1],0.01,0.1)
     place(viz,'world/'+frame.name,human_data.oMf[human_model.getFrameId(frame.name)])
 
+# Print all joint names
+for joint_id in range(human_model.nq):
+    print(f"Joint ID: {joint_id}, Name: {human_model.names[joint_id]}")
 # get_segment_length(start_sample_dict)
 # measured frames
 # seg_frames = construct_segments_frames(start_sample_dict)

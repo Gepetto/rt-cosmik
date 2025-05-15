@@ -320,14 +320,16 @@ def read_joint_angles(directory_name:str)->np.ndarray:
 def read_joint_angles_wholebody(file_path, start_sample):
 
     dofs_names  = ['FF_X', 'FF_Y', 'FF_Z', 'FF_quatx','FF_quaty',
-                          'FF_quatz', 'FF_quatw', 'Lumbar_flex_ext', 'Lumbar_int_ext_rot',
+                          'FF_quatz', 'FF_quatw', 'Lhip_flex_ext', 'Lhip_abd_add','Lhip_int_ext_rot','Lknee_flex_ext','Lankle_flex_ext','Lankle_abd_add',
+                          'Lumbar_flex_ext', 'Lumbar_lateral_flex',
+                          'thoracic_flex_ext','thoracic_lateral_flex','thoracic_rot_int_ext',
+                          'Lcalvicule_x',
+                          'Lshoulder_flex_ext','Lshoulder_abd_add', 'Lshoulder_int_ext_rot','Lelbow_flex_ext','Lelbow_pron_supi','Lwrist_flex_ext','Lwrist_x',
                           'Cervical_flex_ext', 'Cervical_lat_bend', 'Cervical_int_ext_rot',
-                          'Rshoulder_flex_ext', 'Rshoulder_abd_add', 'Rshoulder_int_ext_rot',
-                          'Relbow_flex_ext', 'Relbow_pron_supi', 'Lshoulder_flex_ext',
-                          'Lshoulder_abd_add', 'Lshoulder_int_ext_rot', 'Lelbow_flex_ext',
-                          'Lelbow_pron_supi','Rhip_flex_ext','Rhip_abd_add','Rhip_int_ext_rot',
-                          'Rknee_flex_ext','Rankle_flex_ext','Lhip_flex_ext', 'Lhip_abd_add', 
-                          'Lhip_int_ext_rot', 'Lknee_flex_ext', 'Lankle_flex_ext']
+                          'rcalvicule_x',
+                          'Rshoulder_flex_ext', 'Rshoulder_abd_add', 'Rshoulder_int_ext_rot','Relbow_flex_ext', 'Relbow_pron_supi', 'Rwrist_flex_ext','Rwrist_x',
+                          'Rhip_flex_ext','Rhip_abd_add','Rhip_int_ext_rot',
+                          'Rknee_flex_ext','Rankle_flex_ext', 'Rankle_abd_add']
     q = []
     with open(file_path, mode='r') as csv_file:
         csv_reader = csv.reader(csv_file)
@@ -689,3 +691,46 @@ def plot_marker_trajectories(udp_df, marker_names):
         plt.tight_layout(rect=[0, 0, 1, 0.96])
         plt.show()
 
+def load_transformation(file_path):
+    """
+    Loads the transformation parameters (R, d, s, rms) from a text file.
+
+    Parameters:
+    file_path: str
+        Path to the file from which the transformation parameters will be read.
+
+    Returns:
+    R: ndarray
+        Rotation matrix (3x3)
+    d: ndarray
+        Translation vector (3,)
+    s: float
+        Scale factor
+    rms: float
+        Root mean square fit error
+    """
+    with open(file_path, 'r') as f:
+        lines = f.readlines()
+        R_start = lines.index("Rotation Matrix (R):\n") + 1
+        R = np.loadtxt(lines[R_start:R_start + 3])
+        d_start = lines.index("Translation Vector (d):\n") + 1
+        d = np.loadtxt(lines[d_start:d_start + 1]).flatten()
+        s_line = next(line for line in lines if line.startswith("Scale Factor (s):"))
+        s = float(s_line.split(":")[1].strip())
+        rms_line = next(line for line in lines if line.startswith("RMS Error:"))
+        rms = float(rms_line.split(":")[1].strip())
+    return R, d, s, rms
+
+def transform_keypoints_list_cam0_to_mocap(keypoints_list, R_trans, d_trans):
+    """Apply transformation to each frame of flattened 3D keypoints."""
+    transformed_list = []
+
+    for flat_coords in keypoints_list:
+        # Convert to shape (N, 3)
+        p3d_cam0 = np.array(flat_coords).reshape(-1, 3)  # (N, 3)
+        # Apply transformation
+        p3d_mocap = (R_trans @ p3d_cam0.T).T + d_trans  # (N, 3)
+        # Flatten again
+        transformed_list.append(p3d_mocap.flatten().tolist())
+
+    return transformed_list
