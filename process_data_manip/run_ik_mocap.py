@@ -20,14 +20,22 @@ from src.rtcosmik.utils.linear_algebra_utils import butterworth_filter
 
 
 
-mks_to_skip = ['LForearm','LUArm', 'RUArm','TV8','TV12','SJN','STRN',
-               'LHand2','LHand1','LHL2','LHM5', 'RForearm','RHand2','RHand1','RHL2','RHM5', 'L_sh1_study', 'L_thigh1_study','r_sh1_study', 'r_thigh1_study']
+mks_to_skip = ['LForearm','LUArm', 'RUArm','TV8','TV12','SJN','STRN','r_pelvis','l_pelvis',
+               'LHand','LHand1','LHL2','LHM5', 'RForearm','RHand','RHand1','RHL2','RHM5', 'L_sh1_study', 'L_thigh1_study','r_sh1_study', 'r_thigh1_study']
 start_sample = 0
 
-no_trial = "trial3"
-task = "upper"
+no_trial = "Nicolas"
+task = "static"
 path_to_csv = f"/root/workspace/ros_ws/src/rt-cosmik/output/{no_trial}/{task}/mks_data.csv"
-mks_names = settings.marker_mocap_names    
+mks_names = ['r.PSIS_study','L.PSIS_study','r.ASIS_study','L.ASIS_study',
+             'TV8','TV12','SJN','STRN','C7_study','r_shoulder_study','L_shoulder_study',
+             'BHD','RHD','LHD','FHD',
+             'L_lelbow_study','L_melbow_study','LUArm','L_lwrist_study','L_mwrist_study','LForearm','LHand','LHL2','LHM5',
+             'r_lelbow_study','r_melbow_study','RUArm','r_lwrist_study','r_mwrist_study','RForearm','RHand','RHL2','RHM5',
+             'L_thigh1_study','L_knee_study','L_mknee_study','L_sh1_study','L_ankle_study','L_mankle_study','L_calc_study','L_5meta_study','L_toe_study',
+             'r_thigh1_study','r_knee_study','r_mknee_study','r_sh1_study',
+             'r_ankle_study','r_mankle_study','r_calc_study','r_5meta_study','r_toe_study',
+             'r_pelvis', 'l_pelvis']
 
 #read mks data
 df_raw = pd.read_csv(path_to_csv)  # original with 'marker_data'
@@ -48,14 +56,14 @@ add_marker(viz,result_markers[1].keys(),'_m', 0, 1,0)
 #model frames
 seg_names_mks = get_segments_mks_dict(result_markers[start_sample])
 add_frames(viz,seg_names_mks,"model", 0.012, 0.05)
-
+input()
 ### IK init 
 dt = 1/40
 
 q = pin.neutral(human_model) # init pos
 human_data = pin.Data(human_model)
 keys_to_track_list = [
-        'LBHD','RBHD','LFHD','RFHD',
+        'BHD','RHD','LHD','FHD',
         'C7_study', 
         'r.ASIS_study', 'L.ASIS_study', 
         'r.PSIS_study', 'L.PSIS_study', 
@@ -114,6 +122,7 @@ for ii in range(start_sample,len(result_markers)):
     M_model_frame = {}
 
     for marker in result_markers[ii].keys():
+        print(marker)
         if marker in mks_to_skip: 
             continue  #skip
         pos_gt = np.array(result_markers[ii][marker])
