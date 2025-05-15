@@ -11,8 +11,11 @@ from utils import *
 import pandas as pd
 from rigid_bodies_algorithms import *
 
+# UDP Configuration
+ip = "172.20.167.86"  # The IP the receiver listens on
+port = 44445  # The port to receive data on
 
-no_test = "calib_mocap_2_cam1"
+no_test = "calib_mocap_2_cam2"
 cap = cv2.VideoCapture(2)
 mtxs, dists, projections, rotations, translations = load_camera_parameters(settings.cam_calib_path)
 camera_matrix = mtxs[1]  
@@ -27,9 +30,6 @@ udp_csv_file = os.path.join(output_dir, "mks_data.csv")
 
 
 ####first get data from qr code et mocap
-# UDP Configuration
-ip = "172.20.167.86"  # The IP the receiver listens on
-port = 44445  # The port to receive data on
 
 def get_latest_message(sock):
     latest_data = None
@@ -175,7 +175,7 @@ for i in range (len(mks_array)):
 
 # Convert to DataFrame and save to CSV
 barycenter_global_df = pd.DataFrame(barycenter_global_list, columns=["Bx", "By", "Bz"])
-barycenter_global_df.to_csv(os.path.join(output_dir, "barycenter_raw.csv"), index=False)
+barycenter_global_df.to_csv(os.path.join(output_dir, "barycenter.csv"), index=False)
 
 
 ###get the transformation using soder or challis
@@ -188,7 +188,7 @@ position_names = ['tvec']
 position = []
 for p in position_names:
     position = position + [f"{p}_x",f"{p}_y",f"{p}_z"]
-mocap_df = pd.read_csv(f"/root/workspace/ros_ws/src/rt-cosmik/output/{no_test}/barycenter_raw.csv", usecols=mks_features_names).values
+mocap_df = pd.read_csv(f"/root/workspace/ros_ws/src/rt-cosmik/output/{no_test}/barycenter.csv", usecols=mks_features_names).values
 postion_aruco = pd.read_csv(f"/root/workspace/ros_ws/src/rt-cosmik/output/{no_test}/pose_aruco.csv", usecols=position).values
 res_file = f"/root/workspace/ros_ws/src/rt-cosmik/output/{no_test}/soder.txt"
 

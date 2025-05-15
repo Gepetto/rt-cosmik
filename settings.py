@@ -7,8 +7,8 @@ class Settings:
     cosmik_path: str = field(init=False)
     
     # SAVE 
-    subject = "trial3"
-    motion = "lifting_2"
+    subject = "Nicolas"
+    motion = "robot_welding"
     SAVE_VID: bool = True
     SAVE_CSV: bool = True
     SAVE_DIR: str = f"/root/workspace/ros_ws/src/rt-cosmik/output/{subject}/{motion}" # abs path to the save folder

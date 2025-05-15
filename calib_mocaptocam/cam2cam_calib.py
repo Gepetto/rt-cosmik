@@ -33,7 +33,7 @@ soder_dir = f"/root/workspace/ros_ws/src/rt-cosmik/output/calib_mocap_2_cam"
 cam2cam_dir = f"/root/workspace/ros_ws/src/rt-cosmik/config/cam_params/c1_to_c2_params_color.yaml"
 
 R_c1_in_mocap, d_c1_in_mocap, _, _ = load_transformation(soder_dir + "0" + "/soder.txt")
-R_c2_in_mocap, d_c2_in_mocap, _, _ = load_transformation(soder_dir + "1" + "/soder.txt")
+R_c2_in_mocap, d_c2_in_mocap, _, _ = load_transformation(soder_dir + "2" + "/soder.txt")
 
 # c1_to_c2_in_mocap = d_c2_in_mocap - d_c1_in_mocap
 
