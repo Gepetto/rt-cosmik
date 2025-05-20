@@ -5,7 +5,7 @@ import csv
 import os
 import sys
 import time
-from src.rtcosmik.camera.cam_utils import load_camera_parameters
+from src.rtcosmik.camera.cam_utils import load_cam_params
 from src.rtcosmik.config_loader import settings
 import select
 from utils import *
@@ -13,16 +13,19 @@ import pandas as pd
 from rigid_bodies_algorithms import *
 
 num_cam = sys.argv[1]
+config_path = f"/root/workspace/ros_ws/src/cams_calibration/config/cam_params/c{num_cam}_params_color.yaml"
 
 # UDP Configuration
-ip = "172.20.167.86"  # The IP the receiver listens on
+ip = "172.20.183.220"  # The IP the receiver listens on
 port = 44445  # The port to receive data on
 
 no_test = f"calib_mocap_2_cam{num_cam}"
-cap = cv2.VideoCapture(int(num_cam))
-mtxs, dists, projections, rotations, translations = load_camera_parameters(settings.cam_calib_path)
-camera_matrix = mtxs[int(num_cam)-1]  
-dist_coeffs = dists[int(num_cam)-1]
+cap = cv2.VideoCapture(int(num_cam)-1)
+if not cap.isOpened():
+    cap = cv2.VideoCapture(int(num_cam))
+K, D = load_cam_params(os.path.join(config_path))
+camera_matrix = K 
+dist_coeffs = D
 print(camera_matrix)
 
 # Create output directory if it doesn't exist
