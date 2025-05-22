@@ -15,11 +15,11 @@ from rigid_bodies_algorithms import *
 ip = "172.20.167.86"  # The IP the receiver listens on
 port = 44445  # The port to receive data on
 
-no_test = "calib_mocap_2_cam2"
-cap = cv2.VideoCapture(2)
+no_test = "calib_mocap_2_cam1"
+cap = cv2.VideoCapture(0)
 mtxs, dists, projections, rotations, translations = load_camera_parameters(settings.cam_calib_path)
-camera_matrix = mtxs[1]  
-dist_coeffs = dists[1]
+camera_matrix = mtxs[0]  
+dist_coeffs = dists[0]
 print(camera_matrix)
 
 # Create output directory if it doesn't exist

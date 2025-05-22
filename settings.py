@@ -7,15 +7,15 @@ class Settings:
     cosmik_path: str = field(init=False)
     
     # SAVE 
-    subject = "Nicolas"
+    subject = "Gabriel"
     motion = "robot_welding"
     SAVE_VID: bool = True
     SAVE_CSV: bool = True
     SAVE_DIR: str = f"/root/workspace/ros_ws/src/rt-cosmik/output/{subject}/{motion}" # abs path to the save folder
 
     # HUMAN ANTHROPOMETRY
-    human_height: float = 1.85
-    human_mass: float = 75.0 
+    human_height: float = 1.70
+    human_mass: float = 67.0
 
     # CAM PARAMS
     fs: int = 40
