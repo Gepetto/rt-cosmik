@@ -9,7 +9,7 @@ import socket
 import csv 
 import time
 import os
-
+from src.rtcosmik.utils.linear_algebra_utils import concat_frames
 class Camera(Process):
     def __init__(self, 
                  cam_id: int,
@@ -186,6 +186,7 @@ class DisplayConsumer(Process):
                 ########################################
                 # Create a horizontal stack of frames
                 combined_frame = np.hstack(frames)
+                combined_frame = concat_frames(frames)
                 
                 # Show combined view
                 cv2.imshow(combined_window,  combined_frame)

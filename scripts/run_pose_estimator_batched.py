@@ -9,11 +9,14 @@ from src.rtcosmik.config_loader import settings
 from src.rtcosmik.camera.cam_utils import list_cameras
 from src.rtcosmik.camera.camera import Camera
 from src.rtcosmik.pose_estimator.pose_estimator import BatchPoseTrackerProcess
-from src.rtcosmik.utils.mp_utils import create_udp_buffer,create_camera_shared_ressources
+from src.rtcosmik.utils.mp_utils import create_udp_buffer,create_camera_shared_ressources,keyboard_listener,ensure_directory_exists
 from multiprocessing import set_start_method, Barrier, Value
 
 def main():
+    ensure_directory_exists(settings.SAVE_DIR) 
     saving_enabled = Value('b', False)
+    keyboard_listener(saving_enabled)
+
     # rtmpose model paths
     DET_MODEL_PATH = settings.det_model_path
     POSE_MODEL_PATH = settings.pose_model_path
@@ -35,7 +38,7 @@ def main():
                camera_barrier, 
                stop_event,
                cam_event,
-               settings.SAVE_DIR, 
+               settings.SAVE_DIR,
                FRAME_SHAPE, 
                settings.fs, 
                settings.fourcc,

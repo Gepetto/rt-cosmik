@@ -8,7 +8,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(
 from src.rtcosmik.config_loader import settings
 from src.rtcosmik.camera.cam_utils import list_cameras
 from src.rtcosmik.camera.camera import Camera, DisplayConsumer
-from src.rtcosmik.utils.mp_utils import create_camera_shared_ressources, create_pipeline_shared_ressources, create_pipeline_shared_resources_with_buffers,create_udp_buffer
+from src.rtcosmik.utils.mp_utils import keyboard_listener,create_camera_shared_ressources, create_pipeline_shared_ressources, create_pipeline_shared_resources_with_buffers,create_udp_buffer,ensure_directory_exists
 from src.rtcosmik.saver.video_saver import VideoSaverProcess
 from src.rtcosmik.pipeline.pipeline import PipelineProcess
 from src.rtcosmik.viewer.viewer import ViewerProcess
@@ -16,10 +16,13 @@ from src.rtcosmik.vicon.vicon import UDPDataSaver, UDPReceiver
 import time
 from multiprocessing import set_start_method
 from multiprocessing import Value, Array
-
+from src.rtcosmik.saver.csv_saver import CSVSaver
 
 def main():
+    ensure_directory_exists(settings.SAVE_DIR) 
+
     saving_enabled = Value('b', False)
+    keyboard_listener(saving_enabled)
 
     cameras = list_cameras()
     NUM_CAMERAS = len(cameras)

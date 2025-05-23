@@ -129,24 +129,6 @@ class ViewerProcess(Process):
                              self.freeflyer)
         
         
-        def on_press(key):
-            try:
-                if key.char == 's':
-                    print("[Viewer] Start saving data")
-                    self.saving_enabled = True
-                    if self.saving_flag is not None:
-                        self.saving_flag.value = True  
-                elif key.char == 'q':
-                    print("[Viewer] Stop saving data")
-                    self.saving_enabled = False
-                    if self.saving_flag is not None:
-                        self.saving_flag.value = False  
-            except AttributeError:
-                pass
-
-        # Start keyboard listener in background
-        listener = keyboard.Listener(on_press=on_press)
-        listener.start()
 
         try: 
             while not self.stop_event.is_set():
@@ -243,12 +225,11 @@ class ViewerProcess(Process):
                     # print("Ordered keypoints:", ordered_keypoints)
                     # print("Ordered markers:", ordered_markers)
 
-                    self.csv_saver.save_keypoints(ordered_keypoints)
-                    self.csv_saver.save_markers(ordered_markers)
-                    self.csv_saver.save_joint_angles(ordered_joint_angles)
+                    # self.csv_saver.save_keypoints(ordered_keypoints)
+                    # self.csv_saver.save_markers(ordered_markers)
+                    # self.csv_saver.save_joint_angles(ordered_joint_angles)
 
         finally:
-            listener.stop()
             print("Viewer process terminated")
 
 

@@ -6,6 +6,7 @@ import os
 import time
 from src.rtcosmik.camera.cam_utils import load_camera_parameters
 from src.rtcosmik.config_loader import settings
+from src.rtcosmik.camera.cam_utils import list_cameras
 import select
 from utils import *
 import pandas as pd
@@ -17,9 +18,24 @@ port = 44445  # The port to receive data on
 
 no_test = "calib_mocap_2_cam1"
 cap = cv2.VideoCapture(0)
+
+cameras = list_cameras()
+print(cameras)
+captures = [cv2.VideoCapture(idx, cv2.CAP_V4L2) for idx in cameras.keys()]
+id_cam = 0
+for idx, cap in enumerate(captures):
+    if not cap.isOpened():
+        continue
+
+    # Apply settings
+    cap.set(cv2.CAP_PROP_FOURCC, cv2.VideoWriter_fourcc(*'YUYV'))
+    cap.set(cv2.CAP_PROP_FRAME_WIDTH, settings.width)
+    cap.set(cv2.CAP_PROP_FRAME_HEIGHT, settings.height)
+    cap.set(cv2.CAP_PROP_FPS, settings.fs)
+
 mtxs, dists, projections, rotations, translations = load_camera_parameters(settings.cam_calib_path)
-camera_matrix = mtxs[0]  
-dist_coeffs = dists[0]
+camera_matrix = mtxs[id_cam]  
+dist_coeffs = dists[id_cam]
 print(camera_matrix)
 
 # Create output directory if it doesn't exist
@@ -59,21 +75,6 @@ aruco_dict = cv2.aruco.getPredefinedDictionary(cv2.aruco.DICT_4X4_50)
 parameters = cv2.aruco.DetectorParameters()
 detector = cv2.aruco.ArucoDetector(aruco_dict, parameters)
 
-# Load camera calibration parameters
-
-
-# Open webcam
-
-cap.set(cv2.CAP_PROP_FOURCC, cv2.VideoWriter_fourcc(*'YUYV'))
-cap.set(cv2.CAP_PROP_FRAME_WIDTH, settings.width)
-cap.set(cv2.CAP_PROP_FRAME_HEIGHT, settings.height)
-cap.set(cv2.CAP_PROP_FPS, settings.fs)
-
-if not cap.isOpened():
-    print("Error: Could not open camera.")
-    exit()
-
-
 
 # Check if CSV files exist, if not, write the header
 if not os.path.isfile(pose_csv_file):
@@ -93,13 +94,11 @@ while True:
     if data is not None:
         decoded_data = data.decode("utf-8")
         
-    ret, frame = cap.read()
+    frames = [cap.read()[1] for cap in captures]
+    frame = frames[id_cam]
     timestamp = time.strftime("%Y%m%d_%H%M%S")
     raw_frame = frame.copy()
 
-    if not ret:
-        print("Failed to grab frame")
-        break
 
     gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
 

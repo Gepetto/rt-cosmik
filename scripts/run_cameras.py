@@ -8,17 +8,26 @@ import time
 from src.rtcosmik.config_loader import settings
 from src.rtcosmik.camera.cam_utils import list_cameras
 from src.rtcosmik.camera.camera import Camera, DisplayConsumer
-from src.rtcosmik.utils.mp_utils import create_udp_buffer,create_camera_shared_ressources
+from src.rtcosmik.utils.mp_utils import keyboard_listener, create_udp_buffer,create_camera_shared_ressources,ensure_directory_exists
 from src.rtcosmik.saver.video_saver import VideoSaverProcess2
+from multiprocessing import Value, Array
 
 def main():
+
+    ensure_directory_exists(settings.SAVE_DIR) 
+    saving_enabled = Value('b', False)
+    keyboard_listener(saving_enabled)
+
+
     cameras = list_cameras()
+    print(cameras.keys())
     NUM_CAMERAS = len(cameras)
     FRAME_SHAPE = (settings.height, settings.width, 3)
 
     camera_buffers, camera_timestamps, camera_locks, frame_counters, camera_barrier, stop_event = create_camera_shared_ressources(NUM_CAMERAS, FRAME_SHAPE)
     shared_ts_udp,shared_values_udp,lock_udp,cam_event ,_= create_udp_buffer(settings.marker_mocap_names)
-    # Create camera processes
+     
+     # Create camera processes
     camera_processes = [
         Camera(list(cameras.keys())[i], 
                camera_buffers[i], 
@@ -27,11 +36,12 @@ def main():
                frame_counters[i], 
                camera_barrier, 
                stop_event,
-               cam_event, 
+               cam_event,
                settings.SAVE_DIR,
                FRAME_SHAPE, 
                settings.fs, 
-               settings.fourcc,)
+               settings.fourcc,
+               saving_flag=saving_enabled)
         for i in range(NUM_CAMERAS)
     ]
 
@@ -45,22 +55,22 @@ def main():
         num_cameras=NUM_CAMERAS
     )
 
-    video_savers = []
-    if settings.SAVE_VID:
-        for i in range(NUM_CAMERAS):
-            vs = VideoSaverProcess2(
-                camera_id=list(cameras.keys())[i],
-                shared_buffer=camera_buffers[i],
-                lock=camera_locks[i],
-                frame_counter=frame_counters[i],
-                frame_shape=FRAME_SHAPE,
-                save_dir=settings.SAVE_DIR,
-                fps=settings.fs,
-                stop_event=stop_event
-            )
-            video_savers.append(vs)
+    # video_savers = []
+    # if settings.SAVE_VID:
+    #     for i in range(NUM_CAMERAS):
+    #         vs = VideoSaverProcess2(
+    #             camera_id=list(cameras.keys())[i],
+    #             shared_buffer=camera_buffers[i],
+    #             lock=camera_locks[i],
+    #             frame_counter=frame_counters[i],
+    #             frame_shape=FRAME_SHAPE,
+    #             save_dir=settings.SAVE_DIR,
+    #             fps=settings.fs,
+    #             stop_event=stop_event
+    #         )
+    #         video_savers.append(vs)
 
-    processes = camera_processes +video_savers  + [display]
+    processes = camera_processes  + [display]
 
     # Start processes
     for p in processes:

@@ -1,7 +1,8 @@
 import numpy as np
 import multiprocessing as mp
 import ctypes
-
+from pynput import keyboard
+import os
 def create_shared_buffer(shape, dtype):
     """Create shared memory buffer for camera frames"""
     # Convert numpy dtype to ctype
@@ -70,3 +71,26 @@ def create_udp_buffer(mks_names):
     shared_values = mp.Array('f', len(mks_names)*3, lock=False)
     lock          = mp.Lock()
     return shared_ts,shared_values,lock,cam_event,valid_event
+
+
+def keyboard_listener(saving_flag):
+    def on_press(key):
+        try:
+            if key.char == 's':
+                print("[Main] Start saving data")
+                with saving_flag.get_lock():
+                    saving_flag.value = True
+            elif key.char == 'q':
+                print("[Main] Stop saving data")
+                with saving_flag.get_lock():
+                    saving_flag.value = False
+        except AttributeError:
+            pass
+
+    listener = keyboard.Listener(on_press=on_press)
+    listener.start()
+    return listener
+
+def ensure_directory_exists(path):
+    """Ensure that the directory at `path` exists. Create it if it doesn't."""
+    os.makedirs(path, exist_ok=True)

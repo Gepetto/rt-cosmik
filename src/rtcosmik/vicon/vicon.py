@@ -160,4 +160,4 @@ class UDPDataSaver(Process):
                     csv_writer.writerows(data_list)  # write all collected data
             except Exception as e:
                 print(f"Error saving CSV: {e}")
-            print("DataSaverProcess terminated.")
+            print("UDPDataSaverq terminated.")
