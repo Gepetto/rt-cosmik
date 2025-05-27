@@ -322,7 +322,7 @@ def build_model(mocap_mks_positions: Dict, meshes_folder_path: str, with_head=Fa
 
     # TODO: Check that this model match the one in the urdf human.urdf and add abdomen joints ??
     sgts_poses = construct_segments_frames(mocap_mks_positions, with_head=with_head)
-    sgts_mks_dict = get_segments_mks_dict()
+    sgts_mks_dict = get_segments_mks_dict(mocap_mks_positions)
     mks_local_positions = get_local_mks_positions(sgts_poses, mocap_mks_positions, sgts_mks_dict)
     local_segments_positions = get_local_segments_positions(sgts_poses)
     visuals_dict = {}
