@@ -111,7 +111,6 @@ def main():
                                           shared_values_udp=shared_values_udp,
                                           lock_udp=lock_udp,
                                           cam_event=cam_event,
-                                          valid_event= valid_event,
                                           save_dir=settings.SAVE_DIR, 
                                           stop_event=stop_event)
 

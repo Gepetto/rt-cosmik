@@ -88,7 +88,6 @@ class UDPDataSaver(Process):
                  shared_values_udp,
                  lock_udp,
                  cam_event,
-                 valid_event,
                  save_dir: str,  # Directory to save CSV
                  stop_event: Event):  # Event to stop the process
         super().__init__()
@@ -104,7 +103,6 @@ class UDPDataSaver(Process):
         self.lock_udp=lock_udp
         self.cam_event=cam_event 
 
-        self.valid_event= valid_event
 
     def run(self):
         time.sleep(0.6)
@@ -134,9 +132,9 @@ class UDPDataSaver(Process):
                     data_list.append([ts_udp] + vals)
 
                     # Save also to RT list if valid_event is set
-                    if self.valid_event.is_set():
-                        data_list_rt.append([ts_udp] + vals)
-                        self.valid_event.clear()
+                    # if self.valid_event.is_set():
+                    #     data_list_rt.append([ts_udp] + vals)
+                    #     self.valid_event.clear()
 
 
         except Exception as e:

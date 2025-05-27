@@ -14,5 +14,5 @@ def count_frames(video_path):
     return total_frames
 
 # Example usage
-video_path = '/root/workspace/ros_ws/src/rt-cosmik/output/test/test_cameras/camera_0.mp4'
+video_path = '/root/workspace/ros_ws/src/rt-cosmik/output/test/test_/camera_6.avi'
 count_frames(video_path)

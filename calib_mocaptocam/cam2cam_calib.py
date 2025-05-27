@@ -27,13 +27,13 @@ def load_cam_params(path):
     return camera_matrix, dist_matrix
 
 K1, D1 = load_cam_params(os.path.join("/root/workspace/ros_ws/src/rt-cosmik/config/cam_params/", "c1_params_color.yaml"))
-K2, D2 = load_cam_params(os.path.join("/root/workspace/ros_ws/src/rt-cosmik/config/cam_params/", "c2_params_color.yaml"))
+K2, D2 = load_cam_params(os.path.join("/root/workspace/ros_ws/src/rt-cosmik/config/cam_params/", "c4_params_color.yaml"))
 
 soder_dir = f"/root/workspace/ros_ws/src/rt-cosmik/output/calib_mocap_2_cam"
-cam2cam_dir = f"/root/workspace/ros_ws/src/rt-cosmik/config/cam_params/c1_to_c2_params_color.yaml"
+cam2cam_dir = f"/root/workspace/ros_ws/src/rt-cosmik/config/cam_params/c1_to_c4_params_color.yaml"
 
 R_c1_in_mocap, d_c1_in_mocap, _, _ = load_transformation(soder_dir + "1" + "/soder.txt")
-R_c2_in_mocap, d_c2_in_mocap, _, _ = load_transformation(soder_dir + "2" + "/soder.txt")
+R_c2_in_mocap, d_c2_in_mocap, _, _ = load_transformation(soder_dir + "4" + "/soder.txt")
 
 # c1_to_c2_in_mocap = d_c2_in_mocap - d_c1_in_mocap
 
