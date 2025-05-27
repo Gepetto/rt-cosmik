@@ -12,17 +12,16 @@ from utils import *
 import pandas as pd
 from rigid_bodies_algorithms import *
 
-num_cam = sys.argv[1]
-config_path = f"/root/workspace/ros_ws/src/rt-cosmik/config/cam_params/c{num_cam}_params_color.yaml"
+idx_cam = sys.argv[1]
+config_path = f"/root/workspace/ros_ws/src/rt-cosmik/config/cam_params/c{idx_cam}_params_color.yaml"
 
 # UDP Configuration
 ip = "172.20.167.86"  # The IP the receiver listens on
 port = 44445  # The port to receive data on
 
-no_test = f"calib_mocap_2_cam{num_cam}"
-cap = cv2.VideoCapture(int(num_cam)-1)
-if not cap.isOpened():
-    cap = cv2.VideoCapture(int(num_cam))
+no_test = f"calib_mocap_2_cam{idx_cam}"
+cap = cv2.VideoCapture(int(idx_cam))
+
 K, D = load_cam_params(os.path.join(config_path))
 camera_matrix = K 
 dist_coeffs = D
@@ -76,7 +75,7 @@ cap.set(cv2.CAP_PROP_FRAME_HEIGHT, settings.height)
 cap.set(cv2.CAP_PROP_FPS, settings.fs)
 
 if not cap.isOpened():
-    print("Error: Could not open camera.")
+    print(f"Error: Could not open camera {idx_cam}")
     exit()
 
 
