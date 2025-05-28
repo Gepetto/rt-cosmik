@@ -366,7 +366,13 @@ def read_specific_joint(file_path, dofs_list,start_sample):
         # print(total_rows)
         
         #  determine indices of columns
-        indices = [header.index(name) for name in dofs_list if name in header]
+        missing_cols = [name for name in dofs_list if name not in header]
+        if missing_cols:
+            raise ValueError(f"Colonnes manquantes : {missing_cols}")
+        
+        indices = [header.index(name) for name in dofs_list]
+        # print("Indices des colonnes :", indices)
+        
         
         # Start reading from the start_sampleth row and stop before the last end_sample rows
         for row in all_rows[start_sample:total_rows]:
@@ -690,6 +696,95 @@ def plot_marker_trajectories(udp_df, marker_names):
         fig.suptitle(f"Marker: {marker}")
         plt.tight_layout(rect=[0, 0, 1, 0.96])
         plt.show()
+
+#plot mks trajectories to compare and get rmse.
+def plot_marker_comparison(gt_data, pred_data, markers_to_plot=None, labels=('mocap', 'cosmik'), save_fig=False):
+    """
+    Plot and compare X, Y, Z trajectories over time for selected markers from two datasets.
+
+    Parameters:
+        gt_data (list of dict): Ground truth data [{marker_name: np.array([x, y, z])}, ...]
+        pred_data (list of dict): Predicted data (same format as gt_data)
+        markers_to_plot (list of str): Markers to plot. If None, plots all markers found in gt_data.
+        labels (tuple): Labels for legend, e.g. ('Ground Truth', 'Prediction')
+        save_fig (bool): If True, saves the figure instead of displaying.
+    """
+    if not gt_data or not pred_data:
+        print("Error: One or both datasets are empty.")
+        return
+
+    # Determine which markers to plot
+    all_markers = set()
+    for frame in gt_data:
+        all_markers.update(frame.keys())
+    if markers_to_plot is None:
+        markers_to_plot = sorted(all_markers)
+
+    rmse_results = {}
+    for marker in markers_to_plot:
+        gt_x, gt_y, gt_z = [], [], []
+        pred_x, pred_y, pred_z = [], [], []
+
+        for gt_frame, pred_frame in zip(gt_data, pred_data):
+            # Ground truth values
+            if marker in gt_frame:
+                gx, gy, gz = gt_frame[marker]
+            else:
+                gx, gy, gz = np.nan, np.nan, np.nan
+            gt_x.append(gx)
+            gt_y.append(gy)
+            gt_z.append(gz)
+
+            # Predicted values
+            if marker in pred_frame:
+                px, py, pz = pred_frame[marker]
+            else:
+                px, py, pz = np.nan, np.nan, np.nan
+            pred_x.append(px)
+            pred_y.append(py)
+            pred_z.append(pz)
+
+        # Convert to arrays
+        gt_x, gt_y, gt_z = map(np.array, (gt_x, gt_y, gt_z))
+        pred_x, pred_y, pred_z = map(np.array, (pred_x, pred_y, pred_z))
+
+        # Compute RMSE (ignoring NaNs)
+        rmse_x = np.sqrt(np.nanmean((gt_x - pred_x) ** 2))
+        rmse_y = np.sqrt(np.nanmean((gt_y - pred_y) ** 2))
+        rmse_z = np.sqrt(np.nanmean((gt_z - pred_z) ** 2))
+        rmse_results[marker] = {'x': rmse_x, 'y': rmse_y, 'z': rmse_z}
+
+        frames = np.arange(len(gt_data))
+        fig, axs = plt.subplots(3, 1, figsize=(10, 10), sharex=True)
+
+        axs[0].plot(frames, gt_x, 'r-', label=labels[0])
+        axs[0].plot(frames, pred_x, 'g--', label=labels[1])
+        axs[0].set_title(f"X (RMSE: {rmse_x:.4f})")
+
+        axs[1].plot(frames, gt_y, 'r-', label=labels[0])
+        axs[1].plot(frames, pred_y, 'g--', label=labels[1])
+        axs[1].set_title(f"X (RMSE: {rmse_y:.4f})")
+
+        axs[2].plot(frames, gt_z, 'r-', label=labels[0])
+        axs[2].plot(frames, pred_z, 'g--', label=labels[1])
+        axs[2].set_title(f"X (RMSE: {rmse_z:.4f})")
+        axs[2].set_xlabel("Frame")
+
+        fig.suptitle(
+            f"{marker}",
+            fontsize=14
+        )
+        for ax in axs:
+            ax.grid(True)
+
+        plt.tight_layout(rect=[0, 0.03, 1, 0.95])
+
+        if save_fig:
+            plt.savefig(f"{marker}_comparison.png")
+            plt.close()
+        else:
+            plt.show()
+
 
 def load_transformation(file_path):
     """

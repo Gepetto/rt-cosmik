@@ -6,7 +6,7 @@ import matplotlib.pyplot as plt
 from scipy.interpolate import CubicSpline
 
 no_trial = "Nicolas"
-task = "robot_polissage"
+task = "complete_task"
 path_to_csv = f"/root/workspace/ros_ws/src/rt-cosmik/output/{no_trial}/{task}/mks_data.csv"
 output_csv = f"/root/workspace/ros_ws/src/rt-cosmik/output/{no_trial}/{task}/mks_data_gapfilled.csv"
 mks_names = settings.marker_mocap_names

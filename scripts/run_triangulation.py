@@ -43,7 +43,6 @@ def main():
         .reshape(-1, num_keypoints, 2)
         for data in camera_data
     ]
-    print(uvs)
 
     mtxs, dists, projections, rotations, translations = load_camera_parameters(config_path)
     world_R1_cam, world_T1_cam = load_world_transformation(config_path)

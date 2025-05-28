@@ -11,8 +11,8 @@ import pandas as pd
 from src.rtcosmik.config_loader import settings
 from src.rtcosmik.utils.read_write_utils import load_transformation
 
-no_trial = "Nicolas"
-task = "walk"
+no_trial = "Gabriel"
+task = "static"
 path_to_csv = f"/root/workspace/ros_ws/src/rt-cosmik/output/{no_trial}/{task}/augmented_markers.csv"
 mks_names = [
            'r.ASIS_study','L.ASIS_study','r.PSIS_study','L.PSIS_study','r_knee_study',
@@ -120,6 +120,6 @@ for i in range(len(mks_dict)):
         place(viz, sphere_name, pin.SE3(np.eye(3), position_mks.reshape(3,)))
     
     time.sleep(0.03)
-    # input()
+ 
 
 

@@ -23,7 +23,7 @@ from src.rtcosmik.human_model.urdf_model import *
 
 start_sample=0
 no_trial = "Nicolas"
-task = "robot_polissage"
+task = "polissage"
 path_to_csv_mocap = f"/root/workspace/ros_ws/src/rt-cosmik/output/{no_trial}/{task}/mks_data.csv"
 q_path_mocap= f"/root/workspace/ros_ws/src/rt-cosmik/output/{no_trial}/{task}/q_mocap_ipopt.csv"
 
@@ -68,7 +68,7 @@ human_data = pin.Data(human_model)
 
 viz = gv_init(human_model,human_collision_model,human_visual_model,start_sample_mks_mocap)
 for visual in human_visual_model.geometryObjects:
-    viz.viewer.gui.setColor(viz.getViewerNodeName(visual, pin.GeometryType.VISUAL), [1, 0, 0, 0.5])
+    viz.viewer.gui.setColor(viz.getViewerNodeName(visual, pin.GeometryType.VISUAL), [0, 0, 0, 0.8])
 
 #load urdf cosmik
 human_cosmik = Robot('/root/workspace/ros_ws/src/rt-cosmik/urdf/human.urdf',rt_cosmik_path,isFext=True) 
@@ -85,25 +85,28 @@ viz_lstm = GepettoVisualizer(human_model_cosmik,human_collision_model_cosmik.cop
 viz_lstm.initViewer()
 viz_lstm.loadViewerModel("model_cosmik")
 for visual in human_visual_model_cosmik.geometryObjects:
-    viz_lstm.viewer.gui.setColor(viz_lstm.getViewerNodeName(visual, pin.GeometryType.VISUAL), [0, 1, 0, 0.5])
+    viz_lstm.viewer.gui.setColor(viz_lstm.getViewerNodeName(visual, pin.GeometryType.VISUAL), [0, 1, 0, 0.8])
 
 #measured frames
 # seg_frames = construct_segments_frames(result_markers_mocap[start_sample])
 # add_frames(viz,seg_frames,"meas", 0.008, 0.08)
 #model markers spheres 
-add_marker(viz,start_sample_mks_mocap,"_mocap", 1, 0,0)
+add_marker(viz,start_sample_mks_mocap,"_mocap", 0, 0,0)
 add_marker(viz,start_sample_mks_lstm,"_cosmik", 0, 1,0)
 #model frames
 seg_names_mks = get_segments_mks_dict(result_markers_mocap[start_sample])
 seg_names_mks_cosmik = get_segments_mks_dict(result_markers_lstm[start_sample])
 # add_frames(viz,seg_names_mks,"model", 0.012, 0.05)
 
-
+import gepetto as gep
+viz.viewer.gui.setBackgroundColor1("python-pinocchio", gep.color.Color.white)
+viz.viewer.gui.setBackgroundColor2("python-pinocchio", gep.color.Color.white)
+viz.viewer.gui.addLight("light", "python-pinocchio", 360, gep.color.Color.white)
 data = human_model.createData()
 data_cosmik = human_model_cosmik.createData()
 q_mocap = read_joint_angles_wholebody(q_path_mocap, start_sample)
 q_cosmik= read_joint_angles_wholebody(q_path_cosmik, start_sample)
-
+print("k")
 for i in range(len(q_mocap)):
     
     pin.forwardKinematics(human_model, data, q_mocap[i])
@@ -124,6 +127,6 @@ for i in range(len(q_mocap)):
         place(viz, sphere_name_mocap, pin.SE3(np.eye(3), np.matrix(mk_position_mocap.reshape(3,)).T))
         place(viz_lstm, sphere_name_cosmik, pin.SE3(np.eye(3), np.matrix(mk_position_cosmik.reshape(3,)).T))
 
-    time.sleep(0.05)
+    time.sleep(0.2)
 
     # input()

@@ -8,10 +8,10 @@ parent_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
 sys.path.append(parent_dir)
 from viz_utils import place
 import pandas as pd 
-from src.rtcosmik.utils.read_write_utils import parse_marker_csv,udp_csv_to_dataframe,read_mks_data,load_transformation
+from src.rtcosmik.utils.read_write_utils import parse_marker_csv,udp_csv_to_dataframe,read_mks_data,load_transformation,plot_marker_comparison
 from collections import defaultdict
 no_trial = "Nicolas"
-task = "robot_polissage"
+task = "crouch"
 path_to_csv_mocap = f"/root/workspace/ros_ws/src/rt-cosmik/output/{no_trial}/{task}/mks_data.csv"
 
 path_to_csv_lstm = f"/root/workspace/ros_ws/src/rt-cosmik/output/{no_trial}/{task}/augmented_markers.csv"
@@ -73,6 +73,8 @@ if len(data_markers_lstm) != len(keypoints):
 data_markers_lstm = pd.concat([data_markers_lstm, keypoints[columns_to_add].reset_index(drop=True)], axis=1)
 
 result_markers_lstm, start_sample_lstm = read_mks_data(data_markers_lstm)
+
+plot_marker_comparison(result_markers, result_markers_lstm, markers_to_plot=markers_to_display)
 # === Initialiser le visualiseur Gepetto ===
 viz = GepettoVisualizer()
 try:

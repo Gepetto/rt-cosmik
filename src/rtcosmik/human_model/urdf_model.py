@@ -71,7 +71,7 @@ class Robot(RobotWrapper):
 
 def scale_human_model(model, mks_positions, with_hand=True,gender='male',subject_height=1.80):
 
-    sgts_poses = construct_segments_frames(mks_positions, with_hand=with_hand, gender='male',subject_height=1.8)
+    sgts_poses = construct_segments_frames(mks_positions, with_hand=with_hand, gender=gender,subject_height=subject_height)
     local_segments_positions = get_local_segments_positions(sgts_poses,with_hand=True)
 
     model.jointPlacements[model.getJointId('left_hip_Z')].translation=local_segments_positions['thighL']

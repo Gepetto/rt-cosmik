@@ -23,8 +23,8 @@ from src.rtcosmik.ik.ik import RT_IK
 mks_to_skip = ['LForearm','LUArm', 'RUArm', 'RHJC_study','LHJC_study','r_pelvis','l_pelvis',
                'LHand','LHL2','LHM5', 'RForearm','RHand','RHL2','RHM5', 'L_sh1_study', 'L_thigh1_study','r_sh1_study', 'r_thigh1_study']
 #read mks data
-no_trial = "Nicolas"
-task = "robot_polissage"
+no_trial = "Gabriel"
+task = "static"
 path_to_csv = f"/root/workspace/ros_ws/src/rt-cosmik/output/{no_trial}/{task}/augmented_markers.csv"
 ###########################################################################################for cosmik data 
 path_to_kpt = f"/root/workspace/ros_ws/src/rt-cosmik/output/{no_trial}/{task}/3d_keypoints_filtred.csv"
@@ -80,7 +80,7 @@ seg_frames = construct_segments_frames(result_markers[start_sample])
 add_frames(viz,seg_frames,"meas", 0.008, 0.08)
 
 #model markers spheres 
-add_marker(viz,result_markers[1].keys(), 1, 0,0)
+add_marker(viz,result_markers[1].keys(),'_m', 1, 0,0)
 #model frames
 for joint_id in range(1, human_model.njoints):  # Skip 0 (universe)
     frame_name = f'world/{human_model.names[joint_id]+"_model"}'

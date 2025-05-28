@@ -5,9 +5,9 @@ import numpy as np
 from src.rtcosmik.config_loader import settings
 from src.rtcosmik.utils.read_write_utils import read_mks_data, marker_data_to_dataframe,read_joint_angles_wholebody,read_specific_joint
 
-no_trial = "Nicolas"
-task = "robot_polissage"
-path_mocap= f"/root/workspace/ros_ws/src/rt-cosmik/output/{no_trial}/{task}/q_mocap_ipopt.csv"
+no_trial = "Gabriel"
+task = "static"
+path_mocap= f"/root/workspace/ros_ws/src/rt-cosmik/output/{no_trial}/{task}/q_mocap_ipopt_thoax.csv"
 
 path_cosmik= f"/root/workspace/ros_ws/src/rt-cosmik/output/{no_trial}/{task}/q_cosmik_ipopt.csv" 
 
@@ -23,7 +23,7 @@ dofs  =  ['FF_X', 'FF_Y', 'FF_Z', 'FF_quatx','FF_quaty',
                           'Rhip_flex_ext','Rhip_abd_add','Rhip_int_ext_rot',
                           'Rknee_flex_ext','Rankle_flex_ext', 'Rankle_abd_add']
 
-upper_dof = ['Lumbar_flex_ext', 'Lumbar_int_ext_rot',
+upper_dof = ['Lumbar_flex_ext', 'Lumbar_lateral_flex',
                           'Cervical_flex_ext', 'Cervical_lat_bend', 'Cervical_int_ext_rot',
                           'Rshoulder_flex_ext', 'Rshoulder_abd_add', 'Rshoulder_int_ext_rot',
                           'Lshoulder_flex_ext',
@@ -37,7 +37,6 @@ lower_dof=['Rhip_flex_ext','Rhip_abd_add','Rhip_int_ext_rot','Lhip_flex_ext', 'L
 
 dof_to_plot = 'all'
 if dof_to_plot =='upper':
-    print('ok')
     dof = upper_dof
 elif dof_to_plot == 'lower':
     dof = lower_dof
@@ -53,7 +52,7 @@ start_sample = 0
 q_cosmik= read_specific_joint(path_cosmik,dof, start_sample)[10:]
 q_mocap = read_specific_joint(path_mocap,dof, start_sample)[10:]
 
-# rmse_list = []
+rmse_list = []
 # Plot one figure per joint
 # for i, name in enumerate(dof):
     
@@ -74,13 +73,17 @@ q_mocap = read_specific_joint(path_mocap,dof, start_sample)[10:]
 #     plt.show()
 
 
-rmse_list = []
+excluded_joints = ['Lwrist_flex_ext', 'Lwrist_x', 'Rwrist_flex_ext', 'Rwrist_x']
+
+# Filter the indices of joints to include
+joint_indices = [i for i in range(7, len(dof)) if dof[i] not in excluded_joints]
 n_per_fig = 6  # Number of subplots per figure
 
-for j, i in enumerate(range(7, len(dof))):
+for j, i in enumerate(joint_indices):
     name = dof[i]
-    rmse = np.sqrt(np.mean((q_mocap[:, i] - q_cosmik[:, i]) ** 2))
-    rmse = rmse * (180 / np.pi)
+    
+    rmse_rad = np.sqrt(np.mean((q_mocap[:, i] - q_cosmik[:, i]) ** 2))
+    rmse = rmse_rad * (180 / np.pi)
     rmse_list.append(rmse)
 
     # Create a new figure every 6 plots
@@ -89,18 +92,44 @@ for j, i in enumerate(range(7, len(dof))):
         fig.tight_layout(pad=4.0)
     
     ax = axs[j % n_per_fig]
-    ax.plot(q_cosmik[:, i], label="Cosmik", linewidth=2, color='blue')
+    ax.plot(q_cosmik[:, i], label="Cosmik", linewidth=2, color='green')
     ax.plot(q_mocap[:, i], label="Mocap", linewidth=2, color='red')
-    ax.set_title(f"{name} (RMSE: {rmse:.4f})")
+    ax.set_title(f"{name} (RMSE: {rmse:.4f}deg, {rmse_rad:.4f}rad)")
     ax.set_xlabel("Samples")
     ax.set_ylabel("Angle (rad)")
     ax.grid(True)
     ax.legend()
 
     # Show the figure after every 6 plots or at the end
-    if (j % n_per_fig == n_per_fig - 1) or (i == len(dof) - 1):
+    if (j % n_per_fig == n_per_fig - 1) or (j == len(joint_indices) - 1):
         plt.show()
 
+joint_names = dof[7:]
+excluded = ['Lwrist_flex_ext', 'Lwrist_x','Rwrist_flex_ext','Rwrist_x']
+joint_names = [name for name in joint_names if name not in excluded]
+rmse_array = np.array(rmse_list)
+avg_rmse = np.mean(rmse_array)
+
+# Bar chart
+plt.figure(figsize=(12, 6))
+bars = plt.bar(joint_names, rmse_array, color='skyblue', edgecolor='black')
+
+# Add average line
+plt.axhline(avg_rmse, color='red', linestyle='--', label=f'Average RMSE: {avg_rmse:.2f}°')
+
+# Add annotations
+for bar in bars:
+    height = bar.get_height()
+    plt.text(bar.get_x() + bar.get_width()/2, height + 0.5, f"{height:.2f}", 
+             ha='center', va='bottom', fontsize=8)
+
+plt.xticks(rotation=45, ha='right')
+plt.ylabel("RMSE (degrees)")
+plt.title("Joint Angle RMSEs")
+plt.grid(axis='y', linestyle='--', alpha=0.7)
+plt.legend()
+plt.tight_layout()
+plt.show()
 
 # n_dofs = len(dof)
 # print(n_dofs)

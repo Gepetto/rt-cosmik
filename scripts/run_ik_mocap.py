@@ -20,12 +20,12 @@ from src.rtcosmik.human_model.model_utils import get_segment_length
 from src.rtcosmik.ik.ik import RT_IK
 
 
-mks_to_skip = ['LForearm','LUArm', 'RUArm', 'RHJC_study','LHJC_study','r_pelvis','l_pelvis',
-               'LHand','LHL2','LHM5', 'RForearm','RHand','RHL2','RHM5', 'L_sh1_study', 'L_thigh1_study','r_sh1_study', 'r_thigh1_study']
+mks_to_skip = ['LForearm','LUArm', 'RUArm', 'RHJC_study','LHJC_study','r_pelvis','l_pelvis','LHL2','LHM5','RHL2','RHM5',
+               'LHand', 'RForearm','RHand', 'L_sh1_study', 'L_thigh1_study','r_sh1_study', 'r_thigh1_study']
 #read mks data
-no_trial = "Nicolas"
-task = "robot_polissage"
-path_to_csv = f"/root/workspace/ros_ws/src/rt-cosmik/output/{no_trial}/{task}/mks_data_gapfilled.csv"
+no_trial = "Gabriel"
+task = "static"
+path_to_csv = f"/root/workspace/ros_ws/src/rt-cosmik/output/{no_trial}/{task}/mks_data.csv"
 
 start_sample=0
 mks_names = ['r.PSIS_study','L.PSIS_study','r.ASIS_study','L.ASIS_study',
@@ -76,7 +76,7 @@ seg_frames = construct_segments_frames(result_markers[start_sample])
 add_frames(viz,seg_frames,"meas", 0.008, 0.08)
 
 #model markers spheres 
-add_marker(viz,result_markers[1].keys(), 1, 0,0)
+add_marker(viz,result_markers[1].keys(),'_m', 1, 0,0)
 #model frames
 for joint_id in range(1, human_model.njoints):  # Skip 0 (universe)
     frame_name = f'world/{human_model.names[joint_id]+"_model"}'
@@ -92,7 +92,7 @@ dt = 1/40 #dt for qp
 #track only real markers (without technical markers)
 keys_to_track_list = [
         'BHD','RHD','LHD','FHD',
-        'C7_study', 
+        'C7_study',
         'r.ASIS_study', 'L.ASIS_study', 
         'r.PSIS_study', 'L.PSIS_study', 
         'r_shoulder_study',
@@ -181,7 +181,7 @@ for ii in range(start_sample,len(result_markers)):
 
     q_list.append(q)
 
-#save mks est
+# #save mks est
 df = pd.DataFrame(M_model_list)
 csv_file = os.path.join(rt_cosmik_path,f"/root/workspace/ros_ws/src/rt-cosmik/output/{no_trial}/{task}/mks_model_ipopt.csv") 
 df.to_csv(csv_file, index=False)
