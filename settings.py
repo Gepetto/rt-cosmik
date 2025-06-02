@@ -7,8 +7,8 @@ class Settings:
     cosmik_path: str = field(init=False)
     
     # SAVE 
-    subject = "Maxime"
-    motion = "overhead_face"
+    subject = "Test"
+    motion = "test"
     SAVE_VID: bool = True
     SAVE_CSV: bool = True
     SAVE_DIR: str = f"/root/workspace/ros_ws/src/rt-cosmik/output/{subject}/{motion}" # abs path to the save folder
@@ -18,10 +18,10 @@ class Settings:
     human_mass: float = 75.0
 
     # CAM PARAMS
-    fs: int = 40
+    fs: int = 50
     dt: float = field(init=False)  # Mark `dt` as excluded from the constructor
-    width: int = 1280 # image resolution
-    height: int = 720 # image resolution
+    width: int = 1920 # image resolution
+    height: int = 1200 # image resolution
     fourcc: str = "MJPG" # video codec
 
     # VIEWER PARAMS
