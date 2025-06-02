@@ -17,9 +17,6 @@ for cam in "${cameras[@]}"; do
     python3 ../cams_calibration/scripts/rgb/calibrate_camera_indiv.py $cam_num
 done
 
-echo "Setting world frame..."
-python3 ../cams_calibration/scripts/rgb/set_world_frame.py
-
 echo "Before continuing the calibration, calibrate Vicon Mocap system. When it's done, stream Vicon data and the press P"
 
 while true; do

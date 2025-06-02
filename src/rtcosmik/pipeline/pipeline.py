@@ -320,14 +320,14 @@ class PipelineProcess(Process):
                 timestamps = []
                 keypoints_list = []
                 new_counters = []
-                camera_locks=[self.camera_locks[0],self.camera_locks[2]]
+                camera_locks=[self.camera_locks[0],self.camera_locks[1]]
 
                 cam_ts1 = self.camera_timestamps[0]
-                cam_ts2 = self.camera_timestamps[3]
+                cam_ts2 = self.camera_timestamps[1]
                 timestamps_buffer = [bytes(cam_ts1[:]).decode().strip('\x00'),bytes(cam_ts2[:]).decode().strip('\x00')]
 
-                camera_frame_counters = [self.camera_frame_counters[0].value,self.camera_frame_counters[3].value]
-                camera_buffers = [(np.frombuffer(self.camera_buffers[0],dtype=np.uint8)).reshape(self.frame_shape).copy(),(np.frombuffer(self.camera_buffers[3], dtype=np.uint8)).reshape(self.frame_shape).copy()]
+                camera_frame_counters = [self.camera_frame_counters[0].value,self.camera_frame_counters[1].value]
+                camera_buffers = [(np.frombuffer(self.camera_buffers[0],dtype=np.uint8)).reshape(self.frame_shape).copy(),(np.frombuffer(self.camera_buffers[1], dtype=np.uint8)).reshape(self.frame_shape).copy()]
     
                 for i, (lock, buffer, frame_counter,ts) in enumerate(zip(camera_locks, camera_buffers, camera_frame_counters,timestamps_buffer)):
                     with lock:

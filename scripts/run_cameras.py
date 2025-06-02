@@ -11,7 +11,7 @@ from src.rtcosmik.camera.camera import Camera, DisplayConsumer
 from src.rtcosmik.utils.mp_utils import keyboard_listener, create_udp_buffer,create_camera_shared_ressources,ensure_directory_exists
 from src.rtcosmik.saver.video_saver import VideoSaverProcess2
 from multiprocessing import Value, Array
-
+from src.rtcosmik.vicon.vicon import UDPDataSaver, UDPReceiver
 def main():
 
     ensure_directory_exists(settings.SAVE_DIR) 
@@ -70,7 +70,19 @@ def main():
     #         )
     #         video_savers.append(vs)
 
-    processes = camera_processes  + [display]
+    vicon = UDPReceiver(shared_values_udp,shared_ts_udp,lock_udp,
+                                 ip= "172.20.183.220",
+                                 port=44445, output_dir= settings.SAVE_DIR,
+                                 stop_event= stop_event, markers_names= settings.marker_mocap_names)
+
+    udp_data_saver_process = UDPDataSaver(saving_flag=saving_enabled, 
+                                          shared_ts_udp=shared_ts_udp,
+                                          shared_values_udp=shared_values_udp,
+                                          lock_udp=lock_udp,
+                                          cam_event=cam_event,
+                                          save_dir=settings.SAVE_DIR, 
+                                          stop_event=stop_event)
+    processes = camera_processes  + [vicon,udp_data_saver_process,display]
 
     # Start processes
     for p in processes:

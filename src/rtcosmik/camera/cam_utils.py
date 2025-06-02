@@ -24,7 +24,9 @@ def list_cameras():
                     cameras[index] = device_name
     except Exception as e:
         print("Error using v4l2-ctl:", e)
-    return cameras
+    # Sort the cameras dictionary by index
+    sorted_cameras = {k: cameras[k] for k in sorted(cameras)}
+    return sorted_cameras
 
 def get_cameras_params(K1, D1, K2, D2, R, T):
     dict_cam = {
@@ -173,14 +175,14 @@ def load_cam_pose_rpy(filename):
 
 def load_camera_parameters(config_path):
     """Load intrinsic and extrinsic camera parameters."""
-    K1, D1 = load_cam_params(os.path.join(config_path, "c1_params_color.yaml"))
-    K2, D2 = load_cam_params(os.path.join(config_path, "c4_params_color.yaml"))
-    R, T = load_cam_to_cam_params(os.path.join(config_path, "c1_to_c4_params_color.yaml"))
+    K1, D1 = load_cam_params(os.path.join(config_path, "c0_params_color.yaml"))
+    K2, D2 = load_cam_params(os.path.join(config_path, "c2_params_color.yaml"))
+    R, T = load_cam_to_cam_params(os.path.join(config_path, "c0_to_c2_params_color.yaml"))
     return get_cameras_params(K1, D1, K2, D2, R, T)
 
 def load_world_transformation(config_path):
     """Load world transformation matrix."""
-    cam_R1_world, cam_T1_world = load_cam_pose(os.path.join(config_path, "camera1_pose.yaml"))
+    cam_R1_world, cam_T1_world = load_cam_pose(os.path.join(config_path, "camera0_pose.yaml"))
     world_R1_cam = cam_R1_world.T
     world_T1_cam = -world_R1_cam @ cam_T1_world
     return world_R1_cam, world_T1_cam.reshape((3,))

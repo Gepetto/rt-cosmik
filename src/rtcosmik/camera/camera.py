@@ -185,11 +185,14 @@ class DisplayConsumer(Process):
                 # Optimization 1: Combine all frames into single view
                 ########################################
                 # Create a horizontal stack of frames
-                combined_frame = np.hstack(frames)
+                # combined_frame = np.hstack(frames)
                 combined_frame = concat_frames(frames)
-                
-                # Show combined view
-                cv2.imshow(combined_window,  combined_frame)
+
+                scale = 0.5
+                resized_frame = cv2.resize(combined_frame, (0, 0), fx=scale, fy=scale)
+
+                # Show resized view
+                cv2.imshow(combined_window, resized_frame)
                 ########################################
                 
                 # Original individual windows display (comment out when using combined view)

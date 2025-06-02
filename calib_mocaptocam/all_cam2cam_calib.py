@@ -1,13 +1,14 @@
 from utils import load_transformation, save_cam_to_cam_params, transform_to_local_frame
-sys.path.append(os.path.abspath('../../'))
-from cams_calibration.utils import list_cameras_with_v4l2
+import sys
+import os  
+sys.path.append(os.path.abspath('/root/workspace/ros_ws/src/rt-cosmik'))
+from src.rtcosmik.camera.cam_utils import list_cameras
 
 import numpy as np
-import os  
 import cv2 as cv
 import pinocchio as pin 
 
-cameras = list_cameras_with_v4l2()
+cameras = list_cameras()
 
 def load_cam_params(path):
     """

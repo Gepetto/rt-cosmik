@@ -4,6 +4,8 @@ import numpy as np
 import csv
 import os
 import time
+import sys
+sys.path.append(os.path.abspath('/root/workspace/ros_ws/src/rt-cosmik'))
 from src.rtcosmik.camera.cam_utils import load_camera_parameters, load_cam_params
 from src.rtcosmik.config_loader import settings
 from src.rtcosmik.camera.cam_utils import list_cameras

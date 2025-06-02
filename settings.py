@@ -7,8 +7,8 @@ class Settings:
     cosmik_path: str = field(init=False)
     
     # SAVE 
-    subject = "test"
-    motion = "test_"
+    subject = "Maxime"
+    motion = "overhead_face"
     SAVE_VID: bool = True
     SAVE_CSV: bool = True
     SAVE_DIR: str = f"/root/workspace/ros_ws/src/rt-cosmik/output/{subject}/{motion}" # abs path to the save folder
@@ -18,11 +18,11 @@ class Settings:
     human_mass: float = 75.0
 
     # CAM PARAMS
-    fs: int = 50
+    fs: int = 40
     dt: float = field(init=False)  # Mark `dt` as excluded from the constructor
-    width: int = 1920 # image resolution
-    height: int = 1600 # image resolution
-    fourcc: str = "YU12" # video codec
+    width: int = 1280 # image resolution
+    height: int = 720 # image resolution
+    fourcc: str = "MJPG" # video codec
 
     # VIEWER PARAMS
     viewer: str = "gv" # viewer type: gv or ros
@@ -92,7 +92,16 @@ class Settings:
            'r_melbow_study','r_lwrist_study','r_mwrist_study','L_lelbow_study','L_melbow_study',
            'L_lwrist_study','L_mwrist_study'])
     
-    marker_mocap_names: list = field(default_factory=lambda: ['A','B','C','D'])
+    marker_mocap_names: list = field(default_factory=lambda: ['r.ASIS_study','L.ASIS_study','r.PSIS_study','L.PSIS_study',
+             'TV8','TV12','SJN','STRN','C7_study','r_shoulder_study','L_shoulder_study',
+             'BHD','RHD','LHD','FHD',
+             'L_lelbow_study','L_melbow_study','LUArm','L_lwrist_study','L_mwrist_study','LForearm','LHand','LHL2','LHM5',
+             'r_lelbow_study','r_melbow_study','RUArm','r_lwrist_study','r_mwrist_study','RForearm','RHand','RHL2','RHM5',
+             'L_thigh1_study','L_knee_study','L_mknee_study','L_sh1_study','L_ankle_study','L_mankle_study','L_calc_study','L_5meta_study','L_toe_study',
+             'r_thigh1_study','r_knee_study','r_mknee_study','r_sh1_study',
+             'r_ankle_study','r_mankle_study','r_calc_study','r_5meta_study','r_toe_study',
+             'r_pelvis', 'l_pelvis'])
+
 
     
     # Add this to the class definition
