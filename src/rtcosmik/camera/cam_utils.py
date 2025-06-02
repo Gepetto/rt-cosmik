@@ -24,7 +24,9 @@ def list_cameras():
                     cameras[index] = device_name
     except Exception as e:
         print("Error using v4l2-ctl:", e)
-    return cameras
+    # Sort the cameras dictionary by index
+    sorted_cameras = {k: cameras[k] for k in sorted(cameras)}
+    return sorted_cameras
 
 def get_cameras_params(K1, D1, K2, D2, R, T):
     dict_cam = {
