@@ -1,4 +1,5 @@
 import cv2
+import sys
 
 def count_frames(video_path):
     cap = cv2.VideoCapture(video_path)
@@ -14,5 +15,5 @@ def count_frames(video_path):
     return total_frames
 
 # Example usage
-video_path = '/root/workspace/ros_ws/src/rt-cosmik/output/Test/test/camera_6.avi'
+video_path = sys.argv[1]
 count_frames(video_path)

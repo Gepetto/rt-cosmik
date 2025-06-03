@@ -30,7 +30,6 @@ print(camera_matrix)
 
 # Create output directory if it doesn't exist
 output_dir = f"/root/workspace/ros_ws/src/rt-cosmik/output/{no_test}"
-os.makedirs(output_dir, exist_ok=True)
 pose_csv_file = os.path.join(output_dir, "pose_aruco.csv")
 udp_csv_file = os.path.join(output_dir, "mks_data.csv")
 
@@ -79,7 +78,7 @@ if not cap.isOpened():
     print(f"Error: Could not open camera {idx_cam}")
     exit()
 
-
+os.makedirs(output_dir, exist_ok=True)
 
 # Check if CSV files exist, if not, write the header
 if not os.path.isfile(pose_csv_file):

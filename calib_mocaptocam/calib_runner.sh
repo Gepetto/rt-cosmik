@@ -41,4 +41,7 @@ done
 echo "Calib cam2cam..."
 python3 calib_mocaptocam/all_cam2cam_calib.py
 
+echo "Setting world frame..."
+python3 ../cams_calibration/scripts/rgb/set_world_frame_all.py
+
 echo "Calibration done!"

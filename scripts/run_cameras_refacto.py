@@ -43,6 +43,8 @@ def camera_process(queue, barrier, idx_cam, stop_event, current_frame):
             np.frombuffer(current_frame.get_obj(), dtype=np.uint8)[:] = frame.flatten()
 
             timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S.%f")
+            if type(frame) != np.ndarray:
+                raise TypeError
             queue.put(frame)
             timestamps.append(timestamp)
         
@@ -68,7 +70,8 @@ def displays_process(current_frames, idx_cams):
             globals()[f"displayed_frame_{idx_cam}"] = np.frombuffer(current_frame.get_obj(), dtype=np.uint8).reshape(settings.height, settings.width, 3)
 
         concatenated_frame = concat_frames([globals()[f"displayed_frame_{idx_cam}"] for idx_cam in idx_cams])
-        cv2.imshow('Streaming View', concatenated_frame)
+        concatenated_frame_resized = cv2.resize(concatenated_frame, (1440, 900))
+        cv2.imshow('Streaming View', concatenated_frame_resized)
 
         if (cv2.waitKey(1) & 0xFF) == ord('q'):
             cv2.destroyAllWindows()
@@ -140,20 +143,23 @@ if __name__ == "__main__":
     cameras_processes = [
         Process(
             target=camera_process, 
-            args=(globals()[f"cam{idx_cam}_queue"], barrier, idx_cam, stop_event, globals()[f"current_frame_{idx_cam}"])
+            args=(globals()[f"cam{idx_cam}_queue"], barrier, idx_cam, stop_event, globals()[f"current_frame_{idx_cam}"]),
+            name=f"Process camera {idx_cam}"
         ) 
         for idx_cam in cameras.keys()
     ]
 
     display_process = Process(
         target=displays_process, 
-        args=([globals()[f"current_frame_{idx_cam}"] for idx_cam in cameras.keys()], cameras.keys())
+        args=([globals()[f"current_frame_{idx_cam}"] for idx_cam in cameras.keys()], cameras.keys()),
+        name="Display process"
     )
 
     saver_processes = [
         Process(
             target=saver_process, 
-            args=(globals()[f"cam{idx_cam}_queue"], idx_cam, stop_event)
+            args=(globals()[f"cam{idx_cam}_queue"], idx_cam, stop_event),
+            name=f"Saver process {idx_cam}"
         ) 
         for idx_cam in cameras.keys()
     ]
@@ -169,7 +175,7 @@ if __name__ == "__main__":
 
         if start_event.is_set() and unrestarter:
 
-            print("Starting all processes...")
+            print("\nStarting all processes...")
             for process in all_processes:
                 process.start()
 
