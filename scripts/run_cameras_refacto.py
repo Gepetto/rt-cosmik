@@ -7,6 +7,7 @@ import numpy as np
 import ctypes
 from pynput import keyboard
 from datetime import datetime
+import subprocess
 from multiprocessing import Process, Barrier, Queue, Event, Array
 from threading import BrokenBarrierError
 from queue import Empty
@@ -37,14 +38,14 @@ def camera_process(queue, barrier, idx_cam, stop_event, current_frame):
 
         try:
             barrier.wait()
-            
-            _, frame = cap.read()
+            ret, frame = cap.read()
+            if not ret:
+                keyboard.Controller().press("q")
+                raise Exception(f"Camera {idx_cam} has crashed, quitting the recording.")
 
             np.frombuffer(current_frame.get_obj(), dtype=np.uint8)[:] = frame.flatten()
 
             timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S.%f")
-            if type(frame) != np.ndarray:
-                raise TypeError
             queue.put(frame)
             timestamps.append(timestamp)
         
@@ -174,7 +175,7 @@ if __name__ == "__main__":
     while True:
 
         if start_event.is_set() and unrestarter:
-
+                
             print("\nStarting all processes...")
             for process in all_processes:
                 process.start()
@@ -186,16 +187,28 @@ if __name__ == "__main__":
         if stop_event.is_set():
 
             barrier.abort()
-            
+                
             while any([saver_process.is_alive() for saver_process in saver_processes]):
                 print("Waiting for saver processes to finish writing ...")
-                time.sleep(5)
-
-            for process in all_processes:
-                if process.is_alive():
-                    print(f"Process {process} still running...")
-            
+                time.sleep(2)
+                
             break
     
-    print("All important processes terminated.")
-    
+    print("All saving processes terminated.")
+
+    # # Trouver tous les processus Python
+    # ps_output = subprocess.check_output(['ps', 'aux'])
+    # pids = []
+    # for line in ps_output.decode('utf-8').split('\n'):
+    #     if 'python scripts/run_cameras_refacto.py' in line:
+    #         # Extraire le PID
+    #         pid = int(line.split()[1])
+    #         pids.append(pid)
+
+    # # Tuer les processus
+    # for pid in pids:
+    #     try:
+    #         # Envoyer le signal SIGTERM pour terminer le processus
+    #         subprocess.call(['kill', str(pid)])
+    #     except Exception as e:
+    #         print(f"Erreur lors de la tentative de tuer le processus {pid}: {e}")

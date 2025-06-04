@@ -18,11 +18,11 @@ class Settings:
     human_mass: float = 75.0
 
     # CAM PARAMS
-    fs: int = 60
+    fs: int = 40
     dt: float = field(init=False)  # Mark `dt` as excluded from the constructor
-    width: int = 960 # image resolution
-    height: int = 600 # image resolution
-    fourcc: str = "I420" # video codec
+    width: int = 1920 # image resolution
+    height: int = 1080 # image resolution
+    fourcc: str = "MJPG" # video codec
 
     # VIEWER PARAMS
     viewer: str = "gv" # viewer type: gv or ros
