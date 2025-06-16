@@ -13,8 +13,8 @@ from src.rtcosmik.utils.read_write_utils import read_mmpose_file, save_to_csv
 from src.rtcosmik.utils.linear_algebra_utils import butterworth_filter
 base_path = "/root/workspace/ros_ws/src/rt-cosmik"
 
-no_trial = "trial3"
-task = "lower"
+no_trial = "Test_end2end"
+task = "static"
 
 path_to_3d_kpt = os.path.join(base_path, f"output/{no_trial}/{task}/3d_keypoints_filtred.csv")
 output_csv_path = os.path.join(base_path, f"output/{no_trial}/{task}/augmented_markers.csv")

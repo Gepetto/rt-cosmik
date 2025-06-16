@@ -19,8 +19,8 @@ from src.rtcosmik.ik.ik import RT_IK,RT_SWIKA
 
 
 
-no_trial = "trial3"
-task = "lower"
+no_trial = "Test_end2end"
+task = "static"
 path_to_csv = f"/root/workspace/ros_ws/src/rt-cosmik/output/{no_trial}/{task}/augmented_markers.csv"
 path_to_kpt = f"/root/workspace/ros_ws/src/rt-cosmik/output/{no_trial}/{task}/3d_keypoints_filtred.csv"
 

@@ -65,7 +65,7 @@ def triangulate_points(keypoints_list, mtxs, dists, projections):
 
     return np.array(p3ds_frame)
 
-def triangulate_offline(uvs, mtxs, dists, projections, R, T):
+def triangulate_offline(uvs, mtxs, dists, projections):
     """Triangulate and transform keypoints for all frames."""
     keypoints_in_world_list = []
     num_frames = len(uvs[0])
@@ -75,7 +75,6 @@ def triangulate_offline(uvs, mtxs, dists, projections, R, T):
         p3d_frame = triangulate_points(points_2d_per_frame, mtxs, dists, projections)
 
         #express p3d_frame in world frame
-        p3d_frame_in_world= np.array([np.dot(R, point) + T for point in p3d_frame])
         keypoints_in_world_list.append(p3d_frame.flatten().tolist())
     
     return keypoints_in_world_list
