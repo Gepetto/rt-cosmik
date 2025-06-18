@@ -23,12 +23,12 @@ from src.rtcosmik.ik.ik import RT_IK
 mks_to_skip = ['LForearm','LUArm', 'RUArm', 'RHJC_study','LHJC_study','r_pelvis','l_pelvis','LHL2','LHM5','RHL2','RHM5',
                'LHand', 'RForearm','RHand', 'L_sh1_study', 'L_thigh1_study','r_sh1_study', 'r_thigh1_study']
 #read mks data
-no_trial = "Gabriel"
-task = "static"
+no_trial = "Maxime"
+task = "squat"
 path_to_csv = f"/root/workspace/ros_ws/src/rt-cosmik/output/{no_trial}/{task}/mks_data.csv"
 
 start_sample=0
-mks_names = ['r.PSIS_study','L.PSIS_study','r.ASIS_study','L.ASIS_study',
+mks_names = ['r.ASIS_study','L.ASIS_study','r.PSIS_study','L.PSIS_study',
              'TV8','TV12','SJN','STRN','C7_study','r_shoulder_study','L_shoulder_study',
              'BHD','RHD','LHD','FHD',
              'L_lelbow_study','L_melbow_study','LUArm','L_lwrist_study','L_mwrist_study','LForearm','LHand','LHL2','LHM5',

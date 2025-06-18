@@ -19,12 +19,12 @@ from src.rtcosmik.config_loader import settings
 from src.rtcosmik.human_model.model_utils import get_segment_length
 
 #read mks data
-no_trial = "Nicolas"
-task = "polissage"
+no_trial = "Maxime"
+task = "static"
 path_to_csv = f"/root/workspace/ros_ws/src/rt-cosmik/output/{no_trial}/{task}/mks_data.csv"
 
 start_sample=0
-mks_names = ['r.PSIS_study','L.PSIS_study','r.ASIS_study','L.ASIS_study',
+mks_names = ['r.ASIS_study','L.ASIS_study','r.PSIS_study','L.PSIS_study',
              'TV8','TV12','SJN','STRN','C7_study','r_shoulder_study','L_shoulder_study',
              'BHD','RHD','LHD','FHD',
              'L_lelbow_study','L_melbow_study','LUArm','L_lwrist_study','L_mwrist_study','LForearm','LHand','LHL2','LHM5',
