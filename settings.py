@@ -7,22 +7,22 @@ class Settings:
     cosmik_path: str = field(init=False)
     
     # SAVE 
-    subject = "Test"
+    subject = "Test_2"
     motion = "test"
     SAVE_VID: bool = True
     SAVE_CSV: bool = True
-    SAVE_DIR: str = f"/root/workspace/ros_ws/src/rt-cosmik/output/{subject}/{motion}" # abs path to the save folder
+    SAVE_DIR: str = f"C:\\Users\\krauszm\\COSMIK\\rt-cosmik\\output\\{subject}\\{motion}" # abs path to the save folder
 
     # HUMAN ANTHROPOMETRY
     human_height: float = 1.85
     human_mass: float = 75.0
 
     # CAM PARAMS
-    fs: int = 40
+    fs: int = 30
     dt: float = field(init=False)  # Mark `dt` as excluded from the constructor
-    width: int = 1920 # image resolution
-    height: int = 1080 # image resolution
-    fourcc: str = "MJPG" # video codec
+    width: int = 1280 # image resolution
+    height: int = 800 # image resolution
+    fourcc: str = "I420" # video codec
 
     # VIEWER PARAMS
     viewer: str = "gv" # viewer type: gv or ros

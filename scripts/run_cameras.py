@@ -19,7 +19,7 @@ def main():
     keyboard_listener(saving_enabled)
 
 
-    cameras = list_cameras()
+    cameras = {2 : "Intel(R) RealSense(TM) Depth Camera 455  RGB", 4 : "Intel(R) RealSense(TM) Depth Camera 455  RGB"}
     print(cameras.keys())
     NUM_CAMERAS = len(cameras)
     FRAME_SHAPE = (settings.height, settings.width, 3)

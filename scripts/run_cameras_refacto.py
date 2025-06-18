@@ -7,7 +7,6 @@ import numpy as np
 import ctypes
 from pynput import keyboard
 from datetime import datetime
-import subprocess
 from multiprocessing import Process, Barrier, Queue, Event, Array
 from threading import BrokenBarrierError
 from queue import Empty
@@ -15,7 +14,6 @@ from queue import Empty
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__)))) # Repo root
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "src")) # src dir
 
-from src.rtcosmik.camera.cam_utils import list_cameras
 from src.rtcosmik.config_loader import settings
 from src.rtcosmik.utils.linear_algebra_utils import concat_frames
 
@@ -25,7 +23,7 @@ def camera_process(queue, barrier, idx_cam, stop_event, current_frame):
 
     timestamps = []
 
-    cap = cv2.VideoCapture(idx_cam, cv2.CAP_V4L2)
+    cap = cv2.VideoCapture(idx_cam, cv2.CAP_DSHOW)
     if not cap.isOpened():
         print(f"Error: Could not open camera {idx_cam}")
         exit()
@@ -69,9 +67,9 @@ def displays_process(current_frames, idx_cams):
         
         for current_frame, idx_cam in zip(current_frames, idx_cams):
             globals()[f"displayed_frame_{idx_cam}"] = np.frombuffer(current_frame.get_obj(), dtype=np.uint8).reshape(settings.height, settings.width, 3)
+            globals()[f"reduced_frame_{idx_cam}"] = cv2.resize(globals()[f"displayed_frame_{idx_cam}"], (640,400))
 
-        concatenated_frame = concat_frames([globals()[f"displayed_frame_{idx_cam}"] for idx_cam in idx_cams])
-        concatenated_frame_resized = cv2.resize(concatenated_frame, (1440, 900))
+        concatenated_frame_resized = concat_frames([globals()[f"reduced_frame_{idx_cam}"] for idx_cam in idx_cams])
         cv2.imshow('Streaming View', concatenated_frame_resized)
 
         if (cv2.waitKey(1) & 0xFF) == ord('q'):
@@ -124,7 +122,7 @@ if __name__ == "__main__":
 
     os.makedirs(settings.SAVE_DIR, exist_ok=True)
 
-    cameras = list_cameras()
+    cameras = {2 : "Intel(R) RealSense(TM) Depth Camera 455  RGB", 4 : "Intel(R) RealSense(TM) Depth Camera 455  RGB"}
 
     print(cameras)
 
@@ -152,7 +150,7 @@ if __name__ == "__main__":
 
     display_process = Process(
         target=displays_process, 
-        args=([globals()[f"current_frame_{idx_cam}"] for idx_cam in cameras.keys()], cameras.keys()),
+        args=([globals()[f"current_frame_{idx_cam}"] for idx_cam in cameras.keys()], list(cameras.keys())),
         name="Display process"
     )
 
