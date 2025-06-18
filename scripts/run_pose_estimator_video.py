@@ -8,13 +8,15 @@ import sys
 num_cam = sys.argv[1]
 device = 'cpu'  # 'cpu', 'cuda', 'mps'
 backend = 'onnxruntime'  # 'opencv', 'onnxruntime', 'openvino'
-video_path = f"/root/workspace/ros_ws/src/rt-cosmik/output/Test_end2end/static/camera_{num_cam}.mp4"  # Remplace par le chemin vers ta vidéo
-csv_output = f"/root/workspace/ros_ws/src/rt-cosmik/output/Test_end2end/static/keypoints_cam{num_cam}.csv"
+video_path = f"/root/workspace/ros_ws/src/rt-cosmik/output/test_rs/test/camera_{num_cam}.avi"  # Remplace par le chemin vers ta vidéo
+csv_output = f"/root/workspace/ros_ws/src/rt-cosmik/output/test_rs/test/keypoints_cam{num_cam}.csv"
 openpose_skeleton = False  # True pour style OpenPose, False pour style MMPose
 
 # Initialisation du modèle
 wholebody = PoseTracker(BodyWithFeet,
                         det_frequency=7,
+                        tracking=False,
+                        tracking_thr=0.6,
                         to_openpose=openpose_skeleton,
                         mode='performance',
                         backend=backend,
@@ -46,7 +48,7 @@ with open(csv_output, mode='w', newline='') as f:
         # Sauvegarde dans le CSV
         if keypoints is not None and scores is not None:
             keypoints_flat = keypoints.flatten().tolist()  # x1, y1, x2, y2, ...
-            scores_flat = scores.flatten().tolist()        # s1, s2, ...
+            scores_flat = scores.flatten().tolist()        # s1, s:2, ...
             scores_mean = [np.mean(scores_flat)]
             writer.writerow(scores_mean + keypoints_flat)
 
