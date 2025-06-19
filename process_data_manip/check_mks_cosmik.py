@@ -11,9 +11,9 @@ import pandas as pd
 from src.rtcosmik.config_loader import settings
 from src.rtcosmik.utils.read_write_utils import load_transformation
 
-no_trial = "trial3"
-task = "lower"
-path_to_csv = f"/root/workspace/ros_ws/src/rt-cosmik/output/{no_trial}/{task}/augmented_markers_filtred.csv"
+no_trial = sys.argv[1]
+task = sys.argv[2]
+path_to_csv = f"/root/workspace/ros_ws/src/rt-cosmik/output/{no_trial}/{task}/augmented_markers.csv"
 mks_names = [
            'r.ASIS_study','L.ASIS_study','r.PSIS_study','L.PSIS_study','r_knee_study',
            'r_mknee_study','r_ankle_study','r_mankle_study','r_toe_study','r_5meta_study',
@@ -26,14 +26,14 @@ mks_names = [
            'L_lwrist_study','L_mwrist_study']
 
 
-# path_to_csv = f"/root/workspace/ros_ws/src/rt-cosmik/output/{no_trial}/{task}/3d_keypoints.csv"
-# mks_names = [
-#         "Nose", "LEye", "REye", "LEar", "REar", 
-#         "LShoulder", "RShoulder", "LElbow", "RElbow", 
-#         "LWrist", "RWrist", "LHip", "RHip", 
-#         "LKnee", "RKnee", "LAnkle", "RAnkle", "Head",
-#         "Neck", "midHip", "LBigToe", "RBigToe", "LSmallToe", "RSmallToe", "LHeel", "RHeel"
-#     ]
+path_to_csv = f"/root/workspace/ros_ws/src/rt-cosmik/output/{no_trial}/{task}/3d_keypoints_filtred.csv"
+mks_names = [
+         "Nose", "LEye", "REye", "LEar", "REar", 
+         "LShoulder", "RShoulder", "LElbow", "RElbow", 
+         "LWrist", "RWrist", "LHip", "RHip", 
+         "LKnee", "RKnee", "LAnkle", "RAnkle", "Head",
+         "Neck", "midHip", "LBigToe", "RBigToe", "LSmallToe", "RSmallToe", "LHeel", "RHeel"
+     ]
 
 # data = pd.read_csv(path_to_csv,skiprows=1).iloc[:,2:] #read mocap data skip first row cause header and 2 columns cause no frame
 data = pd.read_csv(path_to_csv,skiprows=1)

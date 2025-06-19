@@ -175,9 +175,9 @@ def load_cam_pose_rpy(filename):
 
 def load_camera_parameters(config_path):
     """Load intrinsic and extrinsic camera parameters."""
-    K1, D1 = load_cam_params(os.path.join(config_path, "c0_params_color.yaml"))
+    K1, D1 = load_cam_params(os.path.join(config_path, "c1_params_color.yaml"))
     K2, D2 = load_cam_params(os.path.join(config_path, "c2_params_color.yaml"))
-    R, T = load_cam_to_cam_params(os.path.join(config_path, "c0_to_c2_params_color.yaml"))
+    R, T = load_cam_to_cam_params(os.path.join(config_path, "c1_to_c2_params_color.yaml"))
     return get_cameras_params(K1, D1, K2, D2, R, T)
 
 def load_world_transformation(config_path):

@@ -10,11 +10,8 @@ from src.rtcosmik.triangulation.triangulation import triangulate_offline
 from src.rtcosmik.utils.read_write_utils import read_mmpose_file, save_to_csv,load_transformation,transform_keypoints_list_cam0_to_mocap
 from src.rtcosmik.utils.linear_algebra_utils import butterworth_filter
 #check paths in load_camera_parameters and load_world_transformation
-no_trial = "trial3"
-task = "lower"
-
-transformation_file = f"/root/workspace/ros_ws/src/rt-cosmik/output/{no_trial}/calib_mocap_2_cam0/soder.txt"
-R_trans, d_trans, s_trans, rms_error = load_transformation(transformation_file)
+no_trial = sys.argv[1]
+task = sys.argv[2]
 
 num_keypoints=26 
 markers = [
@@ -33,8 +30,8 @@ def main():
     config_path = os.path.join(base_path, "config/cam_params")
     output_csv_path = os.path.join(base_path, f"output/{no_trial}/{task}/3d_keypoints_filtred.csv")
     file_paths = [
-        os.path.join(base_path, f"output/{no_trial}/{task}/keypoints_0.csv"),
-        os.path.join(base_path, f"output/{no_trial}/{task}/keypoints_2.csv")
+        os.path.join(base_path, f"output/{no_trial}/{task}/keypoints_cam2.csv"),
+        os.path.join(base_path, f"output/{no_trial}/{task}/keypoints_cam4.csv")
     ]
     
     camera_data = [read_mmpose_file(file) for file in file_paths]
@@ -46,17 +43,11 @@ def main():
     print(uvs)
 
     mtxs, dists, projections, rotations, translations = load_camera_parameters(config_path)
-    world_R1_cam, world_T1_cam = load_world_transformation(config_path)
     
-    keypoints_in_cam0_list = triangulate_offline(uvs, mtxs, dists, projections, world_R1_cam, world_T1_cam)
+    keypoints_in_cam0_list = triangulate_offline(uvs, mtxs, dists, projections)
 
-    keypoints_in_mocap = transform_keypoints_list_cam0_to_mocap(
-        keypoints_in_cam0_list,
-        R_trans,
-        d_trans
-    )
     filtered_data = butterworth_filter(
-    data=keypoints_in_mocap,
+    data=keypoints_in_cam0_list,
     cutoff_frequency=10.0,  
     order=5,
     sampling_frequency=40
