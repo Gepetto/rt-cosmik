@@ -6,10 +6,12 @@ import sys
 
 # Configuration
 num_cam = sys.argv[1]
+subject = sys.argv[2]
+trial = sys.argv[3]
 device = 'cpu'  # 'cpu', 'cuda', 'mps'
 backend = 'onnxruntime'  # 'opencv', 'onnxruntime', 'openvino'
-video_path = f"/root/workspace/ros_ws/src/rt-cosmik/output/test_rs/test/camera_{num_cam}.avi"  # Remplace par le chemin vers ta vidéo
-csv_output = f"/root/workspace/ros_ws/src/rt-cosmik/output/test_rs/test/keypoints_cam{num_cam}.csv"
+video_path = f"/root/workspace/ros_ws/src/rt-cosmik/output/{subject}/{trial}/camera_{num_cam}.avi"  # Remplace par le chemin vers ta vidéo
+csv_output = f"/root/workspace/ros_ws/src/rt-cosmik/output/{subject}/{trial}/keypoints_cam{num_cam}.csv"
 openpose_skeleton = False  # True pour style OpenPose, False pour style MMPose
 
 # Initialisation du modèle
