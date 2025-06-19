@@ -21,7 +21,7 @@ class Settings:
     fs: int = 30
     dt: float = field(init=False)  # Mark `dt` as excluded from the constructor
     width: int = 1280 # image resolution
-    height: int = 800 # image resolution
+    height: int = 720 # image resolution
     fourcc: str = "I420" # video codec
 
     # VIEWER PARAMS
