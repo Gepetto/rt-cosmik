@@ -5,8 +5,8 @@ from src.rtcosmik.config_loader import settings
 import matplotlib.pyplot as plt
 from scipy.interpolate import CubicSpline
 
-no_trial = "Nicolas"
-task = "complete_task"
+no_trial = "Maxime"
+task = "welding"
 path_to_csv = f"/root/workspace/ros_ws/src/rt-cosmik/output/{no_trial}/{task}/mks_data.csv"
 output_csv = f"/root/workspace/ros_ws/src/rt-cosmik/output/{no_trial}/{task}/mks_data_gapfilled.csv"
 mks_names = settings.marker_mocap_names
@@ -73,7 +73,7 @@ print(len(df_wide))
 # Gap filling step
 df_wide_filled = fill_gaps_with_spline(df_wide)
 print(len(df_wide_filled))
-plot_marker_trajectories(df_wide, mks_names,filled_df=df_wide_filled)
+# plot_marker_trajectories(df_wide, mks_names,filled_df=df_wide_filled)
 # Continue with marker reconstruction
 # result_markers, start_sample_mks = read_mks_data(df_wide_filled)
 

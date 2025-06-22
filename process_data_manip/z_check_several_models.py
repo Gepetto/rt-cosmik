@@ -22,12 +22,20 @@ import matplotlib.pyplot as plt
 from src.rtcosmik.human_model.urdf_model import * 
 
 start_sample=0
-no_trial = "Nicolas"
-task = "polissage"
+no_trial = "Maxime"
+task = "bolting"
 path_to_csv_mocap = f"/root/workspace/ros_ws/src/rt-cosmik/output/{no_trial}/{task}/mks_data.csv"
 q_path_mocap= f"/root/workspace/ros_ws/src/rt-cosmik/output/{no_trial}/{task}/q_mocap_ipopt.csv"
 
-mks_names = settings.marker_mocap_names
+mks_names = ['r.ASIS_study','L.ASIS_study','r.PSIS_study','L.PSIS_study',
+             'TV8','TV12','SJN','STRN','C7_study','r_shoulder_study','L_shoulder_study',
+             'BHD','RHD','LHD','FHD',
+             'L_lelbow_study','L_melbow_study','LUArm','L_lwrist_study','L_mwrist_study','LForearm','LHand','LHL2','LHM5',
+             'r_lelbow_study','r_melbow_study','RUArm','r_lwrist_study','r_mwrist_study','RForearm','RHand','RHL2','RHM5',
+             'L_thigh1_study','L_knee_study','L_mknee_study','L_sh1_study','L_ankle_study','L_mankle_study','L_calc_study','L_5meta_study','L_toe_study',
+             'r_thigh1_study','r_knee_study','r_mknee_study','r_sh1_study',
+             'r_ankle_study','r_mankle_study','r_calc_study','r_5meta_study','r_toe_study',
+             'r_pelvis', 'l_pelvis']
 #read mks data
 df_wide = udp_csv_to_dataframe(path_to_csv_mocap, mks_names)
 result_markers_mocap, start_sample_mks_mocap = read_mks_data(df_wide)

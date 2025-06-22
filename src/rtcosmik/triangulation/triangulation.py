@@ -72,10 +72,10 @@ def triangulate_offline(uvs, mtxs, dists, projections, R, T):
     
     for frame_idx in range(num_frames):
         points_2d_per_frame = [uv[frame_idx] for uv in uvs]
-        p3d_frame = triangulate_points(points_2d_per_frame, mtxs, dists, projections)
+        p3d_frame = triangulate_points(points_2d_per_frame, mtxs, dists, projections) #3d is expressed in cam0 frame
 
         #express p3d_frame in world frame
-        p3d_frame_in_world= np.array([np.dot(R, point) + T for point in p3d_frame])
+        p3d_frame_in_world= np.array([np.dot(R, point) + T for point in p3d_frame]) #if we have an external frame
         keypoints_in_world_list.append(p3d_frame.flatten().tolist())
     
     return keypoints_in_world_list

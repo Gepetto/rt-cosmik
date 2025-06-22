@@ -5,9 +5,9 @@ import numpy as np
 from src.rtcosmik.config_loader import settings
 from src.rtcosmik.utils.read_write_utils import read_mks_data, marker_data_to_dataframe,read_joint_angles_wholebody,read_specific_joint
 
-no_trial = "Gabriel"
-task = "static"
-path_mocap= f"/root/workspace/ros_ws/src/rt-cosmik/output/{no_trial}/{task}/q_mocap_ipopt_thoax.csv"
+no_trial = "Maxime"
+task = "bolting"
+path_mocap= f"/root/workspace/ros_ws/src/rt-cosmik/output/{no_trial}/{task}/q_mocap_ipopt.csv"
 
 path_cosmik= f"/root/workspace/ros_ws/src/rt-cosmik/output/{no_trial}/{task}/q_cosmik_ipopt.csv" 
 

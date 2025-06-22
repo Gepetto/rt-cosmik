@@ -5,13 +5,13 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '../.
 
 import numpy as np
 import pandas as pd
-from src.rtcosmik.camera.cam_utils import load_camera_parameters,load_world_transformation
+from src.rtcosmik.camera.cam_utils import load_camera_parameters,load_world_transformation,load_four_camera_parameters
 from src.rtcosmik.triangulation.triangulation import triangulate_offline
 from src.rtcosmik.utils.read_write_utils import read_mmpose_file, save_to_csv,load_transformation,transform_keypoints_list_cam0_to_mocap
 from src.rtcosmik.utils.linear_algebra_utils import butterworth_filter
 #check paths in load_camera_parameters and load_world_transformation
-no_trial = "Nicolas"
-task = "robot_polissage"
+no_trial = "Maxime"
+task = "bolting"
 
 transformation_file = f"/root/workspace/ros_ws/src/rt-cosmik/output/{no_trial}/calib_mocap_2_cam0/soder.txt"
 R_trans, d_trans, s_trans, rms_error = load_transformation(transformation_file)
@@ -31,10 +31,10 @@ for marker in markers:
 def main():
     base_path = "/root/workspace/ros_ws/src/rt-cosmik"
     config_path = os.path.join(base_path, "config/cam_params")
-    output_csv_path = os.path.join(base_path, f"output/{no_trial}/{task}/3d_keypoints_filtred.csv")
+    output_csv_path = os.path.join(base_path, f"output/{no_trial}/{task}/3d_keypoints_filtred_.csv")
     file_paths = [
         os.path.join(base_path, f"output/{no_trial}/{task}/keypoints_0.csv"),
-        os.path.join(base_path, f"output/{no_trial}/{task}/keypoints_2.csv")
+        os.path.join(base_path, f"output/{no_trial}/{task}/keypoints_2.csv"),
     ]
     
     camera_data = [read_mmpose_file(file) for file in file_paths]

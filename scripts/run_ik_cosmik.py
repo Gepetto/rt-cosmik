@@ -13,7 +13,6 @@ import pinocchio as pin
 from pinocchio.visualize import GepettoVisualizer
 from src.rtcosmik.utils.read_write_utils import read_mks_data,udp_csv_to_dataframe,marker_data_to_dataframe
 import pandas as pd
-from src.rtcosmik.human_model.urdf_model import * 
 from src.rtcosmik.viewer.gv_viewer import place, gv_init, Rquat, add_marker, add_frames
 from src.rtcosmik.config_loader import settings
 from src.rtcosmik.human_model.model_utils import get_segment_length
