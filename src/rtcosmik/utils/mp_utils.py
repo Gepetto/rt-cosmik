@@ -1,5 +1,6 @@
 import numpy as np
 import multiprocessing as mp
+import ctypes
 
 def create_shared_buffer(shape, dtype):
     """Create shared memory buffer for camera frames"""
@@ -36,3 +37,35 @@ def create_pose_estimator_shared_ressources(num_cameras):
 
 def create_pipeline_shared_ressources():
     return [mp.Queue(maxsize=30) for _ in range(3)]
+
+def create_pipeline_shared_resources_with_buffers():
+    # Create locks for safe access (optional but recommended)
+    locks = [mp.Lock() for _ in range(4)]
+
+    # Shared counters: 2 integers
+    shared_counters = mp.Array(ctypes.c_int, 2)
+
+    # Shared keypoints: 26 * 3 floats
+    shared_kp = mp.Array(ctypes.c_float, 26 * 3)
+
+    shared_mks = mp.Array(ctypes.c_float, 43 * 3)
+
+    # Shared q output: 32 floats
+    shared_q = mp.Array(ctypes.c_float, 32)
+
+    buffers = {
+        'counters': shared_counters,
+        'keypoints': shared_kp,
+        'markers': shared_mks,
+        'q': shared_q,
+        'locks': locks
+    }
+
+    return buffers
+
+def create_udp_buffer(mks_names):
+    cam_event = mp.Event()
+    shared_ts     = mp.Array('c', 26, lock=False)
+    shared_values = mp.Array('f', len(mks_names)*3, lock=False)
+    lock          = mp.Lock()
+    return shared_ts,shared_values,lock,cam_event

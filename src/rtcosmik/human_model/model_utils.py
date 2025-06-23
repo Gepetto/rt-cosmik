@@ -3,7 +3,7 @@ import numpy as np
 import hppfcl as fcl
 from scipy.spatial.transform import Rotation as R
 from typing import List, Tuple, Dict
-from rtcosmik.utils.linear_algebra_utils import col_vector_3D
+from src.rtcosmik.utils.linear_algebra_utils import col_vector_3D
 
 
 def check_orthogonality(matrix: np.ndarray):
@@ -46,14 +46,14 @@ def orthogonalize_matrix(matrix:np.ndarray)->np.ndarray:
         orthogonal_matrix = U @ Vt
     return orthogonal_matrix
 
-def get_head_pose(mocap_mks_positions):
+def get_head_pose(mks_positions):
     """
     Calculate the pose of the head based on motion capture marker positions.
     The function computes a 4x4 transformation matrix representing the pose of the head.
     The matrix includes rotation and translation components derived from the positions
     of specific markers.
     Parameters:
-    mocap_mks_positions (dict): A dictionary containing the positions of motion capture markers.
+    mks_positions (dict): A dictionary containing the positions of motion capture markers.
                                 Expected keys are 'Neck', 'midHip', 'C7_study', 'CV7', 'SJN', 
                                 'HeadR', 'HeadL', 'RSAT', and 'LSAT'. Each key should map to a 
                                 numpy array of shape (3,).
@@ -63,17 +63,26 @@ def get_head_pose(mocap_mks_positions):
 
     pose = np.eye(4,4)
     X, Y, Z, head_center = [], [], [], []
+    if 'Head' in mks_positions:
+        head_center = (mks_positions['r_shoulder_study'] + mks_positions['L_shoulder_study'])/2.0 
+        top_head = mks_positions['Head']
+        Y = (top_head - head_center).reshape(3,1)
+        Y = Y/np.linalg.norm(Y)
 
-    head_center = (mocap_mks_positions['r_shoulder_study'] + mocap_mks_positions['L_shoulder_study'])/2.0 
-    top_head = mocap_mks_positions['Head']
-    Y = (top_head - head_center).reshape(3,1)
-    Y = Y/np.linalg.norm(Y)
+        Z = (mks_positions['REar'] - mks_positions['LEar']).reshape(3,1)
+        Z = Z/np.linalg.norm(Z)
+        
+        X = np.cross(Y, Z, axis=0)
+        Z = np.cross(X, Y, axis=0)
+    else: 
+        head_center = (mks_positions['r_shoulder_study'] + mks_positions['L_shoulder_study'])/2.0 
+        X = mks_positions['FHD'] - mks_positions['BHD']
+        X = X/np.linalg.norm(X)
+        Z = mks_positions['RHD'] - mks_positions['LHD']
+        Z = Z/np.linalg.norm(Z)
+        Y = np.cross(Z, X, axis=0)
+        Z = np.cross(X, Y, axis=0)
 
-    Z = (mocap_mks_positions['REar'] - mocap_mks_positions['LEar']).reshape(3,1)
-    Z = Z/np.linalg.norm(Z)
-    
-    X = np.cross(Y, Z, axis=0)
-    Z = np.cross(X, Y, axis=0)
 
     pose[:3,0] = X.reshape(3,)
     pose[:3,1] = Y.reshape(3,)
@@ -83,14 +92,14 @@ def get_head_pose(mocap_mks_positions):
     return pose
 
 #construct torso frame and get its pose from a dictionnary of mks positions and names
-def get_torso_pose(mocap_mks_positions):
+def get_torso_pose(mks_positions):
     """
     Calculate the torso pose matrix from motion capture marker positions.
     The function computes a 4x4 transformation matrix representing the pose of the torso.
     The matrix includes rotation and translation components derived from the positions
     of specific markers.
     Parameters:
-    mocap_mks_positions (dict): A dictionary containing the positions of motion capture markers.
+    mks_positions (dict): A dictionary containing the positions of motion capture markers.
                                 Expected keys are 'Neck', 'midHip', 'C7_study', 'CV7', 'SJN', 
                                 'HeadR', 'HeadL', 'RSAT', and 'LSAT'. Each key should map to a 
                                 numpy array of shape (3,).
@@ -101,16 +110,17 @@ def get_torso_pose(mocap_mks_positions):
     pose = np.eye(4,4)
     X, Y, Z, trunk_center = [], [], [], []
 
-    trunk_center = (mocap_mks_positions['r_shoulder_study'] + mocap_mks_positions['L_shoulder_study'])/2.0 
-    midhip = (mocap_mks_positions['r.ASIS_study'] +
-                mocap_mks_positions['L.ASIS_study'] +
-                mocap_mks_positions['r.PSIS_study'] +
-                mocap_mks_positions['L.PSIS_study'] )/4.0
+    trunk_center = (mks_positions['r_shoulder_study'] + mks_positions['L_shoulder_study'])/2.0 
+    midhip = (mks_positions['r.ASIS_study'] +
+                mks_positions['L.ASIS_study'] +
+                mks_positions['r.PSIS_study'] +
+                mks_positions['L.PSIS_study'] )/4.0
 
     Y = (trunk_center - midhip).reshape(3,1)
     Y = Y/np.linalg.norm(Y)
-    X = (trunk_center - mocap_mks_positions['C7_study']).reshape(3,1)
+    X = (trunk_center - mks_positions['C7_study']).reshape(3,1)
     X = X/np.linalg.norm(X)
+   
     Z = np.cross(X, Y, axis=0)
     X = np.cross(Y, Z, axis=0)
 
@@ -123,11 +133,11 @@ def get_torso_pose(mocap_mks_positions):
     return pose
 
 #construct upperarm frames and get their poses
-def get_upperarmR_pose(mocap_mks_positions):
+def get_upperarmR_pose(mks_positions):
     """
     Calculate the pose of the right upper arm based on motion capture marker positions.
     Parameters:
-    mocap_mks_positions (dict): A dictionary containing the positions of motion capture markers. 
+    mks_positions (dict): A dictionary containing the positions of motion capture markers. 
                                 Expected keys include 'RShoulder', 'r_melbow_study', 'r_lelbow_study', 
                                 'RHLE', 'RHME', 'RSAT', and 'LSAT'.
     Returns:
@@ -138,15 +148,15 @@ def get_upperarmR_pose(mocap_mks_positions):
     pose = np.eye(4,4)
     X, Y, Z, shoulder_center = [], [], [], []
 
-    torso_pose = get_torso_pose(mocap_mks_positions)
-    bi_acromial_dist = np.linalg.norm(mocap_mks_positions['L_shoulder_study'] - mocap_mks_positions['r_shoulder_study'])
-    shoulder_center = mocap_mks_positions['r_shoulder_study'].reshape(3,1) + torso_pose[:3, :3] @ col_vector_3D(0., -0.17*bi_acromial_dist, 0)
-    elbow_center = (mocap_mks_positions['r_melbow_study'] + mocap_mks_positions['r_lelbow_study']).reshape(3,1)/2.0
+    torso_pose = get_torso_pose(mks_positions)
+    bi_acromial_dist = np.linalg.norm(mks_positions['L_shoulder_study'] - mks_positions['r_shoulder_study'])
+    shoulder_center = mks_positions['r_shoulder_study'].reshape(3,1) + torso_pose[:3, :3] @ col_vector_3D(0.0, -0.17*bi_acromial_dist, 0.0)
+    elbow_center = (mks_positions['r_melbow_study'] + mks_positions['r_lelbow_study']).reshape(3,1)/2.0
     
     Y = shoulder_center - elbow_center
     Y = Y/np.linalg.norm(Y)
 
-    Z = (mocap_mks_positions['r_lelbow_study'] - mocap_mks_positions['r_melbow_study']).reshape(3,1)
+    Z = (mks_positions['r_lelbow_study'] - mks_positions['r_melbow_study']).reshape(3,1)
     Z = Z/np.linalg.norm(Z)
 
     X = np.cross(Y, Z, axis=0)
@@ -163,14 +173,14 @@ def get_upperarmR_pose(mocap_mks_positions):
     return pose
 
 
-def get_upperarmL_pose(mocap_mks_positions):
+def get_upperarmL_pose(mks_positions):
     """
     Calculate the pose of the left upper arm based on motion capture marker positions.
     This function computes the transformation matrix representing the pose of the left upper arm.
     The pose is calculated using the positions of specific markers on the body, such as the shoulder
     and elbow markers. The resulting pose matrix is a 4x4 homogeneous transformation matrix.
     Args:
-        mocap_mks_positions (dict): A dictionary containing the positions of motion capture markers.
+        mks_positions (dict): A dictionary containing the positions of motion capture markers.
             The keys are marker names (e.g., 'LShoulder', 'L_melbow_study', 'L_lelbow_study', 'LHLE', 'LHME', 'LSAT', 'RSAT'),
             and the values are numpy arrays of shape (3,) representing the 3D coordinates of the markers.
     Returns:
@@ -179,15 +189,15 @@ def get_upperarmL_pose(mocap_mks_positions):
 
     pose = np.eye(4,4)
     X, Y, Z, shoulder_center = [], [], [], []
-    torso_pose = get_torso_pose(mocap_mks_positions)
-    bi_acromial_dist = np.linalg.norm(mocap_mks_positions['L_shoulder_study'] - mocap_mks_positions['r_shoulder_study'])
-    shoulder_center = mocap_mks_positions['L_shoulder_study'].reshape(3,1) + (torso_pose[:3, :3].reshape(3,3) @ col_vector_3D(0., -0.17*bi_acromial_dist, 0)).reshape(3,1)
-    elbow_center = (mocap_mks_positions['L_melbow_study'] + mocap_mks_positions['L_lelbow_study']).reshape(3,1)/2.0
+    torso_pose = get_torso_pose(mks_positions)
+    bi_acromial_dist = np.linalg.norm(mks_positions['L_shoulder_study'] - mks_positions['r_shoulder_study'])
+    shoulder_center = mks_positions['L_shoulder_study'].reshape(3,1) + (torso_pose[:3, :3].reshape(3,3) @ col_vector_3D(0.0, -0.17*bi_acromial_dist, 0.0)).reshape(3,1)
+    elbow_center = (mks_positions['L_melbow_study'] + mks_positions['L_lelbow_study']).reshape(3,1)/2.0
     
     Y = shoulder_center - elbow_center
     Y = Y/np.linalg.norm(Y)
 
-    Z = (mocap_mks_positions['L_melbow_study'] - mocap_mks_positions['L_lelbow_study']).reshape(3,1)
+    Z = (mks_positions['L_melbow_study'] - mks_positions['L_lelbow_study']).reshape(3,1)
     Z = Z/np.linalg.norm(Z)
 
     X = np.cross(Y, Z, axis=0)
@@ -207,14 +217,14 @@ def get_upperarmL_pose(mocap_mks_positions):
 
 
 #construct lowerarm frames and get their poses
-def get_lowerarmR_pose(mocap_mks_positions):
+def get_lowerarmR_pose(mks_positions):
     """
     Calculate the pose of the right lower arm based on motion capture marker positions.
     The function computes the transformation matrix (pose) of the right lower arm using the positions of specific markers.
     It first checks for the presence of 'r_melbow_study' in the marker positions to determine which set of markers to use.
     The pose is represented as a 4x4 homogeneous transformation matrix.
     Parameters:
-    mocap_mks_positions (dict): A dictionary containing the positions of motion capture markers. The keys are marker names,
+    mks_positions (dict): A dictionary containing the positions of motion capture markers. The keys are marker names,
                                 and the values are their corresponding 3D positions (numpy arrays).
     Returns:
     numpy.ndarray: A 4x4 homogeneous transformation matrix representing the pose of the right lower arm.
@@ -222,12 +232,12 @@ def get_lowerarmR_pose(mocap_mks_positions):
 
     pose = np.eye(4,4)
     X, Y, Z, elbow_center = [], [], [], []
-    elbow_center = (mocap_mks_positions['r_melbow_study'] + mocap_mks_positions['r_lelbow_study']).reshape(3,1)/2.0
-    wrist_center = (mocap_mks_positions['r_mwrist_study'] + mocap_mks_positions['r_lwrist_study']).reshape(3,1)/2.0
+    elbow_center = (mks_positions['r_melbow_study'] + mks_positions['r_lelbow_study']).reshape(3,1)/2.0
+    wrist_center = (mks_positions['r_mwrist_study'] + mks_positions['r_lwrist_study']).reshape(3,1)/2.0
     
     Y = elbow_center - wrist_center
     Y = Y/np.linalg.norm(Y)
-    Z = (mocap_mks_positions['r_lwrist_study'] - mocap_mks_positions['r_mwrist_study']).reshape(3,1)
+    Z = (mks_positions['r_lwrist_study'] - mks_positions['r_mwrist_study']).reshape(3,1)
     Z = Z/np.linalg.norm(Z)
     X = np.cross(Y, Z, axis=0)
     Z = np.cross(X, Y, axis=0)
@@ -240,13 +250,13 @@ def get_lowerarmR_pose(mocap_mks_positions):
     return pose
 
 
-def get_lowerarmL_pose(mocap_mks_positions):
+def get_lowerarmL_pose(mks_positions):
     """
     Calculate the pose of the left lower arm based on motion capture marker positions.
     This function computes the transformation matrix representing the pose of the left lower arm.
     It uses the positions of specific markers to determine the orientation and position of the arm.
     Parameters:
-    mocap_mks_positions (dict): A dictionary containing the positions of motion capture markers.
+    mks_positions (dict): A dictionary containing the positions of motion capture markers.
                                 The keys should include either 'L_melbow_study', 'L_lelbow_study', 
                                 'L_mwrist_study', 'L_lwrist_study' or 'LHLE', 'LHME', 'LRSP', 'LUSP'.
     Returns:
@@ -255,12 +265,12 @@ def get_lowerarmL_pose(mocap_mks_positions):
 
     pose = np.eye(4,4)
     X, Y, Z, elbow_center = [], [], [], []
-    elbow_center = (mocap_mks_positions['L_melbow_study'] + mocap_mks_positions['L_lelbow_study']).reshape(3,1)/2.0
-    wrist_center = (mocap_mks_positions['L_mwrist_study'] + mocap_mks_positions['L_lwrist_study']).reshape(3,1)/2.0
+    elbow_center = (mks_positions['L_melbow_study'] + mks_positions['L_lelbow_study']).reshape(3,1)/2.0
+    wrist_center = (mks_positions['L_mwrist_study'] + mks_positions['L_lwrist_study']).reshape(3,1)/2.0
     
     Y = elbow_center - wrist_center
     Y = Y/np.linalg.norm(Y)
-    Z = (mocap_mks_positions['L_mwrist_study'] - mocap_mks_positions['L_lwrist_study']).reshape(3,1)
+    Z = (mks_positions['L_mwrist_study'] - mks_positions['L_lwrist_study']).reshape(3,1)
     # Z = Z/np.linalg.norm(Z)
     Z = Z.reshape(3, 1) / np.linalg.norm(Z)
 
@@ -284,8 +294,205 @@ def get_lowerarmL_pose(mocap_mks_positions):
 
     return pose
 
-#construct pelvis frame and get its pose
-def get_pelvis_pose(mocap_mks_positions):
+#construc hand frame and get its pose
+def get_handR_pose(mks_positions):
+    """
+    Calculate the pose of the right hand based on motion capture marker positions.
+    The function computes the transformation matrix (pose) of the right hand  using the positions of specific markers.
+    It first checks for the presence of 'r_melbow_study' in the marker positions to determine which set of markers to use.
+    The pose is represented as a 4x4 homogeneous transformation matrix.
+    Parameters:f
+    mks_positions (dict): A dictionary containing the positions of motion capture markers. The keys are marker names,
+                                and the values are their corresponding 3D positions (numpy arrays).
+    Returns:
+    numpy.ndarray: A 4x4 homogeneous transformation matrix representing the pose of the right hand .
+    """
+
+    pose = np.eye(4,4)
+    X, Y, Z, wrist_center = [], [], [], []
+    
+    if 'RHL2' in mks_positions:
+        wrist_center = (mks_positions['r_mwrist_study'] + mks_positions['r_lwrist_study']).reshape(3,1)/2.0
+        metacarpal_center = (mks_positions['RHL2'] + mks_positions['RHM5']).reshape(3,1)/2.0
+        
+        Y = wrist_center - metacarpal_center
+        Y = Y/np.linalg.norm(Y)
+        Z = (mks_positions['RHL2'] - mks_positions['RHM5']).reshape(3,1)
+        Z = Z/np.linalg.norm(Z)
+        X = np.cross(Y, Z, axis=0)
+        Z = np.cross(X, Y, axis=0)
+
+        pose[:3,0] = X.reshape(3,)
+        pose[:3,1] = Y.reshape(3,)
+        pose[:3,2] = Z.reshape(3,)
+        pose[:3,3] = wrist_center.reshape(3,)
+        pose[:3,:3] = orthogonalize_matrix(pose[:3,:3])
+        return pose
+    else:
+        elbow_center = (mks_positions['r_melbow_study'] + mks_positions['r_lelbow_study']).reshape(3,1)/2.0
+        wrist_center = (mks_positions['r_mwrist_study'] + mks_positions['r_lwrist_study']).reshape(3,1)/2.0
+        
+        Y = elbow_center - wrist_center
+        Y = Y/np.linalg.norm(Y)
+        Z = (mks_positions['r_lwrist_study'] - mks_positions['r_mwrist_study']).reshape(3,1)
+        Z = Z/np.linalg.norm(Z)
+        X = np.cross(Y, Z, axis=0)
+        Z = np.cross(X, Y, axis=0)
+
+        pose[:3,0] = X.reshape(3,)
+        pose[:3,1] = Y.reshape(3,)
+        pose[:3,2] = Z.reshape(3,)
+        pose[:3,3] = wrist_center.reshape(3,)
+        pose[:3,:3] = orthogonalize_matrix(pose[:3,:3])
+        return pose
+
+def get_handL_pose(mks_positions):
+    """
+    Calculate the pose of the left hand based on motion capture marker positions.
+    The function computes the transformation matrix (pose) of the left hand using the positions of specific markers.
+    It first checks for the presence of 'r_melbow_study' in the marker positions to determine which set of markers to use.
+    The pose is represented as a 4x4 homogeneous transformation matrix.
+    Parameters:
+    mks_positions (dict): A dictionary containing the positions of motion capture markers. The keys are marker names,
+                                and the values are their corresponding 3D positions (numpy arrays).
+    Returns:
+    numpy.ndarray: A 4x4 homogeneous transformation matrix representing the pose of the left hand.
+    """
+
+    pose = np.eye(4,4)
+    X, Y, Z, wrist_center = [], [], [], []
+    if 'LHL2' in mks_positions:
+        wrist_center = (mks_positions['L_mwrist_study'] + mks_positions['L_lwrist_study']).reshape(3,1)/2.0
+        metacarpal_center = (mks_positions['LHL2'] + mks_positions['LHM5']).reshape(3,1)/2.0
+        
+        Y = wrist_center - metacarpal_center
+        Y = Y/np.linalg.norm(Y)
+        Z = (mks_positions['LHM5'] - mks_positions['LHL2']).reshape(3,1)
+        Z = Z/np.linalg.norm(Z)
+        X = np.cross(Y, Z, axis=0)
+        Z = np.cross(X, Y, axis=0)
+
+        pose[:3,0] = X.reshape(3,)
+        pose[:3,1] = Y.reshape(3,)
+        pose[:3,2] = Z.reshape(3,)
+        pose[:3,3] = wrist_center.reshape(3,)
+        pose[:3,:3] = orthogonalize_matrix(pose[:3,:3])
+        return pose
+    else:
+        elbow_center = (mks_positions['L_melbow_study'] + mks_positions['L_lelbow_study']).reshape(3,1)/2.0
+        wrist_center = (mks_positions['L_mwrist_study'] + mks_positions['L_lwrist_study']).reshape(3,1)/2.0
+        
+        Y = elbow_center - wrist_center
+        Y = Y/np.linalg.norm(Y)
+        Z = (mks_positions['L_lwrist_study'] - mks_positions['L_mwrist_study']).reshape(3,1)
+        Z = Z/np.linalg.norm(Z)
+        X = np.cross(Y, Z, axis=0)
+        Z = np.cross(X, Y, axis=0)
+
+        pose[:3,0] = X.reshape(3,)
+        pose[:3,1] = Y.reshape(3,)
+        pose[:3,2] = Z.reshape(3,)
+        pose[:3,3] = wrist_center.reshape(3,)
+        pose[:3,:3] = orthogonalize_matrix(pose[:3,:3])
+        return pose
+
+#construct abdomen frame and get its pose (middle thoracic joint in urdf)
+def get_thorax_pose(mks_positions,gender='male',subject_height= 1.80):
+    #pelvis + distance selon y
+    """
+    Calculate the abdomen pose matrix from motion capture marker positions.
+    The function computes the abdomen pose based on the positions of specific markers.
+    It first determines the center points of the PSIS and ASIS markers, then calculates
+    the X, Y, and Z axes of the abdomen coordinate system. Finally, it constructs the 
+    pose matrix and ensures it is orthogonal.
+    Parameters:
+    mks_positions (dict): A dictionary containing the positions of the motion capture markers.
+                                The keys can be either 'r.PSIS_study', 'L.PSIS_study', 'r.ASIS_study', 
+                                'L.ASIS_study', or 'RIPS', 'LIPS', 'RIAS', 'LIAS'.
+    Returns:
+    numpy.ndarray: A 4x4 pose matrix representing the abdomen pose.
+    """
+    if gender == 'male' : 
+        abdomen_ratio = 0.0839
+    else : 
+        abdomen_ratio = 0.0776
+    
+    pelvis_pose =(get_pelvis_pose(mks_positions,gender)[:3,3]).reshape(3,1)
+    torso_pose = (get_torso_pose(mks_positions)[:3,3]).reshape(3,1)
+    direction = torso_pose - pelvis_pose                     
+    direction = direction / np.linalg.norm(direction)  
+    # pos_torso_in_pelvis = (np.linalg.inv(get_virtual_pelvis_pose(mks_positions)) @ torso_pose)[:3,3]
+
+    p_local=col_vector_3D(0.0, subject_height * abdomen_ratio,0.0)
+
+    p_global = (get_pelvis_pose(mks_positions,gender)[:3,:3].reshape(3,3) @ p_local).reshape(3,1)
+    
+    pose = np.eye(4,4)
+    X, Y, Z = [], [], []
+    center_PSIS = []
+    center_ASIS = []
+
+    center_PSIS = (mks_positions['r.PSIS_study'] + mks_positions['L.PSIS_study']).reshape(3,1)/2.0
+    center_ASIS = (mks_positions['r.ASIS_study'] + mks_positions['L.ASIS_study']).reshape(3,1)/2.0
+
+    center_right_ASIS_PSIS = (mks_positions['r.PSIS_study'] + mks_positions['r.ASIS_study']).reshape(3,1)/2.0
+    center_left_ASIS_PSIS = (mks_positions['L.PSIS_study'] + mks_positions['L.ASIS_study']).reshape(3,1)/2.0
+    
+    X = center_ASIS - center_PSIS
+    X = X/np.linalg.norm(X)
+    # Z = mks_positions['r.ASIS_study'] - mks_positions['L.ASIS_study']
+    Z = center_right_ASIS_PSIS - center_left_ASIS_PSIS
+    Z = Z/np.linalg.norm(Z)
+    Y = np.cross(Z, X, axis=0)
+    Z = np.cross(X, Y, axis=0)
+
+    pose[:3,0] = X.reshape(3,)
+    pose[:3,1] = Y.reshape(3,)
+    pose[:3,2] = Z.reshape(3,)
+    pose[:3,3] = ((get_pelvis_pose(mks_positions,gender)[:3,3]).reshape(3,1)+ (direction*p_global)).reshape(3,)
+    pose[:3,:3] = orthogonalize_matrix(pose[:3,:3])
+
+    return pose
+
+#get_virtual_pelvis_pose, used to get thigh pose
+def get_virtual_pelvis_pose(mks_positions):
+    """
+    Calculate the pelvis pose matrix from motion capture marker positions.
+    The function computes the pelvis pose based on the positions of specific markers.
+    It first determines the center points of the PSIS and ASIS markers, then calculates
+    the X, Y, and Z axes of the pelvis coordinate system. Finally, it constructs the 
+    pose matrix and ensures it is orthogonal.
+    Parameters:
+    mks_positions (dict): A dictionary containing the positions of the motion capture markers.
+                                The keys can be either 'r.PSIS_study', 'L.PSIS_study', 'r.ASIS_study', 
+                                'L.ASIS_study', or 'RIPS', 'LIPS', 'RIAS', 'LIAS'.
+    Returns:
+    numpy.ndarray: A 4x4 pose matrix representing the pelvis pose.
+    """
+
+    pose = np.eye(4,4)
+    X, Y, Z = [], [], []
+    center_PSIS = []
+    center_ASIS = []
+
+    center_PSIS = (mks_positions['r.PSIS_study'] + mks_positions['L.PSIS_study']).reshape(3,1)/2.0
+    center_ASIS = (mks_positions['r.ASIS_study'] + mks_positions['L.ASIS_study']).reshape(3,1)/2.0
+
+    X = center_ASIS - center_PSIS
+    X = X/np.linalg.norm(X)
+    Z = mks_positions['r.ASIS_study'] - mks_positions['L.ASIS_study']
+    Z = Z/np.linalg.norm(Z)
+    Y = np.cross(Z, X, axis=0)
+    Z = np.cross(X, Y, axis=0)
+
+    pose[:3,0] = X.reshape(3,)
+    pose[:3,1] = Y.reshape(3,)
+    pose[:3,2] = Z.reshape(3,)
+    pose[:3,3] = center_ASIS.reshape(3,)
+    pose[:3,:3] = orthogonalize_matrix(pose[:3,:3])
+    return pose
+#et pelvis pose, not used 
+def get_pelvis_pose(mks_positions, gender = 'male'):
     """
     Calculate the pelvis pose matrix from motion capture marker positions.
     The function computes the pelvis pose based on the positions of specific markers.
@@ -300,60 +507,95 @@ def get_pelvis_pose(mocap_mks_positions):
     numpy.ndarray: A 4x4 pose matrix representing the pelvis pose.
     """
 
+    if gender == 'male':
+        ratio_x = 0.335
+        ratio_y = -0.032
+        ratio_z = 0.0
+    else : 
+        ratio_x = 0.34
+        ratio_y = 0.049
+        ratio_z = 0.0
+
     pose = np.eye(4,4)
     center_PSIS = []
     center_ASIS = []
     center_right_ASIS_PSIS = []
     center_left_ASIS_PSIS = []
+    LJC=np.zeros((3,1))
 
-    center_PSIS = (mocap_mks_positions['r.PSIS_study'] + mocap_mks_positions['L.PSIS_study']).reshape(3,1)/2.0
-    center_ASIS = (mocap_mks_positions['r.ASIS_study'] + mocap_mks_positions['L.ASIS_study']).reshape(3,1)/2.0
-    center_right_ASIS_PSIS = (mocap_mks_positions['r.PSIS_study'] + mocap_mks_positions['r.ASIS_study']).reshape(3,1)/2.0
-    center_left_ASIS_PSIS = (mocap_mks_positions['L.PSIS_study'] + mocap_mks_positions['L.ASIS_study']).reshape(3,1)/2.0
+    dist_rPL_lPL = np.linalg.norm(mks_positions["r.ASIS_study"]-mks_positions["L.ASIS_study"])
+    virtual_pelvis_pose = get_virtual_pelvis_pose(mks_positions)
+    LJC = virtual_pelvis_pose[:3, 3].reshape(3,1)
+
+
+    center_PSIS = (mks_positions['r.PSIS_study'] + mks_positions['L.PSIS_study']).reshape(3,1)/2.0
+    center_ASIS = (mks_positions['r.ASIS_study'] + mks_positions['L.ASIS_study']).reshape(3,1)/2.0
+    
+    center_right_ASIS_PSIS = (mks_positions['r.PSIS_study'] + mks_positions['r.ASIS_study']).reshape(3,1)/2.0
+    center_left_ASIS_PSIS = (mks_positions['L.PSIS_study'] + mks_positions['L.ASIS_study']).reshape(3,1)/2.0
+    
+    offset_local = col_vector_3D(
+                                -ratio_x * dist_rPL_lPL,
+                                +ratio_y * dist_rPL_lPL,
+                                ratio_z * dist_rPL_lPL
+                                )
+    LJC = LJC + virtual_pelvis_pose[:3, :3] @ offset_local
  
     X = center_ASIS - center_PSIS
     X = X/np.linalg.norm(X)
+    # Z = mks_positions['r.ASIS_study'] - mks_positions['L.ASIS_study']
     Z = center_right_ASIS_PSIS - center_left_ASIS_PSIS
     Z = Z/np.linalg.norm(Z)
     Y = np.cross(Z, X, axis=0)
     Z = np.cross(X, Y, axis=0)
 
+
     pose[:3,0] = X.reshape(3,)
     pose[:3,1] = Y.reshape(3,)
     pose[:3,2] = Z.reshape(3,)
     pose[:3,3] = ((center_right_ASIS_PSIS + center_left_ASIS_PSIS)/2.0).reshape(3,)
+    # pose[:3,3] = LJC.reshape(3,)
     pose[:3,:3] = orthogonalize_matrix(pose[:3,:3])
 
     return pose
 
 #construct thigh frames and get their poses
-def get_thighR_pose(mocap_mks_positions):
+def get_thighR_pose(mks_positions, gender='male'):
     """
     Calculate the pose of the right thigh based on motion capture marker positions.
     Parameters:
-    mocap_mks_positions (dict): A dictionary containing the positions of motion capture markers. 
+    mks_positions (dict): A dictionary containing the positions of motion capture markers. 
                                 Expected keys include 'RHip', 'r_knee_study', 'r_mknee_study', 
                                 'RIAS', 'LIAS', 'RFLE', and 'RFME'.
     Returns:
     numpy.ndarray: A 4x4 transformation matrix representing the pose of the right thigh. The matrix 
                    includes rotation and translation components.
     """
+    if gender == 'male':
+        ratio_x = 0.3
+        ratio_y = 0.37
+        ratio_z = 0.361
+    else : 
+        ratio_x = 0.3
+        ratio_y = 0.336
+        ratio_z = 0.372
 
     pose = np.eye(4,4)
     X, Y, Z = [], [], []
     hip_center = np.zeros((3,1))
 
-    dist_rPL_lPL = np.linalg.norm(mocap_mks_positions["r.ASIS_study"]-mocap_mks_positions["L.ASIS_study"])
-    pelvis_pose = get_pelvis_pose(mocap_mks_positions)
-    hip_center = pelvis_pose[:3, 3].reshape(3,1)
-    hip_center = hip_center + pelvis_pose[:3,:3].reshape(3,3) @ col_vector_3D(-0.14*dist_rPL_lPL, 0.0, 0.0)
-    hip_center = hip_center + pelvis_pose[:3,:3].reshape(3,3) @ col_vector_3D(0.0, -0.3*dist_rPL_lPL, 0.0)
-    hip_center = hip_center + pelvis_pose[:3,:3].reshape(3,3) @ col_vector_3D(0.0, 0.0, 0.22*dist_rPL_lPL)
+    dist_rPL_lPL = np.linalg.norm(mks_positions["r.ASIS_study"]-mks_positions["L.ASIS_study"])
+    virtual_pelvis_pose = get_virtual_pelvis_pose(mks_positions)
+    hip_center = virtual_pelvis_pose[:3, 3].reshape(3,1)
 
-    knee_center = (mocap_mks_positions['r_knee_study'] + mocap_mks_positions['r_mknee_study']).reshape(3,1)/2.0
+    hip_center = hip_center + virtual_pelvis_pose[:3,:3].reshape(3,3) @ col_vector_3D(-ratio_x*dist_rPL_lPL, 0.0, 0.0)
+    hip_center = hip_center + virtual_pelvis_pose[:3,:3].reshape(3,3) @ col_vector_3D(0.0, -ratio_y*dist_rPL_lPL, 0.0)
+    hip_center = hip_center + virtual_pelvis_pose[:3,:3].reshape(3,3) @ col_vector_3D(0.0, 0.0, ratio_z*dist_rPL_lPL)
+
+    knee_center = (mks_positions['r_knee_study'] + mks_positions['r_mknee_study']).reshape(3,1)/2.0
     Y = hip_center - knee_center
     Y = Y/np.linalg.norm(Y)
-    Z = (mocap_mks_positions['r_knee_study'] - mocap_mks_positions['r_mknee_study']).reshape(3,1)
+    Z = (mks_positions['r_knee_study'] - mks_positions['r_mknee_study']).reshape(3,1)
     Z = Z/np.linalg.norm(Z)
     X = np.cross(Y, Z, axis=0)
     Z = np.cross(X, Y, axis=0)
@@ -366,32 +608,40 @@ def get_thighR_pose(mocap_mks_positions):
     return pose
 
 
-def get_thighL_pose(mocap_mks_positions):
+def get_thighL_pose(mks_positions, gender='male'):
     """
     Calculate the pose of the left thigh based on motion capture marker positions.
     Parameters:
-    mocap_mks_positions (dict): A dictionary containing the positions of motion capture markers. 
+    mks_positions (dict): A dictionary containing the positions of motion capture markers. 
                                 Expected keys are 'LHip', 'L_knee_study', 'L_mknee_study', 'LIAS', 'RIAS', 'LFLE', and 'LFME'.
     Returns:
     numpy.ndarray: A 4x4 transformation matrix representing the pose of the left thigh. The matrix includes
                    rotation and translation components.
     """
+    if gender == 'male':
+        ratio_x = 0.3
+        ratio_y = 0.37
+        ratio_z = 0.361
+    else : 
+        ratio_x = 0.3
+        ratio_y = 0.336
+        ratio_z = 0.372
 
     pose = np.eye(4,4)
     X, Y, Z = [], [], []
     hip_center = np.zeros((3,1))
 
-    dist_rPL_lPL = np.linalg.norm(mocap_mks_positions["L.ASIS_study"]-mocap_mks_positions["r.ASIS_study"])
-    pelvis_pose = get_pelvis_pose(mocap_mks_positions)
-    hip_center = pelvis_pose[:3, 3].reshape(3,1)
-    hip_center = hip_center + pelvis_pose[:3,:3].reshape(3,3) @ col_vector_3D(-0.14*dist_rPL_lPL, 0.0, 0.0)
-    hip_center = hip_center + pelvis_pose[:3,:3].reshape(3,3) @ col_vector_3D(0.0, -0.3*dist_rPL_lPL, 0.0)
-    hip_center = hip_center + pelvis_pose[:3,:3].reshape(3,3) @ col_vector_3D(0.0, 0.0, -0.22*dist_rPL_lPL)
+    dist_rPL_lPL = np.linalg.norm(mks_positions["L.ASIS_study"]-mks_positions["r.ASIS_study"])
+    virtual_pelvis_pose = get_virtual_pelvis_pose(mks_positions)
+    hip_center = virtual_pelvis_pose[:3, 3].reshape(3,1)
+    hip_center = hip_center + virtual_pelvis_pose[:3,:3].reshape(3,3) @ col_vector_3D(-ratio_x*dist_rPL_lPL, 0.0, 0.0)
+    hip_center = hip_center + virtual_pelvis_pose[:3,:3].reshape(3,3) @ col_vector_3D(0.0, -ratio_y*dist_rPL_lPL, 0.0)
+    hip_center = hip_center + virtual_pelvis_pose[:3,:3].reshape(3,3) @ col_vector_3D(0.0, 0.0, -ratio_z*dist_rPL_lPL)
 
-    knee_center = (mocap_mks_positions['L_knee_study'] + mocap_mks_positions['L_mknee_study']).reshape(3,1)/2.0
+    knee_center = (mks_positions['L_knee_study'] + mks_positions['L_mknee_study']).reshape(3,1)/2.0
     Y = hip_center - knee_center
     Y = Y/np.linalg.norm(Y)
-    Z = (mocap_mks_positions['L_mknee_study'] - mocap_mks_positions['L_knee_study']).reshape(3,1)
+    Z = (mks_positions['L_mknee_study'] - mks_positions['L_knee_study']).reshape(3,1)
     Z = Z/np.linalg.norm(Z)
     X = np.cross(Y, Z, axis=0)
     Z = np.cross(X, Y, axis=0)
@@ -404,11 +654,11 @@ def get_thighL_pose(mocap_mks_positions):
     return pose
 
 #construct shank frames and get their poses
-def get_shankR_pose(mocap_mks_positions):
+def get_shankR_pose(mks_positions):
     """
     Calculate the pose of the right shank based on motion capture marker positions.
     Parameters:
-    mocap_mks_positions (dict): A dictionary containing the positions of motion capture markers. 
+    mks_positions (dict): A dictionary containing the positions of motion capture markers. 
                                 The keys should include either 'r_knee_study', 'r_mknee_study', 
                                 'r_mankle_study', 'r_ankle_study' or 'RFLE', 'RFME', 'RTAM', 'RFAL'.
     Returns:
@@ -420,11 +670,11 @@ def get_shankR_pose(mocap_mks_positions):
     pose = np.eye(4,4)
     X, Y, Z, knee_center, ankle_center = [], [], [], [], []
 
-    knee_center = (mocap_mks_positions['r_knee_study'] + mocap_mks_positions['r_mknee_study']).reshape(3,1)/2.0
-    ankle_center = (mocap_mks_positions['r_mankle_study'] + mocap_mks_positions['r_ankle_study']).reshape(3,1)/2.0
+    knee_center = (mks_positions['r_knee_study'] + mks_positions['r_mknee_study']).reshape(3,1)/2.0
+    ankle_center = (mks_positions['r_mankle_study'] + mks_positions['r_ankle_study']).reshape(3,1)/2.0
     Y = knee_center - ankle_center
     Y = Y/np.linalg.norm(Y)
-    Z = (mocap_mks_positions['r_knee_study'] - mocap_mks_positions['r_mknee_study']).reshape(3,1)
+    Z = (mks_positions['r_knee_study'] - mks_positions['r_mknee_study']).reshape(3,1)
     Z = Z/np.linalg.norm(Z)
     X = np.cross(Y, Z, axis=0)
     Z = np.cross(X, Y, axis=0)
@@ -437,11 +687,11 @@ def get_shankR_pose(mocap_mks_positions):
     pose[:3,:3] = orthogonalize_matrix(pose[:3,:3])
     return pose
 
-def get_shankL_pose(mocap_mks_positions):
+def get_shankL_pose(mks_positions):
     """
     Calculate the pose of the left shank based on motion capture marker positions.
     Parameters:
-    mocap_mks_positions (dict): A dictionary containing the positions of motion capture markers. 
+    mks_positions (dict): A dictionary containing the positions of motion capture markers. 
                                 The keys should include either 'L_knee_study', 'L_mknee_study', 
                                 'L_mankle_study', 'L_ankle_study' or 'LFLE', 'LFME', 'LTAM', 'LFAL'.
     Returns:
@@ -452,11 +702,11 @@ def get_shankL_pose(mocap_mks_positions):
     pose = np.eye(4,4)
     X, Y, Z, knee_center, ankle_center = [], [], [], [], []
 
-    knee_center = (mocap_mks_positions['L_knee_study'] + mocap_mks_positions['L_mknee_study']).reshape(3,1)/2.0
-    ankle_center = (mocap_mks_positions['L_mankle_study'] + mocap_mks_positions['L_ankle_study']).reshape(3,1)/2.0
+    knee_center = (mks_positions['L_knee_study'] + mks_positions['L_mknee_study']).reshape(3,1)/2.0
+    ankle_center = (mks_positions['L_mankle_study'] + mks_positions['L_ankle_study']).reshape(3,1)/2.0
     Y = knee_center - ankle_center
     Y = Y/np.linalg.norm(Y)
-    Z = (mocap_mks_positions['L_mknee_study'] - mocap_mks_positions['L_knee_study']).reshape(3,1)
+    Z = (mks_positions['L_mknee_study'] - mks_positions['L_knee_study']).reshape(3,1)
     Z = Z/np.linalg.norm(Z)
     X = np.cross(Y, Z, axis=0)
     Z = np.cross(X, Y, axis=0)
@@ -470,11 +720,11 @@ def get_shankL_pose(mocap_mks_positions):
     return pose
 
 #construct foot frames and get their poses
-def get_footR_pose(mocap_mks_positions):
+def get_footR_pose(mks_positions):
     """
     Calculate the pose of the right foot based on motion capture marker positions.
     Parameters:
-    mocap_mks_positions (dict): A dictionary containing the positions of motion capture markers. 
+    mks_positions (dict): A dictionary containing the positions of motion capture markers. 
                                 The keys can be either 'r_mankle_study', 'r_ankle_study', 'r_toe_study', 
                                 'r_calc_study' or 'RTAM', 'RFAL', 'RFM5', 'RFM1', 'RFCC'.
     Returns:
@@ -485,12 +735,12 @@ def get_footR_pose(mocap_mks_positions):
     pose = np.eye(4,4)
     X, Y, Z, ankle_center = [], [], [], []
 
-    ankle_center = (mocap_mks_positions['r_mankle_study'] + mocap_mks_positions['r_ankle_study']).reshape(3,1)/2.0
-    toe_pos = (mocap_mks_positions['r_toe_study'] + mocap_mks_positions['r_5meta_study'])/2.0
+    ankle_center = (mks_positions['r_mankle_study'] + mks_positions['r_ankle_study']).reshape(3,1)/2.0
+    toe_pos = (mks_positions['r_toe_study'] + mks_positions['r_5meta_study'])/2.0
     
-    X = (toe_pos - mocap_mks_positions['r_calc_study']).reshape(3,1)  
+    X = (toe_pos - mks_positions['r_calc_study']).reshape(3,1)  
     X = X/np.linalg.norm(X)
-    Z = (mocap_mks_positions['r_ankle_study'] - mocap_mks_positions['r_mankle_study']).reshape(3,1)
+    Z = (mks_positions['r_ankle_study'] - mks_positions['r_mankle_study']).reshape(3,1)
     Z = Z/np.linalg.norm(Z)
     Y = np.cross(Z, X, axis=0)
     Z = np.cross(X, Y, axis=0)
@@ -505,14 +755,14 @@ def get_footR_pose(mocap_mks_positions):
     pose[:3,:3] = orthogonalize_matrix(pose[:3,:3])
     return pose
 
-def get_footL_pose(mocap_mks_positions):
+def get_footL_pose(mks_positions):
     """
     Calculate the pose of the left foot based on motion capture marker positions.
     This function computes the transformation matrix (pose) of the left foot using
     the positions of various markers from motion capture data. The pose is represented
     as a 4x4 homogeneous transformation matrix.
     Parameters:
-    mocap_mks_positions (dict): A dictionary containing the positions of motion capture markers.
+    mks_positions (dict): A dictionary containing the positions of motion capture markers.
                                 The keys are marker names and the values are their respective
                                 3D coordinates (numpy arrays).
     Returns:
@@ -529,12 +779,12 @@ def get_footL_pose(mocap_mks_positions):
     pose = np.eye(4,4)
     X, Y, Z, ankle_center = [], [], [], []
 
-    ankle_center = (mocap_mks_positions['L_mankle_study'] + mocap_mks_positions['L_ankle_study']).reshape(3,1)/2.0
-    toe_pos = (mocap_mks_positions['L_toe_study'] + mocap_mks_positions['L_5meta_study'])/2.0
+    ankle_center = (mks_positions['L_mankle_study'] + mks_positions['L_ankle_study']).reshape(3,1)/2.0
+    toe_pos = (mks_positions['L_toe_study'] + mks_positions['L_5meta_study'])/2.0
 
-    X = (toe_pos - mocap_mks_positions['L_calc_study']).reshape(3,1)
+    X = (toe_pos - mks_positions['L_calc_study']).reshape(3,1)
     X = X/np.linalg.norm(X)
-    Z = (mocap_mks_positions['L_mankle_study'] - mocap_mks_positions['L_ankle_study']).reshape(3,1)
+    Z = (mks_positions['L_mankle_study'] - mks_positions['L_ankle_study']).reshape(3,1)
     Z = Z/np.linalg.norm(Z)
     Y = np.cross(Z, X, axis=0)
     Z = np.cross(X, Y, axis=0)
@@ -549,39 +799,45 @@ def get_footL_pose(mocap_mks_positions):
     return pose
 
 #Construct challenge segments frames from mocap mks
-# - mocap_mks_positions is a dictionnary of mocap mks names and 3x1 global positions
+# - mks_positions is a dictionnary of mocap mks names and 3x1 global positions
 # - returns sgts_poses which correspond to a dictionnary to segments poses and names, constructed from mks global positions
-def construct_segments_frames(mocap_mks_positions): 
+def construct_segments_frames(mks_positions, with_hand=True, gender='male',subject_height=1.8): 
     """
     Constructs a dictionary of segment poses from motion capture marker positions.
     Args:
-        mocap_mks_positions (dict): A dictionary containing the positions of motion capture markers.
+        mks_positions (dict): A dictionary containing the positions of motion capture markers.
     Returns:
         dict: A dictionary where keys are segment names (e.g., 'torso', 'upperarmR') and values are the corresponding poses.
     """
-    head_pose = get_head_pose(mocap_mks_positions)
-    torso_pose = get_torso_pose(mocap_mks_positions)
-    upperarmR_pose = get_upperarmR_pose(mocap_mks_positions)
-    lowerarmR_pose = get_lowerarmR_pose(mocap_mks_positions)
-    upperarmL_pose = get_upperarmL_pose(mocap_mks_positions)
-    lowerarmL_pose = get_lowerarmL_pose(mocap_mks_positions)
-    pelvis_pose = get_pelvis_pose(mocap_mks_positions)
-    thighR_pose = get_thighR_pose(mocap_mks_positions)
-    shankR_pose = get_shankR_pose(mocap_mks_positions)
-    footR_pose = get_footR_pose(mocap_mks_positions)
-    thighL_pose = get_thighL_pose(mocap_mks_positions)
-    shankL_pose = get_shankL_pose(mocap_mks_positions)
-    footL_pose = get_footL_pose(mocap_mks_positions)
+    head_pose = get_head_pose(mks_positions)
+    torso_pose = get_torso_pose(mks_positions)
+    right_clavicle_pose =get_torso_pose(mks_positions)
+    left_clavicle_pose =get_torso_pose(mks_positions)
+    upperarmR_pose = get_upperarmR_pose(mks_positions)
+    lowerarmR_pose = get_lowerarmR_pose(mks_positions)
+    upperarmL_pose = get_upperarmL_pose(mks_positions)
+    lowerarmL_pose = get_lowerarmL_pose(mks_positions) 
+    thorax_pose = get_thorax_pose(mks_positions,gender='male',subject_height=1.8)
+    pelvis_pose = get_pelvis_pose(mks_positions,gender='male')
+    thighR_pose = get_thighR_pose(mks_positions,gender='male')
+    shankR_pose = get_shankR_pose(mks_positions)
+    footR_pose = get_footR_pose(mks_positions)
+    thighL_pose = get_thighL_pose(mks_positions,gender='male')
+    shankL_pose = get_shankL_pose(mks_positions)
+    footL_pose = get_footL_pose(mks_positions)
     
     # Constructing the dictionary to store segment poses
     sgts_poses = {
         "head": head_pose,
         "torso": torso_pose,
+        "right_clavicle" : right_clavicle_pose,
+        "left_clavicle" : left_clavicle_pose,
         "upperarmR": upperarmR_pose,
         "lowerarmR": lowerarmR_pose,
         "upperarmL": upperarmL_pose,
         "lowerarmL": lowerarmL_pose,
         "pelvis": pelvis_pose,
+        "thorax":thorax_pose,
         "thighR": thighR_pose,
         "shankR": shankR_pose,
         "footR": footR_pose,
@@ -589,12 +845,18 @@ def construct_segments_frames(mocap_mks_positions):
         "shankL": shankL_pose,
         "footL": footL_pose
     }
+    if with_hand : 
+        handR_pose = get_handR_pose(mks_positions)
+        handL_pose = get_handL_pose(mks_positions)
+        sgts_poses["handR"] = handR_pose
+        sgts_poses["handL"] = handL_pose
+
     # for name, pose in sgts_poses.items():
     #     print(name, " rot det : ", np.linalg.det(pose[:3,:3]))
     return sgts_poses
 
-def compare_offsets(mocap_mks_positions, lstm_mks_positions): 
-    mocap_sgts_poses = construct_segments_frames(mocap_mks_positions)
+def compare_offsets(mks_positions, lstm_mks_positions): 
+    mocap_sgts_poses = construct_segments_frames(mks_positions)
     lstm_sgts_poses = construct_segments_frames(lstm_mks_positions)
     sgts_lenghts_lstm = {
         "upperarm": np.linalg.norm(lstm_sgts_poses["upperarm"][:3,3]-lstm_sgts_poses["lowerarm"][:3,3]),
@@ -605,7 +867,7 @@ def compare_offsets(mocap_mks_positions, lstm_mks_positions):
 
     sgts_lenghts_mocap = {
         "upperarm": np.linalg.norm(mocap_sgts_poses["upperarm"][:3,3]-mocap_sgts_poses["lowerarm"][:3,3]),
-        "lowerarm": np.linalg.norm(mocap_sgts_poses["lowerarm"][:3,3]-(mocap_mks_positions['RRSP'] + mocap_mks_positions['RUSP']).reshape(3,)/2.0),
+        "lowerarm": np.linalg.norm(mocap_sgts_poses["lowerarm"][:3,3]-(mks_positions['RRSP'] + mks_positions['RUSP']).reshape(3,)/2.0),
         "thigh": np.linalg.norm(mocap_sgts_poses["thigh"][:3,3]-mocap_sgts_poses["shank"][:3,3]),
         "shank": np.linalg.norm(mocap_sgts_poses["shank"][:3,3]-mocap_sgts_poses["foot"][:3,3]),
     }
@@ -625,13 +887,17 @@ def compare_offsets(mocap_mks_positions, lstm_mks_positions):
     for key, value in offset_rots.items():
         print(key, R.from_matrix(value).as_euler('ZYX', degrees=True), " deg")
 
-def get_segments_mks_dict()->Dict:
+def get_segments_mks_dict(mks_positions)->Dict:
     #This fuction returns a dictionnary containing the segments names, and the corresponding list of lstm
     # mks names attached to the segment
     # Constructing the dictionary to store segment poses
-    sgts_mks_dict = {
-        "head": ['Head', 'Nose', 'REar', 'LEar', 'REye', 'LEye' ],
-        "torso": ['r_shoulder_study', 'L_shoulder_study', 'C7_study'],
+    if 'Head' in mks_positions: #with cosmik set
+        sgts_mks_dict = {
+        "head": ['Head', 'Nose', 'REar', 'LEar', 'REye', 'LEye'],
+        "thorax": ['C7_study'],
+        "right_clavicle" : ['r_shoulder_study'],
+        "left_clavicle" : ['L_shoulder_study'],
+        
         "upperarmR": ['r_melbow_study', 'r_lelbow_study'],
         "lowerarmR": ['r_lwrist_study', 'r_mwrist_study'],
         "upperarmL" : ['L_melbow_study', 'L_lelbow_study'],
@@ -644,6 +910,27 @@ def get_segments_mks_dict()->Dict:
         "footR": ['r_calc_study' ,'r_5meta_study','r_toe_study'],
         "footL": ['L_calc_study', 'L_5meta_study', 'L_toe_study']
     }
+    else : #with mocap set
+        sgts_mks_dict = {
+            "head": ['BHD','RHD','LHD','FHD'],
+            "thorax": ['C7_study','TV8','TV12','SJN','STRN'],
+            "right_clavicle" : ['r_shoulder_study'],
+            "left_clavicle" : ['L_shoulder_study'],
+            "upperarmR": ['r_melbow_study', 'r_lelbow_study'],
+            "lowerarmR": ['r_lwrist_study', 'r_mwrist_study'],
+            "upperarmL" : ['L_melbow_study', 'L_lelbow_study'],
+            "lowerarmL": ['L_lwrist_study', 'L_mwrist_study'],
+            "pelvis": ['r.PSIS_study', 'L.PSIS_study', 'r.ASIS_study', 'L.ASIS_study'],
+            "thighR": ['r_knee_study', 'r_mknee_study', 'r_thigh1_study'],
+            "thighL": ['L_knee_study', 'L_mknee_study', 'L_thigh1_study'],
+            "shankR": ['r_ankle_study', 'r_mankle_study', 'r_sh1_study'],
+            "shankL": ['L_ankle_study', 'L_mankle_study', 'L_sh1_study'],
+            "footR": ['r_calc_study' ,'r_5meta_study','r_toe_study'],
+            "footL": ['L_calc_study', 'L_5meta_study', 'L_toe_study'],
+
+            "handR": ["RHL2", "RHM5"],
+            "handL": ["LHL2", "LHM5"]
+        }
     return sgts_mks_dict
 
 def get_subset_mks_names()->List:
@@ -663,7 +950,7 @@ def get_subset_mks_names()->List:
                  ]
     return mks_names
 
-def get_local_mks_positions(sgts_poses: Dict, mks_positions: Dict, sgts_mks_dict: Dict)-> Dict:
+def get_local_mks_positions(sgts_poses: Dict, mks_positions: Dict, sgts_mks_dict: Dict, with_hand=True)-> Dict:
     """_Get the local 3D position of the lstms markers_
 
     Args:
@@ -696,7 +983,7 @@ def get_local_mks_positions(sgts_poses: Dict, mks_positions: Dict, sgts_mks_dict
 
     return mks_local_positions
 
-def get_local_segments_positions(sgts_poses: Dict)->Dict:
+def get_local_segments_positions(sgts_poses: Dict, with_hand=True)->Dict:
     """_Get the local positions of the segments_
 
     Args:
@@ -710,18 +997,24 @@ def get_local_segments_positions(sgts_poses: Dict)->Dict:
 
     # Pelvis is the base, so it does not have a local position
     pelvis_pose = sgts_poses["pelvis"]
-
     # Compute local positions for each segment
-    # Torso with respect to pelvis
+    
+    if "thorax" in sgts_poses:
+        thorax_global = sgts_poses["thorax"]
+        local_positions["thorax"] = (np.linalg.inv(pelvis_pose) @ thorax_global @ np.array([0, 0, 0, 1]))[:3]
+    
+     # Torso with respect to pelvis
     if "torso" in sgts_poses:
         torso_global = sgts_poses["torso"]
-        local_positions["torso"] = (np.linalg.inv(pelvis_pose) @ torso_global @ np.array([0, 0, 0, 1]))[:3]
+        thorax_global = sgts_poses["thorax"]
+        local_positions["torso"] = (np.linalg.inv(thorax_global) @ torso_global @ np.array([0, 0, 0, 1]))[:3]
+        #need to adjust torso frame to aligned it with thorax and pelvis frames.
 
     # Head with respect to torso
     if "head" in sgts_poses:
         head_global = sgts_poses["head"]
         torso_global = sgts_poses["torso"]
-        local_positions["head"] = (np.linalg.inv(torso_global) @ head_global @ np.array([0, 0, 0, 1]))[:3]
+        local_positions["head"] = (np.linalg.inv(thorax_global) @ head_global @ np.array([0, 0, 0, 1]))[:3]
 
     # Upperarm with respect to torso
     if "upperarmR" in sgts_poses:
@@ -745,6 +1038,18 @@ def get_local_segments_positions(sgts_poses: Dict)->Dict:
         upperarm_global = sgts_poses["upperarmL"]
         local_positions["lowerarmL"] = (np.linalg.inv(upperarm_global) @ lowerarm_global @ np.array([0, 0, 0, 1]))[:3]
 
+    if with_hand:
+    # Hand with respect to lowerarm
+        if "handR" in sgts_poses:
+            hand_global = sgts_poses["handR"]
+            lowerarm_global = sgts_poses["lowerarmR"]
+            local_positions["handR"] = (np.linalg.inv(lowerarm_global) @ hand_global @ np.array([0, 0, 0, 1]))[:3]
+
+        if "handL" in sgts_poses:
+            hand_global = sgts_poses["handL"]
+            lowerarm_global = sgts_poses["lowerarmL"]
+            local_positions["handL"] = (np.linalg.inv(lowerarm_global) @ hand_global @ np.array([0, 0, 0, 1]))[:3]
+            
     # Thigh with respect to pelvis
     if "thighR" in sgts_poses:
         thigh_global = sgts_poses["thighR"]
@@ -778,21 +1083,22 @@ def get_local_segments_positions(sgts_poses: Dict)->Dict:
     return local_positions
     
 
-# def get_segment_length(mocap_mks_positions: Dict):
-#     sgts_poses = construct_segments_frames_challenge(mocap_mks_positions)
-#     local_segments_positions = get_local_segments_positions(sgts_poses)
-#     print('local_segments_positions', local_segments_positions)
-#     # Calculate norms to get length of segments
-#     norms = {}
-#     norms['upperlegR'] = np.linalg.norm(local_segments_positions['shankR'])
-#     norms['lowerlegR'] = np.linalg.norm(local_segments_positions['footR'])
-#     norms['upperlegL'] = np.linalg.norm(local_segments_positions['shankL'])
-#     norms['lowerlegL'] = np.linalg.norm(local_segments_positions['footL'])
+def get_segment_length(mks_positions: Dict):
+    sgts_poses = construct_segments_frames(mks_positions)
+    local_segments_positions = get_local_segments_positions(sgts_poses)
+    # print('local_segments_positions', local_segments_positions)
+    # Calculate norms to get length of segments
+    norms = {}
+    norms['upperlegR'] = np.linalg.norm(local_segments_positions['shankR'])
+    norms['lowerlegR'] = np.linalg.norm(local_segments_positions['footR'])
+    norms['upperlegL'] = np.linalg.norm(local_segments_positions['shankL'])
+    norms['lowerlegL'] = np.linalg.norm(local_segments_positions['footL'])
 
-#     norms['upperarmR'] = np.linalg.norm(local_segments_positions['upperarmR'])
-#     norms['lowerarmR'] = np.linalg.norm(local_segments_positions['lowerarmR'])
-#     norms['upperarmL'] = np.linalg.norm(local_segments_positions['upperarmL'])
-#     norms['lowerarmL'] = np.linalg.norm(local_segments_positions['lowerarmL'])
+    norms['upperarmR'] = np.linalg.norm(local_segments_positions['upperarmR'])
+    norms['lowerarmR'] = np.linalg.norm(local_segments_positions['lowerarmR'])
+    norms['upperarmL'] = np.linalg.norm(local_segments_positions['upperarmL'])
+    norms['lowerarmL'] = np.linalg.norm(local_segments_positions['lowerarmL'])
+    print(norms)
 
 
 

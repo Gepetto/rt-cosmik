@@ -3,7 +3,7 @@ import numpy as np
 import hppfcl as fcl
 from scipy.spatial.transform import Rotation as R
 from typing import List, Tuple, Dict
-from rtcosmik.utils.linear_algebra_utils import col_vector_3D
+from src.rtcosmik.utils.linear_algebra_utils import col_vector_3D
 from .model_utils import construct_segments_frames, get_segments_mks_dict, get_local_mks_positions, get_local_segments_positions
 
 #### MODEL DESCRIPTION ####
@@ -48,7 +48,7 @@ def build_model_no_visuals(mocap_mks_positions: Dict)->pin.Model:
     """
 
     sgts_poses = construct_segments_frames(mocap_mks_positions)
-    sgts_mks_dict = get_segments_mks_dict()
+    sgts_mks_dict = get_segments_mks_dict(mocap_mks_positions)
     mks_local_positions = get_local_mks_positions(sgts_poses, mocap_mks_positions, sgts_mks_dict)
     local_segments_positions = get_local_segments_positions(sgts_poses)
 
@@ -322,7 +322,7 @@ def build_model(mocap_mks_positions: Dict, meshes_folder_path: str)->Tuple[pin.M
 
     # TODO: Check that this model match the one in the urdf human.urdf and add abdomen joints ??
     sgts_poses = construct_segments_frames(mocap_mks_positions)
-    sgts_mks_dict = get_segments_mks_dict()
+    sgts_mks_dict = get_segments_mks_dict(mocap_mks_positions)
     mks_local_positions = get_local_mks_positions(sgts_poses, mocap_mks_positions, sgts_mks_dict)
     local_segments_positions = get_local_segments_positions(sgts_poses)
     visuals_dict = {}
@@ -616,6 +616,7 @@ def build_model(mocap_mks_positions: Dict, meshes_folder_path: str)->Tuple[pin.M
     geom_model.addGeometryObject(foot_visual_L)
     visuals_dict["foot_L"] = foot_visual_L
 
+    bound_offset = 0.0
     model.upperPositionLimit[7:] = np.array([5*np.pi/36,       #L5S1_FE + 
                                           np.pi/3,             #L5S1_R_EXT_INT +
                                           np.pi/2,             # Neck_Z +
@@ -1159,7 +1160,7 @@ def rescale_human_model(model: pin.Model, mks_dict: Dict)->pin.Model:
     inertia = pin.Inertia.Zero()
 
     sgts_poses = construct_segments_frames(mks_dict)
-    sgts_mks_dict = get_segments_mks_dict()
+    sgts_mks_dict = get_segments_mks_dict(mks_dict)
     mks_local_positions = get_local_mks_positions(sgts_poses, mks_dict, sgts_mks_dict)
     local_segments_positions = get_local_segments_positions(sgts_poses)
 

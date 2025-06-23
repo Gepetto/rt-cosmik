@@ -29,13 +29,13 @@ def gv_init(model, geom_model, visual_model, keypoint_names=None, marker_names=N
 
     # Init objects to show 
     # Frame axis for frame in the pinocchio model 
-    for frame in model.frames.tolist():
-        viz.viewer.gui.addXYZaxis('world/'+frame.name,[1,0,0,1],0.01,0.1)
+    # for frame in model.frames.tolist():
+    #     viz.viewer.gui.addXYZaxis('world/'+frame.name,[1,0,0,1],0.01,0.1)
     
     # Keypoints
     if keypoint_names is not None : 
         for keypoint in keypoint_names:
-            viz.viewer.gui.addSphere('world/'+keypoint,0.01,[0,1,0,1])
+            viz.viewer.gui.addSphere('world/'+keypoint,0.01,[0,0,1,1])
 
     # measured markers from mocap or lstm
     if marker_names is not None: 
@@ -52,9 +52,9 @@ def add_frames(viz,seg_frames,w,r,s):
 
 
 #add model markers
-def add_marker(viz,marker_names, r, g,b):
+def add_marker(viz,marker_names,suffix, r, g,b):
     for marker in marker_names:
-        viz.viewer.gui.addSphere('world/'+marker+"_m",0.01,[r,g,b,1])
+        viz.viewer.gui.addSphere('world/'+marker+suffix,0.01,[r,g,b,1])
 
 def Rquat(x, y, z, w):
     q = pin.Quaternion(x, y, z, w)

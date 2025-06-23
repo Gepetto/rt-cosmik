@@ -7,9 +7,10 @@ class Settings:
     cosmik_path: str = field(init=False)
     
     # SAVE 
+    no_trial = "test"
     SAVE_VID: bool = True
     SAVE_CSV: bool = True
-    SAVE_DIR: str = "/root/workspace/ros_ws/src/rt-cosmik/output" # abs path to the save folder
+    SAVE_DIR: str = f"/root/workspace/ros_ws/src/rt-cosmik/output/{no_trial}" # abs path to the save folder
 
     # CAM PARAMS
     fs: int = 40
@@ -17,6 +18,10 @@ class Settings:
     width: int = 1280 # image resolution
     height: int = 720 # image resolution
     fourcc: str = "MJPG" # video codec
+
+    # HUMAN ANTHROPOMETRY
+    human_height: float = 1.81
+    human_mass: float = 74.0   
 
     # VIEWER PARAMS
     viewer: str = "gv" # viewer type: gv or ros
@@ -59,7 +64,7 @@ class Settings:
 
     #MMPOSE MODELS (here body 26)
     det_model_path: str = "/root/workspace/mmdeploy/rtmpose-trt/rtmdet-nano" # absolute path
-    pose_model_path: str = "/root/workspace/mmdeploy/rtmpose-trt/rtmpose-s" # absolute path 
+    pose_model_path: str = "/root/workspace/mmdeploy/rtmpose-trt/rtmpose-m" # absolute path 
 
     keypoints_names: list = field(default_factory=lambda: [
         "Nose", "LEye", "REye", "LEar", "REar", 
@@ -73,9 +78,6 @@ class Settings:
     # AUGMENTER MODEL 
     augmenter_model: str = field(init=False)
 
-    # HUMAN ANTHROPOMETRY
-    human_height: float = 1.81
-    human_mass: float = 74.0   
 
     # MARKER SET 
     marker_names: list = field(default_factory=lambda: [
@@ -88,6 +90,16 @@ class Settings:
            'L_sh1_study','L_sh2_study','L_sh3_study','RHJC_study','LHJC_study','r_lelbow_study',
            'r_melbow_study','r_lwrist_study','r_mwrist_study','L_lelbow_study','L_melbow_study',
            'L_lwrist_study','L_mwrist_study'])
+    
+    marker_mocap_names: list = field(default_factory=lambda: ['r.PSIS_study','L.PSIS_study','r.ASIS_study','L.ASIS_study',
+             'TV8','TV12','SJN','STRN','C7_study','r_shoulder_study','L_shoulder_study',
+             'BHD','RHD','LHD','FHD',
+             'L_lelbow_study','L_melbow_study','LUArm','L_lwrist_study','L_mwrist_study','LForearm','LHand','LHL2','LHM5',
+             'r_lelbow_study','r_melbow_study','RUArm','r_lwrist_study','r_mwrist_study','RForearm','RHand','RHL2','RHM5',
+             'L_thigh1_study','L_knee_study','L_mknee_study','L_sh1_study','L_ankle_study','L_mankle_study','L_calc_study','L_5meta_study','L_toe_study',
+             'r_thigh1_study','r_knee_study','r_mknee_study','r_sh1_study',
+             'r_ankle_study','r_mankle_study','r_calc_study','r_5meta_study','r_toe_study',
+             'r_pelvis', 'l_pelvis'])
     
     # Add this to the class definition
     keys_to_track_list: list = field(default_factory=lambda: [
@@ -111,6 +123,25 @@ class Settings:
         'L_knee_study', 'L_mknee_study',
         'L_thigh1_study', 'L_thigh2_study', 'L_thigh3_study',
         'L_sh1_study', 'L_sh2_study', 'L_sh3_study'
+    ])
+
+    keys_to_track_list_mocap: list = field(default_factory=lambda: [
+        'LBHD','RBHD','LFHD','RFHD',
+        'C7_study', 
+        'r.ASIS_study', 'L.ASIS_study', 
+        'r.PSIS_study', 'L.PSIS_study', 
+        'r_shoulder_study',
+        'r_lelbow_study', 'r_melbow_study',
+        'r_lwrist_study', 'r_mwrist_study',
+        'r_ankle_study', 'r_mankle_study',
+        'r_toe_study','r_5meta_study', 'r_calc_study',
+        'r_knee_study', 'r_mknee_study',
+        'L_shoulder_study', 
+        'L_lelbow_study', 'L_melbow_study',
+        'L_lwrist_study','L_mwrist_study',
+        'L_ankle_study', 'L_mankle_study', 
+        'L_toe_study','L_5meta_study', 'L_calc_study',
+        'L_knee_study', 'L_mknee_study'
     ])
 
 
