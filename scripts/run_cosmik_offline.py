@@ -8,7 +8,7 @@ from collections import deque
 import numpy as np
 import pandas as pd
 
-from src.rtcosmik.camera.cam_utils import load_camera_parameters, load_world_transformation
+from src.rtcosmik.camera.cam_utils import load_camera_parameters, load_world_transformation, load_four_camera_parameters
 from src.rtcosmik.triangulation.triangulation import triangulate_offline
 from src.rtcosmik.augmenter.marker_augmenter import augmentTRC, loadModel
 from src.rtcosmik.utils.read_write_utils import read_mmpose_file, save_to_csv, load_transformation, transform_keypoints_list_cam0_to_mocap
@@ -25,11 +25,20 @@ from src.rtcosmik.ik.ik import RT_IK
 import gepetto as gep
 
 # === Configuration ===
+nbr_cam = 2
 base_path = "/root/workspace/ros_ws/src/rt-cosmik"
 no_trial = "Maxime"
 task = "bolting"
 augmenter_path = os.path.join(base_path, "src/rtcosmik/augmenter/augmentation_model")
 transformation_file = f"{base_path}/output/{no_trial}/calib_mocap_2_cam0/soder.txt"
+
+# ====input csv files ====#
+
+file_paths = [
+        os.path.join(base_path, f"output/{no_trial}/output_2d/{task}/{task}_camera_0.csv"),
+        os.path.join(base_path, f"output/{no_trial}/output_2d/{task}/{task}_camera_2.csv")
+        
+    ]
 
 # === Marker headers ===
 num_keypoints = 26
@@ -58,6 +67,7 @@ augmented_header = [f"{marker}_{axis}" for marker in augmented_markers for axis 
 subject_mass = 75.0
 subject_height = 1.85
 
+###########################################################################ik function
 def run_ik_pipeline(augmented_csv_path, keypoints_csv_path, meshes_folder_path, output_q_csv_path, trial_name, task_name):
     start_sample =0 
     mks_to_skip = ['LForearm','LUArm', 'RUArm', 'RHJC_study','LHJC_study','r_pelvis','l_pelvis',
@@ -207,7 +217,7 @@ def run_ik_pipeline(augmented_csv_path, keypoints_csv_path, meshes_folder_path, 
 
     #save mks est
     df = pd.DataFrame(M_model_list)
-    csv_file = os.path.join(rt_cosmik_path,f"/root/workspace/ros_ws/src/rt-cosmik/output/{no_trial}/{task}/mks_model_cosmik_ipopt.csv") 
+    csv_file = os.path.join(rt_cosmik_path,f"/root/workspace/ros_ws/src/rt-cosmik/output/{no_trial}/{task}/mks_model_cosmik_{nbr_cam}.csv") 
     df.to_csv(csv_file, index=False)
 
     #save angles
@@ -227,8 +237,10 @@ def run_ik_pipeline(augmented_csv_path, keypoints_csv_path, meshes_folder_path, 
     if len(joint_angles_names) != num_values:
         raise ValueError(f"joint_angles_names has {len(joint_angles_names)} entries but q has {num_values} DOFs.")
 
+
+    #save joint angles
     df = pd.DataFrame(q_list, columns=joint_angles_names)
-    csv_file = os.path.join(rt_cosmik_path, f"output/{no_trial}/{task}/q_cosmik_ipopt.csv")
+    csv_file = os.path.join(rt_cosmik_path, f"output/{no_trial}/{task}/q_cosmik_ipopt_{nbr_cam}.csv")
     df.to_csv(csv_file, index=False)
     rmse_global = 0
     nb_mks =0 
@@ -248,12 +260,9 @@ def main():
     num_keypoints = 26
     # === Paths ===
     config_path = os.path.join(base_path, "config/cam_params")
-    file_paths = [
-        os.path.join(base_path, f"output/{no_trial}/{task}/keypoints_0.csv"),
-        os.path.join(base_path, f"output/{no_trial}/{task}/keypoints_2.csv")
-    ]
-    filtered_kpt_path = os.path.join(base_path, f"output/{no_trial}/{task}/3d_keypoints_filtred.csv")
-    augmented_output_path = os.path.join(base_path, f"output/{no_trial}/{task}/augmented_markers.csv")
+
+    filtered_kpt_path = os.path.join(base_path, f"output/{no_trial}/{task}/3d_keypoints_filtered_{nbr_cam}.csv")
+    augmented_output_path = os.path.join(base_path, f"output/{no_trial}/{task}/augmented_markers_{nbr_cam}.csv")
 
     # === Load MoCap transformation ===
     R_trans, d_trans, s_trans, rms_error = load_transformation(transformation_file)
@@ -329,7 +338,7 @@ def main():
     augmented_csv_path=augmented_output_path,
     keypoints_csv_path=filtered_kpt_path,
     meshes_folder_path=os.path.join(base_path, "meshes"),
-    output_q_csv_path=os.path.join(base_path, f"output/{no_trial}/{task}/q_cosmik_ipopt.csv"),
+    output_q_csv_path=os.path.join(base_path, f"output/{no_trial}/{task}/q_cosmik_ipopt_{nbr_cam}.csv"),
     trial_name=no_trial,
     task_name=task
 )

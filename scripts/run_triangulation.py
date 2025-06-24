@@ -31,10 +31,12 @@ for marker in markers:
 def main():
     base_path = "/root/workspace/ros_ws/src/rt-cosmik"
     config_path = os.path.join(base_path, "config/cam_params")
-    output_csv_path = os.path.join(base_path, f"output/{no_trial}/{task}/3d_keypoints_filtred_.csv")
+    output_csv_path = os.path.join(base_path, f"output/{no_trial}/{task}/3d_keypoints_filtred.csv")
     file_paths = [
-        os.path.join(base_path, f"output/{no_trial}/{task}/keypoints_0.csv"),
-        os.path.join(base_path, f"output/{no_trial}/{task}/keypoints_2.csv"),
+        os.path.join(base_path, f"output/{no_trial}/output_2d/{task}/{task}_camera_0.csv"),
+        os.path.join(base_path, f"output/{no_trial}/output_2d/{task}/{task}_camera_2.csv"),
+        os.path.join(base_path, f"output/{no_trial}/output_2d/{task}/{task}_camera_4.csv"),
+        os.path.join(base_path, f"output/{no_trial}/output_2d/{task}/{task}_camera_6.csv")
     ]
     
     camera_data = [read_mmpose_file(file) for file in file_paths]
@@ -44,7 +46,7 @@ def main():
         for data in camera_data
     ]
 
-    mtxs, dists, projections, rotations, translations = load_camera_parameters(config_path)
+    mtxs, dists, projections, rotations, translations = load_four_camera_parameters(config_path)
     world_R1_cam, world_T1_cam = load_world_transformation(config_path)
     
     keypoints_in_cam0_list = triangulate_offline(uvs, mtxs, dists, projections, world_R1_cam, world_T1_cam)
