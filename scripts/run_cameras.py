@@ -20,6 +20,8 @@ def main():
 
 
     cameras = list_cameras()
+    # first_key = list(cameras.keys())[0]
+    # del cameras[first_key]
     print(cameras.keys())
     NUM_CAMERAS = len(cameras)
     FRAME_SHAPE = (settings.height, settings.width, 3)
@@ -82,7 +84,7 @@ def main():
                                           cam_event=cam_event,
                                           save_dir=settings.SAVE_DIR, 
                                           stop_event=stop_event)
-    processes = camera_processes  + [vicon,udp_data_saver_process,display]
+    processes = camera_processes  + [display]
 
     # Start processes
     for p in processes:
