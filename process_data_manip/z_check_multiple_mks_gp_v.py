@@ -10,15 +10,16 @@ from viz_utils import place
 import pandas as pd 
 from src.rtcosmik.utils.read_write_utils import parse_marker_csv,udp_csv_to_dataframe,read_mks_data,load_transformation,plot_marker_comparison
 from collections import defaultdict
-no_trial = "Nicolas"
-task = "crouch"
+
+no_trial = "Maxime"
+task = "static"
 path_to_csv_mocap = f"/root/workspace/ros_ws/src/rt-cosmik/output/{no_trial}/{task}/mks_data.csv"
 
-path_to_csv_lstm = f"/root/workspace/ros_ws/src/rt-cosmik/output/{no_trial}/{task}/augmented_markers.csv"
-path_to_kpt = f"/root/workspace/ros_ws/src/rt-cosmik/output/{no_trial}/{task}/3d_keypoints_filtred.csv"
+path_to_csv_lstm = f"/root/workspace/ros_ws/src/rt-cosmik/output/{no_trial}/{task}/augmented_markers_2.csv"
+path_to_kpt = f"/root/workspace/ros_ws/src/rt-cosmik/output/{no_trial}/{task}/3d_keypoints_filtered_2.csv"
 
 
-marker_mocap_names = ['r.PSIS_study','L.PSIS_study','r.ASIS_study','L.ASIS_study',
+marker_mocap_names = ['r.ASIS_study','L.ASIS_study','r.PSIS_study','L.PSIS_study',
              'TV8','TV12','SJN','STRN','C7_study','r_shoulder_study','L_shoulder_study',
              'BHD','RHD','LHD','FHD',
              'L_lelbow_study','L_melbow_study','LUArm','L_lwrist_study','L_mwrist_study','LForearm','LHand','LHL2','LHM5',

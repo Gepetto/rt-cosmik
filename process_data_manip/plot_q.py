@@ -6,10 +6,11 @@ from src.rtcosmik.config_loader import settings
 from src.rtcosmik.utils.read_write_utils import read_mks_data, marker_data_to_dataframe,read_joint_angles_wholebody,read_specific_joint
 
 no_trial = "Maxime"
-task = "bolting"
+task = "walk_face"
 path_mocap= f"/root/workspace/ros_ws/src/rt-cosmik/output/{no_trial}/{task}/q_mocap_ipopt.csv"
 
-path_cosmik= f"/root/workspace/ros_ws/src/rt-cosmik/output/{no_trial}/{task}/q_cosmik_ipopt.csv" 
+# path_cosmik= f"/root/workspace/ros_ws/src/rt-cosmik/output/{no_trial}/{task}/q_cosmik_ipopt_4.csv" 
+path_cosmik= f"/root/workspace/ros_ws/src/rt-cosmik/output/{no_trial}/cosmik_2cams/{task}/q_cosmik_ipopt_2.csv"
 
 dofs  =  ['FF_X', 'FF_Y', 'FF_Z', 'FF_quatx','FF_quaty',
                           'FF_quatz', 'FF_quatw', 'Lhip_flex_ext', 'Lhip_abd_add','Lhip_int_ext_rot','Lknee_flex_ext','Lankle_flex_ext','Lankle_abd_add',
@@ -49,10 +50,12 @@ start_sample = 0
 # q_mocap = read_joint_angles_wholebody(path_mocap, start_sample)
 
 
-q_cosmik= read_specific_joint(path_cosmik,dof, start_sample)[10:]
-q_mocap = read_specific_joint(path_mocap,dof, start_sample)[10:]
+q_cosmik= read_specific_joint(path_cosmik,dof, start_sample)[:1050]
+q_mocap = read_specific_joint(path_mocap,dof, start_sample)[:1050]
 
 rmse_list = []
+corr_list = []
+
 # Plot one figure per joint
 # for i, name in enumerate(dof):
     
@@ -86,6 +89,10 @@ for j, i in enumerate(joint_indices):
     rmse = rmse_rad * (180 / np.pi)
     rmse_list.append(rmse)
 
+    # Compute Pearson correlation coefficient
+    corr_coef = np.corrcoef(q_mocap[:, i], q_cosmik[:, i])[0, 1]
+    corr_list.append(corr_coef)
+
     # Create a new figure every 6 plots
     if j % n_per_fig == 0:
         fig, axs = plt.subplots(n_per_fig, 1, figsize=(8, 12))
@@ -94,7 +101,7 @@ for j, i in enumerate(joint_indices):
     ax = axs[j % n_per_fig]
     ax.plot(q_cosmik[:, i], label="Cosmik", linewidth=2, color='green')
     ax.plot(q_mocap[:, i], label="Mocap", linewidth=2, color='red')
-    ax.set_title(f"{name} (RMSE: {rmse:.4f}deg, {rmse_rad:.4f}rad)")
+    ax.set_title(f"{name} (RMSE: {rmse:.4f}deg, {rmse_rad:.4f}rad), Corr: {corr_coef:.2f})")
     ax.set_xlabel("Samples")
     ax.set_ylabel("Angle (rad)")
     ax.grid(True)
@@ -105,8 +112,7 @@ for j, i in enumerate(joint_indices):
         plt.show()
 
 joint_names = dof[7:]
-excluded = ['Lwrist_flex_ext', 'Lwrist_x','Rwrist_flex_ext','Rwrist_x']
-joint_names = [name for name in joint_names if name not in excluded]
+joint_names = [name for name in joint_names if name not in excluded_joints]
 rmse_array = np.array(rmse_list)
 avg_rmse = np.mean(rmse_array)
 
@@ -187,5 +193,11 @@ plt.show()
 
 # plt.tight_layout()
 # plt.show()
+
+rmse_array = np.array(rmse_list)
+std_rmse = np.std(rmse_array)
+
 average_rmse = np.mean(rmse_list)
-print(f"\nAverage RMSE across all joints: {average_rmse:.4f} deg")
+avg_corr = np.mean(corr_list)
+print(f"\nAverage RMSE across all joints: {average_rmse:.4f} deg, {std_rmse:.4f}")
+print(f"\nAverage cc across all joints: {avg_corr:.4f} ")

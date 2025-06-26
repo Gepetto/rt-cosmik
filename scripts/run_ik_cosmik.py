@@ -22,11 +22,11 @@ from src.rtcosmik.ik.ik import RT_IK
 mks_to_skip = ['LForearm','LUArm', 'RUArm', 'RHJC_study','LHJC_study','r_pelvis','l_pelvis',
                'LHand','LHL2','LHM5', 'RForearm','RHand','RHL2','RHM5', 'L_sh1_study', 'L_thigh1_study','r_sh1_study', 'r_thigh1_study']
 #read mks data
-no_trial = "Gabriel"
+no_trial = "Maxime"
 task = "static"
-path_to_csv = f"/root/workspace/ros_ws/src/rt-cosmik/output/{no_trial}/{task}/augmented_markers.csv"
+path_to_csv = f"/root/workspace/ros_ws/src/rt-cosmik/output/{no_trial}/{task}/augmented_markers_4.csv"
 ###########################################################################################for cosmik data 
-path_to_kpt = f"/root/workspace/ros_ws/src/rt-cosmik/output/{no_trial}/{task}/3d_keypoints_filtred.csv"
+path_to_kpt = f"/root/workspace/ros_ws/src/rt-cosmik/output/{no_trial}/{task}/3d_keypoints_filtered_4.csv"
 
 keys_to_add = ['Nose', 'Head', 'REar', 'LEar', 'REye', 'LEye']
 

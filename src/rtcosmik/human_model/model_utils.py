@@ -76,11 +76,17 @@ def get_head_pose(mks_positions):
         Z = np.cross(X, Y, axis=0)
     else: 
         head_center = (mks_positions['r_shoulder_study'] + mks_positions['L_shoulder_study'])/2.0 
-        X = mks_positions['FHD'] - mks_positions['BHD']
-        X = X/np.linalg.norm(X)
+        top_head = (mks_positions['FHD'] +
+                mks_positions['BHD'] +
+                mks_positions['LHD'] +
+                mks_positions['RHD'] )/4.0
+        Y = (top_head - head_center).reshape(3,1)
+        Y = Y/np.linalg.norm(Y)
+
         Z = mks_positions['RHD'] - mks_positions['LHD']
         Z = Z/np.linalg.norm(Z)
-        Y = np.cross(Z, X, axis=0)
+
+        X = np.cross(Y, Z, axis=0)
         Z = np.cross(X, Y, axis=0)
 
 
@@ -150,7 +156,7 @@ def get_upperarmR_pose(mks_positions):
 
     torso_pose = get_torso_pose(mks_positions)
     bi_acromial_dist = np.linalg.norm(mks_positions['L_shoulder_study'] - mks_positions['r_shoulder_study'])
-    shoulder_center = mks_positions['r_shoulder_study'].reshape(3,1) + torso_pose[:3, :3] @ col_vector_3D(0.0, -0.17*bi_acromial_dist, 0.0)
+    shoulder_center = mks_positions['r_shoulder_study'].reshape(3,1) + (torso_pose[:3, :3].reshape(3,3)) @ col_vector_3D(0.0, -0.17*bi_acromial_dist, 0.0)
     elbow_center = (mks_positions['r_melbow_study'] + mks_positions['r_lelbow_study']).reshape(3,1)/2.0
     
     Y = shoulder_center - elbow_center
@@ -210,6 +216,10 @@ def get_upperarmL_pose(mks_positions):
     pose[:3, 3] = shoulder_center.flatten()
     pose[:3, :3] = orthogonalize_matrix(pose[:3, :3])
 
+
+    # print("Upperarm Left Pose:\n", pose)  # Impression pour débogage
+    # check_orthogonality(pose)  # Ajoutez cette ligne pour vérifier l'orthogonalité
+ 
     # print("Upperarm Left Pose:\n", pose)  # Impression pour débogage
     # check_orthogonality(pose)  # Ajoutez cette ligne pour vérifier l'orthogonalité
 

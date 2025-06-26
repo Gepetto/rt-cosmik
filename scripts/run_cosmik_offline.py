@@ -25,18 +25,24 @@ from src.rtcosmik.ik.ik import RT_IK
 import gepetto as gep
 
 # === Configuration ===
-nbr_cam = 2
+nbr_cam = 4
 base_path = "/root/workspace/ros_ws/src/rt-cosmik"
 no_trial = "Maxime"
-task = "bolting"
+task = "static"
 augmenter_path = os.path.join(base_path, "src/rtcosmik/augmenter/augmentation_model")
 transformation_file = f"{base_path}/output/{no_trial}/calib_mocap_2_cam0/soder.txt"
 
+# === Subject physical info for LSTM ===
+subject_mass = 72.0
+subject_height = 1.80
+gender='male'
 # ====input csv files ====#
 
 file_paths = [
         os.path.join(base_path, f"output/{no_trial}/output_2d/{task}/{task}_camera_0.csv"),
-        os.path.join(base_path, f"output/{no_trial}/output_2d/{task}/{task}_camera_2.csv")
+        os.path.join(base_path, f"output/{no_trial}/output_2d/{task}/{task}_camera_2.csv"),
+        os.path.join(base_path, f"output/{no_trial}/output_2d/{task}/{task}_camera_4.csv"),
+        os.path.join(base_path, f"output/{no_trial}/output_2d/{task}/{task}_camera_6.csv")
         
     ]
 
@@ -63,9 +69,7 @@ augmented_markers = [
 ]
 augmented_header = [f"{marker}_{axis}" for marker in augmented_markers for axis in ['x', 'y', 'z']]
 
-# === Subject physical info for LSTM ===
-subject_mass = 75.0
-subject_height = 1.85
+
 
 ###########################################################################ik function
 def run_ik_pipeline(augmented_csv_path, keypoints_csv_path, meshes_folder_path, output_q_csv_path, trial_name, task_name):
@@ -95,7 +99,7 @@ def run_ik_pipeline(augmented_csv_path, keypoints_csv_path, meshes_folder_path, 
     human_visual_model = human.visual_model
 
     #scale the model to data
-    human_model = scale_human_model(human_model, start_sample_dict,with_hand=True,gender='male',subject_height=1.85)
+    human_model = scale_human_model(human_model, start_sample_dict,with_hand=True,gender=gender,subject_height=subject_height)
     print(human_model.nq)
 
     human_model= mks_registration(human_model,start_sample_dict, with_hand=False)
@@ -115,7 +119,7 @@ def run_ik_pipeline(augmented_csv_path, keypoints_csv_path, meshes_folder_path, 
     q =pin.neutral(human_model)
 
     viz.display(q)
-    input("model scaled, you can launch ik")
+    # input("model scaled, you can launch ik")
 
     #measured frames
     # seg_frames = construct_segments_frames(start_sample_dict)
@@ -276,7 +280,7 @@ def main():
     ]
 
     # === Load camera calibration ===
-    mtxs, dists, projections, rotations, translations = load_camera_parameters(config_path)
+    mtxs, dists, projections, rotations, translations = load_four_camera_parameters(config_path)
     world_R1_cam, world_T1_cam = load_world_transformation(config_path)
 
     # === Triangulate 3D keypoints ===

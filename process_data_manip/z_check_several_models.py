@@ -21,9 +21,10 @@ import time
 import matplotlib.pyplot as plt
 from src.rtcosmik.human_model.urdf_model import * 
 
+nbr_cam = 4
 start_sample=0
 no_trial = "Maxime"
-task = "bolting"
+task = "static"
 path_to_csv_mocap = f"/root/workspace/ros_ws/src/rt-cosmik/output/{no_trial}/{task}/mks_data.csv"
 q_path_mocap= f"/root/workspace/ros_ws/src/rt-cosmik/output/{no_trial}/{task}/q_mocap_ipopt.csv"
 
@@ -40,9 +41,9 @@ mks_names = ['r.ASIS_study','L.ASIS_study','r.PSIS_study','L.PSIS_study',
 df_wide = udp_csv_to_dataframe(path_to_csv_mocap, mks_names)
 result_markers_mocap, start_sample_mks_mocap = read_mks_data(df_wide)
 
-path_to_csv_lstm = f"/root/workspace/ros_ws/src/rt-cosmik/output/{no_trial}/{task}/augmented_markers.csv"
-path_to_kpt = f"/root/workspace/ros_ws/src/rt-cosmik/output/{no_trial}/{task}/3d_keypoints_filtred.csv"
-q_path_cosmik= f"/root/workspace/ros_ws/src/rt-cosmik/output/{no_trial}/{task}/q_cosmik_ipopt.csv"
+path_to_csv_lstm = f"/root/workspace/ros_ws/src/rt-cosmik/output/{no_trial}/{task}/augmented_markers_{nbr_cam}.csv"
+path_to_kpt = f"/root/workspace/ros_ws/src/rt-cosmik/output/{no_trial}/{task}/3d_keypoints_filtered_{nbr_cam}.csv"
+q_path_cosmik= f"/root/workspace/ros_ws/src/rt-cosmik/output/{no_trial}/{task}/q_cosmik_ipopt_{nbr_cam}.csv"
 keys_to_add = ['Nose', 'Head', 'REar', 'LEar', 'REye', 'LEye']
 data_markers_lstm = pd.read_csv(path_to_csv_lstm) 
 keypoints = pd.read_csv(path_to_kpt) 

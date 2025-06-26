@@ -24,8 +24,12 @@ mks_to_skip = ['LForearm','LUArm', 'RUArm', 'RHJC_study','LHJC_study','r_pelvis'
                'LHand', 'RForearm','RHand', 'L_sh1_study', 'L_thigh1_study','r_sh1_study', 'r_thigh1_study']
 #read mks data
 no_trial = "Maxime"
-task = "bolting" #hitting sat probleme
-path_to_csv = f"/root/workspace/ros_ws/src/rt-cosmik/output/{no_trial}/{task}/mks_data.csv"
+task = "welding_sat" #hitting sat probleme
+path_to_csv = f"/root/workspace/ros_ws/src/rt-cosmik/output/{no_trial}/{task}/mks_data_gapfilled.csv"
+
+subject_mass = 72.0
+subject_height = 1.80
+gender='male'
 
 start_sample=0
 mks_names = ['r.ASIS_study','L.ASIS_study','r.PSIS_study','L.PSIS_study',
@@ -49,7 +53,7 @@ human_collision_model = human.collision_model
 human_visual_model = human.visual_model
 
 #scale the model to data
-human_model = scale_human_model(human_model, start_sample_dict,with_hand=True,gender='male',subject_height=1.85)
+human_model = scale_human_model(human_model, start_sample_dict,with_hand=True,gender=gender,subject_height=subject_height)
 print(human_model.nq)
 
 human_model= mks_registration(human_model,start_sample_dict, with_hand=True)
