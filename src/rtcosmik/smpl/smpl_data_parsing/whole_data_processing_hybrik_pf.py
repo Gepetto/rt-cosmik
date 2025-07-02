@@ -126,6 +126,9 @@ name_map = {
     'l_mwrist': 'L_mwrist_study'
 }
 
+# Build an inverse mapping: new marker name -> original marker name
+inverse_name_map = {new: old for old, new in name_map.items()}
+
 
 # ----------------------------
 # 1. Set up data path and script options
