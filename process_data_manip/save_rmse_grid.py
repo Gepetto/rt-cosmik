@@ -2,6 +2,7 @@ import pandas as pd
 import numpy as np
 import sys
 import os
+import matplotlib.pyplot as plt
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__)))) # Repo root
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "src")) # src dir
 from src.rtcosmik.config_loader import settings
@@ -9,7 +10,7 @@ from src.rtcosmik.utils.read_write_utils import read_mks_data, marker_data_to_da
 
 
 
-def rmse_par_colonne_df(A: pd.DataFrame, B: pd.DataFrame) -> pd.Series:
+def metrics_par_colonne_df(A: pd.DataFrame, B: pd.DataFrame) -> pd.Series:
     """
     Calcule la RMSE pour chaque colonne entre deux DataFrames A et B.
     Retourne une Series indexée par les noms de colonnes.
@@ -17,11 +18,14 @@ def rmse_par_colonne_df(A: pd.DataFrame, B: pd.DataFrame) -> pd.Series:
     assert A.shape == B.shape, "A et B doivent avoir la même taille"
     assert list(A.columns) == list(B.columns), "Les colonnes doivent être identiques"
 
+    corr = A.corrwith(B)
     diff_squared = (A - B) ** 2
     mse = diff_squared.mean(axis=0)       # moyenne sur les lignes
     rmse_rad = np.sqrt(mse)
     rmse_deg = (180 / np.pi) * rmse_rad  # convertir en degrés
-    return rmse_deg
+    metrics = pd.concat([rmse_deg, corr], axis=1)
+    metrics.columns = ['rmse_deg', 'corr']
+    return metrics
 
 
 
@@ -55,7 +59,8 @@ lower_dof=['Rhip_flex_ext','Rhip_abd_add','Rhip_int_ext_rot','Lhip_flex_ext', 'L
 for subject in os.listdir(data_path):
     list_of_trials = os.listdir(os.path.join(data_path, subject))
     list_of_trials = [trial for trial in list_of_trials if trial != "cosmik_2cams" and trial != "output_2d" and trial != "results"]
-    rmse_par_dof_over_trials = pd.DataFrame(index=[dof for dof in dofs if dof not in excluded_dofs].append(["mean", "std"]), columns=list_of_trials)
+    multi_cols = pd.MultiIndex.from_product([list_of_trials, ['rmse_deg', 'corr']])
+    metrics_par_dof_over_trials = pd.DataFrame(index=[dof for dof in dofs if dof not in excluded_dofs].append(["mean", "std"]), columns=multi_cols)
     subject_path = os.path.join(data_path, subject)
     cosmik_2cams_path = os.path.join(data_path, subject, "cosmik_2cams")
     for trial in list_of_trials:
@@ -75,16 +80,17 @@ for subject in os.listdir(data_path):
         elif q_cosmik.shape[0] < q_mocap.shape[0]:
             q_mocap = q_mocap.iloc[:-1, :]
 
-        rmse_par_dof = rmse_par_colonne_df(q_mocap, q_cosmik)
-        rmse_par_dof.loc["mean"] = rmse_par_dof.mean()    # ajouter la moyenne
-        rmse_par_dof.loc["std"] = rmse_par_dof.std()     # ajouter la variance
+        metrics_par_dof = metrics_par_colonne_df(q_mocap, q_cosmik)
+        metrics_par_dof.loc["mean"] = metrics_par_dof.mean()    # ajouter la moyenne
+        metrics_par_dof.loc["std"] = metrics_par_dof.std()     # ajouter la variance
 
-        rmse_par_dof_over_trials.loc[:, trial] = rmse_par_dof
+        metrics_par_dof_over_trials.loc[:, (trial, "rmse_deg")] = metrics_par_dof["rmse_deg"]
+        metrics_par_dof_over_trials.loc[:, (trial, "corr")] = metrics_par_dof["corr"]
 
 
-    print(rmse_par_dof_over_trials)
+    print(metrics_par_dof_over_trials)
     os.makedirs(os.path.join(subject_path, "results"), exist_ok=True)
-    rmse_par_dof_over_trials.to_excel(os.path.join(subject_path, "results", f"rmse_par_dof_over_trials_{subject}.xlsx"))
+    metrics_par_dof_over_trials.to_excel(os.path.join(subject_path, "results", f"rmse_par_dof_over_trials_{subject}.xlsx"))
 
         
 
