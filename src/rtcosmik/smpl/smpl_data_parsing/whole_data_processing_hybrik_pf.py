@@ -169,7 +169,7 @@ for subject in os.listdir(cosmik_data_path):
             if ".pk" in element:
                 pickle_path = os.path.join(trial_path, element)
 
-                vertices = read_pk_file(data_path, data_name='pred_vertices') # shape: (num_frame, num_vertices, 3)
+                vertices = read_pk_file(pickle_path, data_name='pred_vertices') # shape: (num_frame, num_vertices, 3)
                 print("Vertices array shape:", vertices.shape)
 
                 # For each marker (vertex index), extract its 3D trajectory over time.
