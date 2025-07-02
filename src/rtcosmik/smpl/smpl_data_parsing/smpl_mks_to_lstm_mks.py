@@ -110,7 +110,7 @@ inverse_name_map = {new: old for old, new in name_map.items()}
 import sys
 import os
 
-parser = argparse.ArgumentParser(description='SMPL visualization')
+parser = argparse.ArgumentParser(description='Markers augmentation')
 parser.add_argument('--data-path',
                         help='data path',
                         dest='data_path',
