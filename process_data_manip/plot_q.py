@@ -34,18 +34,33 @@ upper_dof = ['Lumbar_flex_ext', 'Lumbar_lateral_flex',
                           
 lower_dof=['Rhip_flex_ext','Rhip_abd_add','Rhip_int_ext_rot','Lhip_flex_ext', 'Lhip_abd_add', 
                           'Lhip_int_ext_rot',
-                          'Rknee_flex_ext','Rankle_flex_ext', 'Lknee_flex_ext', 'Lankle_flex_ext']
+                          'Rknee_flex_ext','Rankle_flex_ext', 'Lknee_flex_ext', 'Lankle_flex_ext', 'Rankle_abd_add','Lankle_abd_add']
 
+dof_opencap = [
+                          
+                          'Rshoulder_flex_ext', 'Rshoulder_abd_add',
+                          'Lshoulder_flex_ext',
+                          'Lshoulder_abd_add', 
+                          'Relbow_flex_ext', 'Lelbow_flex_ext',
+                          
+                          'Rhip_flex_ext','Rhip_abd_add','Rhip_int_ext_rot','Lhip_flex_ext', 'Lhip_abd_add', 
+                          'Lhip_int_ext_rot',
+                          'Rknee_flex_ext','Rankle_flex_ext', 'Lknee_flex_ext', 'Lankle_flex_ext']
 dof_to_plot = 'all'
+start_dof = 7
+
 if dof_to_plot =='upper':
     dof = upper_dof
 elif dof_to_plot == 'lower':
     dof = lower_dof
+elif dof_to_plot =='opencap':
+    dof = dof_opencap
 else:
     dof=dofs
 
 
 start_sample = 0
+
 # q_cosmik= read_joint_angles_wholebody(path_cosmik, start_sample)
 # q_mocap = read_joint_angles_wholebody(path_mocap, start_sample)
 
@@ -79,7 +94,7 @@ corr_list = []
 excluded_joints = ['Lwrist_flex_ext', 'Lwrist_x', 'Rwrist_flex_ext', 'Rwrist_x']
 
 # Filter the indices of joints to include
-joint_indices = [i for i in range(7, len(dof)) if dof[i] not in excluded_joints]
+joint_indices = [i for i in range(start_dof, len(dof)) if dof[i] not in excluded_joints]
 n_per_fig = 6  # Number of subplots per figure
 
 for j, i in enumerate(joint_indices):
@@ -111,7 +126,7 @@ for j, i in enumerate(joint_indices):
     if (j % n_per_fig == n_per_fig - 1) or (j == len(joint_indices) - 1):
         plt.show()
 
-joint_names = dof[7:]
+joint_names = dof[start_dof:]
 joint_names = [name for name in joint_names if name not in excluded_joints]
 rmse_array = np.array(rmse_list)
 avg_rmse = np.mean(rmse_array)

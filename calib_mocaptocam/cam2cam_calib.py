@@ -3,7 +3,7 @@ import numpy as np
 import os  
 import cv2 as cv
 import pinocchio as pin 
-
+subject = "Maxime"
 def load_cam_params(path):
     """
     Loads camera parameters from a given file.
@@ -26,31 +26,31 @@ def load_cam_params(path):
     cv_file.release()
     return camera_matrix, dist_matrix
 
-K1, D1 = load_cam_params(os.path.join("/root/workspace/ros_ws/src/rt-cosmik/config/cam_params/", "c1_params_color.yaml"))
-K2, D2 = load_cam_params(os.path.join("/root/workspace/ros_ws/src/rt-cosmik/config/cam_params/", "c2_params_color.yaml"))
+K1, D1 = load_cam_params(os.path.join("/root/workspace/ros_ws/src/rt-cosmik/config/cam_params/", "c0_params_color.yaml"))
+K2, D2 = load_cam_params(os.path.join("/root/workspace/ros_ws/src/rt-cosmik/config/cam_params/", "c6_params_color.yaml"))
 
-soder_dir = f"/root/workspace/ros_ws/src/rt-cosmik/output/calib_mocap_2_cam"
-cam2cam_dir = f"/root/workspace/ros_ws/src/rt-cosmik/config/cam_params/c1_to_c2_params_color.yaml"
+soder_dir = f"/root/workspace/ros_ws/src/rt-cosmik/output/{subject}/calib_mocap_2_cam"
+cam2cam_dir = f"/root/workspace/ros_ws/src/rt-cosmik/config/cam_params/c0_to_c6_params_color.yaml"
 
 R_c1_in_mocap, d_c1_in_mocap, _, _ = load_transformation(soder_dir + "0" + "/soder.txt")
-R_c2_in_mocap, d_c2_in_mocap, _, _ = load_transformation(soder_dir + "1" + "/soder.txt")
+R_c2_in_mocap, d_c2_in_mocap, _, _ = load_transformation(soder_dir + "6" + "/soder.txt")
 
 # c1_to_c2_in_mocap = d_c2_in_mocap - d_c1_in_mocap
 
 # R_c1_in_c2 = np.transpose(R_c1_in_mocap)@R_c2_in_mocap
 # d_c1_in_c2 = transform_to_local_frame(d_c2_in_mocap, d_c1_in_mocap, R_c1_in_mocap)
 
-# R_c1_in_c2 = np.transpose(R_c2_in_mocap)@R_c1_in_mocap
-# d_c1_in_c2 = transform_to_local_frame(d_c1_in_mocap, d_c2_in_mocap, R_c2_in_mocap)
+R_c1_in_c2 = np.transpose(R_c2_in_mocap)@R_c1_in_mocap
+d_c1_in_c2 = transform_to_local_frame(d_c1_in_mocap, d_c2_in_mocap, R_c2_in_mocap)
 
 # print("rot", R_c1_in_c2)
 # print("pos", d_c1_in_c2)
-M1 = pin.SE3(R_c1_in_mocap, d_c1_in_mocap)
-M2 = pin.SE3(R_c2_in_mocap, d_c2_in_mocap)
+# M1 = pin.SE3(R_c1_in_mocap, d_c1_in_mocap)
+# M2 = pin.SE3(R_c2_in_mocap, d_c2_in_mocap)
 
-M12 = M1.inverse()*M2
-R_c1_in_c2 = M12.rotation
-d_c1_in_c2 = M12.translation
+# M12 = M1.inverse()*M2
+# R_c1_in_c2 = M12.rotation
+# d_c1_in_c2 = M12.translation
 
 print("rot", R_c1_in_c2)
 print("pos", d_c1_in_c2)

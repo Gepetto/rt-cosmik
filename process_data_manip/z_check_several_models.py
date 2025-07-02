@@ -136,6 +136,6 @@ for i in range(len(q_mocap)):
         place(viz, sphere_name_mocap, pin.SE3(np.eye(3), np.matrix(mk_position_mocap.reshape(3,)).T))
         place(viz_lstm, sphere_name_cosmik, pin.SE3(np.eye(3), np.matrix(mk_position_cosmik.reshape(3,)).T))
 
-    time.sleep(0.2)
+    time.sleep(0.001)
 
     # input()

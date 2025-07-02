@@ -698,7 +698,7 @@ def plot_marker_trajectories(udp_df, marker_names):
         plt.show()
 
 #plot mks trajectories to compare and get rmse.
-def plot_marker_comparison(gt_data, pred_data, markers_to_plot=None, labels=('mocap', 'cosmik'), save_fig=False):
+def plot_marker_comparison(gt_data, pred_data, markers_to_plot=None, labels=['mocap', 'cosmik'], save_fig=False):
     """
     Plot and compare X, Y, Z trajectories over time for selected markers from two datasets.
 
@@ -757,17 +757,17 @@ def plot_marker_comparison(gt_data, pred_data, markers_to_plot=None, labels=('mo
         frames = np.arange(len(gt_data))
         fig, axs = plt.subplots(3, 1, figsize=(10, 10), sharex=True)
 
-        axs[0].plot(frames, gt_x, 'r-', label=labels[0])
-        axs[0].plot(frames, pred_x, 'g--', label=labels[1])
+        axs[0].plot(frames, gt_x, 'r-', label="mocap")
+        axs[0].plot(frames, pred_x, 'g--', label="Cosmik")
         axs[0].set_title(f"X (RMSE: {rmse_x:.4f})")
 
         axs[1].plot(frames, gt_y, 'r-', label=labels[0])
         axs[1].plot(frames, pred_y, 'g--', label=labels[1])
-        axs[1].set_title(f"X (RMSE: {rmse_y:.4f})")
+        axs[1].set_title(f"Y (RMSE: {rmse_y:.4f})")
 
         axs[2].plot(frames, gt_z, 'r-', label=labels[0])
         axs[2].plot(frames, pred_z, 'g--', label=labels[1])
-        axs[2].set_title(f"X (RMSE: {rmse_z:.4f})")
+        axs[2].set_title(f"Z (RMSE: {rmse_z:.4f})")
         axs[2].set_xlabel("Frame")
 
         fig.suptitle(

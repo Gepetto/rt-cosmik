@@ -19,8 +19,8 @@ task = "robot_polissage"
 path_to_3d_kpt = os.path.join(base_path, f"output/{no_trial}/{task}/3d_keypoints_filtred.csv")
 output_csv_path = os.path.join(base_path, f"output/{no_trial}/{task}/augmented_markers.csv")
 
-subject_mass = 75.0
-subject_height = 1.85
+subject_mass = 72.0
+subject_height = 1.80
 augmenter_path = '/root/workspace/ros_ws/src/rt-cosmik/src/rtcosmik/augmenter/augmentation_model'
 markers = [
            'r.ASIS_study','L.ASIS_study','r.PSIS_study','L.PSIS_study','r_knee_study',

@@ -24,8 +24,8 @@ mks_to_skip = ['LForearm','LUArm', 'RUArm', 'RHJC_study','LHJC_study','r_pelvis'
                'LHand', 'RForearm','RHand', 'L_sh1_study', 'L_thigh1_study','r_sh1_study', 'r_thigh1_study']
 #read mks data
 no_trial = "Maxime"
-task = "welding_sat" #hitting sat probleme
-path_to_csv = f"/root/workspace/ros_ws/src/rt-cosmik/output/{no_trial}/{task}/mks_data_gapfilled.csv"
+task = "static" #hitting sat probleme
+path_to_csv = f"/root/workspace/ros_ws/src/rt-cosmik/output/{no_trial}/{task}/mks_data.csv"
 
 subject_mass = 72.0
 subject_height = 1.80
@@ -66,9 +66,9 @@ pin.forwardKinematics(human_model,human_data, pin.neutral(human_model))
 pin.updateFramePlacements(human_model,human_data)
 
 # display urdf frames
-# for frame in human_model.frames.tolist():
-#     viz.viewer.gui.addXYZaxis('world/'+frame.name,[1,0,0,1],0.01,0.1)
-#     place(viz,'world/'+frame.name,human_data.oMf[human_model.getFrameId(frame.name)])
+for frame in human_model.frames.tolist():
+    viz.viewer.gui.addXYZaxis('world/'+frame.name,[1,0,0,1],0.01,0.1)
+    place(viz,'world/'+frame.name,human_data.oMf[human_model.getFrameId(frame.name)])
 
 q =pin.neutral(human_model)
 

@@ -18,15 +18,15 @@ from src.rtcosmik.config_loader import settings
 from src.rtcosmik.human_model.model_utils import get_segment_length
 from src.rtcosmik.ik.ik import RT_IK
 
-
+nbr_cams= 4
 mks_to_skip = ['LForearm','LUArm', 'RUArm', 'RHJC_study','LHJC_study','r_pelvis','l_pelvis',
                'LHand','LHL2','LHM5', 'RForearm','RHand','RHL2','RHM5', 'L_sh1_study', 'L_thigh1_study','r_sh1_study', 'r_thigh1_study']
 #read mks data
 no_trial = "Maxime"
 task = "static"
-path_to_csv = f"/root/workspace/ros_ws/src/rt-cosmik/output/{no_trial}/{task}/augmented_markers_4.csv"
+path_to_csv = f"/root/workspace/ros_ws/src/rt-cosmik/output/{no_trial}/{task}/augmented_markers_{nbr_cams}.csv"
 ###########################################################################################for cosmik data 
-path_to_kpt = f"/root/workspace/ros_ws/src/rt-cosmik/output/{no_trial}/{task}/3d_keypoints_filtered_4.csv"
+path_to_kpt = f"/root/workspace/ros_ws/src/rt-cosmik/output/{no_trial}/{task}/3d_keypoints_filtered_{nbr_cams}.csv"
 
 keys_to_add = ['Nose', 'Head', 'REar', 'LEar', 'REye', 'LEye']
 
@@ -65,9 +65,9 @@ pin.forwardKinematics(human_model,human_data, pin.neutral(human_model))
 pin.updateFramePlacements(human_model,human_data)
 
 # display urdf frames
-# for frame in human_model.frames.tolist():
-#     viz.viewer.gui.addXYZaxis('world/'+frame.name,[1,0,0,1],0.01,0.1)
-#     place(viz,'world/'+frame.name,human_data.oMf[human_model.getFrameId(frame.name)])
+for frame in human_model.frames.tolist():
+    viz.viewer.gui.addXYZaxis('world/'+frame.name,[1,0,0,1],0.01,0.1)
+    place(viz,'world/'+frame.name,human_data.oMf[human_model.getFrameId(frame.name)])
 
 q =pin.neutral(human_model)
 
