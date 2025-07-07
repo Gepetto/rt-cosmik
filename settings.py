@@ -20,8 +20,8 @@ class Settings:
     # CAM PARAMS
     fs: int = 40
     dt: float = field(init=False)  # Mark `dt` as excluded from the constructor
-    width: int = 1920 # image resolution
-    height: int = 1080 # image resolution
+    width: int = 1280 # image resolution
+    height: int = 720 # image resolution
     fourcc: str = "MJPG" # video codec
 
     # VIEWER PARAMS

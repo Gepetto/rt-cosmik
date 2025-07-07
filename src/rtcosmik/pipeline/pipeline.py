@@ -5,6 +5,8 @@ from rtcosmik.filtering.iir import IIR
 from rtcosmik.ik.ik import RT_IK, RT_SWIKA
 from rtcosmik.camera.cam_utils import load_camera_parameters,load_world_transformation
 from rtcosmik.human_model.pin_model import build_model_no_visuals
+from rtcosmik import settings
+from src.rtcosmik.human_model.urdf_model import * 
 
 from collections import deque
 import torch
@@ -14,6 +16,10 @@ from datetime import datetime
 from multiprocessing import Process, Array, Lock, Value, Event, Queue
 from typing import List
 import time
+
+rt_cosmik_path = os.path.dirname(os.path.join(os.path.abspath(__file__), "..", ".."))
+
+
 
 
 # class PipelineProcess(Process):
@@ -416,7 +422,25 @@ class PipelineProcess(Process):
                             keys_to_add = ['Nose', 'Head', 'REar', 'LEar', 'REye', 'LEye']
                             mks_dict.update({key: kp_dict[key] for key in keys_to_add})
 
-                            self.human_model = build_model_no_visuals(mks_dict)
+                            # self.human_model = build_model_no_visuals(mks_dict)
+                            
+                            #load urdf
+                            human = Robot('/root/workspace/ros_ws/src/rt-cosmik/urdf/human.urdf', rt_cosmik_path, isFext=True) 
+                            human_model = human.model
+                            human_data = human.data
+                            human_collision_model = human.collision_model
+                            human_visual_model = human.visual_model
+
+                            #scale the model to data
+                            human_model = scale_human_model(human_model, mks_dict, with_hand=True, gender='male', subject_height=settings.human_height)
+                            print(human_model.nq)
+
+                            human_model = mks_registration(human_model, mks_dict, with_hand=False)
+
+                            self.human_model = human_model
+
+                            human_data = pin.Data(human_model)
+
                             
                             if self.ik_type == 'sbs':
                                 q = pin.neutral(self.human_model)
