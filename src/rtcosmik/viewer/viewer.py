@@ -1,13 +1,12 @@
-from rtcosmik.config_loader import settings
+from src.rtcosmik.config_loader import settings
 if settings.viewer == 'ros':
     from .ros_viewer import ros_init, publish_keypoints_as_marker_array, publish_augmented_markers, publish_kinematics
 else: # default to gepetto viewer
     from .gv_viewer import gv_init, place_objects, place
 from multiprocessing import Process, Queue, Event
 import pinocchio as pin 
-from rtcosmik.human_model.urdf_model import Robot
-from rtcosmik.human_model.pin_model import build_dummy_model
-from rtcosmik.saver.csv_saver import CSVSaver
+from src.rtcosmik.human_model.pin_model import build_dummy_model
+from src.rtcosmik.saver.csv_saver import CSVSaver
 from typing import List
 import numpy as np
 from collections import OrderedDict

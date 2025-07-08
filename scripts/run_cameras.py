@@ -84,7 +84,7 @@ def main():
                                           cam_event=cam_event,
                                           save_dir=settings.SAVE_DIR, 
                                           stop_event=stop_event)
-    processes = camera_processes  + [display]
+    processes = camera_processes  + [display,vicon,udp_data_saver_process]
 
     # Start processes
     for p in processes:

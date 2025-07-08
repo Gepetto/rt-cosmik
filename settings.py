@@ -92,6 +92,9 @@ class Settings:
            'r_melbow_study','r_lwrist_study','r_mwrist_study','L_lelbow_study','L_melbow_study',
            'L_lwrist_study','L_mwrist_study'])
     
+
+    # marker_mocap_names: list = field(default_factory=lambda: ['A','Bmks_data.csv','C','D'])
+    
     marker_mocap_names: list = field(default_factory=lambda: ['r.ASIS_study','L.ASIS_study','r.PSIS_study','L.PSIS_study',
              'TV8','TV12','SJN','STRN','C7_study','r_shoulder_study','L_shoulder_study',
              'BHD','RHD','LHD','FHD',
