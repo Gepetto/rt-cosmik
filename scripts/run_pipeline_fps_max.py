@@ -66,7 +66,7 @@ def camera_process(idx_cam, stop_event, current_frame, timestamps):
 
 def hpe_process(current_frames, stop_event, timestamps, mks_dict, idx_cams):
 
-    device = 'cuda' if torch.cuda.is_available() else 'cpu'
+    device = "cuda"
     frame_shape = (settings.height, settings.width, 3)
     batch_size = len(idx_cams)
     CAM_CONFIG_PATH = settings.cam_calib_path
@@ -83,7 +83,7 @@ def hpe_process(current_frames, stop_event, timestamps, mks_dict, idx_cams):
         )
     warmed_augmenter_model = loadModel(augmenterDir=AUGMENTER_PATH, augmenterModelName="LSTM",augmenter_model='v0.3')
 
-    tracker = PoseTracker(settings.det_model_path, settings.pose_model_path, device=device)
+    tracker = PoseTracker(settings.det_model_path, settings.pose_model_path, device)
     sigmas = VISUALIZATION_CFG["body26"]['sigmas']
     states =  [tracker.create_state(det_interval=1, det_min_bbox_size=100, keypoint_sigmas=sigmas) for _ in range(batch_size)]
     # Warmup
@@ -267,9 +267,8 @@ if __name__ == "__main__":
     cameras_processes = [
         Process(
             target=camera_process, 
-            args=(idx_cam, stop_event, globals()[f"current_frame_{idx_cam}"]),
+            args=(idx_cam, stop_event, globals()[f"current_frame_{idx_cam}"], timestamps),
             name=f"Process camera {idx_cam}",
-            timestamps=timestamps
         ) 
         for idx_cam in cameras.keys()
     ]
@@ -282,13 +281,13 @@ if __name__ == "__main__":
 
     HPE_process = Process(
             target=hpe_process, 
-            args=([globals()[f"current_frame_{idx_cam}"] for idx_cam in cameras.keys], stop_event, timestamps, mks_dict, cameras.keys()),
+            args=([globals()[f"current_frame_{idx_cam}"] for idx_cam in cameras.keys()], stop_event, timestamps, mks_dict, cameras.keys()),
             name="HPE process"
         )
     
     IK_process = Process(
             target=ik_process, 
-            args=(mks_dict, angles, angles, stop_event),
+            args=(mks_dict, angles, stop_event),
             name="IK process"
         )
     

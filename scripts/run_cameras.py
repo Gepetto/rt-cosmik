@@ -73,7 +73,7 @@ def main():
     #         video_savers.append(vs)
 
     vicon = UDPReceiver(shared_values_udp,shared_ts_udp,lock_udp,
-                                 ip= "172.20.183.220",
+                                 ip= "172.20.183.220", 
                                  port=44445, output_dir= settings.SAVE_DIR,
                                  stop_event= stop_event, markers_names= settings.marker_mocap_names)
 
