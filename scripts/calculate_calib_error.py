@@ -13,7 +13,7 @@ def align_points(P_cam, P_mocap):
     # Erreur RMS avant alignement (dans les repères d'origine)
     initial_errors = np.linalg.norm(P_cam - P_mocap, axis=1)
     initial_rms_error = np.sqrt(np.mean(initial_errors**2))
-    print("Erreur RMS avant alignement :", initial_rms_error)
+    # print("Erreur RMS avant alignement :", initial_rms_error)
 
     # Centrage des deux ensembles
     centroid_cam = P_cam.mean(axis=0)
@@ -79,70 +79,91 @@ markers_to_compare = ['r.ASIS_study','L.ASIS_study','r.PSIS_study','L.PSIS_study
            'L_lwrist_study','L_mwrist_study']
 
 
-with open(os.path.join(data_path, "mks_data.csv")) as f:
-    reader = csv.reader(f)
-    header = next(reader)  # Lire l'en-tête
-    raw_mocap_data = np.array([row for row in reader])  # Charger les données
-raw_mocap_data = raw_mocap_data[:,1:].astype(float)  # Convertir en float et ignorer la première colonne (timestamps)
-P_cam = np.array(pd.read_csv(os.path.join(data_path, "augmented_markers_cam0.csv")).values).reshape(-1, 43,3)  # ou autre méthode de chargement
-P_mocap = np.array(raw_mocap_data).reshape(-1, 53, 3)
+subjects = os.listdir(data_path)
+for subject in subjects:
+    subject_path = os.path.join(data_path, subject)
+    trials = os.listdir(subject_path)
+    results_path = os.path.join(subject_path, "results")
+    for trial in trials:
+        if trial == "results":
+            continue
+        trial_path = os.path.join(subject_path, trial)
+        data_list = os.listdir(trial_path)
+        if "mks_data_gapfilled.csv" in data_list:
+            mocap_data_path = os.path.join(trial_path, "mks_data_gapfilled.csv")
+            with open(mocap_data_path) as f:
+                reader = csv.reader(f)
+                raw_mocap_data = np.array([row for row in reader])  # Charger les données
+                raw_mocap_data = raw_mocap_data[:,2:].astype(float)  # Convertir en float et ignorer la première colonne (timestamps)
+                P_mocap = np.array(raw_mocap_data).reshape(-1, 53, 3)
+        else:
+            mocap_data_path = os.path.join(trial_path, "mks_data.csv")
+            with open(mocap_data_path) as f:
+                reader = csv.reader(f)
+                header = next(reader)  # Lire l'en-tête
+                raw_mocap_data = np.array([row for row in reader])  # Charger les données
+                raw_mocap_data = raw_mocap_data[:,1:].astype(float)  # Convertir en float et ignorer la première colonne (timestamps)
+                P_mocap = np.array(raw_mocap_data).reshape(-1, 53, 3)
+        
+        P_cam = np.array(pd.read_csv(os.path.join(trial_path, "augmented_markers_2.csv")).values).reshape(-1, 43,3)  # ou autre méthode de chargement
+        
+        list_R = []
+        list_t = []
+        list_rms_error = []
+        list_P_cam_aligned = []
+        list_initial_rms_error = []
 
-list_R = []
-list_t = []
-list_rms_error = []
-list_P_cam_aligned = []
-list_initial_rms_error = []
+        for i in range(min(P_mocap.shape[0], P_cam.shape[0])):
+            P_cam_current = pd.DataFrame(P_cam[i,:,:], index=lstm_mks_names, columns=['x', 'y', 'z'])
+            P_mocap_current = pd.DataFrame(P_mocap[i,:,:], index=marker_mocap_names, columns=['x', 'y', 'z'])
+            P_cam_current = P_cam_current.loc[markers_to_compare]
+            P_mocap_current = P_mocap_current.loc[markers_to_compare]
+            P_cam_current = P_cam_current.values
+            P_mocap_current = P_mocap_current.values
 
-for i in range(P_cam.shape[0]):
-    P_cam_current = pd.DataFrame(P_cam[i,:,:], index=lstm_mks_names, columns=['x', 'y', 'z'])
-    P_mocap_current = pd.DataFrame(P_mocap[i,:,:], index=marker_mocap_names, columns=['x', 'y', 'z'])
-    P_cam_current = P_cam_current.loc[markers_to_compare]
-    P_mocap_current = P_mocap_current.loc[markers_to_compare]
-    P_cam_current = P_cam_current.values
-    P_mocap_current = P_mocap_current.values
+            R, t, rms_error, P_cam_aligned_current, initial_rms_error = align_points(P_cam_current, P_mocap_current)
+            # print("Rotation R:\n", R)
+            # print("Translation t:\n", t)
+            # print("Erreur RMS (alignement):", rms_error)
+            list_R.append(R)
+            list_t.append(t)
+            list_rms_error.append(rms_error)
+            list_P_cam_aligned.append(P_cam_aligned_current)
+            list_initial_rms_error.append(initial_rms_error)
 
-    R, t, rms_error, P_cam_aligned_current, initial_rms_error = align_points(P_cam_current, P_mocap_current)
-    # print("Rotation R:\n", R)
-    # print("Translation t:\n", t)
-    # print("Erreur RMS (alignement):", rms_error)
-    list_R.append(R)
-    list_t.append(t)
-    list_rms_error.append(rms_error)
-    list_P_cam_aligned.append(P_cam_aligned_current)
-    list_initial_rms_error.append(initial_rms_error)
+        R_mean = np.mean(list_R, axis=0)
+        R_std = np.std(list_R, axis=0)
+        t_mean = np.mean(list_t, axis=0)
+        t_std = np.std(list_t, axis=0)
+        rms_mean = np.mean(list_rms_error)
+        rms_std = np.std(list_rms_error)
+        initial_rms_error_mean = np.mean(list_initial_rms_error)
+        initial_rms_error_std = np.std(list_initial_rms_error)
+        print("Trial :", trial)
+        print("Rotation moyenne R:\n", R_mean)
+        print("Rotation std:\n", R_std)
+        print("Translation moyenne t:\n", t_mean)
+        print("Translation std:\n", t_std)
+        print("rms error mean :", rms_mean)
+        print("rms error std :", rms_std)
+        print("Initial RMS error mean :", initial_rms_error_mean)
+        print("Initial RMS error std :", initial_rms_error_std)
 
-R_mean = np.mean(list_R, axis=0)
-R_std = np.std(list_R, axis=0)
-t_mean = np.mean(list_t, axis=0)
-t_std = np.std(list_t, axis=0)
-rms_mean = np.mean(list_rms_error)
-rms_std = np.std(list_rms_error)
-initial_rms_error_mean = np.mean(list_initial_rms_error)
-initial_rms_error_std = np.std(list_initial_rms_error)
-print("Rotation moyenne R:\n", R_mean)
-print("Rotation std:\n", R_std)
-print("Translation moyenne t:\n", t_mean)
-print("Translation std:\n", t_std)
-print("rms error mean :", rms_mean)
-print("rms error std :", rms_std)
-print("Initial RMS error mean :", initial_rms_error_mean)
-print("Initial RMS error std :", initial_rms_error_std)
+        # Sauvegarder les résultats dans un fichier CSV
+        output_file = os.path.join(results_path, f"Procrustes_alignment_results_{trial}.csv")
 
-# Sauvegarder les résultats dans un fichier CSV
-output_file = os.path.join(data_path, "Procrustes_alignment_results.csv")
-
-with open(output_file, 'w', newline='') as f:
-    writer = csv.writer(f)
-    writer.writerow(["R_mean"])
-    for row in R_mean:
-        writer.writerow(row)
-    writer.writerow(["R_std"])
-    for row in R_std:
-        writer.writerow(row)
-    writer.writerow(["t_mean"] + t_mean.tolist())
-    writer.writerow(["t_std"] + t_std.tolist())
-    writer.writerow(["rms_mean", rms_mean])
-    writer.writerow(["rms_std", rms_std])
-    writer.writerow(["initial_rms_error_mean", initial_rms_error_mean])
-    writer.writerow(["initial_rms_error_std", initial_rms_error_std])
+        with open(output_file, 'w', newline='') as f:
+            writer = csv.writer(f)
+            writer.writerow(["R_mean"])
+            for row in R_mean:
+                writer.writerow(row)
+            writer.writerow(["R_std"])
+            for row in R_std:
+                writer.writerow(row)
+            writer.writerow(["t_mean"] + t_mean.tolist())
+            writer.writerow(["t_std"] + t_std.tolist())
+            writer.writerow(["rms_mean", rms_mean])
+            writer.writerow(["rms_std", rms_std])
+            writer.writerow(["initial_rms_error_mean", initial_rms_error_mean])
+            writer.writerow(["initial_rms_error_std", initial_rms_error_std])
 
