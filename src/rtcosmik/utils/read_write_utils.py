@@ -5,6 +5,56 @@ import matplotlib.pyplot as plt
 import os
 import csv
 
+#### ======= Mocap markerset ======== ####
+default_mocap_mks_names = ['r.ASIS_study','L.ASIS_study','r.PSIS_study','L.PSIS_study',
+             'TV8','TV12','SJN','STRN','C7_study','r_shoulder_study','L_shoulder_study',
+             'BHD','RHD','LHD','FHD',
+             'L_lelbow_study','L_melbow_study','LUArm','L_lwrist_study','L_mwrist_study','LForearm','LHand','LHL2','LHM5',
+             'r_lelbow_study','r_melbow_study','RUArm','r_lwrist_study','r_mwrist_study','RForearm','RHand','RHL2','RHM5',
+             'L_thigh1_study','L_knee_study','L_mknee_study','L_sh1_study','L_ankle_study','L_mankle_study','L_calc_study','L_5meta_study',
+             'L_toe_study', 'r_thigh1_study','r_knee_study','r_mknee_study','r_sh1_study',
+             'r_ankle_study','r_mankle_study','r_calc_study','r_5meta_study','r_toe_study',
+             'r_pelvis', 'l_pelvis']
+default_mocap_key_to_track_list = [
+        'BHD','RHD','LHD','FHD',
+        'C7_study','r.ASIS_study', 'L.ASIS_study', 'r.PSIS_study', 'L.PSIS_study', 'r_shoulder_study',
+        'r_lelbow_study', 'r_melbow_study','r_lwrist_study', 'r_mwrist_study','r_ankle_study', 'r_mankle_study',
+        'r_toe_study','r_5meta_study', 'r_calc_study','r_knee_study', 'r_mknee_study',
+        'L_shoulder_study', 'L_lelbow_study', 'L_melbow_study','L_lwrist_study','L_mwrist_study',
+        'L_ankle_study', 'L_mankle_study', 
+        'L_toe_study','L_5meta_study', 'L_calc_study',
+        'L_knee_study', 'L_mknee_study']
+
+#### ======= Augmenter markerset ======== ####
+default_augmenter_mks_names = ['r.ASIS_study','L.ASIS_study','r.PSIS_study','L.PSIS_study','r_knee_study',
+            'r_mknee_study','r_ankle_study','r_mankle_study','r_toe_study','r_5meta_study',
+            'r_calc_study','L_knee_study','L_mknee_study','L_ankle_study','L_mankle_study',
+            'L_toe_study','L_calc_study','L_5meta_study','r_shoulder_study','L_shoulder_study',
+            'C7_study','r_thigh1_study','r_thigh2_study','r_thigh3_study','L_thigh1_study',
+            'L_thigh2_study','L_thigh3_study','r_sh1_study','r_sh2_study','r_sh3_study',
+            'L_sh1_study','L_sh2_study','L_sh3_study','RHJC_study','LHJC_study','r_lelbow_study',
+            'r_melbow_study','r_lwrist_study','r_mwrist_study','L_lelbow_study','L_melbow_study',
+            'L_lwrist_study','L_mwrist_study']
+default_augmenter_mks_names_lower = ['r.ASIS_study', 'L.ASIS_study', 'r.PSIS_study', 'L.PSIS_study', 
+                 'r_knee_study', 'r_mknee_study', 'r_ankle_study', 'r_mankle_study', 
+                 'r_toe_study', 'r_5meta_study', 'r_calc_study', 'L_knee_study', 'L_mknee_study', 
+                 'L_ankle_study', 'L_mankle_study', 'L_toe_study', 'L_calc_study', 'L_5meta_study', 
+                 'r_shoulder_study', 'L_shoulder_study', 'C7_study', 'r_thigh1_study', 'r_thigh2_study', 
+                 'r_thigh3_study', 'L_thigh1_study', 'L_thigh2_study', 'L_thigh3_study', 'r_sh1_study', 
+                 'r_sh2_study', 'r_sh3_study', 'L_sh1_study', 'L_sh2_study', 'L_sh3_study', 'RHJC_study', 'LHJC_study']
+default_augmenter_mks_names_upper = ['r_lelbow_study', 'r_melbow_study', 'r_lwrist_study', 'r_mwrist_study', 
+                                     'L_lelbow_study', 'L_melbow_study', 'L_lwrist_study', 'L_mwrist_study']
+default_augmenter_key_to_track_list = ['Nose', 'Head', 'REar', 'LEar', 'REye', 'LEye',
+        'C7_study', 'r.ASIS_study', 'L.ASIS_study', 'r.PSIS_study', 'L.PSIS_study', 
+        'r_shoulder_study', 'r_lelbow_study', 'r_melbow_study', 'r_lwrist_study', 'r_mwrist_study',
+        'r_ankle_study', 'r_mankle_study', 'r_toe_study','r_5meta_study', 'r_calc_study',
+        'r_knee_study', 'r_mknee_study', 'L_shoulder_study',  'L_lelbow_study', 'L_melbow_study',
+        'L_lwrist_study','L_mwrist_study', 'L_ankle_study', 'L_mankle_study', 
+        'L_toe_study','L_5meta_study', 'L_calc_study', 'L_knee_study', 'L_mknee_study',]
+default_augmenter_kpts_indices_lower = [18, 6, 5, 12, 11, 14, 13, 16, 15, 25, 24, 23, 22, 21, 20] #['Neck', 'RShoulder', 'LShoulder', 'RHip', 'LHip', 'RKnee', 'LKnee', 'RAnkle', 'LAnkle', 'RHeel', 'LHeel', 'RSmallToe', 'LSmallToe', 'RBigToe', 'LBigToe']
+default_augmenter_kpts_indices_upper = [18, 6, 5, 8, 7, 10, 9] #['Neck', 'RShoulder', 'LShoulder', 'RElbow', 'LElbow', 'RWrist', 'LWrist']
+
+
 def set_zero_data_df(df, x=None, y=None, z=None):
     # Isolate the right ankle coordinates for frame 1
     right_ankle_frame1 = df[(df['Frame'] == 1) & (df['Keypoint'] == 'Right Ankle')]
@@ -636,7 +686,7 @@ def udp_csv_to_dataframe(csv_path, marker_names):
         lines = f.readlines()
 
     # 2. Skip the header
-    lines = lines[1:]
+    lines = lines[:]
 
     # 3. Prepare all rows
     all_rows = []
@@ -647,7 +697,7 @@ def udp_csv_to_dataframe(csv_path, marker_names):
             continue  # skip empty lines
         parts = line.split(",")
         timestamp = parts[0]
-        udp_values = [float(val) for val in parts[1:]]
+        udp_values = [float(val) for val in parts[2:]]
         all_rows.append(udp_values)
 
     # 4. Now create a dataframe

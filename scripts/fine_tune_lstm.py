@@ -27,8 +27,6 @@ class KeypointDataset(Dataset):
         return self.X[idx]
     
 
-
-
 subject_mass = 72.0
 subject_height = 1.80
 augmenter_path_lower = '/mnt/c/Users/nicol/Desktop/Travail/LAAS/SFE Gepetto/rt-cosmik/src/rtcosmik/augmenter/augmentation_model/LSTM/v0.3_lower'

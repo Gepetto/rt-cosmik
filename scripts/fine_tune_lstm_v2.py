@@ -8,8 +8,8 @@ from sklearn.model_selection import train_test_split
 
 
 # === Charger le CSV ===
-df_inputs = pd.read_csv("/mnt/c/Users/nicol/Desktop/Travail/LAAS/SFE Gepetto/Data/Test_train/3d_keypoints_filtered_2.csv")
-df_outputs = pd.read_csv("/mnt/c/Users/nicol/Desktop/Travail/LAAS/SFE Gepetto/Data/Test_train/mks_data_gapfilled.csv")
+df_inputs = pd.read_csv("../data/lstm_training/3d_keypoints_filtered_4.csv")
+df_outputs = pd.read_csv("../data/lstm_training/mks_data_gapfilled.csv")
 df_outputs = df_outputs.drop(df_outputs.columns[0], axis=1)  # Supprimer la colonne inutile
 
 # === Conversion en tableau NumPy ===
@@ -39,8 +39,6 @@ x_train = x_train.reshape((-1, 1, 21))  # (nb_samples, timesteps, input_dim)
 x_val = x_val.reshape((-1, 1, 21))      # (nb_samples, timesteps, input_dim)
 y_train = y_train.reshape((-1, 1, 33))  # (nb_samples, timesteps, output_dim)
 y_val = y_val.reshape((-1, 1, 33))      # (nb_samples, timesteps, output_dim)
-
-
 
 # === Hyperparamètres ===
 input_dim = 21       # nb de features en entrée
