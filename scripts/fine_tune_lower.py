@@ -91,22 +91,22 @@ with open(json_path, 'r') as f:
     base = model_from_json(f.read())
 base.load_weights(weights_path)
 
-# fixed sequence length used in original training
+# Set sequence length (the LSTM was pre-trained to work with any sequence)
 seq_len = 30
 # total output dims (unused directly)
 total_out_dim = base.output_shape[-1]
 print(f"Using seq_len={seq_len}, total_out_dim={total_out_dim}")
 
-# map markers_of_interest → feature indices in the full output
-marker_idx = {m:i for i,m in enumerate(response_markers_lower)}
-feat_indices = []
+# ====== Get the indices of the markers of interest in the LSTM full output ====== #
+marker_idx = {m:i for i,m in enumerate(response_markers_lower)} #dictionnary of output lstm mks and their indices in the output vector
+feat_indices = []#The indices of the features of interest
 for m in mks_of_interest_lower:
     idx = marker_idx[m]
     feat_indices += [idx*3 + d for d in (0,1,2)]
 
-# build fine-tuning model: last timestep slice + select interest dims
-last_step = Lambda(lambda x: x[:, -1, :], name="last_step")(base.output)
-lower_out = Lambda(lambda x: tf.gather(x, feat_indices, axis=1),
+# ====== Set LSTM to output only last-step (last vector of the predicted window), then only the markers of interest
+last_step = Lambda(lambda x: x[:, -1, :], name="last_step")(base.output) #A lambda layer that outputs laststep only
+lower_out = Lambda(lambda x: tf.gather(x, feat_indices, axis=1), #A lambda layer that outputs markers of interest only
                    name="lower_body")(last_step)
 model = Model(inputs=base.input, outputs=lower_out)
 model.compile(optimizer=Adam(learning_rate), loss='mse')
