@@ -3,98 +3,57 @@ import pandas as pd
 from scipy.signal import correlate, correlation_lags
 import matplotlib.pyplot as plt
 import csv
-import eigenpy
-import hppfcl
-import pinocchio as pin
 import numpy as np
 import sys 
-from tools.robot import Robot
-from pinocchio.visualize import GepettoVisualizer
-from IK import *
-from calibration import *
 import pandas as pd
-from tools.robotvisualization import display_estimated_markers, display_markers, apply_plug_in_gait_colors,color_segment
+from src.rtcosmik.utils.read_write_utils import read_mks_data, marker_data_to_dataframe,read_joint_angles_wholebody,read_specific_joint
 
 def deg2rad(angle):
     return np.pi*angle/180
 
-# TIME SYNC FORCE DATA
+dofs  =  ['FF_X', 'FF_Y', 'FF_Z', 'FF_quatx','FF_quaty',
+                          'FF_quatz', 'FF_quatw', 'Lhip_flex_ext', 'Lhip_abd_add','Lhip_int_ext_rot','Lknee_flex_ext','Lankle_flex_ext','Lankle_abd_add',
+                          'Lumbar_flex_ext', 'Lumbar_lateral_flex',
+                          'thoracic_flex_ext','thoracic_lateral_flex','thoracic_rot_int_ext',
+                          'Lcalvicule_x',
+                          'Lshoulder_flex_ext','Lshoulder_abd_add', 'Lshoulder_int_ext_rot','Lelbow_flex_ext','Lelbow_pron_supi','Lwrist_flex_ext','Lwrist_x',
+                          'Cervical_flex_ext', 'Cervical_lat_bend', 'Cervical_int_ext_rot',
+                          'rcalvicule_x',
+                          'Rshoulder_flex_ext', 'Rshoulder_abd_add', 'Rshoulder_int_ext_rot','Relbow_flex_ext', 'Relbow_pron_supi', 'Rwrist_flex_ext','Rwrist_x',
+                          'Rhip_flex_ext','Rhip_abd_add','Rhip_int_ext_rot',
+                          'Rknee_flex_ext','Rankle_flex_ext', 'Rankle_abd_add']
+dof = ['Rknee_flex_ext']
+start_sample =0 
+no_trial = "Maxime"
+task = "upper"
+path_mocap= f"/root/workspace/ros_ws/src/rt-cosmik/output/{no_trial}/{task}/q_mocap_ipopt.csv"
+path_cosmik= f"/root/workspace/ros_ws/src/rt-cosmik/output/{no_trial}/cosmik_2cams/{task}/q_cosmik_ipopt_2.csv"
 
-# with open('/home/msabbah/Bureau/STAGE/figaro/datasets/Identif/Data_JoB/15_06_2023/LeoH/Mocap/Resampled/Trial0_Resampled.csv', newline='') as csvfile:
-#     spamreader = csv.reader(csvfile, delimiter=' ', quotechar='|')
-#     no_lines= len(list(spamreader))-1
-
-# forces_trajectories = np.zeros((no_lines,6))
-
-# c=0
-
-# length_fp=1.8
-# width_fp=0.9
-
-# FP = pin.SE3(np.eye(3),np.array([length_fp/2,width_fp/2,0]))
-
-# with open('/home/msabbah/Bureau/STAGE/figaro/datasets/Identif/Data_JoB/15_06_2023/LeoH/Mocap/Resampled/Trial0_Resampled.csv', newline='') as csvfile:
-#     spamreader = csv.reader(csvfile, delimiter=' ', quotechar='|')
-#     for row in spamreader:
-#         if 'time' in row[0]:
-#             print('First')
-#         else:
-#             new_row=row[0].split(',')
-#             F = pin.Force(np.array([float(new_row[-9]),float(new_row[-8]),float(new_row[-7]),float(new_row[-6]),float(new_row[-5]),float(new_row[-4])]))
-#             F = F.se3Action(FP)
-#             forces_trajectories[c,:] = np.array([-F.linear[0],F.linear[1],-F.linear[2],-F.angular[0],-F.angular[1],-F.angular[2]])
-#             c+=1
+q_cosmik= read_specific_joint(path_cosmik,dof, start_sample)
+q_mocap = read_specific_joint(path_mocap,dof, start_sample)
 
 
-# signal1 = forces_trajectories[:,2]
-# df = pd.read_csv('/home/msabbah/Bureau/STAGE/figaro/datasets/Identif/Data_JoB/15_06_2023/LeoH/Xsens/Resampled/LeoH_Trial0_Segment_Acceleration_Resampled.csv')
-# signal2 = df["Right Foot z"]
+print(q_mocap.shape,q_cosmik.shape)
 
-# print(signal1.shape,signal2.shape)
+corr = correlate(q_mocap,q_cosmik)
 
-# # SIGNAL 2 HAS MORE DATA THAN SIGNAL 1 HERE
-
-# corr = correlate(signal2,signal1)
-
-# lags = correlation_lags(len(signal2[:len(signal1)]),len(signal1))
-
-# lag = lags[np.argmax(corr)]
-
-# print(lag)
-
-# fig, axs = plt.subplots(2,1)
-# axs[0].plot(signal1,label='mocap')
-# axs[1].plot(signal2[abs(lag):len(signal1)+abs(lag)], label='xsens')
-# axs[0].legend()
-# axs[1].legend()
-# plt.show()
-
-# TIME SYNC KINEMATICS
-
-q_mocap = np.loadtxt("/home/msabbah/Bureau/STAGE/figaro/datasets/Identif/Data_JoB/16_06_2023/Momo/Non synchro/Mocap/q_raw_Momo_19000.txt",delimiter=',')
-q_Xsens = np.loadtxt("/home/msabbah/Bureau/STAGE/figaro/datasets/Identif/Data_JoB/16_06_2023/Momo/Non synchro/Xsens/Raw/q/qraw_Momo.txt",delimiter=',')
-
-q_Xsens[:,6]=-q_Xsens[:,6]
-
-signal1=q_mocap[:,10]
-signal2= q_Xsens[:,10]
-
-print(signal1.shape,signal2.shape)
-
-# SIGNAL 2 HAS MORE DATA THAN SIGNAL 1 HERE
-
-corr = correlate(signal2,signal1)
-
-lags = correlation_lags(len(signal2[:len(signal1)]),len(signal1))
+lags = correlation_lags(len(q_mocap[:len(q_cosmik)]),len(q_cosmik))
 
 lag = lags[np.argmax(corr)]
 
 print(lag)
 
-# plt.plot(signal1,label='mocap')
-# plt.plot(signal2[abs(lag):len(signal1)+abs(lag)], label='xsens')
-# plt.legend()
-# plt.show()
+if lag >= 0:
+    q_mocap_aligned = q_mocap[lag:lag + len(q_cosmik)]
+    q_cosmik_aligned = q_cosmik
+else:
+    q_mocap_aligned = q_mocap[:len(q_cosmik) + lag]
+    q_cosmik_aligned = q_cosmik[-lag:]
 
-q_Xsens = q_Xsens[abs(lag):len(signal1)+abs(lag),:]
+plt.plot(q_cosmik_aligned, label='cosmik')
+plt.plot(q_mocap_aligned, label='mocap')
+plt.legend()
+plt.title(f"Lag = {lag}")
+plt.show()
+
 

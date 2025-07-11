@@ -21,8 +21,6 @@ def read_transformation_from_csv(path):
 
     return R, t
 
-
-
 def project_and_draw_markers(frame, markers, rvec, tvec, K, D, color, scale=4, units_factor=1.0):
     for pt in markers:
         if np.isnan(pt).any():
@@ -40,9 +38,10 @@ def draw_2d_keypoints_on_frame(frame, keypoints_2d, color=(255, 255, 0), scale=4
         if 0 <= x < frame.shape[1] and 0 <= y < frame.shape[0]:
             cv2.circle(frame, (int(x), int(y)), scale, color, -1)
 
+
 # === Load  markers
 no_trial = "Maxime"
-task = "sanding"
+task = "static"
 path_to_csv_mocap = f"/root/workspace/ros_ws/src/rt-cosmik/output/{no_trial}/{task}/mks_data.csv"
 marker_mocap_names = ['r.ASIS_study','L.ASIS_study','r.PSIS_study','L.PSIS_study',
              'TV8','TV12','SJN','STRN','C7_study','r_shoulder_study','L_shoulder_study',
@@ -102,21 +101,28 @@ kpt_2d = df_2d.values.reshape(len(df_2d), len(mks_names_2),2)
 
 
 
-# === Load camera 0 parameters
-# path = "/root/workspace/ros_ws/src/rt-cosmik/output/Maxime/static/Procrustes_alignment_results.csv"
-# R, T = read_transformation_from_csv(path)
-
-
-
-base_path = "/root/workspace/ros_ws/src/rt-cosmik"
-config_path = os.path.join(base_path, "config/cam_params")
-K, D = load_cam_params(os.path.join(config_path, "c0_params_color.yaml"))
-transformation_file = f"/root/workspace/ros_ws/src/rt-cosmik/output/{no_trial}/calib_mocap_2_cam0/soder.txt"
-R, T, s_trans, rms_error = load_transformation(transformation_file)
-
-
+# === Load parameters
+#with Procrustes_alignment
+path = f"/root/workspace/ros_ws/src/rt-cosmik/output/{no_trial}/{task}/Procrustes_alignment_results.csv"
+# path= "/root/workspace/ros_ws/src/rt-cosmik/output/Maxime/results/Procrustes_alignment_results_static.csv"
+# path="/root/workspace/ros_ws/src/rt-cosmik/output/Maxime/results_4cams/results/Procrustes_alignment_results_static.csv"
+R, T = read_transformation_from_csv(path)
 R = R.T #because its cam_to_mocap transfo
 T = -R @ T
+
+####if i want to use the transfo that we get with soder
+base_path = "/root/workspace/ros_ws/src/rt-cosmik"
+config_path = os.path.join(base_path, f"config/cam_params/{no_trial}")
+R1, T1, s_trans, rms_error = load_transformation(os.path.join(config_path, "calib_mocap_2_cam0/soder.txt"))
+R1 = R1.T #because its cam_to_mocap transfo
+T1 = -R1 @ T1
+
+R_total=R1 @ R
+T_total = R1 @T  + T1
+
+K, D = load_cam_params(os.path.join(config_path, "c0_params_color.yaml"))
+
+
 
 # === Load video
 video_path = f"/root/workspace/ros_ws/src/rt-cosmik/output/{no_trial}/{task}/camera_0.mp4"
@@ -152,7 +158,7 @@ while cap.isOpened():
 
     draw_2d_keypoints_on_frame(frame, kpt_2d[frame_idx], color=(255, 255, 0), scale=3)
 
-    # writer.write(frame)
+    writer.write(frame)
     cv2.imshow("Overlay", frame)
     if cv2.waitKey(1) & 0xFF == ord('q'):
         break

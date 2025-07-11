@@ -126,6 +126,9 @@ def get_four_cameras_params(K1,D1,K2,D2,K3,D3,K4,D4,R2, T2,R3, T3,R4, T4):
     projections=[]
 
     for cam in dict_cam :
+        print(cam)
+        print(dict_cam[cam]["translation"])
+        
         rotation=np.array(dict_cam[cam]["rotation"])
         rotations.append(rotation)
         translation=np.array([dict_cam[cam]["translation"]]).reshape(3,1)
@@ -311,4 +314,6 @@ def load_four_camera_parameters(config_path):
     R1, T1= load_cam_to_cam_params(os.path.join(config_path, "c0_to_c2_params_color.yaml"))
     R2, T2 = load_cam_to_cam_params(os.path.join(config_path, "c0_to_c4_params_color.yaml"))
     R3, T3 = load_cam_to_cam_params(os.path.join(config_path, "c0_to_c6_params_color.yaml"))
+    print(T1)
+    print(T2)
     return get_four_cameras_params(K1, D1, K2, D2,K3, D3, K4, D4, R1, T1,R2, T2,R3, T3)

@@ -416,7 +416,7 @@ def read_mmpose_scores(liste_fichiers):
     all_scores= []
     for f in liste_fichiers :
         data= np.loadtxt(f, delimiter=',')
-        all_scores.append(data[:, 1])
+        all_scores.append(data[:, 0])
     return np.array(all_scores).transpose().tolist()
 
 def get_cams_params_challenge()->dict:
@@ -552,7 +552,6 @@ def read_mks_data(data_markers, start_sample=0):
     """
     # Extract marker column names
     marker_columns = [col[:-2] for col in data_markers.columns if col.endswith("_x")]
-    # print(marker_columns)
     
     # Initialize the result list
     result_markers = []

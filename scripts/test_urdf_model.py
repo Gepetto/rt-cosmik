@@ -21,21 +21,44 @@ from src.rtcosmik.human_model.model_utils import get_segment_length
 #read mks data
 no_trial = "Maxime"
 task = "static"
-path_to_csv = f"/root/workspace/ros_ws/src/rt-cosmik/output/{no_trial}/{task}/mks_data.csv"
+# path_to_csv = f"/root/workspace/ros_ws/src/rt-cosmik/output/{no_trial}/{task}/mks_data.csv"
 
+path_to_csv = f"/root/workspace/ros_ws/src/rt-cosmik/output/{no_trial}/{task}/augmented_markers_cam0.csv"
+###########################################################################################for cosmik data 
+path_to_kpt = f"/root/workspace/ros_ws/src/rt-cosmik/output/{no_trial}/{task}/3d_keypoints_filtred_cam0.csv"
+
+keys_to_add = ['Nose', 'Head', 'REar', 'LEar', 'REye', 'LEye']
+
+data_markers_lstm = pd.read_csv(path_to_csv) 
+keypoints = pd.read_csv(path_to_kpt) 
+
+columns_to_add = [col for col in keypoints.columns if any(key + '_' in col for key in keys_to_add)]
+
+if len(data_markers_lstm) != len(keypoints):
+    raise ValueError("Row count mismatch between data_markers_lstm and keypoints")
+
+mks_data = pd.concat([data_markers_lstm, keypoints[columns_to_add].reset_index(drop=True)], axis=1)
+
+###################################################################""""
 start_sample=0
-mks_names = ['r.ASIS_study','L.ASIS_study','r.PSIS_study','L.PSIS_study',
-             'TV8','TV12','SJN','STRN','C7_study','r_shoulder_study','L_shoulder_study',
-             'BHD','RHD','LHD','FHD',
-             'L_lelbow_study','L_melbow_study','LUArm','L_lwrist_study','L_mwrist_study','LForearm','LHand','LHL2','LHM5',
-             'r_lelbow_study','r_melbow_study','RUArm','r_lwrist_study','r_mwrist_study','RForearm','RHand','RHL2','RHM5',
-             'L_thigh1_study','L_knee_study','L_mknee_study','L_sh1_study','L_ankle_study','L_mankle_study','L_calc_study','L_5meta_study','L_toe_study',
-             'r_thigh1_study','r_knee_study','r_mknee_study','r_sh1_study',
-             'r_ankle_study','r_mankle_study','r_calc_study','r_5meta_study','r_toe_study',
-             'r_pelvis', 'l_pelvis']
-# df_raw = pd.read_8data_to_dataframe(df_raw, mks_names) #marker data are string 
-mks_data = udp_csv_to_dataframe(path_to_csv, mks_names) #float
 result_markers, start_sample_dict = read_mks_data(mks_data, start_sample=start_sample) #check the function of read 
+
+
+
+
+# start_sample=0
+# mks_names = ['r.ASIS_study','L.ASIS_study','r.PSIS_study','L.PSIS_study',
+#              'TV8','TV12','SJN','STRN','C7_study','r_shoulder_study','L_shoulder_study',
+#              'BHD','RHD','LHD','FHD',
+#              'L_lelbow_study','L_melbow_study','LUArm','L_lwrist_study','L_mwrist_study','LForearm','LHand','LHL2','LHM5',
+#              'r_lelbow_study','r_melbow_study','RUArm','r_lwrist_study','r_mwrist_study','RForearm','RHand','RHL2','RHM5',
+#              'L_thigh1_study','L_knee_study','L_mknee_study','L_sh1_study','L_ankle_study','L_mankle_study','L_calc_study','L_5meta_study','L_toe_study',
+#              'r_thigh1_study','r_knee_study','r_mknee_study','r_sh1_study',
+#              'r_ankle_study','r_mankle_study','r_calc_study','r_5meta_study','r_toe_study',
+#              'r_pelvis', 'l_pelvis']
+# # df_raw = pd.read_8data_to_dataframe(df_raw, mks_names) #marker data are string 
+# mks_data = udp_csv_to_dataframe(path_to_csv, mks_names) #float
+# result_markers, start_sample_dict = read_mks_data(mks_data, start_sample=start_sample) #check the function of read 
 
 
 #load urdf
@@ -49,7 +72,7 @@ human_visual_model = human.visual_model
 human_model = scale_human_model(human_model, start_sample_dict,with_hand=True,gender='male',subject_height=1.81)
 print(human_model.nq)
 
-human_model= mks_registration(human_model,start_sample_dict, with_hand=True, gender='male',subject_height=1.81)
+human_model= mks_registration(human_model,start_sample_dict, with_hand=False, gender='male',subject_height=1.81)
 
 human_data = pin.Data(human_model)
 human_collision_model = human.collision_model

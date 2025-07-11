@@ -406,6 +406,44 @@ def get_handL_pose(mks_positions):
         pose[:3,:3] = orthogonalize_matrix(pose[:3,:3])
         return pose
 
+
+def force_vertical_y_rotation(R_initial: np.ndarray, y_vertical: np.ndarray) -> np.ndarray:
+    """
+    Reconstruct a rotation matrix from R_initial, forcing the Y-axis to match y_vertical.
+    
+    Parameters:
+    - R_initial (np.ndarray): 3x3 rotation matrix.
+    - y_vertical (np.ndarray): 3D unit vector representing the desired vertical Y-axis.
+
+    Returns:
+    - R_new (np.ndarray): 3x3 rotation matrix with Y-axis aligned to y_vertical.
+
+    Raises:
+    - ValueError if the resulting matrix is not a proper rotation (det ≠ 1)
+    """
+    y_new = y_vertical / np.linalg.norm(y_vertical)
+    z_known = R_initial[:, 1:2]
+
+    # Try to construct a valid x_new
+    x_new = np.cross(z_known.flatten(), y_new.flatten(),axis=0)
+    
+    if np.linalg.norm(x_new) < 1e-6:
+        # z and y are nearly aligned → fallback to use original x axis
+        x_known = R_initial[:, 0]
+        x_new = np.cross(x_known, y_new)
+
+    x_new = x_new / np.linalg.norm(x_new)
+    z_new = np.cross(x_new.flatten(), y_new.flatten())
+
+    R_new = np.column_stack((x_new, y_new, z_new))
+
+    # Check determinant
+    det = np.linalg.det(R_new)
+    if not np.isclose(det, 1.0, atol=1e-6):
+        raise ValueError(f"Invalid rotation matrix: det = {det}, expected 1.0")
+
+    return R_new
+
 #construct abdomen frame and get its pose (middle thoracic joint in urdf)
 def get_thorax_pose(mks_positions,gender='male',subject_height= 1.80):
     #pelvis + distance selon y
@@ -427,16 +465,16 @@ def get_thorax_pose(mks_positions,gender='male',subject_height= 1.80):
     else : 
         abdomen_ratio = 0.0776
     
-    pelvis_pose =(get_pelvis_pose(mks_positions,gender)[:3,3]).reshape(3,1)
-    torso_pose = (get_torso_pose(mks_positions)[:3,3]).reshape(3,1)
-    direction = torso_pose - pelvis_pose                     
-    direction = direction / np.linalg.norm(direction)  
-    # pos_torso_in_pelvis = (np.linalg.inv(get_virtual_pelvis_pose(mks_positions)) @ torso_pose)[:3,3]
+    pelvis_position =(get_pelvis_pose(mks_positions,gender)[:3,3]).reshape(3,1)
+    torso_position = (get_torso_pose(mks_positions)[:3,3]).reshape(3,1)
+    vertical_direction = torso_position - pelvis_position                    
+    vertical_direction = vertical_direction / np.linalg.norm(vertical_direction)  
 
-    p_local=col_vector_3D(0.0, subject_height * abdomen_ratio,0.0)
+    trans_local=col_vector_3D(0.0, subject_height * abdomen_ratio,0.0)
+    pelvis_pose_forced = force_vertical_y_rotation(get_pelvis_pose(mks_positions,gender)[:3,:3].reshape(3,3), vertical_direction)
+    # trans_global = (pelvis_pose_forced@ trans_local).reshape(3,1)
+    trans_global = (get_pelvis_pose(mks_positions,gender)[:3,:3].reshape(3,3) @ trans_local).reshape(3,1)
 
-    p_global = (get_pelvis_pose(mks_positions,gender)[:3,:3].reshape(3,3) @ p_local).reshape(3,1)
-    
     pose = np.eye(4,4)
     X, Y, Z = [], [], []
     center_PSIS = []
@@ -459,7 +497,7 @@ def get_thorax_pose(mks_positions,gender='male',subject_height= 1.80):
     pose[:3,0] = X.reshape(3,)
     pose[:3,1] = Y.reshape(3,)
     pose[:3,2] = Z.reshape(3,)
-    pose[:3,3] = ((get_pelvis_pose(mks_positions,gender)[:3,3]).reshape(3,1)+ (direction*p_global)).reshape(3,)
+    pose[:3,3] = ((get_pelvis_pose(mks_positions,gender)[:3,3]).reshape(3,1)+ trans_global).reshape(3,)
     pose[:3,:3] = orthogonalize_matrix(pose[:3,:3])
 
     return pose

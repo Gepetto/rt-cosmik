@@ -152,7 +152,6 @@ def augmentTRC(keypoints_buffer, subject_mass, subject_height,
 
         # Reshape inputs if necessary for LSTM model
         inputs = np.reshape(inputs, (1, inputs.shape[0], inputs.shape[1]))
-
         # pre-warmed model
         model = models.get(augmenterModelType)
 
@@ -186,6 +185,5 @@ def augmentTRC(keypoints_buffer, subject_mass, subject_height,
 
 
     responses_all_conc = np.concatenate((v0_3_lower, v0_3_upper))
-    # print(responses_all_conc)
     return responses_all_conc
 

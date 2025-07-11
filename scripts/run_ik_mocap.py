@@ -54,12 +54,28 @@ human_visual_model = human.visual_model
 
 #scale the model to data
 human_model = scale_human_model(human_model, start_sample_dict,with_hand=True,gender=gender,subject_height=subject_height)
+human_model= mks_registration(human_model,start_sample_dict, with_hand=True)
+human_data = pin.Data(human_model)
 print(human_model.nq)
 
-human_model= mks_registration(human_model,start_sample_dict, with_hand=True)
+################################################################################LOCK JOINTS
+all_joint_ids = set(range(1, human_model.njoints))
+joints_to_lock = ["middle_thoracic_X", "middle_thoracic_Y", "middle_thoracic_Z", "left_wrist_X", "left_wrist_Z", "right_wrist_X","right_wrist_Z"]
+joint_ids_to_lock = []
+for jn in joints_to_lock:
+    if human_model.existJointName(jn):
+        joint_ids_to_lock.append(human_model.getJointId(jn))
+    else:
+        print('Warning: joint ' + str(jn) + ' does not belong to the model!')
 
+q0 = pin.neutral(human_model)
+# Build reduced model
+human_model, human_visual_model = pin.buildReducedModel(
+    human_model, human_visual_model, joint_ids_to_lock, q0)
+
+print(human_model.nq)
 human_data = pin.Data(human_model)
-
+###############################################################################################################
 # VISUALIZATION
 viz = gv_init(human_model,human_collision_model,human_visual_model,start_sample_dict)
 pin.forwardKinematics(human_model,human_data, pin.neutral(human_model))
@@ -69,9 +85,8 @@ pin.updateFramePlacements(human_model,human_data)
 for frame in human_model.frames.tolist():
     viz.viewer.gui.addXYZaxis('world/'+frame.name,[1,0,0,1],0.01,0.1)
     place(viz,'world/'+frame.name,human_data.oMf[human_model.getFrameId(frame.name)])
-
+    
 q =pin.neutral(human_model)
-
 viz.display(q)
 input("model scaled, you can launch ik")
 
@@ -186,20 +201,19 @@ for ii in range(start_sample,len(result_markers)):
     q_list.append(q)
 
 # #save mks est
-df = pd.DataFrame(M_model_list)
-csv_file = os.path.join(rt_cosmik_path,f"/root/workspace/ros_ws/src/rt-cosmik/output/{no_trial}/{task}/mks_model_ipopt.csv") 
-df.to_csv(csv_file, index=False)
+# df = pd.DataFrame(M_model_list)
+# csv_file = os.path.join(rt_cosmik_path,f"/root/workspace/ros_ws/src/rt-cosmik/output/{no_trial}/{task}/mks_model_ipopt.csv") 
+# df.to_csv(csv_file, index=False)
 
 #save angles
 joint_angles_names = ['FF_X', 'FF_Y', 'FF_Z', 'FF_quatx','FF_quaty',
                           'FF_quatz', 'FF_quatw', 'Lhip_flex_ext', 'Lhip_abd_add','Lhip_int_ext_rot','Lknee_flex_ext','Lankle_flex_ext','Lankle_abd_add',
                           'Lumbar_flex_ext', 'Lumbar_lateral_flex',
-                          'thoracic_flex_ext','thoracic_lateral_flex','thoracic_rot_int_ext',
                           'Lcalvicule_x',
-                          'Lshoulder_flex_ext','Lshoulder_abd_add', 'Lshoulder_int_ext_rot','Lelbow_flex_ext','Lelbow_pron_supi','Lwrist_flex_ext','Lwrist_x',
+                          'Lshoulder_flex_ext','Lshoulder_abd_add', 'Lshoulder_int_ext_rot','Lelbow_flex_ext','Lelbow_pron_supi',
                           'Cervical_flex_ext', 'Cervical_lat_bend', 'Cervical_int_ext_rot',
                           'rcalvicule_x',
-                          'Rshoulder_flex_ext', 'Rshoulder_abd_add', 'Rshoulder_int_ext_rot','Relbow_flex_ext', 'Relbow_pron_supi', 'Rwrist_flex_ext','Rwrist_x',
+                          'Rshoulder_flex_ext', 'Rshoulder_abd_add', 'Rshoulder_int_ext_rot','Relbow_flex_ext', 'Relbow_pron_supi',
                           'Rhip_flex_ext','Rhip_abd_add','Rhip_int_ext_rot',
                           'Rknee_flex_ext','Rankle_flex_ext', 'Rankle_abd_add']
 num_values = len(q_list[0])
@@ -207,7 +221,7 @@ if len(joint_angles_names) != num_values:
     raise ValueError(f"joint_angles_names has {len(joint_angles_names)} entries but q has {num_values} DOFs.")
 
 df = pd.DataFrame(q_list, columns=joint_angles_names)
-csv_file = os.path.join(rt_cosmik_path, f"output/{no_trial}/{task}/q_mocap_ipopt.csv")
+csv_file = os.path.join(rt_cosmik_path, f"output/{no_trial}/{task}/q_mocap_joints_fixed.csv")
 df.to_csv(csv_file, index=False)
 
 

@@ -24,9 +24,9 @@ from src.rtcosmik.human_model.urdf_model import *
 nbr_cam = 4
 start_sample=0
 no_trial = "Maxime"
-task = "static"
+task = "lifting"
 path_to_csv_mocap = f"/root/workspace/ros_ws/src/rt-cosmik/output/{no_trial}/{task}/mks_data.csv"
-q_path_mocap= f"/root/workspace/ros_ws/src/rt-cosmik/output/{no_trial}/{task}/q_mocap_ipopt.csv"
+q_path_mocap= f"/root/workspace/ros_ws/src/rt-cosmik/output/{no_trial}/{task}/q_mocap_joints_fixed.csv"
 
 mks_names = ['r.ASIS_study','L.ASIS_study','r.PSIS_study','L.PSIS_study',
              'TV8','TV12','SJN','STRN','C7_study','r_shoulder_study','L_shoulder_study',
@@ -43,7 +43,8 @@ result_markers_mocap, start_sample_mks_mocap = read_mks_data(df_wide)
 
 path_to_csv_lstm = f"/root/workspace/ros_ws/src/rt-cosmik/output/{no_trial}/{task}/augmented_markers_{nbr_cam}.csv"
 path_to_kpt = f"/root/workspace/ros_ws/src/rt-cosmik/output/{no_trial}/{task}/3d_keypoints_filtered_{nbr_cam}.csv"
-q_path_cosmik= f"/root/workspace/ros_ws/src/rt-cosmik/output/{no_trial}/{task}/q_cosmik_ipopt_{nbr_cam}.csv"
+q_path_cosmik= f"/root/workspace/ros_ws/src/rt-cosmik/output/{no_trial}/{task}/q_cosmik_joints_fixed.csv"
+
 keys_to_add = ['Nose', 'Head', 'REar', 'LEar', 'REye', 'LEye']
 data_markers_lstm = pd.read_csv(path_to_csv_lstm) 
 keypoints = pd.read_csv(path_to_kpt) 
@@ -71,13 +72,30 @@ human_visual_model = human.visual_model
 human_model = scale_human_model(human_model, start_sample_mks_mocap,with_hand=True,gender='male',subject_height=1.85)
 human_model= mks_registration(human_model,start_sample_mks_mocap, with_hand=True)
 human_data = pin.Data(human_model)
-# VISUALIZATION
- 
-  
 
+################################################################################LOCK JOINTS
+all_joint_ids = set(range(1, human_model.njoints))
+joints_to_lock = ["middle_thoracic_X", "middle_thoracic_Y", "middle_thoracic_Z", "left_wrist_X", "left_wrist_Z", "right_wrist_X","right_wrist_Z"]
+joint_ids_to_lock = []
+for jn in joints_to_lock:
+    if human_model.existJointName(jn):
+        joint_ids_to_lock.append(human_model.getJointId(jn))
+    else:
+        print('Warning: joint ' + str(jn) + ' does not belong to the model!')
+
+q0 = pin.neutral(human_model)
+# Build reduced model
+human_model, human_visual_model = pin.buildReducedModel(
+    human_model, human_visual_model, joint_ids_to_lock, q0)
+
+human_data = pin.Data(human_model)
+###############################################################################################################
+
+# VISUALIZATION
 viz = gv_init(human_model,human_collision_model,human_visual_model,start_sample_mks_mocap)
 for visual in human_visual_model.geometryObjects:
     viz.viewer.gui.setColor(viz.getViewerNodeName(visual, pin.GeometryType.VISUAL), [0, 0, 0, 0.8])
+
 
 #load urdf cosmik
 human_cosmik = Robot('/root/workspace/ros_ws/src/rt-cosmik/urdf/human.urdf',rt_cosmik_path,isFext=True) 
@@ -86,9 +104,29 @@ human_data_cosmik = human_cosmik.data
 human_collision_model_cosmik = human_cosmik.collision_model
 human_visual_model_cosmik = human_cosmik.visual_model
 #scale the model to data
-human_model = scale_human_model(human_model_cosmik, start_sample_mks_lstm,with_hand=True,gender='male',subject_height=1.85)
-human_model= mks_registration(human_model_cosmik,start_sample_mks_lstm, with_hand=False)
+human_model_cosmik = scale_human_model(human_model_cosmik, start_sample_mks_lstm,with_hand=True,gender='male',subject_height=1.85)
+human_model_cosmik= mks_registration(human_model_cosmik,start_sample_mks_lstm, with_hand=False)
 human_data_cosmik = pin.Data(human_model_cosmik)
+
+################################################################################LOCK JOINTS
+all_joint_ids = set(range(1, human_model.njoints))
+joints_to_lock = ["middle_thoracic_X", "middle_thoracic_Y", "middle_thoracic_Z", "left_wrist_X", "left_wrist_Z", "right_wrist_X","right_wrist_Z"]
+joint_ids_to_lock = []
+for jn in joints_to_lock:
+    if human_model_cosmik.existJointName(jn):
+        joint_ids_to_lock.append(human_model_cosmik.getJointId(jn))
+    else:
+        print('Warning: joint ' + str(jn) + ' does not belong to the model!')
+
+q0 = pin.neutral(human_model_cosmik)
+# Build reduced model
+human_model_cosmik, human_visual_model_cosmik = pin.buildReducedModel(
+    human_model_cosmik, human_visual_model_cosmik, joint_ids_to_lock, q0)
+
+print(human_model_cosmik.nq)
+human_data_cosmik = pin.Data(human_model_cosmik)
+###############################################################################################################
+
 ###visualization
 viz_lstm = GepettoVisualizer(human_model_cosmik,human_collision_model_cosmik.copy(),human_visual_model_cosmik)
 viz_lstm.initViewer()
@@ -136,6 +174,6 @@ for i in range(len(q_mocap)):
         place(viz, sphere_name_mocap, pin.SE3(np.eye(3), np.matrix(mk_position_mocap.reshape(3,)).T))
         place(viz_lstm, sphere_name_cosmik, pin.SE3(np.eye(3), np.matrix(mk_position_cosmik.reshape(3,)).T))
 
-    time.sleep(0.001)
+    time.sleep(0.005)
 
     # input()

@@ -17,16 +17,17 @@ from src.rtcosmik.viewer.gv_viewer import place, gv_init, Rquat, add_marker, add
 from src.rtcosmik.config_loader import settings
 from src.rtcosmik.human_model.model_utils import get_segment_length
 from src.rtcosmik.ik.ik import RT_IK
+subject_height = 1.80
 
-nbr_cams= 4
+nbr_cams= 2
 mks_to_skip = ['LForearm','LUArm', 'RUArm', 'RHJC_study','LHJC_study','r_pelvis','l_pelvis',
                'LHand','LHL2','LHM5', 'RForearm','RHand','RHL2','RHM5', 'L_sh1_study', 'L_thigh1_study','r_sh1_study', 'r_thigh1_study']
 #read mks data
 no_trial = "Maxime"
 task = "static"
-path_to_csv = f"/root/workspace/ros_ws/src/rt-cosmik/output/{no_trial}/{task}/augmented_markers_{nbr_cams}.csv"
+path_to_csv = f"/root/workspace/ros_ws/src/rt-cosmik/output/{no_trial}/{task}/augmented_markers_cam0.csv"
 ###########################################################################################for cosmik data 
-path_to_kpt = f"/root/workspace/ros_ws/src/rt-cosmik/output/{no_trial}/{task}/3d_keypoints_filtered_{nbr_cams}.csv"
+path_to_kpt = f"/root/workspace/ros_ws/src/rt-cosmik/output/{no_trial}/{task}/3d_keypoints_filtred_cam0.csv"
 
 keys_to_add = ['Nose', 'Head', 'REar', 'LEar', 'REye', 'LEye']
 
@@ -52,12 +53,29 @@ human_collision_model = human.collision_model
 human_visual_model = human.visual_model
 
 #scale the model to data
-human_model = scale_human_model(human_model, start_sample_dict,with_hand=True,gender='male',subject_height=1.85)
+human_model = scale_human_model(human_model, start_sample_dict,with_hand=True,gender='male',subject_height=subject_height)
 print(human_model.nq)
-
 human_model= mks_registration(human_model,start_sample_dict, with_hand=False)
-
 human_data = pin.Data(human_model)
+
+################################################################################LOCK JOINTS
+# all_joint_ids = set(range(1, human_model.njoints))
+# joints_to_lock = ["middle_thoracic_X", "middle_thoracic_Y", "middle_thoracic_Z", "left_wrist_X", "left_wrist_Z", "right_wrist_X","right_wrist_Z"]
+# joint_ids_to_lock = []
+# for jn in joints_to_lock:
+#     if human_model.existJointName(jn):
+#         joint_ids_to_lock.append(human_model.getJointId(jn))
+#     else:
+#         print('Warning: joint ' + str(jn) + ' does not belong to the model!')
+
+# q0 = pin.neutral(human_model)
+# # Build reduced model
+# human_model, human_visual_model = pin.buildReducedModel(
+#     human_model, human_visual_model, joint_ids_to_lock, q0)
+
+# print(human_model.nq)
+# human_data = pin.Data(human_model)
+###############################################################################################################
 
 # VISUALIZATION
 viz = gv_init(human_model,human_collision_model,human_visual_model,start_sample_dict)
@@ -92,7 +110,7 @@ q = pin.neutral(human_model) # init pos
 human_data = pin.Data(human_model)
 
 dt = 1/40 #dt for qp
-keys_to_track_list = ['Nose', 'Head', 'REar', 'LEar', 'REye', 'LEye',
+keys_to_track_list = ['Nose', 'Head', 'REye', 'LEye',
         'C7_study', 
         'r.ASIS_study', 'L.ASIS_study', 
         'r.PSIS_study', 'L.PSIS_study', 
@@ -184,29 +202,28 @@ for ii in range(start_sample,len(result_markers)):
     q_list.append(q)
 
 #save mks est
-df = pd.DataFrame(M_model_list)
-csv_file = os.path.join(rt_cosmik_path,f"/root/workspace/ros_ws/src/rt-cosmik/output/{no_trial}/{task}/mks_model_cosmik_ipopt.csv") 
-df.to_csv(csv_file, index=False)
+# df = pd.DataFrame(M_model_list)
+# csv_file = os.path.join(rt_cosmik_path,f"/root/workspace/ros_ws/src/rt-cosmik/output/{no_trial}/{task}/mks_model_cosmik_ipopt.csv") 
+# df.to_csv(csv_file, index=False)
 
 #save angles
 joint_angles_names = ['FF_X', 'FF_Y', 'FF_Z', 'FF_quatx','FF_quaty',
                           'FF_quatz', 'FF_quatw', 'Lhip_flex_ext', 'Lhip_abd_add','Lhip_int_ext_rot','Lknee_flex_ext','Lankle_flex_ext','Lankle_abd_add',
                           'Lumbar_flex_ext', 'Lumbar_lateral_flex',
-                          'thoracic_flex_ext','thoracic_lateral_flex','thoracic_rot_int_ext',
                           'Lcalvicule_x',
-                          'Lshoulder_flex_ext','Lshoulder_abd_add', 'Lshoulder_int_ext_rot','Lelbow_flex_ext','Lelbow_pron_supi','Lwrist_flex_ext','Lwrist_x',
+                          'Lshoulder_flex_ext','Lshoulder_abd_add', 'Lshoulder_int_ext_rot','Lelbow_flex_ext','Lelbow_pron_supi',
                           'Cervical_flex_ext', 'Cervical_lat_bend', 'Cervical_int_ext_rot',
                           'rcalvicule_x',
-                          'Rshoulder_flex_ext', 'Rshoulder_abd_add', 'Rshoulder_int_ext_rot','Relbow_flex_ext', 'Relbow_pron_supi', 'Rwrist_flex_ext','Rwrist_x',
+                          'Rshoulder_flex_ext', 'Rshoulder_abd_add', 'Rshoulder_int_ext_rot','Relbow_flex_ext', 'Relbow_pron_supi', 
                           'Rhip_flex_ext','Rhip_abd_add','Rhip_int_ext_rot',
                           'Rknee_flex_ext','Rankle_flex_ext', 'Rankle_abd_add']
 num_values = len(q_list[0])
 if len(joint_angles_names) != num_values:
     raise ValueError(f"joint_angles_names has {len(joint_angles_names)} entries but q has {num_values} DOFs.")
 
-df = pd.DataFrame(q_list, columns=joint_angles_names)
-csv_file = os.path.join(rt_cosmik_path, f"output/{no_trial}/{task}/q_cosmik_ipopt.csv")
-df.to_csv(csv_file, index=False)
+# df = pd.DataFrame(q_list, columns=joint_angles_names)
+# csv_file = os.path.join(rt_cosmik_path, f"output/{no_trial}/{task}/q_cosmik.csv")
+# df.to_csv(csv_file, index=False)
 
 
 

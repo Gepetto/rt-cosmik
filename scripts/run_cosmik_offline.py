@@ -9,9 +9,9 @@ import numpy as np
 import pandas as pd
 
 from src.rtcosmik.camera.cam_utils import load_camera_parameters, load_world_transformation, load_four_camera_parameters
-from src.rtcosmik.triangulation.triangulation import triangulate_offline
+from src.rtcosmik.triangulation.triangulation import triangulate_offline,triangulate_points_adaptive
 from src.rtcosmik.augmenter.marker_augmenter import augmentTRC, loadModel
-from src.rtcosmik.utils.read_write_utils import read_mmpose_file, save_to_csv, load_transformation, transform_keypoints_list_cam0_to_mocap
+from src.rtcosmik.utils.read_write_utils import read_mmpose_file, save_to_csv, load_transformation, transform_keypoints_list_cam0_to_mocap,read_mmpose_scores
 from src.rtcosmik.utils.linear_algebra_utils import butterworth_filter
 
 import pinocchio as pin
@@ -25,22 +25,20 @@ from src.rtcosmik.ik.ik import RT_IK
 import gepetto as gep
 
 # === Configuration ===
-nbr_cam = 4
+nbr_cam = 2
 base_path = "/root/workspace/ros_ws/src/rt-cosmik"
-no_trial = "Maxime"
-task = "static"
-augmenter_path = os.path.join(base_path, "src/rtcosmik/augmenter/augmentation_model")
-transformation_file = f"{base_path}/output/{no_trial}/calib_mocap_2_cam0/soder.txt"
+no_trial = "Mathis"
+task = "bolting_sat"
 
+augmenter_path = os.path.join(base_path, "src/rtcosmik/augmenter/augmentation_model")
+# transformation_file = f"{base_path}//config/cam_params/calib_mocap_2_cam0/soder.txt"
 # === Subject physical info for LSTM ===
-subject_mass = 72.0
-subject_height = 1.80
+subject_mass =66.0
+subject_height = 1.79
 gender='male'
 # ====input csv files ====#
 
 file_paths = [
-        os.path.join(base_path, f"output/{no_trial}/output_2d/{task}/{task}_camera_0.csv"),
-        os.path.join(base_path, f"output/{no_trial}/output_2d/{task}/{task}_camera_2.csv"),
         os.path.join(base_path, f"output/{no_trial}/output_2d/{task}/{task}_camera_4.csv"),
         os.path.join(base_path, f"output/{no_trial}/output_2d/{task}/{task}_camera_6.csv")
         
@@ -72,7 +70,7 @@ augmented_header = [f"{marker}_{axis}" for marker in augmented_markers for axis 
 
 
 ###########################################################################ik function
-def run_ik_pipeline(augmented_csv_path, keypoints_csv_path, meshes_folder_path, output_q_csv_path, trial_name, task_name):
+def run_ik_pipeline(augmented_csv_path, keypoints_csv_path, meshes_folder_path, output_path):
     start_sample =0 
     mks_to_skip = ['LForearm','LUArm', 'RUArm', 'RHJC_study','LHJC_study','r_pelvis','l_pelvis',
                'LHand','LHL2','LHM5', 'RForearm','RHand','RHL2','RHM5', 'L_sh1_study', 'L_thigh1_study','r_sh1_study', 'r_thigh1_study']
@@ -101,10 +99,27 @@ def run_ik_pipeline(augmented_csv_path, keypoints_csv_path, meshes_folder_path, 
     #scale the model to data
     human_model = scale_human_model(human_model, start_sample_dict,with_hand=True,gender=gender,subject_height=subject_height)
     print(human_model.nq)
-
     human_model= mks_registration(human_model,start_sample_dict, with_hand=False)
-
     human_data = pin.Data(human_model)
+
+    ################################################################################LOCK JOINTS
+    joints_to_lock = ["middle_thoracic_X", "middle_thoracic_Y", "middle_thoracic_Z", "left_wrist_X", "left_wrist_Z", "right_wrist_X","right_wrist_Z"]
+    joint_ids_to_lock = []
+    for jn in joints_to_lock:
+        if human_model.existJointName(jn):
+            joint_ids_to_lock.append(human_model.getJointId(jn))
+        else:
+            print('Warning: joint ' + str(jn) + ' does not belong to the model!')
+
+    q0 = pin.neutral(human_model)
+    # Build reduced model
+    human_model, human_visual_model = pin.buildReducedModel(
+        human_model, human_visual_model, joint_ids_to_lock, q0)
+
+    print(human_model.nq)
+    human_data = pin.Data(human_model)
+###############################################################################################################
+
 
     # VISUALIZATION
     viz = gv_init(human_model,human_collision_model,human_visual_model,start_sample_dict)
@@ -133,7 +148,7 @@ def run_ik_pipeline(augmented_csv_path, keypoints_csv_path, meshes_folder_path, 
     human_data = pin.Data(human_model)
     dt = 1 / 40.0
 
-    keys_to_track = ['Nose', 'Head', 'REar', 'LEar', 'REye', 'LEye',
+    keys_to_track = ['Nose', 'Head', 'REye', 'LEye',
         'C7_study', 
         'r.ASIS_study', 'L.ASIS_study', 
         'r.PSIS_study', 'L.PSIS_study', 
@@ -221,19 +236,18 @@ def run_ik_pipeline(augmented_csv_path, keypoints_csv_path, meshes_folder_path, 
 
     #save mks est
     df = pd.DataFrame(M_model_list)
-    csv_file = os.path.join(rt_cosmik_path,f"/root/workspace/ros_ws/src/rt-cosmik/output/{no_trial}/{task}/mks_model_cosmik_{nbr_cam}.csv") 
+    csv_file = os.path.join(output_path,f"mks_model_cosmik_{nbr_cam}.csv") 
     df.to_csv(csv_file, index=False)
 
     #save angles
     joint_angles_names = ['FF_X', 'FF_Y', 'FF_Z', 'FF_quatx','FF_quaty',
                             'FF_quatz', 'FF_quatw', 'Lhip_flex_ext', 'Lhip_abd_add','Lhip_int_ext_rot','Lknee_flex_ext','Lankle_flex_ext','Lankle_abd_add',
                             'Lumbar_flex_ext', 'Lumbar_lateral_flex',
-                            'thoracic_flex_ext','thoracic_lateral_flex','thoracic_rot_int_ext',
                             'Lcalvicule_x',
-                            'Lshoulder_flex_ext','Lshoulder_abd_add', 'Lshoulder_int_ext_rot','Lelbow_flex_ext','Lelbow_pron_supi','Lwrist_flex_ext','Lwrist_x',
+                            'Lshoulder_flex_ext','Lshoulder_abd_add', 'Lshoulder_int_ext_rot','Lelbow_flex_ext','Lelbow_pron_supi',
                             'Cervical_flex_ext', 'Cervical_lat_bend', 'Cervical_int_ext_rot',
                             'rcalvicule_x',
-                            'Rshoulder_flex_ext', 'Rshoulder_abd_add', 'Rshoulder_int_ext_rot','Relbow_flex_ext', 'Relbow_pron_supi', 'Rwrist_flex_ext','Rwrist_x',
+                            'Rshoulder_flex_ext', 'Rshoulder_abd_add', 'Rshoulder_int_ext_rot','Relbow_flex_ext', 'Relbow_pron_supi', 
                             'Rhip_flex_ext','Rhip_abd_add','Rhip_int_ext_rot',
                             'Rknee_flex_ext','Rankle_flex_ext', 'Rankle_abd_add']
     
@@ -243,8 +257,8 @@ def run_ik_pipeline(augmented_csv_path, keypoints_csv_path, meshes_folder_path, 
 
 
     #save joint angles
-    df = pd.DataFrame(q_list, columns=joint_angles_names)
-    csv_file = os.path.join(rt_cosmik_path, f"output/{no_trial}/{task}/q_cosmik_ipopt_{nbr_cam}.csv")
+    df = pd.DataFrame(q_list, columns=joint_angles_names)    
+    csv_file = os.path.join(output_path, f"q_cosmik_ipopt_{nbr_cam}.csv")
     df.to_csv(csv_file, index=False)
     rmse_global = 0
     nb_mks =0 
@@ -265,11 +279,14 @@ def main():
     # === Paths ===
     config_path = os.path.join(base_path, "config/cam_params")
 
-    filtered_kpt_path = os.path.join(base_path, f"output/{no_trial}/{task}/3d_keypoints_filtered_{nbr_cam}.csv")
-    augmented_output_path = os.path.join(base_path, f"output/{no_trial}/{task}/augmented_markers_{nbr_cam}.csv")
+    output_path= os.path.join(base_path, f"output/{no_trial}/cosmik_{nbr_cam}cams/{task}")
+    os.makedirs(output_path, exist_ok=True)
+
+    filtered_kpt_path = os.path.join(output_path, f"3d_keypoints_filtered_{nbr_cam}.csv")
+    augmented_output_path = os.path.join(output_path, f"augmented_markers_{nbr_cam}.csv")
 
     # === Load MoCap transformation ===
-    R_trans, d_trans, s_trans, rms_error = load_transformation(transformation_file)
+    # R_trans, d_trans, s_trans, rms_error = load_transformation(transformation_file)
 
     # === Load 2D keypoints from cameras ===
     camera_data = [read_mmpose_file(fp) for fp in file_paths]
@@ -280,18 +297,22 @@ def main():
     ]
 
     # === Load camera calibration ===
-    mtxs, dists, projections, rotations, translations = load_four_camera_parameters(config_path)
+    mtxs, dists, projections, rotations, translations = load_camera_parameters(config_path)
     world_R1_cam, world_T1_cam = load_world_transformation(config_path)
 
     # === Triangulate 3D keypoints ===
     keypoints_cam0 = triangulate_offline(uvs, mtxs, dists, projections, world_R1_cam, world_T1_cam)
 
-    # === Transform to MoCap frame ===
-    keypoints_mocap = transform_keypoints_list_cam0_to_mocap(keypoints_cam0, R_trans, d_trans)
+    # scores = read_mmpose_scores(file_paths)
+    # threshold = 0.0
+    # keypoints_cam0 = triangulate_points_adaptive(uvs, mtxs, dists, projections, scores, threshold)
 
+
+    # === Transform to MoCap frame ===
+    # keypoints_mocap = transform_keypoints_list_cam0_to_mocap(keypoints_cam0, R_trans, d_trans)
     # === Filter 3D keypoints ===
     keypoints_filtered = butterworth_filter(
-        data=keypoints_mocap,
+        data=keypoints_cam0,
         cutoff_frequency=10.0,
         order=5,
         sampling_frequency=40
@@ -342,9 +363,7 @@ def main():
     augmented_csv_path=augmented_output_path,
     keypoints_csv_path=filtered_kpt_path,
     meshes_folder_path=os.path.join(base_path, "meshes"),
-    output_q_csv_path=os.path.join(base_path, f"output/{no_trial}/{task}/q_cosmik_ipopt_{nbr_cam}.csv"),
-    trial_name=no_trial,
-    task_name=task
+    output_path=output_path
 )
 
 if __name__ == "__main__":
