@@ -104,7 +104,7 @@ for m in mks_of_interest_lower:
     idx = marker_idx[m]
     feat_indices += [idx*3 + d for d in (0,1,2)]
 
-# ====== Set LSTM to output only last-step (last vector of the predicted window), then only the markers of interest
+# ====== Set LSTM to output only last-step (last vector of the predicted window), then only with the markers of interest
 last_step = Lambda(lambda x: x[:, -1, :], name="last_step")(base.output) #A lambda layer that outputs laststep only
 lower_out = Lambda(lambda x: tf.gather(x, feat_indices, axis=1), #A lambda layer that outputs markers of interest only
                    name="lower_body")(last_step)
