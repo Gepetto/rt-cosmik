@@ -8,8 +8,9 @@ import ctypes
 from pynput import keyboard
 from datetime import datetime
 import subprocess
-from multiprocessing import Process, Barrier, Queue, Event, Array
-from threading import BrokenBarrierError
+import multiprocessing as mp
+mp.set_start_method('spawn', force=True)
+from multiprocessing import Process, Queue, Event, Array, Manager
 from queue import Empty
 from mmdeploy_runtime import PoseTracker
 import torch
@@ -87,7 +88,7 @@ def hpe_process(current_frames, stop_event, timestamps, mks_dict, idx_cams):
     sigmas = VISUALIZATION_CFG["body26"]['sigmas']
     states =  [tracker.create_state(det_interval=1, det_min_bbox_size=100, keypoint_sigmas=sigmas) for _ in range(batch_size)]
     # Warmup
-    _ = tracker([np.zeros(frame_shape, dtype=np.uint8) for _ in range(batch_size)])
+    _ = tracker.batch(states, [np.zeros(frame_shape, dtype=np.uint8) for _ in range(batch_size)], detects=[-1]*batch_size)
 
     first_sample = True
 
@@ -96,7 +97,15 @@ def hpe_process(current_frames, stop_event, timestamps, mks_dict, idx_cams):
         keypoints_list = []
 
         timestamp = timestamps
-        results = tracker.batch(states, current_frames, detects=[-1]*batch_size)
+        processed_frames = []
+        for image in current_frames:
+            frame = np.asarray(image, dtype=np.uint8)  # assure le bon type
+            frame = np.ascontiguousarray(frame)        # assure la continuité mémoire
+            frame = np.reshape(image, (settings.height, settings.width, 3)) 
+            if frame.ndim != 3 or frame.shape[2] != 3:
+                raise ValueError(f"Frame must be HWC with 3 channels, got {frame.shape}")
+            processed_frames.append(frame)
+        results = tracker.batch(states, processed_frames, detects=[-1]*batch_size)
 
         for res in results: 
             keypoints, _, _ = res
@@ -126,10 +135,10 @@ def hpe_process(current_frames, stop_event, timestamps, mks_dict, idx_cams):
 
                 # Filter keypoints in world to remove noisy artefacts 
                 filtered_keypoints_stack = iir_filter.filter(np.reshape(keypoints_stack_array,(keypoints_stack_max_len, num_channel)))
-                filtered_keypoints_stack = np.reshape(filtered_keypoints_stack, (keypoints_stack_max_len, num_channel/3, 3))
+                filtered_keypoints_stack = np.reshape(filtered_keypoints_stack, (keypoints_stack_max_len, int(num_channel/3), 3))
 
-                augmented_markers = augmentTRC(filtered_keypoints_stack, subject_mass=settings.subject_mass, 
-                                               subject_height=settings.subject_height, models = warmed_augmenter_model,
+                augmented_markers = augmentTRC(filtered_keypoints_stack, subject_mass=settings.human_mass, 
+                                               subject_height=settings.human_height, models = warmed_augmenter_model,
                                                augmenterDir=AUGMENTER_PATH, augmenter_model='v0.3')
                 
                 if len(augmented_markers) % 3 != 0:
@@ -138,8 +147,12 @@ def hpe_process(current_frames, stop_event, timestamps, mks_dict, idx_cams):
                 augmented_markers = np.array(augmented_markers).reshape(-1, 3)
                 
                 kp_dict = dict(zip(settings.keypoints_names, filtered_keypoints_stack[-1]))
+                print(dict(zip(settings.marker_names, augmented_markers)).update(
+                    {key: kp_dict[key] for key in keys_to_add}))
                 mks_dict.put((timestamp, dict(zip(settings.marker_names, augmented_markers)).update(
                     {key: kp_dict[key] for key in keys_to_add})))
+                print("important:", mks_dict.get())
+                print("ok")
 
     print("HPE process terminated.")
 
@@ -256,7 +269,8 @@ if __name__ == "__main__":
 
     num_dofs = len(settings.joint_angles_names)
 
-    timestamps = Array(ctypes.c_char, 26)  # Shared timestamps for cameras
+    manager = Manager()
+    timestamps = manager.dict()  # Shared timestamps for cameras
     mks_dict = Queue(maxsize=30)  # Queue to hold the markers data
     angles = Queue(maxsize=30)
     current_angles_list = Array(ctypes.c_float, num_dofs)
@@ -281,7 +295,7 @@ if __name__ == "__main__":
 
     HPE_process = Process(
             target=hpe_process, 
-            args=([globals()[f"current_frame_{idx_cam}"] for idx_cam in cameras.keys()], stop_event, timestamps, mks_dict, cameras.keys()),
+            args=([globals()[f"current_frame_{idx_cam}"] for idx_cam in cameras.keys()], stop_event, timestamps, mks_dict, list(cameras.keys())),
             name="HPE process"
         )
     
