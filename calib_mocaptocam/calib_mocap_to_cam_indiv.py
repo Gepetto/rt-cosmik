@@ -17,7 +17,7 @@ idx_cam = sys.argv[1]
 config_path = f"/root/workspace/ros_ws/src/rt-cosmik/config/cam_params/c{idx_cam}_params_color.yaml"
 
 # UDP Configuration
-ip = "172.20.183.220"  # The IP the receiver listens on
+ip = "172.20.167.86"  # The IP the receiver listens on
 port = 44445  # The port to receive data on
 
 no_test = f"calib_mocap_2_cam{idx_cam}"
