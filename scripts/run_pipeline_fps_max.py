@@ -7,7 +7,6 @@ import numpy as np
 import ctypes
 from pynput import keyboard
 from datetime import datetime
-import subprocess
 import multiprocessing as mp
 mp.set_start_method('spawn', force=True)
 from multiprocessing import Process, Queue, Event, Array, Manager
@@ -32,7 +31,7 @@ from src.rtcosmik.human_model.pin_model import build_model_no_visuals
 
 
 
-def camera_process(idx_cam, stop_event, current_frame, timestamps):
+def camera_process(idx_cam, stop_event, current_frame, timestamp):
 
     cap = cv2.VideoCapture(idx_cam, cv2.CAP_V4L2)
     if not cap.isOpened():
@@ -51,7 +50,7 @@ def camera_process(idx_cam, stop_event, current_frame, timestamps):
             raise Exception(f"Camera {idx_cam} has crashed, quitting the recording.")
 
         np.frombuffer(current_frame.get_obj(), dtype=np.uint8)[:] = frame.flatten()
-        timestamps = (datetime.now().strftime("%Y-%m-%d %H:%M:%S.%f"))
+        timestamp.timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S.%f")
 
     cap.release()
 
@@ -65,7 +64,7 @@ def camera_process(idx_cam, stop_event, current_frame, timestamps):
 #     print("Display process terminated.")
 
 
-def hpe_process(current_frames, stop_event, timestamps, mks_dict, idx_cams):
+def hpe_process(current_frames, stop_event, timestamp, mks_dict, idx_cams):
 
     device = "cuda"
     frame_shape = (settings.height, settings.width, 3)
@@ -94,18 +93,26 @@ def hpe_process(current_frames, stop_event, timestamps, mks_dict, idx_cams):
 
     while not stop_event.is_set():
 
+        start_whole_HPE_process = time.time()
+
         keypoints_list = []
 
-        timestamp = timestamps
         processed_frames = []
         for image in current_frames:
-            frame = np.asarray(image, dtype=np.uint8)  # assure le bon type
-            frame = np.ascontiguousarray(frame)        # assure la continuité mémoire
-            frame = np.reshape(image, (settings.height, settings.width, 3)) 
+
+            frame = np.frombuffer(image.get_obj(), dtype=np.uint8).reshape((settings.height, settings.width, 3))
+
             if frame.ndim != 3 or frame.shape[2] != 3:
                 raise ValueError(f"Frame must be HWC with 3 channels, got {frame.shape}")
             processed_frames.append(frame)
+        
+        start_HPE = time.time()
+
         results = tracker.batch(states, processed_frames, detects=[-1]*batch_size)
+
+        end_HPE = time.time()
+        elapsed_HPE = end_HPE - start_HPE
+        print("HPE :", f"{elapsed_HPE:.5f} sec")
 
         for res in results: 
             keypoints, _, _ = res
@@ -116,11 +123,15 @@ def hpe_process(current_frames, stop_event, timestamps, mks_dict, idx_cams):
             else :
                 keypoints_list.append(keypoints.reshape((26,2)).flatten())
 
-        if len(keypoints_list)!=batch_size:
+        if len(keypoints_list) != batch_size:
             continue
         else:
             # self.valid_event.set()
+            start_triangul = time.time()
             keypoints_in_cam = triangulate_points(keypoints_list, mtxs, dists, projections)
+            end_triangul = time.time()
+            elapsed_triangul = end_triangul - start_triangul
+            print("Triangul :", f"{elapsed_triangul:.5f} sec")
             keypoints_in_world = np.array([np.dot(world_R1_cam, point) + world_T1_cam for point in keypoints_in_cam])
 
             if first_sample:
@@ -137,9 +148,15 @@ def hpe_process(current_frames, stop_event, timestamps, mks_dict, idx_cams):
                 filtered_keypoints_stack = iir_filter.filter(np.reshape(keypoints_stack_array,(keypoints_stack_max_len, num_channel)))
                 filtered_keypoints_stack = np.reshape(filtered_keypoints_stack, (keypoints_stack_max_len, int(num_channel/3), 3))
 
+                start_LSTM = time.time()
+
                 augmented_markers = augmentTRC(filtered_keypoints_stack, subject_mass=settings.human_mass, 
                                                subject_height=settings.human_height, models = warmed_augmenter_model,
                                                augmenterDir=AUGMENTER_PATH, augmenter_model='v0.3')
+                
+                end_LSTM = time.time()
+                elapsed_LSTM = end_LSTM - start_LSTM
+                print("LSTM :", f"{elapsed_LSTM:.5f} sec")
                 
                 if len(augmented_markers) % 3 != 0:
                     raise ValueError("The length of the list must be divisible by 3.")
@@ -147,12 +164,14 @@ def hpe_process(current_frames, stop_event, timestamps, mks_dict, idx_cams):
                 augmented_markers = np.array(augmented_markers).reshape(-1, 3)
                 
                 kp_dict = dict(zip(settings.keypoints_names, filtered_keypoints_stack[-1]))
-                print(dict(zip(settings.marker_names, augmented_markers)).update(
-                    {key: kp_dict[key] for key in keys_to_add}))
-                mks_dict.put((timestamp, dict(zip(settings.marker_names, augmented_markers)).update(
-                    {key: kp_dict[key] for key in keys_to_add})))
-                print("important:", mks_dict.get())
-                print("ok")
+                final_dict = dict(zip(settings.marker_names, augmented_markers))
+                final_dict.update({key: kp_dict[key] for key in keys_to_add})
+                mks_dict.put((timestamp.timestamp, final_dict))
+                keypoints_stack.pop(0)
+        
+        end_whole_HPE_process = time.time()
+        elapsed_whole_HPE_process = end_whole_HPE_process - start_whole_HPE_process
+        print("Whole HPE Process :", f"{elapsed_whole_HPE_process:.5f} sec")
 
     print("HPE process terminated.")
 
@@ -164,6 +183,8 @@ def ik_process(mks_dict, angles, stop_event):
     while not stop_event.is_set():
 
         (timestamp, current_mks_dict) = mks_dict.get()
+
+        start_whole_IK_process = time.time()
 
         if first_sample:
             human_model = build_model_no_visuals(current_mks_dict)
@@ -203,16 +224,27 @@ def ik_process(mks_dict, angles, stop_event):
                 ik_class._q0 = q
                 
             elif settings.ik_type == 'mhe':
+                list_lstm_dict.pop(0)
                 list_lstm_dict.append(current_mks_dict)
                 array_data = np.array([np.hstack([d[marker] for marker in settings.keys_to_track_list]) for d in list_lstm_dict]).T
+
+                start_IK = time.time()
                 
                 x_array, u_array = ik_class.solve(x_array, u_array, array_data, x_array[:,-1], settings.cost_weights, settings.dt)
+
+                end_IK = time.time()
+                elapsed_IK = end_IK - start_IK
+                print("IK :", f"{elapsed_IK:.5f} sec")
 
                 q = pin.neutral(human_model)
                 q[:] = np.array(x_array[:human_model.nq,-1]).flatten()
                 angles.put((timestamp, q))
             else : 
                 raise ValueError("Invalid ik type, should be sbs (sample by sample) or mhe (moving horizon estimation)")
+        
+        end_whole_IK_process = time.time()
+        elapsed_whole_IK_process = end_whole_IK_process - start_whole_IK_process
+        print("Whole IK Process :", f"{elapsed_whole_IK_process:.5f} sec")
 
     print("IK process terminated.")
 
@@ -225,6 +257,8 @@ def saver_process(angles, stop_event):
 
         while True:
 
+            # start = time.time()
+
             try:
                 oldest_angle = angles.get_nowait()
                 writer.writerow([oldest_angle[0]] + list(oldest_angle[1]))
@@ -234,6 +268,10 @@ def saver_process(angles, stop_event):
                     break
                 else: 
                     pass
+            
+            # end = time.time()
+            # elapsed = end - start
+            # print("Saver :", f"{elapsed:.2f} sec")
         
         print(f"Saver process terminated.")
 
@@ -270,7 +308,7 @@ if __name__ == "__main__":
     num_dofs = len(settings.joint_angles_names)
 
     manager = Manager()
-    timestamps = manager.dict()  # Shared timestamps for cameras
+    timestamp = manager.Namespace()  # Shared timestamps for cameras
     mks_dict = Queue(maxsize=30)  # Queue to hold the markers data
     angles = Queue(maxsize=30)
     current_angles_list = Array(ctypes.c_float, num_dofs)
@@ -281,7 +319,7 @@ if __name__ == "__main__":
     cameras_processes = [
         Process(
             target=camera_process, 
-            args=(idx_cam, stop_event, globals()[f"current_frame_{idx_cam}"], timestamps),
+            args=(idx_cam, stop_event, globals()[f"current_frame_{idx_cam}"], timestamp),
             name=f"Process camera {idx_cam}",
         ) 
         for idx_cam in cameras.keys()
@@ -295,7 +333,7 @@ if __name__ == "__main__":
 
     HPE_process = Process(
             target=hpe_process, 
-            args=([globals()[f"current_frame_{idx_cam}"] for idx_cam in cameras.keys()], stop_event, timestamps, mks_dict, list(cameras.keys())),
+            args=([globals()[f"current_frame_{idx_cam}"] for idx_cam in cameras.keys()], stop_event, timestamp, mks_dict, list(cameras.keys())),
             name="HPE process"
         )
     
