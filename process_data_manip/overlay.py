@@ -4,7 +4,7 @@ import numpy as np
 import pandas as pd
 from pathlib import Path
 from src.rtcosmik.camera.cam_utils import load_camera_parameters, load_cam_params
-from src.rtcosmik.utils.read_write_utils import load_transformation, udp_csv_to_dataframe
+from src.rtcosmik.utils.read_write_utils import load_transformation, udp_csv_to_dataframe, read_mks_data
 
 #read transfo from nicolas file
 def read_transformation_from_csv(path):
@@ -39,27 +39,53 @@ def draw_2d_keypoints_on_frame(frame, keypoints_2d, color=(255, 255, 0), scale=4
             cv2.circle(frame, (int(x), int(y)), scale, color, -1)
 
 
-# === Load  markers
-no_trial = "Maxime"
-task = "static"
-path_to_csv_mocap = f"/root/workspace/ros_ws/src/rt-cosmik/output/{no_trial}/{task}/mks_data.csv"
-marker_mocap_names = ['r.ASIS_study','L.ASIS_study','r.PSIS_study','L.PSIS_study',
-             'TV8','TV12','SJN','STRN','C7_study','r_shoulder_study','L_shoulder_study',
-             'BHD','RHD','LHD','FHD',
-             'L_lelbow_study','L_melbow_study','LUArm','L_lwrist_study','L_mwrist_study','LForearm','LHand','LHL2','LHM5',
-             'r_lelbow_study','r_melbow_study','RUArm','r_lwrist_study','r_mwrist_study','RForearm','RHand','RHL2','RHM5',
-             'L_thigh1_study','L_knee_study','L_mknee_study','L_sh1_study','L_ankle_study','L_mankle_study','L_calc_study','L_5meta_study','L_toe_study',
-             'r_thigh1_study','r_knee_study','r_mknee_study','r_sh1_study',
-             'r_ankle_study','r_mankle_study','r_calc_study','r_5meta_study','r_toe_study',
-             'r_pelvis', 'l_pelvis']
-df_mocap = udp_csv_to_dataframe(path_to_csv_mocap, marker_mocap_names)
-assert df_mocap.shape[1] == len(marker_mocap_names) * 3
+num_cam = 4
+nbr_cam = 2 
+no_trial = "Mathis"
+task = "squat"
+
+#load mks mocap data
+path_to_csv_mocap = f"/root/workspace/ros_ws/src/rt-cosmik/output/{no_trial}/mouv/{task}/mocap_downsampled_to_40hz.csv"
+df_mocap = pd.read_csv(path_to_csv_mocap)
+df_mocap.columns = [col.replace(f"{no_trial}:", "") for col in df_mocap.columns]
+
+frames = df_mocap["Frame"] if "Frame" in df_mocap.columns else range(len(df_mocap))
+
+# Extract only columns that are marker coordinates (ending in _x, _y, _z)
+coord_cols = [col for col in df_mocap.columns if col.endswith(('_x', '_y', '_z'))]
+df_coords = df_mocap[coord_cols]
+# Sort columns to ensure x, y, z are grouped per marker in consistent order
+# Assumes columns are like: marker1_x, marker1_y, marker1_z, ..., marker53_z
+sorted_cols = sorted(coord_cols, key=lambda name: (name.rsplit('_', 1)[0], name.rsplit('_', 1)[1]))
+df_coords = df_coords[sorted_cols]
+# Identify number of frames and markers
+n_frames = len(df_coords)
+n_markers = len(sorted(set(name.rsplit('_', 1)[0] for name in sorted_cols)))
+
 n_frames = len(df_mocap)
 # Reshape into [n_frames, n_markers, 3]
-marker_data_mocap = df_mocap.values.reshape(n_frames, len(marker_mocap_names), 3)
+marker_data_mocap = df_coords.values.reshape(n_frames, n_markers, 3)
+marker_data_mocap /= 1000.0 #convert de m
+#####################################################################################################################for mks_data received with udp
+# path_to_csv_mocap = f"/root/workspace/ros_ws/src/rt-cosmik/output/{no_trial}/mouv/{task}/mks_data.csv"
+# marker_mocap_names = ['r.ASIS_study','L.ASIS_study','r.PSIS_study','L.PSIS_study',
+#              'TV8','TV12','SJN','STRN','C7_study','r_shoulder_study','L_shoulder_study',
+#              'BHD','RHD','LHD','FHD',
+#              'L_lelbow_study','L_melbow_study','LUArm','L_lwrist_study','L_mwrist_study','LForearm','LHand','LHL2','LHM5',
+#              'r_lelbow_study','r_melbow_study','RUArm','r_lwrist_study','r_mwrist_study','RForearm','RHand','RHL2','RHM5',
+#              'L_thigh1_study','L_knee_study','L_mknee_study','L_sh1_study','L_ankle_study','L_mankle_study','L_calc_study','L_5meta_study','L_toe_study',
+#              'r_thigh1_study','r_knee_study','r_mknee_study','r_sh1_study',
+#              'r_ankle_study','r_mankle_study','r_calc_study','r_5meta_study','r_toe_study',
+#              'r_pelvis', 'l_pelvis']
+# df_mocap = udp_csv_to_dataframe(path_to_csv_mocap, marker_mocap_names)
+# assert df_mocap.shape[1] == len(marker_mocap_names) * 3
+# n_frames = len(df_mocap)
+# # Reshape into [n_frames, n_markers, 3]
+# marker_data_mocap = df_mocap.values.reshape(n_frames, len(marker_mocap_names), 3)
 
 
-path_to_csv_lstm = f"/root/workspace/ros_ws/src/rt-cosmik/output/{no_trial}/cosmik_2cams/{task}/augmented_markers_2.csv"
+
+path_to_csv_lstm = f"/root/workspace/ros_ws/src/rt-cosmik/output/{no_trial}/cosmik_{nbr_cam}cams/{task}/augmented_markers_{nbr_cam}.csv"
 mks_names = [
            'r.ASIS_study','L.ASIS_study','r.PSIS_study','L.PSIS_study','r_knee_study',
            'r_mknee_study','r_ankle_study','r_mankle_study','r_toe_study','r_5meta_study',
@@ -78,7 +104,7 @@ n_frames = len(df_lstm)
 marker_data_lstm = df_lstm.values.reshape(n_frames, len(mks_names), 3)
 
 
-path_to_csv_kpts = f"/root/workspace/ros_ws/src/rt-cosmik/output/{no_trial}/cosmik_2cams/{task}/3d_keypoints_filtered_2.csv"
+path_to_csv_kpts = f"/root/workspace/ros_ws/src/rt-cosmik/output/{no_trial}/cosmik_{nbr_cam}cams/{task}/3d_keypoints_filtered_{nbr_cam}.csv"
 mks_names_2 = [
     "Nose", "LEye", "REye", "LEar", "REar", 
     "LShoulder", "RShoulder", "LElbow", "RElbow", 
@@ -94,7 +120,7 @@ marker_data_kpts = df_kpts.values.reshape(n_frames, len(mks_names_2), 3)
 
 
 
-csv_path_2d= f"/root/workspace/ros_ws/src/rt-cosmik/output/{no_trial}/output_2d/{task}/{task}_camera_0.csv"
+csv_path_2d= f"/root/workspace/ros_ws/src/rt-cosmik/output/{no_trial}/output_2d/{task}/{task}_camera_{num_cam}.csv"
 df_2d = pd.read_csv(csv_path_2d).iloc[:, 1:]
 assert df_2d.shape[1] == len(mks_names_2)*2
 kpt_2d = df_2d.values.reshape(len(df_2d), len(mks_names_2),2)
@@ -102,30 +128,32 @@ kpt_2d = df_2d.values.reshape(len(df_2d), len(mks_names_2),2)
 
 
 # === Load parameters
-#with Procrustes_alignment
-path = f"/root/workspace/ros_ws/src/rt-cosmik/output/{no_trial}/{task}/Procrustes_alignment_results.csv"
-# path= "/root/workspace/ros_ws/src/rt-cosmik/output/Maxime/results/Procrustes_alignment_results_static.csv"
-# path="/root/workspace/ros_ws/src/rt-cosmik/output/Maxime/results_4cams/results/Procrustes_alignment_results_static.csv"
-R, T = read_transformation_from_csv(path)
-R = R.T #because its cam_to_mocap transfo
-T = -R @ T
 
 ####if i want to use the transfo that we get with soder
 base_path = "/root/workspace/ros_ws/src/rt-cosmik"
 config_path = os.path.join(base_path, f"config/cam_params/{no_trial}")
-R1, T1, s_trans, rms_error = load_transformation(os.path.join(config_path, "calib_mocap_2_cam0/soder.txt"))
+R1, T1, s_trans, rms_error = load_transformation(os.path.join(config_path, f"calib_mocap_2_cam{num_cam}/soder.txt"))
 R1 = R1.T #because its cam_to_mocap transfo
 T1 = -R1 @ T1
 
-R_total=R1 @ R
-T_total = R1 @T  + T1
+#with Procrustes_alignment
+# path = f"/root/workspace/ros_ws/src/rt-cosmik/output/{no_trial}/{task}/Procrustes_alignment_results.csv"
+# path= "/root/workspace/ros_ws/src/rt-cosmik/output/Maxime/results/Procrustes_alignment_results_static.csv"
+# # path="/root/workspace/ros_ws/src/rt-cosmik/output/Maxime/results_4cams/results/Procrustes_alignment_results_static.csv"
+# R, T = read_transformation_from_csv(path)
+# R = R.T #because its cam_to_mocap transfo
+# T = -R @ T
 
-K, D = load_cam_params(os.path.join(config_path, "c0_params_color.yaml"))
+# #we do 2 transfo, first with soder and we aligne with procruste alignement
+# R_total=R1 @ R
+# T_total = R1 @T  + T1
+
+K, D = load_cam_params(os.path.join(config_path, f"c{num_cam}_params_color.yaml"))
 
 
 
 # === Load video
-video_path = f"/root/workspace/ros_ws/src/rt-cosmik/output/{no_trial}/{task}/camera_0.mp4"
+video_path = f"/root/workspace/ros_ws/src/rt-cosmik/output/{no_trial}/mouv/{task}/camera_{num_cam}.mp4"
 cap = cv2.VideoCapture(video_path)
 output_path = f"overlay_output_{task}.mp4"
 fps = cap.get(cv2.CAP_PROP_FPS)
@@ -133,8 +161,8 @@ width  = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
 height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
 writer = cv2.VideoWriter(output_path, cv2.VideoWriter_fourcc(*'mp4v'), fps, (width, height))
 
-rvec, _ = cv2.Rodrigues(R)  
-tvec = T.reshape(3, 1).astype(np.float32)
+rvec, _ = cv2.Rodrigues(R1)  
+tvec = T1.reshape(3, 1).astype(np.float32)
 
 
 r = np.eye(3)

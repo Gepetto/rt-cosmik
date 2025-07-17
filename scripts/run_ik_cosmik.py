@@ -23,11 +23,11 @@ nbr_cams= 2
 mks_to_skip = ['LForearm','LUArm', 'RUArm', 'RHJC_study','LHJC_study','r_pelvis','l_pelvis',
                'LHand','LHL2','LHM5', 'RForearm','RHand','RHL2','RHM5', 'L_sh1_study', 'L_thigh1_study','r_sh1_study', 'r_thigh1_study']
 #read mks data
-no_trial = "Maxime"
+no_trial = "Mathis"
 task = "static"
-path_to_csv = f"/root/workspace/ros_ws/src/rt-cosmik/output/{no_trial}/{task}/augmented_markers_cam0.csv"
+path_to_csv = f"/root/workspace/ros_ws/src/rt-cosmik/output/{no_trial}/cosmik_2cams/{task}/augmented_markers_2.csv"
 ###########################################################################################for cosmik data 
-path_to_kpt = f"/root/workspace/ros_ws/src/rt-cosmik/output/{no_trial}/{task}/3d_keypoints_filtred_cam0.csv"
+path_to_kpt = f"/root/workspace/ros_ws/src/rt-cosmik/output/{no_trial}/cosmik_2cams/{task}/3d_keypoints_filtred_2.csv"
 
 keys_to_add = ['Nose', 'Head', 'REar', 'LEar', 'REye', 'LEye']
 
@@ -59,22 +59,22 @@ human_model= mks_registration(human_model,start_sample_dict, with_hand=False)
 human_data = pin.Data(human_model)
 
 ################################################################################LOCK JOINTS
-# all_joint_ids = set(range(1, human_model.njoints))
-# joints_to_lock = ["middle_thoracic_X", "middle_thoracic_Y", "middle_thoracic_Z", "left_wrist_X", "left_wrist_Z", "right_wrist_X","right_wrist_Z"]
-# joint_ids_to_lock = []
-# for jn in joints_to_lock:
-#     if human_model.existJointName(jn):
-#         joint_ids_to_lock.append(human_model.getJointId(jn))
-#     else:
-#         print('Warning: joint ' + str(jn) + ' does not belong to the model!')
+all_joint_ids = set(range(1, human_model.njoints))
+joints_to_lock = ["middle_thoracic_X", "middle_thoracic_Y", "middle_thoracic_Z", "left_wrist_X", "left_wrist_Z", "right_wrist_X","right_wrist_Z"]
+joint_ids_to_lock = []
+for jn in joints_to_lock:
+    if human_model.existJointName(jn):
+        joint_ids_to_lock.append(human_model.getJointId(jn))
+    else:
+        print('Warning: joint ' + str(jn) + ' does not belong to the model!')
 
-# q0 = pin.neutral(human_model)
-# # Build reduced model
-# human_model, human_visual_model = pin.buildReducedModel(
-#     human_model, human_visual_model, joint_ids_to_lock, q0)
+q0 = pin.neutral(human_model)
+# Build reduced model
+human_model, human_visual_model = pin.buildReducedModel(
+    human_model, human_visual_model, joint_ids_to_lock, q0)
 
-# print(human_model.nq)
-# human_data = pin.Data(human_model)
+print(human_model.nq)
+human_data = pin.Data(human_model)
 ###############################################################################################################
 
 # VISUALIZATION

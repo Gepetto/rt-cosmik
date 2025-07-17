@@ -11,9 +11,9 @@ import pandas as pd
 from src.rtcosmik.config_loader import settings
 from src.rtcosmik.utils.read_write_utils import load_transformation
 
-no_trial = "Maxime"
-task = "static"
-path_to_csv = f"/root/workspace/ros_ws/src/rt-cosmik/output/{no_trial}/{task}/augmented_markers_4.csv"
+no_trial = "Mathis"
+task = "upper"
+path_to_csv = f"/root/workspace/ros_ws/src/rt-cosmik/output/{no_trial}/cosmik_2cams/{task}/augmented_markers_2.csv"
 mks_names = [
            'r.ASIS_study','L.ASIS_study','r.PSIS_study','L.PSIS_study','r_knee_study',
            'r_mknee_study','r_ankle_study','r_mankle_study','r_toe_study','r_5meta_study',
@@ -26,7 +26,7 @@ mks_names = [
            'L_lwrist_study','L_mwrist_study']
 
 
-# path_to_csv = f"/root/workspace/ros_ws/src/rt-cosmik/output/{no_trial}/{task}/3d_keypoints_filtred.csv"
+# path_to_csv = f"/root/workspace/ros_ws/src/rt-cosmik/output/{no_trial}/cosmik_2cams/{task}/3d_keypoints_filtered_2.csv"
 # mks_names = [
 #         "Nose", "LEye", "REye", "LEar", "REar", 
 #         "LShoulder", "RShoulder", "LElbow", "RElbow", 

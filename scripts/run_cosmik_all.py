@@ -23,26 +23,23 @@ from src.rtcosmik.human_model.urdf_model import *
 from src.rtcosmik.human_model.model_utils import construct_segments_frames, get_segments_mks_dict
 from src.rtcosmik.ik.ik import RT_IK
 import gepetto as gep
-
-# === Configuration ===
-nbr_cam = 2
 base_path = "/root/workspace/ros_ws/src/rt-cosmik"
-no_trial = "Mathis"
-task = "squat"
+# === Configuration ===
+nbr_cam = 4
+no_trial = "Anastasia"
+# === Subject physical info for LSTM ===
+subject_mass =57.0
+subject_height = 1.65
+gender='female'
+
+task_list = ["bolting","bolting_sat","crouch","crouch_object","hitting","hitting_sat","jump","lifting","lifting_fast","lower","overhead"
+             "robot_sanding","robot_welding",
+             "sanding","sanding_sat","sit_to_stand","squat","static","upper","walk","walk_front","welding","welding_sat"]
+
 
 augmenter_path = os.path.join(base_path, "src/rtcosmik/augmenter/augmentation_model")
-transformation_file = f"{base_path}//config/cam_params/{no_trial}/calib_mocap_2_cam4/soder.txt"
-# === Subject physical info for LSTM ===
-subject_mass =66.0
-subject_height = 1.79
-gender='male'
-# ====input csv files ====#
+transformation_file = f"{base_path}//config/cam_params/Maxime/calib_mocap_2_cam0/soder.txt"
 
-file_paths = [
-        os.path.join(base_path, f"output/{no_trial}/output_2d/{task}/{task}_camera_4.csv"),
-        os.path.join(base_path, f"output/{no_trial}/output_2d/{task}/{task}_camera_6.csv")
-        
-    ]
 
 # === Marker headers ===
 num_keypoints = 26
@@ -274,12 +271,13 @@ def run_ik_pipeline(augmented_csv_path, keypoints_csv_path, meshes_folder_path, 
     print(f" Global RMSE across all markers and frames: {rmse_global:.4f} m")
 
 
-def main():
+
+def main(task, no_trial, nbr_cam, file_paths, base_path, transformation_file, augmenter_path, subject_mass, subject_height):
     num_keypoints = 26
+
     # === Paths ===
     config_path = os.path.join(base_path, f"config/cam_params/{no_trial}")
-
-    output_path= os.path.join(base_path, f"output/{no_trial}/cosmik_{nbr_cam}cams/{task}")
+    output_path = os.path.join(base_path, f"output/{no_trial}/cosmik_{nbr_cam}cams/{task}")
     os.makedirs(output_path, exist_ok=True)
 
     filtered_kpt_path = os.path.join(output_path, f"3d_keypoints_filtered_{nbr_cam}.csv")
@@ -297,19 +295,19 @@ def main():
     ]
 
     # === Load camera calibration ===
-    mtxs, dists, projections, rotations, translations = load_camera_parameters(config_path)
+    mtxs, dists, projections, rotations, translations = load_four_camera_parameters(config_path)
     world_R1_cam, world_T1_cam = load_world_transformation(config_path)
 
     # === Triangulate 3D keypoints ===
-    keypoints_cam0 = triangulate_offline(uvs, mtxs, dists, projections, world_R1_cam, world_T1_cam)
-
-    # scores = read_mmpose_scores(file_paths)
-    # threshold = 0.0
-    # keypoints_cam0 = triangulate_points_adaptive(uvs, mtxs, dists, projections, scores, threshold)
+    # keypoints_cam0 = triangulate_offline(uvs, mtxs, dists, projections, world_R1_cam, world_T1_cam)
+    scores = read_mmpose_scores(file_paths)
+    threshold = 0.5
+    keypoints_cam0 = triangulate_points_adaptive(uvs, mtxs, dists, projections, scores, threshold)
 
 
     # === Transform to MoCap frame ===
     keypoints_mocap = transform_keypoints_list_cam0_to_mocap(keypoints_cam0, R_trans, d_trans)
+
     # === Filter 3D keypoints ===
     keypoints_filtered = butterworth_filter(
         data=keypoints_mocap,
@@ -358,13 +356,31 @@ def main():
     augmented_array = np.vstack(augmented_output)
     save_to_csv(augmented_array, augmented_output_path, header=augmented_header)
 
-    # === run inverse kinematics ===
+    # === Run inverse kinematics ===
     run_ik_pipeline(
-    augmented_csv_path=augmented_output_path,
-    keypoints_csv_path=filtered_kpt_path,
-    meshes_folder_path=os.path.join(base_path, "meshes"),
-    output_path=output_path
-)
+        augmented_csv_path=augmented_output_path,
+        keypoints_csv_path=filtered_kpt_path,
+        meshes_folder_path=os.path.join(base_path, "meshes"),
+        output_path=output_path
+    )
+
 
 if __name__ == "__main__":
-    main()
+    task_list = task_list
+    no_trial = no_trial
+    nbr_cam = nbr_cam
+    base_path = base_path
+    transformation_file = transformation_file
+    augmenter_path = augmenter_path
+    subject_mass = subject_mass  # kg
+    subject_height = subject_height  # meters
+
+    for task in task_list:
+        file_paths = [
+        os.path.join(base_path, f"output/{no_trial}/output_2d/{task}/{task}_camera_0.csv"),
+        os.path.join(base_path, f"output/{no_trial}/output_2d/{task}/{task}_camera_2.csv"),
+        os.path.join(base_path, f"output/{no_trial}/output_2d/{task}/{task}_camera_4.csv"),
+        os.path.join(base_path, f"output/{no_trial}/output_2d/{task}/{task}_camera_6.csv")
+    ]
+        print(f"\n=== Processing task: {task} ===")
+        main(task, no_trial, nbr_cam, file_paths, base_path, transformation_file, augmenter_path, subject_mass, subject_height)

@@ -14,7 +14,13 @@ from collections import defaultdict
 nbr_cam = 2
 no_trial = "Maxime"
 task = "upper"
+
 path_to_csv_mocap = f"/root/workspace/ros_ws/src/rt-cosmik/output/{no_trial}/{task}/mks_data.csv"
+# path_to_csv = f"/root/workspace/ros_ws/src/rt-cosmik/output/{no_trial}/mouv/{task}/mocap_downsampled_to_40hz.csv"
+# df_wide = pd.read_csv(path_to_csv)
+# df_wide.columns = [col.replace(f"{no_trial}:", "") for col in df_wide.columns]
+# frames = df_wide["Frame"] if "Frame" in df_wide.columns else range(len(df_wide))
+# mks_names = sorted(set(col.rsplit("_", 1)[0] for col in df_wide.columns if "_x" in col))
 
 path_to_csv_lstm = f"/root/workspace/ros_ws/src/rt-cosmik/output/{no_trial}/cosmik_2cams/{task}/augmented_markers_{nbr_cam}.csv"
 path_to_kpt = f"/root/workspace/ros_ws/src/rt-cosmik/output/{no_trial}/cosmik_2cams/{task}/3d_keypoints_filtered_{nbr_cam}.csv"
@@ -29,13 +35,10 @@ marker_mocap_names = ['r.ASIS_study','L.ASIS_study','r.PSIS_study','L.PSIS_study
              'r_thigh1_study','r_knee_study','r_mknee_study','r_sh1_study',
              'r_ankle_study','r_mankle_study','r_calc_study','r_5meta_study','r_toe_study',
              'r_pelvis', 'l_pelvis'] #mocap data
-
-
-
 mks_names = marker_mocap_names
 # df_wide = marker_data_to_dataframe(df_raw,mks_names)
 df_wide = udp_csv_to_dataframe(path_to_csv_mocap, mks_names)
-result_markers, start_sample_mks = read_mks_data(df_wide)
+result_markers, start_sample_mks = read_mks_data(df_wide, converter = 1.0)
 
 hpe_kpt = [
     "Nose", "LEye", "REye", "LEar", "REar", 
@@ -74,7 +77,7 @@ if len(data_markers_lstm) != len(keypoints):
 
 data_markers_lstm = pd.concat([data_markers_lstm, keypoints[columns_to_add].reset_index(drop=True)], axis=1)
 
-result_markers_lstm, start_sample_lstm = read_mks_data(data_markers_lstm)
+result_markers_lstm, start_sample_lstm = read_mks_data(data_markers_lstm, converter = 1.0)
 
 # plot_marker_comparison(result_markers, result_markers_lstm, markers_to_plot=markers_to_display)
 # === Initialiser le visualiseur Gepetto ===
@@ -125,7 +128,7 @@ for i in range(len(result_markers)):
         place(viz, f'world/tri_{mks}', pin.SE3(np.eye(3), pos_hpe))
 
     
-    # time.sleep(0.03)
+    time.sleep(0.03)
 
 # Compute RMSE per marker
 rmse_per_marker = {}

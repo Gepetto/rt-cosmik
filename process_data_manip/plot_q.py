@@ -7,14 +7,13 @@ from src.rtcosmik.utils.read_write_utils import read_mks_data, marker_data_to_da
 from scipy.spatial.transform import Rotation as R
 
 no_trial = "Maxime"
-task = "lifting"
+task = "squat"
 path_mocap= f"/root/workspace/ros_ws/src/rt-cosmik/output/{no_trial}/{task}/q_mocap_joints_fixed.csv"
 
-path_cosmik= f"/root/workspace/ros_ws/src/rt-cosmik/output/{no_trial}/{task}/q_cosmik_joints_fixed.csv" 
+path_cosmik= f"/root/workspace/ros_ws/src/rt-cosmik/output/{no_trial}/cosmik_2cams/{task}/q_cosmik_ipopt_2_mocap_new.csv" 
 # path_cosmik= f"/root/workspace/ros_ws/src/rt-cosmik/output/{no_trial}/cosmik_2cams/{task}/q_cosmik_ipopt_2.csv"
 
-dofs  =  ['FF_X', 'FF_Y', 'FF_Z', 'FF_quatx','FF_quaty',
-                          'FF_quatz', 'FF_quatw', 'Lhip_flex_ext', 'Lhip_abd_add','Lhip_int_ext_rot','Lknee_flex_ext','Lankle_flex_ext','Lankle_abd_add',
+dofs  =  ['Lhip_flex_ext', 'Lhip_abd_add','Lhip_int_ext_rot','Lknee_flex_ext','Lankle_flex_ext','Lankle_abd_add',
                           'Lumbar_flex_ext', 'Lumbar_lateral_flex',
                         #   'thoracic_flex_ext','thoracic_lateral_flex','thoracic_rot_int_ext',
                           'Lcalvicule_x',
@@ -38,7 +37,7 @@ lower_dof=['Rhip_flex_ext','Rhip_abd_add','Rhip_int_ext_rot','Lhip_flex_ext', 'L
                           'Rknee_flex_ext','Rankle_flex_ext', 'Lknee_flex_ext', 'Lankle_flex_ext', 'Rankle_abd_add','Lankle_abd_add']
 
 #opencap : hips(23),knees(23), ankle(2*2) et lumbar(3) + freeflyer
-dof_opencap = [ 'FF_X', 'FF_Y', 'FF_Z', 'Lumbar_flex_ext', 'Lumbar_lateral_flex', 
+dof_opencap = [ 'Lumbar_flex_ext', 'Lumbar_lateral_flex', 
                           'Rhip_flex_ext','Rhip_abd_add','Rhip_int_ext_rot','Lhip_flex_ext', 'Lhip_abd_add', 
                           'Lhip_int_ext_rot',
                           'Rknee_flex_ext','Rankle_flex_ext','Rankle_abd_add', 'Lknee_flex_ext', 'Lankle_flex_ext','Lankle_abd_add']

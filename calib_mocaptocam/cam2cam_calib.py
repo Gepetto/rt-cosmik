@@ -3,7 +3,9 @@ import numpy as np
 import os  
 import cv2 as cv
 import pinocchio as pin 
-subject = "Maxime"
+
+subject = "Anastasia"
+
 def load_cam_params(path):
     """
     Loads camera parameters from a given file.
@@ -29,8 +31,8 @@ def load_cam_params(path):
 K1, D1 = load_cam_params(os.path.join("/root/workspace/ros_ws/src/rt-cosmik/config/cam_params/", "c0_params_color.yaml"))
 K2, D2 = load_cam_params(os.path.join("/root/workspace/ros_ws/src/rt-cosmik/config/cam_params/", "c6_params_color.yaml"))
 
-soder_dir = f"/root/workspace/ros_ws/src/rt-cosmik/output/{subject}/calib_mocap_2_cam"
-cam2cam_dir = f"/root/workspace/ros_ws/src/rt-cosmik/config/cam_params/c0_to_c6_params_color.yaml"
+soder_dir = f"/root/workspace/ros_ws/src/rt-cosmik/config/cam_params/{subject}/calib_mocap_2_cam"
+cam2cam_dir = f"/root/workspace/ros_ws/src/rt-cosmik/config/cam_params/{subject}/c0_to_c6_params_color.yaml"
 
 R_c1_in_mocap, d_c1_in_mocap, _, _ = load_transformation(soder_dir + "0" + "/soder.txt")
 R_c2_in_mocap, d_c2_in_mocap, _, _ = load_transformation(soder_dir + "6" + "/soder.txt")

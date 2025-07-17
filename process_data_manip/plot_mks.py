@@ -3,23 +3,22 @@ import matplotlib.pyplot as plt
 import os
 
 # Load the CSV
-df = pd.read_csv("/root/workspace/ros_ws/src/rt-cosmik/output/trial3/overhead/overhead_clean_trajectories.csv")  # replace with your actual file path
+df = pd.read_csv("/root/workspace/ros_ws/src/rt-cosmik/output/Mathis/bolting/bolting_trajectories.csv")  # replace with your actual file path
+# Remove the 'Mathis:' prefix from all column names
+df.columns = [col.replace("Mathis:", "") for col in df.columns]
 frames = df["Frame"] if "Frame" in df.columns else range(len(df))
 
 # Extract base marker names
 marker_names = sorted(set(col.rsplit("_", 1)[0] for col in df.columns if "_x" in col))
 
-# Create a directory to save plots (optional)
-os.makedirs("marker_plots", exist_ok=True)
-
 for marker in marker_names:
     try:
-        x = df[f"{marker}_x (mm)"]
-        y = df[f"{marker}_y (mm)"]
-        z = df[f"{marker}_z (mm)"]
+        print(marker)
+        x = df[f"{marker}_x"]
+        y = df[f"{marker}_y"]
+        z = df[f"{marker}_z"]
     except KeyError:
         continue  # skip if any coordinate is missing
-
     fig, axs = plt.subplots(3, 1, figsize=(10, 6), sharex=True)
     fig.suptitle(f"Trajectory of marker: {marker}")
 
@@ -35,4 +34,3 @@ for marker in marker_names:
 
     plt.tight_layout(rect=[0, 0.03, 1, 0.95])
     plt.show()
-    plt.close()  # Close to avoid memory issues

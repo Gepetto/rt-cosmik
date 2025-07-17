@@ -9,15 +9,20 @@ import time
 from pinocchio.visualize import GepettoVisualizer
 from src.rtcosmik.utils.read_write_utils import parse_marker_csv
 from src.rtcosmik.config_loader import settings
+from  src.rtcosmik.utils.read_write_utils  import read_mks_data
 
-no_trial = "trial3"
-task = "static"
-path_to_csv = f"/root/workspace/ros_ws/src/rt-cosmik/output/{no_trial}/{task}/mks_data_rt.csv"
+no_trial = "Mathis"
+task = "bolting"
+path_to_csv = f"/root/workspace/ros_ws/src/rt-cosmik/output/{no_trial}/{task}/{task}_trajectories.csv"
 df = pd.read_csv(path_to_csv)
+df.columns = [col.replace(f"{no_trial}:", "") for col in df.columns]
+frames = df["Frame"] if "Frame" in df.columns else range(len(df))
+mks_names = sorted(set(col.rsplit("_", 1)[0] for col in df.columns if "_x" in col))
 
-mks_names = settings.marker_mocap_names
-mks_dict = parse_marker_csv(path_to_csv, mks_names)
+mks_dict, start_sample_dict = read_mks_data(df, start_sample=0) #convert to m if needed 
 
+# mks_names = settings.marker_mocap_names
+# mks_dict = parse_marker_csv(path_to_csv, mks_names)
 
 # === Initialiser le visualiseur Gepetto ===
 viz = GepettoVisualizer()
@@ -60,4 +65,4 @@ for i, frame in enumerate(mks_dict):
         place(viz, f'world/{name}', pin.SE3(np.eye(3), pos.reshape(3,1)))
     
     # Avance image par image (appuie entrée)
-    input(f"Frame {i+1}/{len(mks_dict)} - Press Enter")
+    # input(f"Frame {i+1}/{len(mks_dict)} - Press Enter")

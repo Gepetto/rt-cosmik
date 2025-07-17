@@ -538,7 +538,7 @@ def save_to_csv(data, output_path, header=None):
     df.to_csv(output_path, index=False, header=header if header is not None else False)
     print(f"Saved {len(data)} frames to {output_path}")
 
-def read_mks_data(data_markers, start_sample=0):
+def read_mks_data(data_markers, start_sample=0, converter = 1.0):
     #the mks are ordered in a csv like this : "time,r.ASIS_study_x,r.ASIS_study_y,r.ASIS_study_z...."
     """    
     Parameters:
@@ -560,9 +560,9 @@ def read_mks_data(data_markers, start_sample=0):
     for _, row in data_markers.iterrows():
         frame_dict = {}
         for marker in marker_columns:
-            x = row[f"{marker}_x"]
-            y = row[f"{marker}_y"]
-            z = row[f"{marker}_z"]
+            x = row[f"{marker}_x"] / converter  #convert to m
+            y = row[f"{marker}_y"]/ converter
+            z = row[f"{marker}_z"]/ converter
             frame_dict[marker] = np.array([x, y, z])  # Store as a NumPy array
         result_markers.append(frame_dict)
     
