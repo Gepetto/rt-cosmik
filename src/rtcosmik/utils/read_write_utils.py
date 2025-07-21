@@ -670,7 +670,7 @@ def marker_data_to_dataframe(df, mks_names, marker_column='marker_data', delimit
     return wide_df
 
 
-def udp_csv_to_dataframe(csv_path, marker_names):
+def udp_csv_to_dataframe(csv_path, marker_names, udp_type="gapfilled"):
     """
     Preprocess a UDP CSV file into a DataFrame suitable for read_mks_data.
 
@@ -697,7 +697,14 @@ def udp_csv_to_dataframe(csv_path, marker_names):
             continue  # skip empty lines
         parts = line.split(",")
         timestamp = parts[0]
-        udp_values = [float(val) for val in parts[2:]]
+        if udp_type == "gapfilled":
+            udp_values = [float(val) for val in parts[2:]]
+        elif udp_type == "raw":
+            if line == "Timestamp,UDP_Data":
+                continue
+            udp_values = [float(val) for val in parts[1:]]
+        else:
+            raise ValueError("Unsupported UDP type. Use 'gapfilled' or 'raw'.")
         all_rows.append(udp_values)
 
     # 4. Now create a dataframe
