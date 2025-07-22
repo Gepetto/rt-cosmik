@@ -17,8 +17,8 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')
 from src.rtcosmik.utils.read_write_utils import udp_csv_to_dataframe, read_mks_data, default_mocap_mks_names
 
 # === Hyperparams ===
-data_dir       = "/mnt/c/Users/nicol/Desktop/Travail/LAAS/SFE Gepetto/Data_training_LSTM"
-pretrained_dir = "/mnt/c/Users/nicol/Desktop/Travail/LAAS/SFE Gepetto/rt-cosmik/src/rtcosmik/augmenter/augmentation_model/LSTM/v0.3_lower"
+data_dir       = sys.argv[1]
+pretrained_dir = sys.argv[2]
 json_path      = os.path.join(pretrained_dir, "model.json")
 weights_path   = os.path.join(pretrained_dir, "weights.h5")
 
@@ -93,12 +93,15 @@ for subject in os.listdir(data_dir):
     mocap_path = os.path.join(subject_path, "mocap")
 
     for trial in os.listdir(cosmik_2cams_path):
-        if "mks_model_cosmik_2.csv" not in os.listdir(os.path.join(cosmik_2cams_path, trial)):
+        if "3d_keypoints_filtered_2.csv" not in os.listdir(os.path.join(cosmik_2cams_path, trial)):
             print(f"Skipping {trial} in {subject} due to missing HPE data.")
             continue
         current_HPE_data_path = os.path.join(cosmik_2cams_path, trial, "3d_keypoints_filtered_2.csv")
         current_df_inputs = pd.read_csv(current_HPE_data_path)
 
+        if "mks_data_cleaned.csv" in os.listdir(os.path.join(mocap_path, trial)):
+            current_mocap_data_path = os.path.join(mocap_path, trial, "mks_data_cleaned.csv")
+            current_df_gt = pd.read_csv(current_mocap_data_path)
         if "mks_data_gapfilled.csv" in os.listdir(os.path.join(mocap_path, trial)):
             current_mocap_data_path = os.path.join(mocap_path, trial, "mks_data_gapfilled.csv")
             current_df_gt = udp_csv_to_dataframe(current_mocap_data_path, default_mocap_mks_names, udp_type="gapfilled")

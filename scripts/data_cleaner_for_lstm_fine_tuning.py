@@ -55,7 +55,7 @@ if __name__ == "__main__":
             
             os.makedirs(os.path.join(data_cleaned_path, subject, "cosmik_2cams", trial), exist_ok=True)
             os.makedirs(os.path.join(data_cleaned_path, subject, "mocap", trial), exist_ok=True)
-            HPE_data_df.to_csv(os.path.join(data_cleaned_path, subject, "cosmik_2cams", trial, "3d_keypoints_filtered_2.csv"), index=False)
-            mocap_data_df.to_csv(os.path.join(data_cleaned_path, subject, "mocap", trial, "mks_data_gapfilled.csv"), index=False)
+            HPE_data_df.to_csv(os.path.join(data_cleaned_path, subject, "cosmik_2cams", trial, "3d_keypoints_filtered_2_cleaned.csv"), index=False)
+            mocap_data_df.to_csv(os.path.join(data_cleaned_path, subject, "mocap", trial, "mks_data_cleaned.csv"), index=False)
             print(f"Cleaned {trial} in {subject}")
 
