@@ -461,6 +461,13 @@ def read_mmpose_scores(liste_fichiers):
         all_scores.append(data[:, 1])
     return np.array(all_scores).transpose().tolist()
 
+def read_mmpose_scores_cleaning(liste_fichiers):
+    all_scores= []
+    for f in liste_fichiers :
+        data= np.loadtxt(f, delimiter=',')
+        all_scores.append(data[:, 0])
+    return np.array(all_scores).transpose().tolist()
+
 def get_cams_params_challenge()->dict:
     donnees = {   
         "26578": {
