@@ -19,6 +19,8 @@ from src.rtcosmik.utils.read_write_utils import udp_csv_to_dataframe, read_mks_d
 # === Hyperparams ===
 data_dir       = sys.argv[1]
 pretrained_dir = sys.argv[2]
+data_dir       = sys.argv[1]
+pretrained_dir = sys.argv[2]
 json_path      = os.path.join(pretrained_dir, "model.json")
 weights_path   = os.path.join(pretrained_dir, "weights.h5")
 
@@ -94,11 +96,7 @@ for subject in os.listdir(data_dir):
     mocap_path = os.path.join(subject_path, "mocap")
 
     for trial in os.listdir(cosmik_2cams_path):
-<<<<<<< HEAD
-        if "3d_keypoints_filtered_2.csv" not in os.listdir(os.path.join(cosmik_2cams_path, trial)):
-=======
         if "3d_keypoints_filtered_2_cleaned.csv" not in os.listdir(os.path.join(cosmik_2cams_path, trial)):
->>>>>>> 46de9e2 (adapted cleaner to divide in files when hpe bug and adapted learning to learn over trials)
             print(f"Skipping {trial} in {subject} due to missing HPE data.")
             continue
         current_HPE_data_path = os.path.join(cosmik_2cams_path, trial, "3d_keypoints_filtered_2_cleaned.csv")
@@ -107,11 +105,7 @@ for subject in os.listdir(data_dir):
         if "mks_data_cleaned.csv" in os.listdir(os.path.join(mocap_path, trial)):
             current_mocap_data_path = os.path.join(mocap_path, trial, "mks_data_cleaned.csv")
             current_df_gt = pd.read_csv(current_mocap_data_path)
-<<<<<<< HEAD
-        if "mks_data_gapfilled.csv" in os.listdir(os.path.join(mocap_path, trial)):
-=======
         elif "mks_data_gapfilled.csv" in os.listdir(os.path.join(mocap_path, trial)):
->>>>>>> 46de9e2 (adapted cleaner to divide in files when hpe bug and adapted learning to learn over trials)
             current_mocap_data_path = os.path.join(mocap_path, trial, "mks_data_gapfilled.csv")
             current_df_gt = udp_csv_to_dataframe(current_mocap_data_path, default_mocap_mks_names, udp_type="gapfilled")
         elif "mks_data.csv" in os.listdir(os.path.join(mocap_path, trial)):
@@ -232,3 +226,5 @@ history = model.fit(
 # Save fine-tuned weights
 model.save_weights(os.path.join(pretrained_dir, "weights_finetuned.h5"))
 print("Fine-tuning complete. Saved to weights_finetuned.h5")
+
+###
