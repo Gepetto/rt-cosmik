@@ -79,6 +79,7 @@ subjects_metadata["name"] = []
 subjects_metadata["height"] = []
 subjects_metadata["weight"] = []
 chgt_subject_indexes = []
+chgt_trial_indexes = []
 for subject in os.listdir(data_dir):
     subject_path = os.path.join(data_dir, subject)
 
@@ -93,16 +94,24 @@ for subject in os.listdir(data_dir):
     mocap_path = os.path.join(subject_path, "mocap")
 
     for trial in os.listdir(cosmik_2cams_path):
+<<<<<<< HEAD
         if "3d_keypoints_filtered_2.csv" not in os.listdir(os.path.join(cosmik_2cams_path, trial)):
+=======
+        if "3d_keypoints_filtered_2_cleaned.csv" not in os.listdir(os.path.join(cosmik_2cams_path, trial)):
+>>>>>>> 46de9e2 (adapted cleaner to divide in files when hpe bug and adapted learning to learn over trials)
             print(f"Skipping {trial} in {subject} due to missing HPE data.")
             continue
-        current_HPE_data_path = os.path.join(cosmik_2cams_path, trial, "3d_keypoints_filtered_2.csv")
+        current_HPE_data_path = os.path.join(cosmik_2cams_path, trial, "3d_keypoints_filtered_2_cleaned.csv")
         current_df_inputs = pd.read_csv(current_HPE_data_path)
 
         if "mks_data_cleaned.csv" in os.listdir(os.path.join(mocap_path, trial)):
             current_mocap_data_path = os.path.join(mocap_path, trial, "mks_data_cleaned.csv")
             current_df_gt = pd.read_csv(current_mocap_data_path)
+<<<<<<< HEAD
         if "mks_data_gapfilled.csv" in os.listdir(os.path.join(mocap_path, trial)):
+=======
+        elif "mks_data_gapfilled.csv" in os.listdir(os.path.join(mocap_path, trial)):
+>>>>>>> 46de9e2 (adapted cleaner to divide in files when hpe bug and adapted learning to learn over trials)
             current_mocap_data_path = os.path.join(mocap_path, trial, "mks_data_gapfilled.csv")
             current_df_gt = udp_csv_to_dataframe(current_mocap_data_path, default_mocap_mks_names, udp_type="gapfilled")
         elif "mks_data.csv" in os.listdir(os.path.join(mocap_path, trial)):
@@ -118,6 +127,8 @@ for subject in os.listdir(data_dir):
 
         df_inputs = pd.concat([df_inputs, current_df_inputs], ignore_index=True)
         df_gt = pd.concat([df_gt, current_df_gt], ignore_index=True)
+
+        chgt_trial_indexes.append(len(df_inputs))
     
     chgt_subject_indexes.append(len(df_inputs))
 
@@ -164,39 +175,40 @@ idx_LHip = kpts_input_lstm.index('LHip')
 
 # === Prepare X, y ===
 X, y = [], []
-for ind, chgt_index in enumerate(chgt_subject_indexes):
-    for start in range(0, chgt_index - seq_len + 1):
-        kbuf = kpts_arr[start:start+seq_len]            # (seq_len, 15, 3)
-        mbuf = mocap_arr[start+seq_len-1]               # (M, 3)
+for ind_subject, chgt_subject_index in enumerate(chgt_subject_indexes):
+    for ind_trial, chgt_trial_index in enumerate(chgt_trial_indexes):
+        for start in range(0, chgt_trial_index - seq_len + 1):
+            kbuf = kpts_arr[start:start+seq_len]            # (seq_len, 15, 3)
+            mbuf = mocap_arr[start+seq_len-1]               # (M, 3)
 
-        # compute mid-hip as average of RHip and LHip
-        ref = (kbuf[:, idx_RHip, :] + kbuf[:, idx_LHip, :]) / 2
+            # compute mid-hip as average of RHip and LHip
+            ref = (kbuf[:, idx_RHip, :] + kbuf[:, idx_LHip, :]) / 2
 
-        # center all keypoints by ref
-        norm = kbuf - ref[:, None, :]
-        norm2 = norm / subjects_metadata["height"][ind]  # subject_height (TODO: load per-subject)
+            # center all keypoints by ref
+            norm = kbuf - ref[:, None, :]
+            norm2 = norm / subjects_metadata["height"][ind_subject]  # subject_height (TODO: load per-subject)
 
-        # flatten sequence + features
-        inp = norm2.reshape(seq_len, -1)
-        # append height & mass features
-        inp = np.concatenate([
-            inp,
-            np.full((seq_len,1), subjects_metadata["height"][ind]),  # height
-            np.full((seq_len,1), subjects_metadata["weight"][ind])    # mass
-        ], axis=1)
+            # flatten sequence + features
+            inp = norm2.reshape(seq_len, -1)
+            # append height & mass features
+            inp = np.concatenate([
+                inp,
+                np.full((seq_len,1), subjects_metadata["height"][ind_subject]),  # height
+                np.full((seq_len,1), subjects_metadata["weight"][ind_subject])    # mass
+            ], axis=1)
 
-        # apply pretrained mean/std
-        mean_p = os.path.join(pretrained_dir, "mean.npy")
-        std_p  = os.path.join(pretrained_dir, "std.npy")
-        if os.path.isfile(mean_p):
-            inp -= np.load(mean_p)
-        if os.path.isfile(std_p):
-            inp /= np.load(std_p)
+            # apply pretrained mean/std
+            mean_p = os.path.join(pretrained_dir, "mean.npy")
+            std_p  = os.path.join(pretrained_dir, "std.npy")
+            if os.path.isfile(mean_p):
+                inp -= np.load(mean_p)
+            if os.path.isfile(std_p):
+                inp /= np.load(std_p)
 
-        X.append(inp)
-        # build target for markers_of_interest
-        sel = [total_markers.index(m) for m in mks_of_interest_lower]
-        y.append(mbuf[sel].reshape(-1))
+            X.append(inp)
+            # build target for markers_of_interest
+            sel = [total_markers.index(m) for m in mks_of_interest_lower]
+            y.append(mbuf[sel].reshape(-1))
 
 X = np.stack(X)
 y = np.stack(y)

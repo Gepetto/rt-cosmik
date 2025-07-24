@@ -17,8 +17,8 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')
 from src.rtcosmik.utils.read_write_utils import udp_csv_to_dataframe, read_mks_data, default_mocap_mks_names
 
 # === Hyperparams ===
-data_dir       = sys.argv[1]
-pretrained_dir = sys.argv[2]
+data_dir       = sys.argv[1]  # Path to the directory containing subject data
+pretrained_dir = sys.argv[2]  # Path to the pretrained model directory
 json_path      = os.path.join(pretrained_dir, "model.json")
 weights_path   = os.path.join(pretrained_dir, "weights.h5")
 
@@ -62,6 +62,7 @@ subjects_metadata["name"] = []
 subjects_metadata["height"] = []
 subjects_metadata["weight"] = []
 chgt_subject_indexes = []
+chgt_trial_indexes = []
 for subject in os.listdir(data_dir):
     subject_path = os.path.join(data_dir, subject)
 
@@ -76,10 +77,10 @@ for subject in os.listdir(data_dir):
     mocap_path = os.path.join(subject_path, "mocap")
 
     for trial in os.listdir(cosmik_2cams_path):
-        if "3d_keypoints_filtered_2.csv" not in os.listdir(os.path.join(cosmik_2cams_path, trial)):
+        if "3d_keypoints_filtered_2_cleaned.csv" not in os.listdir(os.path.join(cosmik_2cams_path, trial)):
             print(f"Skipping {trial} in {subject} due to missing HPE data.")
             continue
-        current_HPE_data_path = os.path.join(cosmik_2cams_path, trial, "3d_keypoints_filtered_2.csv")
+        current_HPE_data_path = os.path.join(cosmik_2cams_path, trial, "3d_keypoints_filtered_2_cleaned.csv")
         current_df_inputs = pd.read_csv(current_HPE_data_path)
 
         if "mks_data_cleaned.csv" in os.listdir(os.path.join(mocap_path, trial)):
@@ -101,6 +102,8 @@ for subject in os.listdir(data_dir):
 
         df_inputs = pd.concat([df_inputs, current_df_inputs], ignore_index=True)
         df_gt = pd.concat([df_gt, current_df_gt], ignore_index=True)
+
+        chgt_trial_indexes.append(len(df_inputs))
     
     chgt_subject_indexes.append(len(df_inputs))
 
@@ -145,35 +148,36 @@ model.compile(optimizer=Adam(learning_rate), loss='mse')
 # === Prepare X, y for fine-tuning ===
 X, y = [], []
 
-for ind, chgt_index in enumerate(chgt_subject_indexes):
-    for start in range(0, chgt_index - seq_len + 1):
-        kbuf = kpts_arr[start:start+seq_len]    # (seq_len,7,3)
-        mbuf = mocap_arr[start+seq_len-1]       # (M,3)
+for ind_subject, chgt_subject_index in enumerate(chgt_subject_indexes):
+    for ind_trial, chgt_trial_index in enumerate(chgt_trial_indexes):
+        for start in range(0, chgt_trial_index - seq_len + 1):
+            kbuf = kpts_arr[start:start+seq_len]    # (seq_len,7,3)
+            mbuf = mocap_arr[start+seq_len-1]       # (M,3)
 
-        # reference = mid-hip
-        ref = mid_arr[start:start+seq_len]      # (seq_len,3)
+            # reference = mid-hip
+            ref = mid_arr[start:start+seq_len]      # (seq_len,3)
 
-        # center all keypoints by ref
-        norm  = kbuf - ref[:, None, :]
-        norm2 = norm / subjects_metadata["height"][ind]
+            # center all keypoints by ref
+            norm  = kbuf - ref[:, None, :]
+            norm2 = norm / subjects_metadata["height"][ind_subject]
 
-        # flatten + append height/mass
-        inp = norm2.reshape(seq_len, -1)
-        inp = np.concatenate([
-            inp,
-            np.full((seq_len,1), subjects_metadata["height"][ind]),
-            np.full((seq_len,1), subjects_metadata["weight"][ind])
-        ], axis=1)
+            # flatten + append height/mass
+            inp = norm2.reshape(seq_len, -1)
+            inp = np.concatenate([
+                inp,
+                np.full((seq_len,1), subjects_metadata["height"][ind_subject]),
+                np.full((seq_len,1), subjects_metadata["weight"][ind_subject])
+            ], axis=1)
 
-        # apply pretrained mean/std
-        mean_p = os.path.join(pretrained_dir, "mean.npy")
-        std_p  = os.path.join(pretrained_dir, "std.npy")
-        if os.path.isfile(mean_p): inp -= np.load(mean_p)
-        if os.path.isfile(std_p):  inp /= np.load(std_p)
+            # apply pretrained mean/std
+            mean_p = os.path.join(pretrained_dir, "mean.npy")
+            std_p  = os.path.join(pretrained_dir, "std.npy")
+            if os.path.isfile(mean_p): inp -= np.load(mean_p)
+            if os.path.isfile(std_p):  inp /= np.load(std_p)
 
-        X.append(inp)
-        sel = [default_mocap_mks_names.index(m) for m in mks_of_interest_upper]
-        y.append(mbuf[sel].reshape(-1))
+            X.append(inp)
+            sel = [default_mocap_mks_names.index(m) for m in mks_of_interest_upper]
+            y.append(mbuf[sel].reshape(-1))
 
 X = np.stack(X)
 y = np.stack(y)
