@@ -144,6 +144,7 @@ for m in mks_of_interest_upper:
 last_step = Lambda(lambda x: x[:, -1, :], name="last_step")(base.output)
 upper_out = Lambda(lambda x: tf.gather(x, feat_indices, axis=1), name="upper_body")(last_step)
 model     = Model(inputs=base.input, outputs=upper_out)
+model.summary()
 model.compile(optimizer=Adam(learning_rate), loss='mse')
 
 # === Prepare X, y for fine-tuning ===
