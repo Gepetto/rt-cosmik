@@ -11,6 +11,7 @@ from tensorflow.keras.layers import Lambda
 from tensorflow.keras.optimizers import Adam
 from tensorflow.keras.callbacks import EarlyStopping
 from sklearn.model_selection import train_test_split
+from tensorflow.keras.callbacks import ModelCheckpoint
 
 # add project root to path so we can import utils
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
@@ -19,16 +20,14 @@ from src.rtcosmik.utils.read_write_utils import udp_csv_to_dataframe, read_mks_d
 # === Hyperparams ===
 data_dir       = sys.argv[1]
 pretrained_dir = sys.argv[2]
-data_dir       = sys.argv[1]
-pretrained_dir = sys.argv[2]
 json_path      = os.path.join(pretrained_dir, "model.json")
 weights_path   = os.path.join(pretrained_dir, "weights.h5")
 
 test_size    = 0.2
 random_state = 42
 batch_size   = 64
-epochs       = 100
-patience     = 10
+epochs       = 10
+patience     = 2
 learning_rate= 6e-6
 
 # === Marker / keypoint names ===
@@ -161,6 +160,7 @@ last_step = Lambda(lambda x: x[:, -1, :], name="last_step")(base.output) #A lamb
 lower_out = Lambda(lambda x: tf.gather(x, feat_indices, axis=1), #A lambda layer that outputs markers of interest only
                    name="lower_body")(last_step)
 model = Model(inputs=base.input, outputs=lower_out)
+model.summary()
 model.compile(optimizer=Adam(learning_rate), loss='mse')
 
 # indices for RHip/LHip in our kpts_input_lstm list
@@ -214,17 +214,26 @@ X_train, X_val, y_train, y_val = train_test_split(
 )
 
 # === Train ===
+checkpoint = ModelCheckpoint(
+    filepath=os.path.join(pretrained_dir, "best_finetuned_weights.h5"),    
+    monitor="val_loss",
+    save_best_only=True,
+    save_weights_only=True,            # True si tu veux sauvegarder seulement les poids
+    verbose=1
+)
 es = EarlyStopping(monitor='val_loss', patience=patience, restore_best_weights=True)
 history = model.fit(
     X_train, y_train,
     validation_data=(X_val, y_val),
     batch_size=batch_size,
     epochs=epochs,
-    callbacks=[es]
+    callbacks=[es, checkpoint]
 )
+
+# Sauvegarde de l'architecture dans un fichier JSON
+with open(os.path.join(pretrained_dir, "model_finetuned.json"), "w") as f:
+    f.write(model.to_json())
 
 # Save fine-tuned weights
 model.save_weights(os.path.join(pretrained_dir, "weights_finetuned.h5"))
 print("Fine-tuning complete. Saved to weights_finetuned.h5")
-
-###

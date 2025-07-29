@@ -39,7 +39,7 @@ if __name__ == "__main__":
             scores_data_list = scores_data_list[:min(len(mocap_data_df), len(HPE_data_df))]
 
             dropped = 0
-            dropped_indexes = [0]
+            dropped_indexes = [0, len(HPE_data_df)-1]
             for ind, scores in enumerate(scores_data_list):
                 if min(scores) < seuil:
                     HPE_data_df.drop(HPE_data_df.index[ind-dropped], inplace=True)
@@ -47,7 +47,7 @@ if __name__ == "__main__":
                     dropped += 1
                     dropped_indexes.append(ind-dropped)
                     print(f"Dropped {ind} in {subject}_{trial}")
-            dropped_indexes = list(dict.fromkeys(dropped_indexes))
+            dropped_indexes = sorted(list(dict.fromkeys(dropped_indexes)))
 
             for num_file, index_dropped in enumerate(dropped_indexes[:-1]):
                 if dropped_indexes[num_file + 1] - index_dropped >= 30:
@@ -57,6 +57,5 @@ if __name__ == "__main__":
                         os.path.join(data_cleaned_path, subject, "cosmik_2cams", f"{trial}_{num_file}", "3d_keypoints_filtered_2_cleaned.csv"), index=False)
                     mocap_data_df.iloc[index_dropped:dropped_indexes[num_file + 1]].to_csv(
                         os.path.join(data_cleaned_path, subject, "mocap", f"{trial}_{num_file}", "mks_data_cleaned.csv"), index=False)
-            print(f"Cleaned {trial} in {subject}")
 
             print(f"Cleaned {trial} in {subject}")
