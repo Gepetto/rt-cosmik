@@ -26,8 +26,8 @@ weights_path   = os.path.join(pretrained_dir, "weights.h5")
 test_size     = 0.2
 random_state  = 42
 batch_size    = 64
-epochs        = 10
-patience      = 2
+epochs        = 100
+patience      = 5
 learning_rate = 6e-6
 
 # === Marker / keypoint names (upper limb) ===
