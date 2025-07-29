@@ -16,9 +16,9 @@ from src.rtcosmik.human_model.model_utils import get_segment_length
 from src.rtcosmik.ik.ik import RT_IK
 
 
-def run_ik(task, no_trial="Anais", subject_mass=72.0, subject_height=1.80, gender='male', start_sample=0):
+def run_ik(task, no_trial="Zoe", subject_mass=55.0, subject_height=1.65, gender='female', start_sample=0):
     rt_cosmik_path = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-    path_to_csv = f"/root/workspace/ros_ws/src/rt-cosmik/output/{no_trial}/mouv/{task}/mks_data.csv"
+    path_to_csv = f"/root/workspace/ros_ws/src/rt-cosmik/output/{no_trial}/mocap/{task}/mks_data_gapfilled.csv"
 
     mks_to_skip = ['LForearm','LUArm', 'RUArm', 'RHJC_study','LHJC_study','r_pelvis','l_pelvis','LHL2','LHM5','RHL2','RHM5',
                    'LHand', 'RForearm','RHand', 'L_sh1_study', 'L_thigh1_study','r_sh1_study', 'r_thigh1_study']
@@ -33,8 +33,13 @@ def run_ik(task, no_trial="Anais", subject_mass=72.0, subject_height=1.80, gende
              'r_ankle_study','r_mankle_study','r_calc_study','r_5meta_study','r_toe_study',
              'r_pelvis', 'l_pelvis']
     
-    mks_data = udp_csv_to_dataframe(path_to_csv, mks_names)
-    result_markers, start_sample_dict = read_mks_data(mks_data, start_sample=start_sample)
+    # df_wide = pd.read_csv(path_to_csv)
+    # df_wide.columns = [col.replace(f"{no_trial}:", "") for col in df_wide.columns]
+    # frames = df_wide["Frame"] if "Frame" in df_wide.columns else range(len(df_wide))
+    # mks_names = sorted(set(col.rsplit("_", 1)[0] for col in df_wide.columns if "_x" in col))
+
+    df_wide = udp_csv_to_dataframe(path_to_csv, mks_names)
+    result_markers, start_sample_dict = read_mks_data(df_wide, start_sample=start_sample, converter = 1.0)
 
     # Load URDF
     human = Robot('/root/workspace/ros_ws/src/rt-cosmik/urdf/human.urdf', rt_cosmik_path, isFext=True)
@@ -76,7 +81,7 @@ def run_ik(task, no_trial="Anais", subject_mass=72.0, subject_height=1.80, gende
 
     q = pin.neutral(human_model)
     human_data = pin.Data(human_model)
-    viz.display(q)
+    # viz.display(q)
     # input("Model scaled, you can launch IK")
     #measured frames
     seg_frames = construct_segments_frames(result_markers[start_sample])
@@ -109,7 +114,7 @@ def run_ik(task, no_trial="Anais", subject_mass=72.0, subject_height=1.80, gende
 
     ik_class = RT_IK(human_model, start_sample_dict, q, keys_to_track_list, dt=1/40)
     q = ik_class.solve_ik_sample_casadi()
-    viz.display(q)
+    # viz.display(q)
     ik_class._q0 = q
     # input("First sample")
 
@@ -145,7 +150,7 @@ def run_ik(task, no_trial="Anais", subject_mass=72.0, subject_height=1.80, gende
             rmse_per_marker.setdefault(marker, []).append(sq_error)
 
         M_model_list.append(M_model_frame)
-        viz.display(q)
+        # viz.display(q)
         ik_class._q0 = q
         q_list.append(q)
 
@@ -165,7 +170,7 @@ def run_ik(task, no_trial="Anais", subject_mass=72.0, subject_height=1.80, gende
         raise ValueError("Mismatch between joint names and q size")
 
     pd.DataFrame(q_list, columns=joint_angles_names).to_csv(
-        os.path.join(rt_cosmik_path, f"output/{no_trial}/mouv/{task}/q_mocap.csv"), index=False)
+        os.path.join(rt_cosmik_path, f"output/{no_trial}/mocap/{task}/q_mocap.csv"), index=False)
 
     print("\nPer-marker RMSE (in meters):")
     rmse_global, nb_mks = 0, 0
@@ -179,7 +184,7 @@ def run_ik(task, no_trial="Anais", subject_mass=72.0, subject_height=1.80, gende
 
 
 if __name__ == "__main__":
-    task_list = ["bolting","bolting_sat","crouch","crouch_object","hitting","hitting_sat","jump","lifting","lifting_fast","lower","overhead"
+    task_list = ["bolting","bolting_sat","crouch","crouch_object","hitting","hitting_sat","jump","lifting","lifting_fast","lower","overhead",
              "robot_sanding","robot_welding",
              "sanding","sanding_sat","sit_to_stand","squat","static","upper","walk","walk_front","welding","welding_sat"]
 

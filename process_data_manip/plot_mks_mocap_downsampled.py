@@ -3,7 +3,9 @@ import matplotlib.pyplot as plt
 import os
 
 # Load the CSV
-df = pd.read_csv("/root/workspace/ros_ws/src/rt-cosmik/output/Mathis/bolting/bolting_trajectories.csv")  # replace with your actual file path
+no_trial= "Mathis"
+task = "static"
+df = pd.read_csv(f"/root/workspace/ros_ws/src/rt-cosmik/output/{no_trial}/mouv/{task}/mocap_downsampled_to_40hz.csv")  # replace with your actual file path
 # Remove the 'Mathis:' prefix from all column names
 df.columns = [col.replace("Mathis:", "") for col in df.columns]
 frames = df["Frame"] if "Frame" in df.columns else range(len(df))

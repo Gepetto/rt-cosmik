@@ -12,10 +12,10 @@ from src.rtcosmik.utils.read_write_utils import parse_marker_csv,udp_csv_to_data
 from collections import defaultdict
 
 nbr_cam = 2
-no_trial = "Maxime"
-task = "upper"
+no_trial = "Mohamed"
+task = "bolting"
 
-path_to_csv_mocap = f"/root/workspace/ros_ws/src/rt-cosmik/output/{no_trial}/{task}/mks_data.csv"
+path_to_csv_mocap = f"/root/workspace/ros_ws/src/rt-cosmik/output/{no_trial}/mocap/{task}/mks_data_gapfilled.csv"
 # path_to_csv = f"/root/workspace/ros_ws/src/rt-cosmik/output/{no_trial}/mouv/{task}/mocap_downsampled_to_40hz.csv"
 # df_wide = pd.read_csv(path_to_csv)
 # df_wide.columns = [col.replace(f"{no_trial}:", "") for col in df_wide.columns]
@@ -79,7 +79,7 @@ data_markers_lstm = pd.concat([data_markers_lstm, keypoints[columns_to_add].rese
 
 result_markers_lstm, start_sample_lstm = read_mks_data(data_markers_lstm, converter = 1.0)
 
-# plot_marker_comparison(result_markers, result_markers_lstm, markers_to_plot=markers_to_display)
+plot_marker_comparison(result_markers, result_markers_lstm, markers_to_plot=markers_to_display)
 # === Initialiser le visualiseur Gepetto ===
 viz = GepettoVisualizer()
 try:

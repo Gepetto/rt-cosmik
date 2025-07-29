@@ -23,11 +23,11 @@ nbr_cams= 2
 mks_to_skip = ['LForearm','LUArm', 'RUArm', 'RHJC_study','LHJC_study','r_pelvis','l_pelvis',
                'LHand','LHL2','LHM5', 'RForearm','RHand','RHL2','RHM5', 'L_sh1_study', 'L_thigh1_study','r_sh1_study', 'r_thigh1_study']
 #read mks data
-no_trial = "Mathis"
-task = "static"
-path_to_csv = f"/root/workspace/ros_ws/src/rt-cosmik/output/{no_trial}/cosmik_2cams/{task}/augmented_markers_2.csv"
+no_trial = "Mohamed"
+task = "bolting"
+path_to_csv = f"/root/workspace/ros_ws/src/rt-cosmik/output/{no_trial}/cosmik_2cams/{task}/augmented_markers_2_finetuned.csv"
 ###########################################################################################for cosmik data 
-path_to_kpt = f"/root/workspace/ros_ws/src/rt-cosmik/output/{no_trial}/cosmik_2cams/{task}/3d_keypoints_filtred_2.csv"
+path_to_kpt = f"/root/workspace/ros_ws/src/rt-cosmik/output/{no_trial}/cosmik_2cams/{task}/3d_keypoints_filtered_2.csv"
 
 keys_to_add = ['Nose', 'Head', 'REar', 'LEar', 'REye', 'LEye']
 
@@ -221,9 +221,9 @@ num_values = len(q_list[0])
 if len(joint_angles_names) != num_values:
     raise ValueError(f"joint_angles_names has {len(joint_angles_names)} entries but q has {num_values} DOFs.")
 
-# df = pd.DataFrame(q_list, columns=joint_angles_names)
-# csv_file = os.path.join(rt_cosmik_path, f"output/{no_trial}/{task}/q_cosmik.csv")
-# df.to_csv(csv_file, index=False)
+df = pd.DataFrame(q_list, columns=joint_angles_names)
+csv_file = os.path.join(rt_cosmik_path, f"output/{no_trial}/cosmik_2cams/{task}/q_cosmik_finetuned.csv")
+df.to_csv(csv_file, index=False)
 
 
 

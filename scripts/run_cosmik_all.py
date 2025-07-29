@@ -11,7 +11,7 @@ import pandas as pd
 from src.rtcosmik.camera.cam_utils import load_camera_parameters, load_world_transformation, load_four_camera_parameters
 from src.rtcosmik.triangulation.triangulation import triangulate_offline,triangulate_points_adaptive
 from src.rtcosmik.augmenter.marker_augmenter import augmentTRC, loadModel
-from src.rtcosmik.utils.read_write_utils import read_mmpose_file, save_to_csv, load_transformation, transform_keypoints_list_cam0_to_mocap,read_mmpose_scores
+from src.rtcosmik.utils.read_write_utils import read_mmpose_file,read_mmpose_file_clean, save_to_csv, load_transformation, transform_keypoints_list_cam0_to_mocap,read_mmpose_scores
 from src.rtcosmik.utils.linear_algebra_utils import butterworth_filter
 
 import pinocchio as pin
@@ -25,20 +25,18 @@ from src.rtcosmik.ik.ik import RT_IK
 import gepetto as gep
 base_path = "/root/workspace/ros_ws/src/rt-cosmik"
 # === Configuration ===
-nbr_cam = 4
-no_trial = "Anastasia"
+nbr_cam = 2
+no_trial = "Mohamed"
 # === Subject physical info for LSTM ===
-subject_mass =57.0
-subject_height = 1.65
-gender='female'
+subject_mass =95.0
+subject_height = 1.80
+gender='male'
+task_list = ["bolting"]
 
-task_list = ["bolting","bolting_sat","crouch","crouch_object","hitting","hitting_sat","jump","lifting","lifting_fast","lower","overhead"
-             "robot_sanding","robot_welding",
-             "sanding","sanding_sat","sit_to_stand","squat","static","upper","walk","walk_front","welding","welding_sat"]
-
+# task_list = ['bolting_sat',"hitting_sat","overhead","sanding_sat","welding_sat","robot_sanding","robot_welding"]
 
 augmenter_path = os.path.join(base_path, "src/rtcosmik/augmenter/augmentation_model")
-transformation_file = f"{base_path}//config/cam_params/Maxime/calib_mocap_2_cam0/soder.txt"
+transformation_file = f"{base_path}//config/cam_params/{no_trial}/calib_mocap_2_cam0/soder.txt"
 
 
 # === Marker headers ===
@@ -233,7 +231,7 @@ def run_ik_pipeline(augmented_csv_path, keypoints_csv_path, meshes_folder_path, 
 
     #save mks est
     df = pd.DataFrame(M_model_list)
-    csv_file = os.path.join(output_path,f"mks_model_cosmik_{nbr_cam}.csv") 
+    csv_file = os.path.join(output_path,f"mks_model_cosmik_{nbr_cam}_finetuned.csv") 
     df.to_csv(csv_file, index=False)
 
     #save angles
@@ -255,7 +253,7 @@ def run_ik_pipeline(augmented_csv_path, keypoints_csv_path, meshes_folder_path, 
 
     #save joint angles
     df = pd.DataFrame(q_list, columns=joint_angles_names)    
-    csv_file = os.path.join(output_path, f"q_cosmik_ipopt_{nbr_cam}.csv")
+    csv_file = os.path.join(output_path, f"q_cosmik_ipopt_{nbr_cam}_finetuned.csv")
     df.to_csv(csv_file, index=False)
     rmse_global = 0
     nb_mks =0 
@@ -281,7 +279,7 @@ def main(task, no_trial, nbr_cam, file_paths, base_path, transformation_file, au
     os.makedirs(output_path, exist_ok=True)
 
     filtered_kpt_path = os.path.join(output_path, f"3d_keypoints_filtered_{nbr_cam}.csv")
-    augmented_output_path = os.path.join(output_path, f"augmented_markers_{nbr_cam}.csv")
+    augmented_output_path = os.path.join(output_path, f"augmented_markers_{nbr_cam}_finetuned.csv")
 
     # === Load MoCap transformation ===
     R_trans, d_trans, s_trans, rms_error = load_transformation(transformation_file)
@@ -295,14 +293,14 @@ def main(task, no_trial, nbr_cam, file_paths, base_path, transformation_file, au
     ]
 
     # === Load camera calibration ===
-    mtxs, dists, projections, rotations, translations = load_four_camera_parameters(config_path)
+    mtxs, dists, projections, rotations, translations = load_camera_parameters(config_path)
     world_R1_cam, world_T1_cam = load_world_transformation(config_path)
 
     # === Triangulate 3D keypoints ===
-    # keypoints_cam0 = triangulate_offline(uvs, mtxs, dists, projections, world_R1_cam, world_T1_cam)
-    scores = read_mmpose_scores(file_paths)
-    threshold = 0.5
-    keypoints_cam0 = triangulate_points_adaptive(uvs, mtxs, dists, projections, scores, threshold)
+    keypoints_cam0 = triangulate_offline(uvs, mtxs, dists, projections, world_R1_cam, world_T1_cam)
+    # scores = read_mmpose_scores(file_paths)
+    # threshold = 0.6
+    # keypoints_cam0 = triangulate_points_adaptive(uvs, mtxs, dists, projections, scores, threshold)
 
 
     # === Transform to MoCap frame ===
@@ -378,9 +376,7 @@ if __name__ == "__main__":
     for task in task_list:
         file_paths = [
         os.path.join(base_path, f"output/{no_trial}/output_2d/{task}/{task}_camera_0.csv"),
-        os.path.join(base_path, f"output/{no_trial}/output_2d/{task}/{task}_camera_2.csv"),
-        os.path.join(base_path, f"output/{no_trial}/output_2d/{task}/{task}_camera_4.csv"),
-        os.path.join(base_path, f"output/{no_trial}/output_2d/{task}/{task}_camera_6.csv")
+        os.path.join(base_path, f"output/{no_trial}/output_2d/{task}/{task}_camera_2.csv")
     ]
         print(f"\n=== Processing task: {task} ===")
         main(task, no_trial, nbr_cam, file_paths, base_path, transformation_file, augmenter_path, subject_mass, subject_height)

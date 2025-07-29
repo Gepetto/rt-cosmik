@@ -412,6 +412,42 @@ def read_mmpose_file(nom_fichier):
         # print('donnees=',donnees)
     return donnees
 
+def read_mmpose_file_clean(filepath, num_keypoints=26, max_lines=360):
+    """
+    Lit un fichier CSV de keypoints 2D MMPose.
+    - Garde seulement les 26 premiers keypoints (52 colonnes)
+    - Gère les NaNs
+    - Ne lit que les `max_lines` premières lignes
+    - Retourne un tableau (n_frames, num_keypoints, 2)
+    """
+    donnees = []
+    with open(filepath, 'r') as f:
+        for idx, ligne in enumerate(f):
+            if idx >= max_lines:
+                break  # arrêter après max_lines
+
+            ligne = ligne.strip().split(',')  # split par virgule
+            valeurs = ligne[1:]  # ignorer le premier champ (index/timestamp)
+
+            float_vals = []
+            for val in valeurs:
+                try:
+                    float_vals.append(float(val))
+                except ValueError:
+                    float_vals.append(np.nan)
+
+            # Garder seulement les 26 premiers keypoints
+            float_vals = float_vals[:2 * num_keypoints]
+
+            # Compléter si colonne manquante
+            if len(float_vals) < 2 * num_keypoints:
+                float_vals += [np.nan] * (2 * num_keypoints - len(float_vals))
+
+            donnees.append(float_vals)
+
+    data_np = np.array(donnees).reshape(-1, num_keypoints, 2)
+    return data_np
+
 def read_mmpose_scores(liste_fichiers):
     all_scores= []
     for f in liste_fichiers :
@@ -643,7 +679,7 @@ def udp_csv_to_dataframe(csv_path, marker_names):
         lines = f.readlines()
 
     # 2. Skip the header
-    lines = lines[1:]
+    lines = lines[:]
 
     # 3. Prepare all rows
     all_rows = []
@@ -654,7 +690,7 @@ def udp_csv_to_dataframe(csv_path, marker_names):
             continue  # skip empty lines
         parts = line.split(",")
         timestamp = parts[0]
-        udp_values = [float(val) for val in parts[1:]]
+        udp_values = [float(val) for val in parts[2:]]
         all_rows.append(udp_values)
 
     # 4. Now create a dataframe

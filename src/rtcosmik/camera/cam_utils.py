@@ -250,9 +250,9 @@ def load_cam_pose_rpy(filename):
 
 def load_camera_parameters(config_path):
     """Load intrinsic and extrinsic camera parameters."""
-    K1, D1 = load_cam_params(os.path.join(config_path, "c4_params_color.yaml"))
-    K2, D2 = load_cam_params(os.path.join(config_path, "c6_params_color.yaml"))
-    R, T = load_cam_to_cam_params(os.path.join(config_path, "c4_to_c6_params_color.yaml"))
+    K1, D1 = load_cam_params(os.path.join(config_path, "c0_params_color.yaml"))
+    K2, D2 = load_cam_params(os.path.join(config_path, "c2_params_color.yaml"))
+    R, T = load_cam_to_cam_params(os.path.join(config_path, "c0_to_c2_params_color.yaml"))
     return get_cameras_params(K1, D1, K2, D2, R, T)
 
 def load_world_transformation(config_path):
@@ -314,6 +314,5 @@ def load_four_camera_parameters(config_path):
     R1, T1= load_cam_to_cam_params(os.path.join(config_path, "c0_to_c2_params_color.yaml"))
     R2, T2 = load_cam_to_cam_params(os.path.join(config_path, "c0_to_c4_params_color.yaml"))
     R3, T3 = load_cam_to_cam_params(os.path.join(config_path, "c0_to_c6_params_color.yaml"))
-    print(T1)
-    print(T2)
+
     return get_four_cameras_params(K1, D1, K2, D2,K3, D3, K4, D4, R1, T1,R2, T2,R3, T3)

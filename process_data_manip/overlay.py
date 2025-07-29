@@ -39,49 +39,49 @@ def draw_2d_keypoints_on_frame(frame, keypoints_2d, color=(255, 255, 0), scale=4
             cv2.circle(frame, (int(x), int(y)), scale, color, -1)
 
 
-num_cam = 4
+num_cam = 6
 nbr_cam = 2 
-no_trial = "Mathis"
+no_trial = "Anais"
 task = "squat"
 
 #load mks mocap data
-path_to_csv_mocap = f"/root/workspace/ros_ws/src/rt-cosmik/output/{no_trial}/mouv/{task}/mocap_downsampled_to_40hz.csv"
-df_mocap = pd.read_csv(path_to_csv_mocap)
-df_mocap.columns = [col.replace(f"{no_trial}:", "") for col in df_mocap.columns]
+# path_to_csv_mocap = f"/root/workspace/ros_ws/src/rt-cosmik/output/{no_trial}/mouv/{task}/mocap_downsampled_to_40hz.csv"
+# df_mocap = pd.read_csv(path_to_csv_mocap)
+# df_mocap.columns = [col.replace(f"{no_trial}:", "") for col in df_mocap.columns]
 
-frames = df_mocap["Frame"] if "Frame" in df_mocap.columns else range(len(df_mocap))
+# frames = df_mocap["Frame"] if "Frame" in df_mocap.columns else range(len(df_mocap))
 
-# Extract only columns that are marker coordinates (ending in _x, _y, _z)
-coord_cols = [col for col in df_mocap.columns if col.endswith(('_x', '_y', '_z'))]
-df_coords = df_mocap[coord_cols]
-# Sort columns to ensure x, y, z are grouped per marker in consistent order
-# Assumes columns are like: marker1_x, marker1_y, marker1_z, ..., marker53_z
-sorted_cols = sorted(coord_cols, key=lambda name: (name.rsplit('_', 1)[0], name.rsplit('_', 1)[1]))
-df_coords = df_coords[sorted_cols]
-# Identify number of frames and markers
-n_frames = len(df_coords)
-n_markers = len(sorted(set(name.rsplit('_', 1)[0] for name in sorted_cols)))
+# # Extract only columns that are marker coordinates (ending in _x, _y, _z)
+# coord_cols = [col for col in df_mocap.columns if col.endswith(('_x', '_y', '_z'))]
+# df_coords = df_mocap[coord_cols]
+# # Sort columns to ensure x, y, z are grouped per marker in consistent order
+# # Assumes columns are like: marker1_x, marker1_y, marker1_z, ..., marker53_z
+# sorted_cols = sorted(coord_cols, key=lambda name: (name.rsplit('_', 1)[0], name.rsplit('_', 1)[1]))
+# df_coords = df_coords[sorted_cols]
+# # Identify number of frames and markers
+# n_frames = len(df_coords)
+# n_markers = len(sorted(set(name.rsplit('_', 1)[0] for name in sorted_cols)))
 
-n_frames = len(df_mocap)
-# Reshape into [n_frames, n_markers, 3]
-marker_data_mocap = df_coords.values.reshape(n_frames, n_markers, 3)
-marker_data_mocap /= 1000.0 #convert de m
-#####################################################################################################################for mks_data received with udp
-# path_to_csv_mocap = f"/root/workspace/ros_ws/src/rt-cosmik/output/{no_trial}/mouv/{task}/mks_data.csv"
-# marker_mocap_names = ['r.ASIS_study','L.ASIS_study','r.PSIS_study','L.PSIS_study',
-#              'TV8','TV12','SJN','STRN','C7_study','r_shoulder_study','L_shoulder_study',
-#              'BHD','RHD','LHD','FHD',
-#              'L_lelbow_study','L_melbow_study','LUArm','L_lwrist_study','L_mwrist_study','LForearm','LHand','LHL2','LHM5',
-#              'r_lelbow_study','r_melbow_study','RUArm','r_lwrist_study','r_mwrist_study','RForearm','RHand','RHL2','RHM5',
-#              'L_thigh1_study','L_knee_study','L_mknee_study','L_sh1_study','L_ankle_study','L_mankle_study','L_calc_study','L_5meta_study','L_toe_study',
-#              'r_thigh1_study','r_knee_study','r_mknee_study','r_sh1_study',
-#              'r_ankle_study','r_mankle_study','r_calc_study','r_5meta_study','r_toe_study',
-#              'r_pelvis', 'l_pelvis']
-# df_mocap = udp_csv_to_dataframe(path_to_csv_mocap, marker_mocap_names)
-# assert df_mocap.shape[1] == len(marker_mocap_names) * 3
 # n_frames = len(df_mocap)
 # # Reshape into [n_frames, n_markers, 3]
-# marker_data_mocap = df_mocap.values.reshape(n_frames, len(marker_mocap_names), 3)
+# marker_data_mocap = df_coords.values.reshape(n_frames, n_markers, 3)
+# marker_data_mocap /= 1000.0 #convert de m
+#####################################################################################################################for mks_data received with udp
+path_to_csv_mocap = f"/root/workspace/ros_ws/src/rt-cosmik/output/{no_trial}/mouv/{task}/mks_data.csv"
+marker_mocap_names = ['r.ASIS_study','L.ASIS_study','r.PSIS_study','L.PSIS_study',
+             'TV8','TV12','SJN','STRN','C7_study','r_shoulder_study','L_shoulder_study',
+             'BHD','RHD','LHD','FHD',
+             'L_lelbow_study','L_melbow_study','LUArm','L_lwrist_study','L_mwrist_study','LForearm','LHand','LHL2','LHM5',
+             'r_lelbow_study','r_melbow_study','RUArm','r_lwrist_study','r_mwrist_study','RForearm','RHand','RHL2','RHM5',
+             'L_thigh1_study','L_knee_study','L_mknee_study','L_sh1_study','L_ankle_study','L_mankle_study','L_calc_study','L_5meta_study','L_toe_study',
+             'r_thigh1_study','r_knee_study','r_mknee_study','r_sh1_study',
+             'r_ankle_study','r_mankle_study','r_calc_study','r_5meta_study','r_toe_study',
+             'r_pelvis', 'l_pelvis']
+df_mocap = udp_csv_to_dataframe(path_to_csv_mocap, marker_mocap_names)
+assert df_mocap.shape[1] == len(marker_mocap_names) * 3
+n_frames = len(df_mocap)
+# Reshape into [n_frames, n_markers, 3]
+marker_data_mocap = df_mocap.values.reshape(n_frames, len(marker_mocap_names), 3)
 
 
 
@@ -175,16 +175,16 @@ while cap.isOpened():
     if not ret or frame_idx >= len(marker_data_lstm):
         break
 
-    points3d = marker_data_lstm[frame_idx]  # (43, 3)
-    project_and_draw_markers(frame, points3d, rvec, tvec, K, D, (0, 255, 0), scale=4, units_factor=1.0)
+    # points3d = marker_data_lstm[frame_idx]  # (43, 3)
+    # project_and_draw_markers(frame, points3d, rvec, tvec, K, D, (0, 255, 0), scale=4, units_factor=1.0)
 
-    points3d = marker_data_kpts[frame_idx]
-    project_and_draw_markers(frame, points3d, rvec, tvec, K, D, (0, 0, 255), scale=4, units_factor=1.0)
+    # points3d = marker_data_kpts[frame_idx]
+    # project_and_draw_markers(frame, points3d, rvec, tvec, K, D, (0, 0, 255), scale=4, units_factor=1.0)
 
     points3d = marker_data_mocap[frame_idx]
     project_and_draw_markers(frame, points3d, rvec, tvec, K, D, (255, 0, 0), scale=2, units_factor=1.0)
 
-    draw_2d_keypoints_on_frame(frame, kpt_2d[frame_idx], color=(255, 255, 0), scale=3)
+    # draw_2d_keypoints_on_frame(frame, kpt_2d[frame_idx], color=(255, 255, 0), scale=3)
 
     writer.write(frame)
     cv2.imshow("Overlay", frame)

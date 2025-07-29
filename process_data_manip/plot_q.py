@@ -6,12 +6,12 @@ from src.rtcosmik.config_loader import settings
 from src.rtcosmik.utils.read_write_utils import read_mks_data, marker_data_to_dataframe,read_joint_angles_wholebody,read_specific_joint
 from scipy.spatial.transform import Rotation as R
 
-no_trial = "Maxime"
-task = "squat"
-path_mocap= f"/root/workspace/ros_ws/src/rt-cosmik/output/{no_trial}/{task}/q_mocap_joints_fixed.csv"
+no_trial = "Mohamed"
+task = "jump"
+path_mocap= f"/root/workspace/ros_ws/src/rt-cosmik/output/{no_trial}/mocap/{task}/q_mocap.csv"
 
-path_cosmik= f"/root/workspace/ros_ws/src/rt-cosmik/output/{no_trial}/cosmik_2cams/{task}/q_cosmik_ipopt_2_mocap_new.csv" 
-# path_cosmik= f"/root/workspace/ros_ws/src/rt-cosmik/output/{no_trial}/cosmik_2cams/{task}/q_cosmik_ipopt_2.csv"
+# path_cosmik= f"/root/workspace/ros_ws/src/rt-cosmik/output/{no_trial}/cosmik_4cams/{task}/q_cosmik_ipopt_4.csv" 
+path_cosmik= f"/root/workspace/ros_ws/src/rt-cosmik/output/{no_trial}/cosmik_2cams/{task}/q_cosmik_ipopt_2.csv"
 
 dofs  =  ['Lhip_flex_ext', 'Lhip_abd_add','Lhip_int_ext_rot','Lknee_flex_ext','Lankle_flex_ext','Lankle_abd_add',
                           'Lumbar_flex_ext', 'Lumbar_lateral_flex',
@@ -82,6 +82,10 @@ excluded_joints = ['Lwrist_flex_ext', 'Lwrist_x', 'Rwrist_flex_ext', 'Rwrist_x']
 # Filter the indices of joints to include
 joint_indices = [i for i in range(start_dof, len(dof)) if dof[i] not in excluded_joints]
 n_per_fig = 6  # Number of subplots per figure
+
+q_cosmik = q_cosmik[0:]
+q_mocap = q_mocap[:len(q_cosmik)]  # truncate Cosmik accordingly
+
 
 for j, i in enumerate(joint_indices):
     name = dof[i]

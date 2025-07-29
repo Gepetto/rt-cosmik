@@ -1,14 +1,15 @@
+import os
 import pandas as pd
 import numpy as np
-from src.rtcosmik.utils.read_write_utils import read_mks_data, udp_csv_to_dataframe,marker_data_to_dataframe
+from src.rtcosmik.utils.read_write_utils import read_mks_data, udp_csv_to_dataframe, marker_data_to_dataframe
 from src.rtcosmik.config_loader import settings
 import matplotlib.pyplot as plt
 from scipy.interpolate import CubicSpline
 
-no_trial = "Maxime"
-task = "welding_sat"
-path_to_csv = f"/root/workspace/ros_ws/src/rt-cosmik/output/{no_trial}/{task}/mks_data.csv"
-output_csv = f"/root/workspace/ros_ws/src/rt-cosmik/output/{no_trial}/{task}/mks_data_gapfilled.csv"
+no_trial = "Zoe"
+tasks_list = ["bolting","bolting_sat","crouch","crouch_object","hitting","hitting_sat","jump","lifting","lifting_fast","lower","overhead",
+             "robot_sanding","robot_welding",
+             "sanding","sanding_sat","sit_to_stand","squat","static","upper","walk","walk_front","welding","welding_sat"]
 mks_names = settings.marker_mocap_names
 
 def fill_gaps_with_spline(df, time_col=None):
@@ -31,16 +32,6 @@ def fill_gaps_with_spline(df, time_col=None):
 
 
 def plot_marker_trajectories(df_wide, marker_names, filled_df):
-    """
-    For each marker, plot 6 subplots in a figure:
-    - 3 subplots for original x, y, z
-    - 3 subplots for filled x, y, z
-
-    Parameters:
-        df_wide (pd.DataFrame): Original marker data with columns marker_x, marker_y, marker_z.
-        marker_names (list): List of marker base names.
-        filled_df (pd.DataFrame): Interpolated marker data.
-    """
     for marker in marker_names:
         fig, axes = plt.subplots(3, 2, figsize=(12, 8), sharex=True)
         axes_labels = ['x', 'y', 'z']
@@ -56,7 +47,7 @@ def plot_marker_trajectories(df_wide, marker_names, filled_df):
             axes[i, 0].grid(True)
 
             # Filled
-            axes[i, 1].plot(filled_df.index, filled_df[col],color='r',label=f'Filled {axis}')
+            axes[i, 1].plot(filled_df.index, filled_df[col], color='r', label=f'Filled {axis}')
             axes[i, 1].legend()
             axes[i, 1].grid(True)
 
@@ -67,19 +58,33 @@ def plot_marker_trajectories(df_wide, marker_names, filled_df):
         plt.show()
 
 
+for task in tasks_list:
+    print(f"\nProcessing task: {task}")
+    
+    path_to_csv = f"/root/workspace/ros_ws/src/rt-cosmik/output/{no_trial}/mouv/{task}/mks_data.csv"
+    output_csv = f"/root/workspace/ros_ws/src/rt-cosmik/output/{no_trial}/mocap/{task}/mks_data_gapfilled.csv"
 
-df_wide = udp_csv_to_dataframe(path_to_csv, mks_names)
-print(len(df_wide))
-# Gap filling step
-df_wide_filled = fill_gaps_with_spline(df_wide)
-print(len(df_wide_filled))
-# plot_marker_trajectories(df_wide, mks_names,filled_df=df_wide_filled)
-# Continue with marker reconstruction
-# result_markers, start_sample_mks = read_mks_data(df_wide_filled)
+    if not os.path.exists(path_to_csv):
+        print(f" CSV file not found for task {task}, skipping...")
+        continue
 
-df_to_save = pd.concat(
-    [pd.Series(df_wide_filled.index, name='timestamp'), df_wide_filled],
-    axis=1
-)
-print(len(df_to_save))
-df_to_save.to_csv(output_csv, header=False)
+    os.makedirs(os.path.dirname(output_csv), exist_ok=True)
+
+    # Load data
+    df_wide = udp_csv_to_dataframe(path_to_csv, mks_names)
+    print(f"Original length: {len(df_wide)}")
+
+    # Gap filling
+    df_wide_filled = fill_gaps_with_spline(df_wide)
+    print(f"Filled length: {len(df_wide_filled)}")
+
+    # Optional: Plot
+    # plot_marker_trajectories(df_wide, mks_names, filled_df=df_wide_filled)
+
+    # Save
+    df_to_save = pd.concat(
+        [pd.Series(df_wide_filled.index, name='timestamp'), df_wide_filled],
+        axis=1
+    )
+    df_to_save.to_csv(output_csv, header=False)
+    print(f"Saved gap-filled data to {output_csv}")

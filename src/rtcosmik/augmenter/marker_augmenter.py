@@ -158,6 +158,7 @@ def augmentTRC(keypoints_buffer, subject_mass, subject_height,
         # inference
         input_name = model.get_inputs()[0].name
         outputs = model.run(None, {input_name: inputs.astype(np.float32)})
+        # print("Raw model output shape:", outputs[0].shape)
 
         outputs = outputs[0]
         #Post-process the outputs
