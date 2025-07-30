@@ -163,7 +163,7 @@ for m in mks_of_interest_upper:
     idx = marker_idx[m]
     feat_indices += [idx*3 + d for d in (0,1,2)]
 
-projection = TimeDistributed(Dense(63), name="denseprojection")(base.output)
+projection = TimeDistributed(Dense(24), name="denseprojection")(base.output)
 # Final model
 model = Model(inputs=base.input, outputs=projection)
 model.summary()
