@@ -13,6 +13,7 @@ from tensorflow.keras.callbacks import EarlyStopping
 from sklearn.model_selection import train_test_split
 from tensorflow.keras.callbacks import ModelCheckpoint
 from tensorflow.keras.layers import Layer
+from tensorflow.keras.layers import TimeDistributed, Dense
 
 # add project root to path so we can import utils
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
@@ -72,24 +73,24 @@ def listdicts_to_array(ld, names):
             arr[i, j, :] = frame[key]
     return arr
 
-class LastTimeStep(Layer):
-    def call(self, x):
-        return x[:, -1, :]
+# class LastTimeStep(Layer):
+#     def call(self, x):
+#         return x[:, -1, :]
 
-class SelectFeatures(Layer):
-    def __init__(self, indices, **kwargs):
-        super().__init__(**kwargs)
-        self.indices = indices
+# class SelectFeatures(Layer):
+#     def __init__(self, indices, **kwargs):
+#         super().__init__(**kwargs)
+#         self.indices = indices
 
-    def call(self, x):
-        return tf.gather(x, self.indices, axis=1)
+#     def call(self, x):
+#         return tf.gather(x, self.indices, axis=1)
     
-    def get_config(self):
-        config = super(SelectFeatures, self).get_config()
-        config.update({
-            "indices": self.indices
-        })
-        return config
+#     def get_config(self):
+#         config = super(SelectFeatures, self).get_config()
+#         config.update({
+#             "indices": self.indices
+#         })
+#         return config
     
 
 # === Load data ===
@@ -177,9 +178,9 @@ for m in mks_of_interest_lower:
     feat_indices += [idx*3 + d for d in (0,1,2)]
 
 # ====== Set LSTM to output only last-step (last vector of the predicted window), then only with the markers of interest
-last_step = LastTimeStep(name="last_step")(base.output)
-lower_out = SelectFeatures(feat_indices, name="lower_body")(last_step)
-model = Model(inputs=base.input, outputs=lower_out)
+projection = TimeDistributed(Dense(63), name="denseprojection")(base.output)
+# Final model
+model = Model(inputs=base.input, outputs=projection)
 model.summary()
 model.compile(optimizer=Adam(learning_rate), loss='mse')
 
@@ -197,7 +198,6 @@ for ind_subject, chgt_subject_index in enumerate(chgt_subject_indexes):
     for ind_trial, chgt_trial_index in enumerate(chgt_trial_indexes):
         for start in range(0, chgt_trial_index - seq_len + 1):
             kbuf = kpts_arr[start:start+seq_len]            # (seq_len, 15, 3)
-            mbuf = mocap_arr[start+seq_len-1]               # (M, 3)
 
             # compute mid-hip as average of RHip and LHip
             ref = (kbuf[:, idx_RHip, :] + kbuf[:, idx_LHip, :]) / 2
@@ -226,10 +226,12 @@ for ind_subject, chgt_subject_index in enumerate(chgt_subject_indexes):
             X.append(inp)
             # build target for markers_of_interest
             sel = [total_markers.index(m) for m in mks_of_interest_lower]
-            y.append(mbuf[sel].reshape(-1))
+            # For full sequence prediction, collect 30 time steps of GT
+            ybuf = mocap_arr[start:start+seq_len, sel, :]  # shape (30, 21, 3)
+            y.append(ybuf.reshape(seq_len, -1))  # shape (30, 63)
 
 X = np.stack(X)
-y = np.stack(y)
+y = np.stack(y) # final shape: (N, 30, 63)
 
 # train/val split
 X_train, X_val, y_train, y_val = train_test_split(
