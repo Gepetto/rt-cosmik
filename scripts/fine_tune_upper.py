@@ -14,14 +14,47 @@ from sklearn.model_selection import train_test_split
 from tensorflow.keras.callbacks import ModelCheckpoint
 from tensorflow.keras.layers import Layer
 from tensorflow.keras.layers import TimeDistributed, Dense
+import argparse
 
 # add project root to path so we can import utils
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 from src.rtcosmik.utils.read_write_utils import udp_csv_to_dataframe, read_mks_data, default_mocap_mks_names
 
+# === Args ===
+parser = argparse.ArgumentParser(description='LSTM retraining/finetuning arguments')
+parser.add_argument('--data-path',
+                        help='data path',
+                        dest='data_path',
+                        default='',
+                        type=str)
+parser.add_argument('--pretrained-path',
+                        help='pretrained path',
+                        dest='pretrained_path',
+                        default='',
+                        type=str)
+parser.add_argument("--shuffle",
+                        help="shuffle data or not",
+                        dest="shuffle",
+                        default=True,
+                        type=bool)
+parser.add_argument("--fine-tune",
+                        help="Fine tune or retrain",
+                        dest="fine_tune",
+                        default=True,
+                        type=bool)
+parser.add_argument("--add-layer",
+                        help="Add a final layer or not",
+                        dest="add_layer",
+                        default=True,
+                        type=bool)
+opt = parser.parse_args()
+
 # === Hyperparams ===
-data_dir       = sys.argv[1]  # Path to the directory containing subject data
-pretrained_dir = sys.argv[2]  # Path to the pretrained model directory
+data_dir = opt.data_path
+pretrained_dir = opt.pretrained_path
+shuffle = opt.shuffle
+fine_tune = opt.fine_tune
+add_layer = opt.add_layer
 json_path      = os.path.join(pretrained_dir, "model.json")
 weights_path   = os.path.join(pretrained_dir, "weights.h5")
 
@@ -55,26 +88,6 @@ def listdicts_to_array(ld, names):
         for j, key in enumerate(names):
             arr[i, j, :] = frame[key]
     return arr
-
-# class LastTimeStep(Layer):
-#     def call(self, x):
-#         return x[:, -1, :]
-
-# class SelectFeatures(Layer):
-#     def __init__(self, indices, **kwargs):
-#         super().__init__(**kwargs)
-#         self.indices = indices
-
-#     def call(self, x):
-#         return tf.gather(x, self.indices, axis=1)
-    
-#     def get_config(self):
-#         config = super(SelectFeatures, self).get_config()
-#         config.update({
-#             "indices": self.indices
-#         })
-#         return config
-
 
 # === Load data ===
 df_inputs = pd.DataFrame()
@@ -150,6 +163,13 @@ with open(json_path, 'r') as f:
     base = model_from_json(f.read())
 base.load_weights(weights_path)
 
+if fine_tune:
+    # ❄️ Freeze tous les layers du modèle de base
+    for layer in base.layers[:-1]:
+        layer.trainable = False
+    if add_layer:
+        base.layers[-1].trainable = False
+
 # fixed sequence length used in original training
 seq_len = 30
 # total output dims (unused directly)
@@ -163,7 +183,8 @@ for m in mks_of_interest_upper:
     idx = marker_idx[m]
     feat_indices += [idx*3 + d for d in (0,1,2)]
 
-projection = TimeDistributed(Dense(24), name="denseprojection")(base.output)
+if add_layer:
+    projection = TimeDistributed(Dense(24), name="denseprojection")(base.output)
 # Final model
 model = Model(inputs=base.input, outputs=projection)
 model.summary()
@@ -231,7 +252,8 @@ dataset = tf.data.Dataset.from_generator(
 total_samples = sum(1 for _ in dataset)
 train_size = int((1 - test_size) * total_samples)
 
-dataset = dataset.shuffle(buffer_size=total_samples, reshuffle_each_iteration=True)
+if shuffle:
+    dataset = dataset.shuffle(buffer_size=total_samples, reshuffle_each_iteration=True)
 
 train_dataset = dataset.take(train_size).batch(batch_size).prefetch(tf.data.AUTOTUNE)
 val_dataset   = dataset.skip(train_size).batch(batch_size).prefetch(tf.data.AUTOTUNE)
