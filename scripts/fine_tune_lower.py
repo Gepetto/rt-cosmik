@@ -155,6 +155,9 @@ kpts_list, _ = read_mks_data(kpts_df)
 # Convert to numpy arrays
 total_markers = default_mocap_mks_names
 T = len(kpts_list)
+mid_arr = np.zeros((T, 3), dtype=np.float32)
+for i, frame in enumerate(kpts_list):
+    mid_arr[i] = frame['midHip']
 
 kpts_arr  = listdicts_to_array(kpts_list, kpts_input_lstm)
 mocap_arr = listdicts_to_array(mocap_list, total_markers)
@@ -192,53 +195,68 @@ with open(os.path.join(pretrained_dir, "model_finetuned.json"), "w") as f:
 idx_RHip = kpts_input_lstm.index('RHip')
 idx_LHip = kpts_input_lstm.index('LHip')
 
-# === Prepare X, y ===
-X, y = [], []
-for ind_subject, chgt_subject_index in enumerate(chgt_subject_indexes):
-    for ind_trial, chgt_trial_index in enumerate(chgt_trial_indexes):
-        for start in range(0, chgt_trial_index - seq_len + 1):
-            kbuf = kpts_arr[start:start+seq_len]            # (seq_len, 15, 3)
+def data_generator(kpts_arr, mocap_arr, mid_arr, subject_heights, subject_weights,
+                   chgt_subject_indexes, chgt_trial_indexes, seq_len, mks_of_interest_upper):
+    
+    start_subject = 0
+    for ind_subject, end_subject in enumerate(chgt_subject_indexes):
+        height = subject_heights[ind_subject]
+        weight = subject_weights[ind_subject]
 
-            # compute mid-hip as average of RHip and LHip
-            ref = (kbuf[:, idx_RHip, :] + kbuf[:, idx_LHip, :]) / 2
+        subject_kpts = kpts_arr[start_subject:end_subject]
+        subject_mocap = mocap_arr[start_subject:end_subject]
+        subject_mid = mid_arr[start_subject:end_subject]
 
-            # center all keypoints by ref
-            norm = kbuf - ref[:, None, :]
-            norm2 = norm / subjects_metadata["height"][ind_subject]  # subject_height (TODO: load per-subject)
+        start_trial = 0
+        for _, end_trial in enumerate([i for i in chgt_trial_indexes if i <= end_subject]):
+            for start in range(0, end_trial - start_trial - seq_len + 1):
+                kbuf = subject_kpts[start:start+seq_len]
+                # mbuf = subject_mocap[start+seq_len-1]
+                ref = subject_mid[start:start+seq_len]
 
-            # flatten sequence + features
-            inp = norm2.reshape(seq_len, -1)
-            # append height & mass features
-            inp = np.concatenate([
-                inp,
-                np.full((seq_len,1), subjects_metadata["height"][ind_subject]),  # height
-                np.full((seq_len,1), subjects_metadata["weight"][ind_subject])    # mass
-            ], axis=1)
+                norm  = kbuf - ref[:, None, :]
+                norm2 = norm / height
+                inp = norm2.reshape(seq_len, -1)
+                inp = np.concatenate([
+                    inp,
+                    np.full((seq_len,1), height),
+                    np.full((seq_len,1), weight)
+                ], axis=1)
 
-            # apply pretrained mean/std
-            mean_p = os.path.join(pretrained_dir, "mean.npy")
-            std_p  = os.path.join(pretrained_dir, "std.npy")
-            if os.path.isfile(mean_p):
-                inp -= np.load(mean_p)
-            if os.path.isfile(std_p):
-                inp /= np.load(std_p)
+                # Apply normalization if files exist
+                if os.path.isfile(os.path.join(pretrained_dir, "mean.npy")):
+                    inp -= np.load(os.path.join(pretrained_dir, "mean.npy"))
+                if os.path.isfile(os.path.join(pretrained_dir, "std.npy")):
+                    inp /= np.load(os.path.join(pretrained_dir, "std.npy"))
 
-            X.append(inp)
-            # build target for markers_of_interest
-            sel = [total_markers.index(m) for m in mks_of_interest_lower]
-            # For full sequence prediction, collect 30 time steps of GT
-            ybuf = mocap_arr[start:start+seq_len, sel, :]  # shape (30, 21, 3)
-            y.append(ybuf.reshape(seq_len, -1))  # shape (30, 63)
+                sel = [default_mocap_mks_names.index(m) for m in mks_of_interest_upper]
+                ybuf = subject_mocap[start:start+seq_len, sel, :]
+                out = ybuf.reshape(seq_len, -1)
 
-X = np.stack(X)
-y = np.stack(y) # final shape: (N, 30, 63)
+                yield inp.astype(np.float32), out.astype(np.float32)
+            
+            start_trial = end_trial
+        start_subject = end_subject
 
-# train/val split
-X_train, X_val, y_train, y_val = train_test_split(
-    X, y, test_size=test_size,
-    random_state=random_state, shuffle=True
+output_signature = (
+    tf.TensorSpec(shape=(seq_len, kpts_arr.shape[2]*len(kpts_input_lstm)+2), dtype=tf.float32),
+    tf.TensorSpec(shape=(seq_len, 3*len(mks_of_interest_lower)), dtype=tf.float32)
 )
 
+dataset = tf.data.Dataset.from_generator(
+    lambda: data_generator(kpts_arr, mocap_arr, mid_arr, subjects_metadata["height"],
+                           subjects_metadata["weight"], chgt_subject_indexes,
+                           chgt_trial_indexes, seq_len, mks_of_interest_lower),
+    output_signature=output_signature
+)
+
+total_samples = sum(1 for _ in dataset)
+train_size = int((1 - test_size) * total_samples)
+
+dataset = dataset.shuffle(buffer_size=total_samples, reshuffle_each_iteration=True)
+
+train_dataset = dataset.take(train_size).batch(batch_size).prefetch(tf.data.AUTOTUNE)
+val_dataset   = dataset.skip(train_size).batch(batch_size).prefetch(tf.data.AUTOTUNE)
 # === Train ===
 checkpoint = ModelCheckpoint(
     filepath=os.path.join(pretrained_dir, "best_finetuned_weights.h5"),    
@@ -249,12 +267,12 @@ checkpoint = ModelCheckpoint(
 )
 es = EarlyStopping(monitor='val_loss', patience=patience, restore_best_weights=True)
 history = model.fit(
-    X_train, y_train,
-    validation_data=(X_val, y_val),
-    batch_size=batch_size,
+    train_dataset,
+    validation_data=val_dataset,
     epochs=epochs,
     callbacks=[es, checkpoint]
 )
+
 
 # Save fine-tuned weights
 model.save_weights(os.path.join(pretrained_dir, "weights_finetuned.h5"))
