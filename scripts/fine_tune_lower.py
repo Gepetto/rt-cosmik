@@ -209,7 +209,7 @@ model.summary()
 model.compile(optimizer=Adam(learning_rate), loss='mse')
 
 # Sauvegarde de l'architecture dans un fichier JSON
-with open(os.path.join(pretrained_dir, "model_finetuned.json"), "w") as f:
+with open(os.path.join(pretrained_dir, f"model_finetuned_s{shuffle}_ft{fine_tune}_al{add_layer}.json"), "w") as f:
     f.write(model.to_json())
 
 # indices for RHip/LHip in our kpts_input_lstm list
@@ -282,7 +282,7 @@ val_dataset   = dataset.skip(train_size).batch(batch_size).prefetch(tf.data.AUTO
 
 # === Train ===
 checkpoint = ModelCheckpoint(
-    filepath=os.path.join(pretrained_dir, "best_finetuned_weights.h5"),    
+    filepath=os.path.join(pretrained_dir, f"best_finetuned_weights_s{shuffle}_ft{fine_tune}_al{add_layer}.h5"),    
     monitor="val_loss",
     save_best_only=True,
     save_weights_only=True,            # True si tu veux sauvegarder seulement les poids
@@ -298,5 +298,5 @@ history = model.fit(
 
 
 # Save fine-tuned weights
-model.save_weights(os.path.join(pretrained_dir, "weights_finetuned.h5"))
+model.save_weights(os.path.join(pretrained_dir, f"weights_finetuned_s{shuffle}_ft{fine_tune}_al{add_layer}.h5"))
 print("Fine-tuning complete. Saved to weights_finetuned.h5")
