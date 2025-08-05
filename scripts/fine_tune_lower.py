@@ -57,6 +57,11 @@ parser.add_argument("--add-layer",
                     dest="add_layer",
                     type=str2bool,
                     default=True)
+parser.add_argument("--mean-perso",
+                    help="Use mean and std perso or not",
+                    dest="mean_perso",
+                    type=str2bool,
+                    default=True)
 opt = parser.parse_args()
 
 # === Hyperparams ===
@@ -65,6 +70,7 @@ pretrained_dir = opt.pretrained_path
 shuffle = opt.shuffle
 fine_tune = opt.fine_tune
 add_layer = opt.add_layer
+mean_perso = opt.mean_perso
 json_path      = os.path.join(pretrained_dir, "model.json")
 weights_path   = os.path.join(pretrained_dir, "weights.h5")
 
@@ -219,7 +225,7 @@ model.summary()
 model.compile(optimizer=Adam(learning_rate), loss='mse')
 
 # Sauvegarde de l'architecture dans un fichier JSON
-with open(os.path.join(pretrained_dir, f"model_finetuned_s{shuffle}_ft{fine_tune}_al{add_layer}.json"), "w") as f:
+with open(os.path.join(pretrained_dir, f"model_finetuned_s{shuffle}_ft{fine_tune}_al{add_layer}_mp{mean_perso}.json"), "w") as f:
     f.write(model.to_json())
 
 # indices for RHip/LHip in our kpts_input_lstm list
@@ -255,16 +261,28 @@ def data_generator(kpts_arr, mocap_arr, mid_arr, subject_heights, subject_weight
                 ], axis=1)
 
                 # Apply normalization if files exist
-                if os.path.isfile(os.path.join(pretrained_dir, "mean_perso.npy")):
-                    mean = np.load(os.path.join(pretrained_dir, "mean_perso.npy"), allow_pickle=True)
-                    inp -= mean
-                else :
-                    raise Exception("Mean perso file does not exists.")
-                if os.path.isfile(os.path.join(pretrained_dir, "std_perso.npy")):
-                    std = np.load(os.path.join(pretrained_dir, "std_perso.npy"), allow_pickle=True)
-                    inp /= std
-                else :
-                    raise Exception("Std perso file does not exists.")
+                if mean_perso:
+                    if os.path.isfile(os.path.join(pretrained_dir, "mean_perso.npy")):
+                        mean = np.load(os.path.join(pretrained_dir, "mean_perso.npy"), allow_pickle=True)
+                        inp -= mean
+                    else :
+                        raise Exception("Mean perso file does not exists.")
+                    if os.path.isfile(os.path.join(pretrained_dir, "std_perso.npy")):
+                        std = np.load(os.path.join(pretrained_dir, "std_perso.npy"), allow_pickle=True)
+                        inp /= std
+                    else :
+                        raise Exception("Std perso file does not exists.")
+                else:
+                    if os.path.isfile(os.path.join(pretrained_dir, "mean.npy")):
+                        mean = np.load(os.path.join(pretrained_dir, "mean.npy"), allow_pickle=True)
+                        inp -= mean
+                    else :
+                        raise Exception("Mean perso file does not exists.")
+                    if os.path.isfile(os.path.join(pretrained_dir, "std.npy")):
+                        std = np.load(os.path.join(pretrained_dir, "std.npy"), allow_pickle=True)
+                        inp /= std
+                    else :
+                        raise Exception("Std perso file does not exists.")
 
                 sel = [default_mocap_mks_names.index(m) for m in mks_of_interest_upper]
                 ybuf = subject_mocap[start:start+seq_len, sel, :]
@@ -300,7 +318,7 @@ val_dataset   = dataset.skip(train_size).batch(batch_size).prefetch(tf.data.AUTO
 
 # === Train ===
 checkpoint = ModelCheckpoint(
-    filepath=os.path.join(pretrained_dir, f"best_finetuned_weights_s{shuffle}_ft{fine_tune}_al{add_layer}.h5"),    
+    filepath=os.path.join(pretrained_dir, f"best_finetuned_weights_s{shuffle}_ft{fine_tune}_al{add_layer}_mp{mean_perso}.h5"),    
     monitor="val_loss",
     save_best_only=True,
     save_weights_only=True,            # True si tu veux sauvegarder seulement les poids
@@ -316,5 +334,5 @@ history = model.fit(
 
 
 # Save fine-tuned weights
-model.save_weights(os.path.join(pretrained_dir, f"weights_finetuned_s{shuffle}_ft{fine_tune}_al{add_layer}.h5"))
+model.save_weights(os.path.join(pretrained_dir, f"weights_finetuned_s{shuffle}_ft{fine_tune}_al{add_layer}_mp{mean_perso}.h5"))
 print("Fine-tuning complete. Saved to weights_finetuned.h5")
