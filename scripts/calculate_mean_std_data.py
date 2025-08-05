@@ -30,19 +30,18 @@ data_dir = opt.data_path
 pretrained_dir = opt.pretrained_path
 
 # === Marker / keypoint names (upper limb) ===
-kpts_input_lstm = [
+kpts_input_upper_lstm = [
     'Neck', 'RShoulder', 'LShoulder',
     'RElbow', 'LElbow', 'RWrist', 'LWrist'
 ]
-kpts_input_lstm_extended = list(np.array([[f"{m}_x", f"{m}_y", f"{m}_z"] for m in kpts_input_lstm]).flatten())
+kpts_input_upper_lstm_extended = list(np.array([[f"{m}_x", f"{m}_y", f"{m}_z"] for m in kpts_input_upper_lstm]).flatten())
 
-response_markers_upper = [
-    'r_lelbow_study','r_melbow_study','r_lwrist_study','r_mwrist_study',
-    'L_lelbow_study','L_melbow_study','L_lwrist_study','L_mwrist_study'
+kpts_input_lower_lstm = [
+    'Neck','RShoulder','LShoulder','RHip','LHip',
+    'RKnee','LKnee','RAnkle','LAnkle','RHeel',
+    'LHeel','RSmallToe','LSmallToe','RBigToe','LBigToe'
 ]
-response_markers_upper_extended = list(np.array([[f"{m}_x", f"{m}_y", f"{m}_z"] for m in response_markers_upper]).flatten())
-
-mks_of_interest_upper = response_markers_upper.copy()
+kpts_input_lower_lstm_extended = list(np.array([[f"{m}_x", f"{m}_y", f"{m}_z"] for m in kpts_input_lower_lstm]).flatten())
 
 # === Utility converters ===
 def listdicts_to_array(ld, names):
@@ -131,15 +130,23 @@ old_chgt_index = 0
 for ind_subject, chgt_index in enumerate(chgt_subject_indexes):
     df_inputs.iloc[old_chgt_index:chgt_index, :] /= subjects_metadata["height"][ind_subject]
     old_chgt_index = chgt_index
-mean_inputs = df_inputs[kpts_input_lstm_extended].mean().values
-std_inputs = df_inputs[kpts_input_lstm_extended].std().values
+mean_inputs_upper = df_inputs[kpts_input_upper_lstm_extended].mean().values
+std_inputs_upper = df_inputs[kpts_input_upper_lstm_extended].std().values
+mean_inputs_lower = df_inputs[kpts_input_lower_lstm_extended].mean().values
+std_inputs_lower = df_inputs[kpts_input_lower_lstm_extended].std().values
 height_mean = np.mean(subjects_metadata["height"])
 height_std = np.std(subjects_metadata["height"])
 weight_mean = np.mean(subjects_metadata["weight"])
 weight_std = np.std(subjects_metadata["weight"])
-mean_inputs = np.concatenate((mean_inputs, [height_mean, weight_mean]))
-std_inputs = np.concatenate((std_inputs, [height_std, weight_std]))
-print("Mean inputs:", mean_inputs)
-print("Std inputs:", std_inputs)
-np.save(os.path.join(pretrained_dir, "mean_perso.npy"), mean_inputs)
-np.save(os.path.join(pretrained_dir, "std_perso.npy"), std_inputs)
+mean_inputs_upper = np.concatenate((mean_inputs_upper, [height_mean, weight_mean]))
+std_inputs_upper = np.concatenate((std_inputs_upper, [height_std, weight_std]))
+mean_inputs_lower = np.concatenate((mean_inputs_lower, [height_mean, weight_mean]))
+std_inputs_lower = np.concatenate((std_inputs_lower, [height_std, weight_std]))
+print("Mean inputs upper:", mean_inputs_upper)
+print("Std inputs upper:", std_inputs_upper)
+print("Mean inputs lower:", mean_inputs_lower)
+print("Std inputs lower:", std_inputs_lower)
+np.save(os.path.join(pretrained_dir, "v0.3_upper", "mean_perso.npy"), mean_inputs_upper)
+np.save(os.path.join(pretrained_dir, "v0.3_upper", "std_perso.npy"), std_inputs_upper)
+np.save(os.path.join(pretrained_dir, "v0.3_lower", "mean_perso.npy"), mean_inputs_lower)
+np.save(os.path.join(pretrained_dir, "v0.3_lower", "std_perso.npy"), std_inputs_lower)
