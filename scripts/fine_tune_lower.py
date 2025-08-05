@@ -268,7 +268,9 @@ def data_generator(kpts_arr, mocap_arr, mid_arr, subject_heights, subject_weight
 
                 sel = [default_mocap_mks_names.index(m) for m in mks_of_interest_upper]
                 ybuf = subject_mocap[start:start+seq_len, sel, :]
-                out = ybuf.reshape(seq_len, -1)
+                ybuf_norm = ybuf - ref[:, None, :]
+                ybuf_norm2 = ybuf_norm / height
+                out = ybuf_norm2.reshape(seq_len, -1)
 
                 yield inp.astype(np.float32), out.astype(np.float32)
             
