@@ -256,12 +256,12 @@ def data_generator(kpts_arr, mocap_arr, mid_arr, subject_heights, subject_weight
 
                 # Apply normalization if files exist
                 if os.path.isfile(os.path.join(pretrained_dir, "mean_perso.npy")):
-                    mean = np.load(os.path.join(pretrained_dir, "mean_perso.npy"))
+                    mean = np.load(os.path.join(pretrained_dir, "mean_perso.npy"), allow_pickle=True)
                     inp -= mean
                 else :
                     raise Exception("Mean perso file does not exists.")
                 if os.path.isfile(os.path.join(pretrained_dir, "std_perso.npy")):
-                    std = np.load(os.path.join(pretrained_dir, "std_perso.npy"))
+                    std = np.load(os.path.join(pretrained_dir, "std_perso.npy"), allow_pickle=True)
                     inp /= std
                 else :
                     raise Exception("Std perso file does not exists.")
