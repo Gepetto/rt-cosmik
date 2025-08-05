@@ -20,6 +20,16 @@ import argparse
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 from src.rtcosmik.utils.read_write_utils import udp_csv_to_dataframe, read_mks_data, default_mocap_mks_names
 
+def str2bool(v):
+    if isinstance(v, bool):
+        return v
+    if v.lower() in ('yes', 'true', 't', '1'):
+        return True
+    elif v.lower() in ('no', 'false', 'f', '0'):
+        return False
+    else:
+        raise argparse.ArgumentTypeError('Boolean value expected.')
+
 # === Args ===
 parser = argparse.ArgumentParser(description='LSTM retraining/finetuning arguments')
 parser.add_argument('--data-path',
@@ -33,20 +43,20 @@ parser.add_argument('--pretrained-path',
                         default='',
                         type=str)
 parser.add_argument("--shuffle",
-                        help="shuffle data or not",
-                        dest="shuffle",
-                        default=True,
-                        type=bool)
+                    help="shuffle data or not",
+                    dest="shuffle",
+                    type=str2bool,
+                    default=True)
 parser.add_argument("--fine-tune",
-                        help="Fine tune or retrain",
-                        dest="fine_tune",
-                        default=True,
-                        type=bool)
+                    help="Fine tune or retrain",
+                    dest="fine_tune",
+                    type=str2bool,
+                    default=True)
 parser.add_argument("--add-layer",
-                        help="Add a final layer or not",
-                        dest="add_layer",
-                        default=True,
-                        type=bool)
+                    help="Add a final layer or not",
+                    dest="add_layer",
+                    type=str2bool,
+                    default=True)
 opt = parser.parse_args()
 
 # === Hyperparams ===
@@ -245,10 +255,16 @@ def data_generator(kpts_arr, mocap_arr, mid_arr, subject_heights, subject_weight
                 ], axis=1)
 
                 # Apply normalization if files exist
-                if os.path.isfile(os.path.join(pretrained_dir, "mean.npy")):
-                    inp -= np.load(os.path.join(pretrained_dir, "mean.npy"))
-                if os.path.isfile(os.path.join(pretrained_dir, "std.npy")):
-                    inp /= np.load(os.path.join(pretrained_dir, "std.npy"))
+                if os.path.isfile(os.path.join(pretrained_dir, "mean_perso.npy")):
+                    mean = np.load(os.path.join(pretrained_dir, "mean_perso.npy"))
+                    inp -= mean
+                else :
+                    raise Exception("Mean perso file does not exists.")
+                if os.path.isfile(os.path.join(pretrained_dir, "std_perso.npy")):
+                    std = np.load(os.path.join(pretrained_dir, "std_perso.npy"))
+                    inp /= std
+                else :
+                    raise Exception("Std perso file does not exists.")
 
                 sel = [default_mocap_mks_names.index(m) for m in mks_of_interest_upper]
                 ybuf = subject_mocap[start:start+seq_len, sel, :]
