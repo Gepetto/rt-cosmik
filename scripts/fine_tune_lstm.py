@@ -121,7 +121,7 @@ model.summary()
 model.compile(optimizer=Adam(learning_rate), loss='mse')
 
 # Sauvegarde de l'architecture dans un fichier JSON
-with open(os.path.join(pretrained_dir, f"model_finetuned_ft{fine_tune}_al{add_layer}.json"), "w") as f:
+with open(os.path.join(pretrained_dir, f"model_finetuned_{body_part}_ft{fine_tune}_al{add_layer}.json"), "w") as f:
     f.write(model.to_json())
 
 
@@ -140,7 +140,7 @@ val_dataset   = tf.data.Dataset.from_tensor_slices((X_val, Y_val)).batch(batch_s
 
 # === Train ===
 checkpoint = ModelCheckpoint(
-    filepath=os.path.join(pretrained_dir, f"best_finetuned_weights_ft{fine_tune}_al{add_layer}.h5"),    
+    filepath=os.path.join(pretrained_dir, f"best_finetuned_weights_{body_part}_ft{fine_tune}_al{add_layer}.h5"),    
     monitor="val_loss",
     save_best_only=True,
     save_weights_only=True,            # True si tu veux sauvegarder seulement les poids
@@ -156,7 +156,7 @@ history = model.fit(
 
 
 # Save fine-tuned weights
-model.save_weights(os.path.join(pretrained_dir, f"weights_finetuned__ft{fine_tune}_al{add_layer}.h5"))
-print(f"Fine-tuning complete. Saved to weights_finetuned__ft{fine_tune}_al{add_layer}.h5")
+model.save_weights(os.path.join(pretrained_dir, f"weights_finetuned_{body_part}_ft{fine_tune}_al{add_layer}.h5"))
+print(f"Fine-tuning complete. Saved to weights_finetuned_{body_part}_ft{fine_tune}_al{add_layer}.h5")
 
 
