@@ -25,7 +25,7 @@ mks_to_skip = ['LForearm','LUArm', 'RUArm', 'RHJC_study','LHJC_study','r_pelvis'
 #read mks data
 no_trial = "Maxime"
 task = "static" #hitting sat probleme
-path_to_csv = f"/root/workspace/ros_ws/src/rt-cosmik/output/{no_trial}/{task}/mks_data.csv"
+path_to_csv = f"/root/workspace/ros_ws/src/rt-cosmik/output/{no_trial}/mouv/{task}/mks_data.csv"
 
 subject_mass = 72.0
 subject_height = 1.80
@@ -44,7 +44,8 @@ mks_names = ['r.ASIS_study','L.ASIS_study','r.PSIS_study','L.PSIS_study',
 # df_raw = pd.read_8data_to_dataframe(df_raw, mks_names) #marker data are string 
 mks_data = udp_csv_to_dataframe(path_to_csv, mks_names) #float
 result_markers, start_sample_dict = read_mks_data(mks_data, start_sample=start_sample) #check the function of read 
-
+print(result_markers)
+input()
 #load urdf
 human = Robot('/root/workspace/ros_ws/src/rt-cosmik/urdf/human.urdf',rt_cosmik_path,isFext=True) 
 human_model = human.model

@@ -26,14 +26,15 @@ import gepetto as gep
 base_path = "/root/workspace/ros_ws/src/rt-cosmik"
 # === Configuration ===
 nbr_cam = 2
-no_trial = "Mohamed"
+no_trial = "Nicolas"
 # === Subject physical info for LSTM ===
-subject_mass =95.0
-subject_height = 1.80
+subject_mass =74.0
+subject_height = 1.81
 gender='male'
-task_list = ["bolting"]
 
-# task_list = ['bolting_sat',"hitting_sat","overhead","sanding_sat","welding_sat","robot_sanding","robot_welding"]
+task_list = ["static","bolting","bolting_sat","crouch","crouch_object","hitting","hitting_sat","jump","lifting","lifting_fast","lower","overhead",
+             "robot_sanding","robot_welding",
+             "sanding","sanding_sat","sit_to_stand","squat","upper","walk","walk_front","welding","welding_sat"]
 
 augmenter_path = os.path.join(base_path, "src/rtcosmik/augmenter/augmentation_model")
 transformation_file = f"{base_path}//config/cam_params/{no_trial}/calib_mocap_2_cam0/soder.txt"

@@ -11,7 +11,7 @@ import pandas as pd
 from src.rtcosmik.camera.cam_utils import load_camera_parameters, load_world_transformation, load_four_camera_parameters
 from src.rtcosmik.triangulation.triangulation import triangulate_offline,triangulate_points_adaptive
 from src.rtcosmik.augmenter.marker_augmenter import augmentTRC, loadModel
-from src.rtcosmik.utils.read_write_utils import read_mmpose_file, save_to_csv, load_transformation, transform_keypoints_list_cam0_to_mocap,read_mmpose_scores
+from src.rtcosmik.utils.read_write_utils import read_mmpose_file, read_mmpose_file_clean,save_to_csv, load_transformation, transform_keypoints_list_cam0_to_mocap,read_mmpose_scores
 from src.rtcosmik.utils.linear_algebra_utils import butterworth_filter
 
 import pinocchio as pin
@@ -27,20 +27,20 @@ import gepetto as gep
 # === Configuration ===
 nbr_cam = 2
 base_path = "/root/workspace/ros_ws/src/rt-cosmik"
-no_trial = "Mathis"
+no_trial = "Mohamed"
 task = "squat"
 
 augmenter_path = os.path.join(base_path, "src/rtcosmik/augmenter/augmentation_model")
-transformation_file = f"{base_path}//config/cam_params/{no_trial}/calib_mocap_2_cam4/soder.txt"
+transformation_file = f"{base_path}//config/cam_params/{no_trial}/calib_mocap_2_cam0/soder.txt"
 # === Subject physical info for LSTM ===
-subject_mass =66.0
-subject_height = 1.79
+subject_mass =95.0
+subject_height = 1.80
 gender='male'
 # ====input csv files ====#
 
 file_paths = [
-        os.path.join(base_path, f"output/{no_trial}/output_2d/{task}/{task}_camera_4.csv"),
-        os.path.join(base_path, f"output/{no_trial}/output_2d/{task}/{task}_camera_6.csv")
+        os.path.join(base_path, f"output/{no_trial}/output_2d/{task}/{task}_camera_0.csv"),
+        os.path.join(base_path, f"output/{no_trial}/output_2d/{task}/{task}_camera_2.csv")
         
     ]
 
@@ -283,18 +283,21 @@ def main():
     os.makedirs(output_path, exist_ok=True)
 
     filtered_kpt_path = os.path.join(output_path, f"3d_keypoints_filtered_{nbr_cam}.csv")
-    augmented_output_path = os.path.join(output_path, f"augmented_markers_{nbr_cam}.csv")
+    augmented_output_path = os.path.join(output_path, f"augmented_markers_{nbr_cam}_new_lstm.csv")
 
     # === Load MoCap transformation ===
     R_trans, d_trans, s_trans, rms_error = load_transformation(transformation_file)
 
     # === Load 2D keypoints from cameras ===
     camera_data = [read_mmpose_file(fp) for fp in file_paths]
+    # valid_masks = [~np.isnan(cam).any(axis=2) for cam in camera_data]
+
     uvs = [
         np.array([[line[2*i], line[2*i + 1]] for line in data for i in range(num_keypoints)])
         .reshape(-1, num_keypoints, 2)
         for data in camera_data
     ]
+    # uvs = camera_data
 
     # === Load camera calibration ===
     mtxs, dists, projections, rotations, translations = load_camera_parameters(config_path)

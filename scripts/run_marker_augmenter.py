@@ -13,13 +13,13 @@ from src.rtcosmik.utils.read_write_utils import read_mmpose_file, save_to_csv
 from src.rtcosmik.utils.linear_algebra_utils import butterworth_filter
 base_path = "/root/workspace/ros_ws/src/rt-cosmik"
 
-no_trial = "Mohamed"
-task = "bolting"
+no_trial = "Maxime_"
+task = "overhead"
 
 path_to_3d_kpt = os.path.join(base_path, f"output/{no_trial}/cosmik_2cams/{task}/3d_keypoints_filtered_2.csv")
-output_csv_path = os.path.join(base_path, f"output/{no_trial}/cosmik_2cams/{task}/augmented_markers_2.csv")
+output_csv_path = os.path.join(base_path, f"output/{no_trial}/cosmik_2cams/{task}/augmented_markers_finetuned.csv")
 
-subject_mass = 95.0
+subject_mass =74.0
 subject_height = 1.80
 augmenter_path = '/root/workspace/ros_ws/src/rt-cosmik/src/rtcosmik/augmenter/augmentation_model'
 markers = [

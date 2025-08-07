@@ -208,4 +208,17 @@ def reproject_four_frames(results, frame_width, frame_height):
         # Return dictionary containing results for each original frame
         return [top_left_result,top_right_result,bottom_left_result,bottom_right_result]
 
+def transform_to_local_frame(D, origin, rotation_matrix):
+    # Compute D relative to B
+    D_relative = D - origin
+    
+    # Transform D to the local frame
+    D_local = rotation_matrix.T @ D_relative
+    
+    return D_local
+
+def transform_to_global_frame(D, origin, rotation_matrix):
+
+    D_global =  rotation_matrix @ D + origin
+    return D_global
 

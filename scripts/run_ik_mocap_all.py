@@ -16,7 +16,7 @@ from src.rtcosmik.human_model.model_utils import get_segment_length
 from src.rtcosmik.ik.ik import RT_IK
 
 
-def run_ik(task, no_trial="Zoe", subject_mass=55.0, subject_height=1.65, gender='female', start_sample=0):
+def run_ik(task, no_trial="Guilhem", subject_mass=74.0, subject_height=1.76, gender='male', start_sample=0):
     rt_cosmik_path = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
     path_to_csv = f"/root/workspace/ros_ws/src/rt-cosmik/output/{no_trial}/mocap/{task}/mks_data_gapfilled.csv"
 
@@ -81,7 +81,7 @@ def run_ik(task, no_trial="Zoe", subject_mass=55.0, subject_height=1.65, gender=
 
     q = pin.neutral(human_model)
     human_data = pin.Data(human_model)
-    # viz.display(q)
+    viz.display(q)
     # input("Model scaled, you can launch IK")
     #measured frames
     seg_frames = construct_segments_frames(result_markers[start_sample])
@@ -114,7 +114,7 @@ def run_ik(task, no_trial="Zoe", subject_mass=55.0, subject_height=1.65, gender=
 
     ik_class = RT_IK(human_model, start_sample_dict, q, keys_to_track_list, dt=1/40)
     q = ik_class.solve_ik_sample_casadi()
-    # viz.display(q)
+    viz.display(q)
     ik_class._q0 = q
     # input("First sample")
 
@@ -150,7 +150,7 @@ def run_ik(task, no_trial="Zoe", subject_mass=55.0, subject_height=1.65, gender=
             rmse_per_marker.setdefault(marker, []).append(sq_error)
 
         M_model_list.append(M_model_frame)
-        # viz.display(q)
+        viz.display(q)
         ik_class._q0 = q
         q_list.append(q)
 
@@ -184,7 +184,7 @@ def run_ik(task, no_trial="Zoe", subject_mass=55.0, subject_height=1.65, gender=
 
 
 if __name__ == "__main__":
-    task_list = ["bolting","bolting_sat","crouch","crouch_object","hitting","hitting_sat","jump","lifting","lifting_fast","lower","overhead",
+    task_list = ["bolting","bolting_sat","crouch","crouch_object","hitting","hitting_sat","jump","lifting","lifting_fast","lower","overhead", "overhead_front",
              "robot_sanding","robot_welding",
              "sanding","sanding_sat","sit_to_stand","squat","static","upper","walk","walk_front","welding","welding_sat"]
 

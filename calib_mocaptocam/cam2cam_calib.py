@@ -4,7 +4,7 @@ import os
 import cv2 as cv
 import pinocchio as pin 
 
-subject = "Zoe"
+subject = "Maxime_"
 
 def load_cam_params(path):
     """
@@ -28,8 +28,8 @@ def load_cam_params(path):
     cv_file.release()
     return camera_matrix, dist_matrix
 
-K1, D1 = load_cam_params(os.path.join("/root/workspace/ros_ws/src/rt-cosmik/config/cam_params/", "c0_params_color.yaml"))
-K2, D2 = load_cam_params(os.path.join("/root/workspace/ros_ws/src/rt-cosmik/config/cam_params/", "c4_params_color.yaml"))
+K1, D1 = load_cam_params(os.path.join(f"/root/workspace/ros_ws/src/rt-cosmik/config/cam_params/{subject}", "c0_params_color.yaml"))
+K2, D2 = load_cam_params(os.path.join(f"/root/workspace/ros_ws/src/rt-cosmik/config/cam_params/{subject}", "c4_params_color.yaml"))
 
 soder_dir = f"/root/workspace/ros_ws/src/rt-cosmik/config/cam_params/{subject}/calib_mocap_2_cam"
 cam2cam_dir = f"/root/workspace/ros_ws/src/rt-cosmik/config/cam_params/{subject}/c0_to_c4_params_color.yaml"
