@@ -43,6 +43,16 @@ kpts_input_lower_lstm = [
 ]
 kpts_input_lower_lstm_extended = list(np.array([[f"{m}_x", f"{m}_y", f"{m}_z"] for m in kpts_input_lower_lstm]).flatten())
 
+excluded_trials = [
+    "welding_sat",
+    "sanding_sat",
+    "hitting_sat",
+    "bolting_sat",
+    "crouch_object",
+    "robot_sanding",
+    "robot_welding",
+]
+
 # === Utility converters ===
 def listdicts_to_array(ld, names):
     """Builds array [T, len(names), 3] from list-of-dicts using given keys."""
@@ -78,11 +88,19 @@ for subject in os.listdir(data_dir):
     mocap_path = os.path.join(subject_path, "mocap")
 
     for trial in os.listdir(cosmik_2cams_path):
-        if "3d_keypoints_filtered_2_cleaned.csv" not in os.listdir(os.path.join(cosmik_2cams_path, trial)):
+        if any(keyword in trial for keyword in excluded_trials):
+            print(f"Skipping {trial} in {subject} due to HPE bug.")
+            continue
+        
+        if "3d_keypoints_filtered_2.csv" in os.listdir(os.path.join(cosmik_2cams_path, trial)):
+            current_HPE_data_path = os.path.join(cosmik_2cams_path, trial, "3d_keypoints_filtered_2.csv")
+            current_df_inputs = pd.read_csv(current_HPE_data_path)
+        elif "3d_keypoints_filtered_2_cleaned.csv" in os.listdir(os.path.join(cosmik_2cams_path, trial)):
+            current_HPE_data_path = os.path.join(cosmik_2cams_path, trial, "3d_keypoints_filtered_2_cleaned.csv")
+            current_df_inputs = pd.read_csv(current_HPE_data_path)
+        else:
             print(f"Skipping {trial} in {subject} due to missing HPE data.")
             continue
-        current_HPE_data_path = os.path.join(cosmik_2cams_path, trial, "3d_keypoints_filtered_2_cleaned.csv")
-        current_df_inputs = pd.read_csv(current_HPE_data_path)
 
         if "mks_data_cleaned.csv" in os.listdir(os.path.join(mocap_path, trial)):
             current_mocap_data_path = os.path.join(mocap_path, trial, "mks_data_cleaned.csv")
