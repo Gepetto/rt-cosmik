@@ -14,6 +14,8 @@ from sklearn.model_selection import train_test_split
 from tensorflow.keras.callbacks import ModelCheckpoint
 from tensorflow.keras.layers import Layer
 from tensorflow.keras.layers import TimeDistributed, Dense
+from tensorflow.keras.initializers import RandomNormal
+from tensorflow.keras.regularizers import l2
 import argparse
 
 # add project root to path so we can import utils
@@ -80,6 +82,8 @@ batch_size   = 64
 epochs       = 100
 patience     = 5
 learning_rate= 6e-6
+initializer = RandomNormal(mean=0.0, stddev=0.022)
+weight_decay = 0.01
 
 # === Marker / keypoint names ===
 kpts_input_lstm = [
@@ -109,6 +113,16 @@ mks_of_interest_lower = [
     'L_knee_study','L_mknee_study','L_ankle_study','L_mankle_study',
     'L_toe_study','L_calc_study','L_5meta_study',
     'r_shoulder_study','L_shoulder_study','C7_study'
+]
+
+excluded_trials = [
+    "welding_sat",
+    "sanding_sat",
+    "hitting_sat",
+    "bolting_sat",
+    "crouch_object",
+    "robot_sanding",
+    "robot_welding",
 ]
 
 # === Utility converters ===
@@ -146,6 +160,9 @@ for subject in os.listdir(data_dir):
     mocap_path = os.path.join(subject_path, "mocap")
 
     for trial in os.listdir(cosmik_2cams_path):
+        if any(keyword in trial for keyword in excluded_trials):
+            print(f"Skipping {trial} in {subject} due to HPE bug.")
+            continue
         if "3d_keypoints_filtered_2_cleaned.csv" not in os.listdir(os.path.join(cosmik_2cams_path, trial)):
             print(f"Skipping {trial} in {subject} due to missing HPE data.")
             continue
@@ -218,9 +235,23 @@ for m in mks_of_interest_lower:
 
 # ====== Set LSTM to output only last-step (last vector of the predicted window), then only with the markers of interest
 if add_layer:
-    projection = TimeDistributed(Dense(63), name="denseprojection")(base.output)
-# Final model
-model = Model(inputs=base.input, outputs=projection)
+    projection = TimeDistributed(Dense(63), 
+                                 kernel_initializer=initializer, 
+                                 bias_initializer='zeros', 
+                                 kernel_regularizer=l2(weight_decay), 
+                                 name="dense_projection"
+                                 )(base.output)
+    # Final model
+    model = Model(inputs=base.input, outputs=projection)
+else:
+    x = base.layers[-2].output
+    new_output = TimeDistributed(Dense(63),
+                                 kernel_initializer=initializer, 
+                                 bias_initializer='zeros', 
+                                 kernel_regularizer=l2(weight_decay), 
+                                 name="replaced_output"
+                                 )(x)
+    model = Model(inputs=base.input, outputs=new_output)
 model.summary()
 model.compile(optimizer=Adam(learning_rate), loss='mse')
 

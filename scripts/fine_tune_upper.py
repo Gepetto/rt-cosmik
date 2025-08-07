@@ -14,6 +14,8 @@ from sklearn.model_selection import train_test_split
 from tensorflow.keras.callbacks import ModelCheckpoint
 from tensorflow.keras.layers import Layer
 from tensorflow.keras.layers import TimeDistributed, Dense
+from tensorflow.keras.initializers import RandomNormal
+from tensorflow.keras.regularizers import l2
 import argparse
 
 # add project root to path so we can import utils
@@ -80,6 +82,8 @@ batch_size    = 64
 epochs        = 100
 patience      = 5
 learning_rate = 6e-6
+initializer = RandomNormal(mean=0.0, stddev=0.022)
+weight_decay = 0.01
 
 # === Marker / keypoint names (upper limb) ===
 kpts_input_lstm = [
@@ -95,6 +99,16 @@ response_markers_upper = [
 response_markers_upper_extended = list(np.array([[f"{m}_x", f"{m}_y", f"{m}_z"] for m in response_markers_upper]).flatten())
 
 mks_of_interest_upper = response_markers_upper.copy()
+
+excluded_trials = [
+    "welding_sat",
+    "sanding_sat",
+    "hitting_sat",
+    "bolting_sat",
+    "crouch_object",
+    "robot_sanding",
+    "robot_welding",
+]
 
 # === Utility converters ===
 def listdicts_to_array(ld, names):
@@ -131,6 +145,9 @@ for subject in os.listdir(data_dir):
     mocap_path = os.path.join(subject_path, "mocap")
 
     for trial in os.listdir(cosmik_2cams_path):
+        if any(keyword in trial for keyword in excluded_trials):
+            print(f"Skipping {trial} in {subject} due to HPE bug.")
+            continue
         if "3d_keypoints_filtered_2_cleaned.csv" not in os.listdir(os.path.join(cosmik_2cams_path, trial)):
             print(f"Skipping {trial} in {subject} due to missing HPE data.")
             continue
@@ -187,6 +204,8 @@ if fine_tune:
         layer.trainable = False
     if add_layer:
         base.layers[-1].trainable = False
+    else:
+        base.layers[-1].trainable = True
 
 # fixed sequence length used in original training
 seq_len = 30
@@ -202,9 +221,17 @@ for m in mks_of_interest_upper:
     feat_indices += [idx*3 + d for d in (0,1,2)]
 
 if add_layer:
-    projection = TimeDistributed(Dense(24), name="denseprojection")(base.output)
-# Final model
-model = Model(inputs=base.input, outputs=projection)
+    projection = TimeDistributed(Dense(24), 
+                                 kernel_initializer=initializer, 
+                                 bias_initializer='zeros', 
+                                 kernel_regularizer=l2(weight_decay), 
+                                 name="dense_projection"
+                                 )(base.output)
+    # Final model
+    model = Model(inputs=base.input, outputs=projection)
+else:
+    # Final model
+    model = Model(inputs=base.input, outputs=base.output)
 model.summary()
 model.compile(optimizer=Adam(learning_rate), loss='mse')
 
