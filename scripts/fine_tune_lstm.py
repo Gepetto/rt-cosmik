@@ -78,7 +78,7 @@ if fine_tune == "T":
     # ❄️ Freeze tous les layers du modèle de base
     for layer in base.layers[:-1]:
         layer.trainable = False
-    if add_layer:
+    if add_layer == "T":
         base.layers[-1].trainable = False
 
 
