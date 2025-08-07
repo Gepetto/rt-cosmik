@@ -213,20 +213,13 @@ seq_len = 30
 total_out_dim = base.output_shape[-1]
 print(f"Using seq_len={seq_len}, total_out_dim={total_out_dim}")
 
-# ===== Build fine-tuning model =====
-marker_idx = {m:i for i,m in enumerate(response_markers_upper)}
-feat_indices = []
-for m in mks_of_interest_upper:
-    idx = marker_idx[m]
-    feat_indices += [idx*3 + d for d in (0,1,2)]
-
 if add_layer:
-    projection = TimeDistributed(Dense(24), 
-                                 kernel_initializer=initializer, 
-                                 bias_initializer='zeros', 
-                                 kernel_regularizer=l2(weight_decay), 
-                                 name="dense_projection"
-                                 )(base.output)
+    projection = TimeDistributed(Dense(24, 
+                                kernel_initializer=initializer, 
+                                bias_initializer='zeros', 
+                                kernel_regularizer=l2(weight_decay)),
+                                name="dense_projection"
+                                )(base.output)
     # Final model
     model = Model(inputs=base.input, outputs=projection)
 else:

@@ -226,31 +226,24 @@ seq_len = 30
 total_out_dim = base.output_shape[-1]
 print(f"Using seq_len={seq_len}, total_out_dim={total_out_dim}")
 
-# ====== Get the indices of the markers of interest in the LSTM full output ====== #
-marker_idx = {m:i for i,m in enumerate(response_markers_lower)} #dictionnary of output lstm mks and their indices in the output vector
-feat_indices = []#The indices of the features of interest
-for m in mks_of_interest_lower:
-    idx = marker_idx[m]
-    feat_indices += [idx*3 + d for d in (0,1,2)]
-
 # ====== Set LSTM to output only last-step (last vector of the predicted window), then only with the markers of interest
 if add_layer:
-    projection = TimeDistributed(Dense(63), 
-                                 kernel_initializer=initializer, 
-                                 bias_initializer='zeros', 
-                                 kernel_regularizer=l2(weight_decay), 
-                                 name="dense_projection"
-                                 )(base.output)
+    projection = TimeDistributed(Dense(63, 
+                                kernel_initializer=initializer, 
+                                bias_initializer='zeros', 
+                                kernel_regularizer=l2(weight_decay)),
+                                name="dense_projection"
+                                )(base.output)
     # Final model
     model = Model(inputs=base.input, outputs=projection)
 else:
     x = base.layers[-2].output
-    new_output = TimeDistributed(Dense(63),
-                                 kernel_initializer=initializer, 
-                                 bias_initializer='zeros', 
-                                 kernel_regularizer=l2(weight_decay), 
-                                 name="replaced_output"
-                                 )(x)
+    new_output = TimeDistributed(Dense(63,
+                                kernel_initializer=initializer, 
+                                bias_initializer='zeros', 
+                                kernel_regularizer=l2(weight_decay)),
+                                name="replaced_output"
+                                )(x)
     model = Model(inputs=base.input, outputs=new_output)
 model.summary()
 model.compile(optimizer=Adam(learning_rate), loss='mse')
@@ -258,10 +251,6 @@ model.compile(optimizer=Adam(learning_rate), loss='mse')
 # Sauvegarde de l'architecture dans un fichier JSON
 with open(os.path.join(pretrained_dir, f"model_finetuned_s{shuffle}_ft{fine_tune}_al{add_layer}_mp{mean_perso}.json"), "w") as f:
     f.write(model.to_json())
-
-# indices for RHip/LHip in our kpts_input_lstm list
-idx_RHip = kpts_input_lstm.index('RHip')
-idx_LHip = kpts_input_lstm.index('LHip')
 
 def data_generator(kpts_arr, mocap_arr, mid_arr, subject_heights, subject_weights,
                    chgt_subject_indexes, chgt_trial_indexes, seq_len, mks_of_interest_upper):
