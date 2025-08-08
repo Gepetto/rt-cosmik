@@ -256,6 +256,12 @@ print("Std train :", std_train)
 X_train = (X_train - mean_train) / std_train
 X_val = (X_val - mean_train) / std_train
 
+# Verify mean and std = 0 and 1
+mean_verif = np.mean(X_train.astype(np.float64), axis=(0, 1))
+std_verif = np.std(X_train.astype(np.float64), axis=(0, 1))
+print("Mean train :", mean_verif)
+print("Std train :", std_verif)
+
 # Save
 os.makedirs(os.path.join(output_dir, body_part, "train"), exist_ok=True)
 os.makedirs(os.path.join(output_dir, body_part, "val"), exist_ok=True)
