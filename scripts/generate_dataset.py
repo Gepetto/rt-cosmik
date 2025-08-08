@@ -252,6 +252,10 @@ std_train = np.std(X_train.astype(np.float64), axis=(0, 1))
 print("Mean train :", mean_train)
 print("Std train :", std_train)
 
+# === Normalize data ===
+X_train = (X_train - mean_train) / std_train
+X_val = (X_val - mean_train) / std_train
+
 # Save
 os.makedirs(os.path.join(output_dir, body_part, "train"), exist_ok=True)
 os.makedirs(os.path.join(output_dir, body_part, "val"), exist_ok=True)
