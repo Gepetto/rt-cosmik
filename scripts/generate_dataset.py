@@ -29,11 +29,17 @@ parser.add_argument('--body-part',
                         dest='body_part',
                         default='',
                         type=str)
+parser.add_argument('--use-mocap',
+                        help='use mocap or hpe',
+                        dest='use_mocap',
+                        default='',
+                        type=str)
 opt = parser.parse_args()
 
 data_dir = opt.data_path
 output_dir = opt.output_path
 body_part = opt.body_part
+use_mocap = opt.use_mocap
 
 test_size     = 0.2
 random_state  = 42
@@ -118,15 +124,25 @@ for subject in os.listdir(data_dir):
         
         print("trial :", trial)
         # Wether we use cleaned HPE data or raw HPE data
-        if "3d_keypoints_filtered_2.csv" in os.listdir(os.path.join(cosmik_2cams_path, trial)):
-            current_HPE_data_path = os.path.join(cosmik_2cams_path, trial, "3d_keypoints_filtered_2.csv")
-            current_df_inputs = pd.read_csv(current_HPE_data_path)
-        elif "3d_keypoints_filtered_2_cleaned.csv" in os.listdir(os.path.join(cosmik_2cams_path, trial)):
-            current_HPE_data_path = os.path.join(cosmik_2cams_path, trial, "3d_keypoints_filtered_2_cleaned.csv")
-            current_df_inputs = pd.read_csv(current_HPE_data_path)
+        if use_mocap == "T":
+            if "joint_center_positions.csv" in os.listdir(os.path.join(mocap_path, trial)):
+                current_input_data_path = os.path.join(mocap_path, trial, "joint_center_positions.csv")
+                current_df_inputs = pd.read_csv(current_input_data_path)
+            else:
+                print(f"Skipping {trial} in {subject} due to missing JCP mocap data.")
+                continue
+        elif use_mocap == "F":
+            if "3d_keypoints_filtered_2.csv" in os.listdir(os.path.join(cosmik_2cams_path, trial)):
+                current_HPE_data_path = os.path.join(cosmik_2cams_path, trial, "3d_keypoints_filtered_2.csv")
+                current_df_inputs = pd.read_csv(current_HPE_data_path)
+            elif "3d_keypoints_filtered_2_cleaned.csv" in os.listdir(os.path.join(cosmik_2cams_path, trial)):
+                current_HPE_data_path = os.path.join(cosmik_2cams_path, trial, "3d_keypoints_filtered_2_cleaned.csv")
+                current_df_inputs = pd.read_csv(current_HPE_data_path)
+            else:
+                print(f"Skipping {trial} in {subject} due to missing HPE data.")
+                continue
         else:
-            print(f"Skipping {trial} in {subject} due to missing HPE data.")
-            continue
+            raise Exception("Please specify --use-mocap argument as T or F.")
 
         # Wether we use cleaned mocap data or raw mocap data
         if "mks_data_cleaned.csv" in os.listdir(os.path.join(mocap_path, trial)):
@@ -240,9 +256,9 @@ print("Std train :", std_train)
 os.makedirs(os.path.join(output_dir, body_part, "train"), exist_ok=True)
 os.makedirs(os.path.join(output_dir, body_part, "val"), exist_ok=True)
 os.makedirs(os.path.join(output_dir, body_part, "stats"), exist_ok=True)
-np.save(os.path.join(output_dir, body_part, "train", "X_train.npy"), X_train)
+np.save(os.path.join(output_dir, body_part, "train", f"X_train_m{use_mocap}.npy"), X_train)
 np.save(os.path.join(output_dir, body_part, "train", "Y_train.npy"), Y_train)
-np.save(os.path.join(output_dir, body_part, "val", "X_val.npy"), X_val)
+np.save(os.path.join(output_dir, body_part, "val", f"X_val_m{use_mocap}.npy"), X_val)
 np.save(os.path.join(output_dir, body_part, "val", "Y_val.npy"), Y_val)
-np.save(os.path.join(output_dir, body_part, "stats", "mean_train.npy"), mean_train)
-np.save(os.path.join(output_dir, body_part, "stats", "std_train.npy"), std_train)
+np.save(os.path.join(output_dir, body_part, "stats", f"mean_train_m{use_mocap}.npy"), mean_train)
+np.save(os.path.join(output_dir, body_part, "stats", f"std_train_m{use_mocap}.npy"), std_train)

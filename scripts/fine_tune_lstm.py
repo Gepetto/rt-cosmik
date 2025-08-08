@@ -2,25 +2,16 @@
 # fine_tune_lstm.py
 
 import os
-import sys
 import numpy as np
-import pandas as pd
 import tensorflow as tf
 from tensorflow.keras.models import model_from_json, Model
-from tensorflow.keras.layers import Lambda
 from tensorflow.keras.optimizers import Adam
 from tensorflow.keras.callbacks import EarlyStopping
-from sklearn.model_selection import train_test_split
 from tensorflow.keras.callbacks import ModelCheckpoint
-from tensorflow.keras.layers import Layer
 from tensorflow.keras.layers import TimeDistributed, Dense
 from tensorflow.keras.initializers import RandomNormal
 from tensorflow.keras.regularizers import l2
 import argparse
-
-# add project root to path so we can import utils
-sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
-from src.rtcosmik.utils.read_write_utils import udp_csv_to_dataframe, read_mks_data, default_mocap_mks_names
 
 
 
@@ -51,6 +42,11 @@ parser.add_argument("--add-layer",
                     dest="add_layer",
                     type=str,
                     default="F")
+parser.add_argument('--use-mocap',
+                        help='use mocap or hpe',
+                        dest='use_mocap',
+                        default='',
+                        type=str)
 opt = parser.parse_args()
 
 # === Hyperparams ===
@@ -59,6 +55,7 @@ pretrained_dir = os.path.join(opt.pretrained_path, f"v0.3_{opt.body_part}")
 body_part = opt.body_part
 fine_tune = opt.fine_tune
 add_layer = opt.add_layer
+use_mocap = opt.use_mocap
 json_path      = os.path.join(pretrained_dir, "model.json")
 weights_path   = os.path.join(pretrained_dir, "weights.h5")
 
@@ -121,17 +118,17 @@ model.summary()
 model.compile(optimizer=Adam(learning_rate), loss='mse')
 
 # Sauvegarde de l'architecture dans un fichier JSON
-with open(os.path.join(pretrained_dir, f"model_finetuned_{body_part}_ft{fine_tune}_al{add_layer}.json"), "w") as f:
+with open(os.path.join(pretrained_dir, f"model_finetuned_{body_part}_ft{fine_tune}_al{add_layer}_m{use_mocap}.json"), "w") as f:
     f.write(model.to_json())
 
 
 # === Load data ===
-X_train = np.load(os.path.join(data_dir, "train", "X_train.npy"))
+X_train = np.load(os.path.join(data_dir, "train", f"X_train_m{use_mocap}.npy"))
 Y_train = np.load(os.path.join(data_dir, "train", "Y_train.npy"))
-X_val = np.load(os.path.join(data_dir, "val", "X_val.npy"))
+X_val = np.load(os.path.join(data_dir, "val", f"X_val_m{use_mocap}.npy"))
 Y_val = np.load(os.path.join(data_dir, "val", "Y_val.npy"))
-mean_train = np.load(os.path.join(data_dir, "stats", "mean_train.npy"))
-std_train = np.load(os.path.join(data_dir, "stats", "std_train.npy"))
+mean_train = np.load(os.path.join(data_dir, "stats", f"mean_train_m{use_mocap}.npy"))
+std_train = np.load(os.path.join(data_dir, "stats", f"std_train_m{use_mocap}.npy"))
 
 # Datasets
 train_dataset = tf.data.Dataset.from_tensor_slices((X_train, Y_train)).batch(batch_size).prefetch(tf.data.AUTOTUNE)
@@ -140,7 +137,7 @@ val_dataset   = tf.data.Dataset.from_tensor_slices((X_val, Y_val)).batch(batch_s
 
 # === Train ===
 checkpoint = ModelCheckpoint(
-    filepath=os.path.join(pretrained_dir, f"best_finetuned_weights_{body_part}_ft{fine_tune}_al{add_layer}.h5"),    
+    filepath=os.path.join(pretrained_dir, f"best_finetuned_weights_{body_part}_ft{fine_tune}_al{add_layer}_m{use_mocap}.h5"),    
     monitor="val_loss",
     save_best_only=True,
     save_weights_only=True,            # True si tu veux sauvegarder seulement les poids
@@ -156,7 +153,7 @@ history = model.fit(
 
 
 # Save fine-tuned weights
-model.save_weights(os.path.join(pretrained_dir, f"weights_finetuned_{body_part}_ft{fine_tune}_al{add_layer}.h5"))
-print(f"Fine-tuning complete. Saved to weights_finetuned_{body_part}_ft{fine_tune}_al{add_layer}.h5")
+model.save_weights(os.path.join(pretrained_dir, f"weights_finetuned_{body_part}_ft{fine_tune}_al{add_layer}_m{use_mocap}.h5"))
+print(f"Fine-tuning complete. Saved to weights_finetuned_{body_part}_ft{fine_tune}_al{add_layer}_m{use_mocap}.h5")
 
 
