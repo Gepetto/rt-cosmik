@@ -118,7 +118,7 @@ for subject in os.listdir(data_dir):
     print("subject :", subject)
     for trial in os.listdir(cosmik_2cams_path):
         # Skip trials with HPE bug
-        if any(keyword in trial for keyword in excluded_trials):
+        if use_mocap == "F" and any(keyword in trial for keyword in excluded_trials):
             print(f"Skipping {trial} in {subject} due to HPE bug.")
             continue
         
@@ -251,6 +251,8 @@ mean_train = np.mean(X_train.astype(np.float64), axis=(0, 1))
 std_train = np.std(X_train.astype(np.float64), axis=(0, 1))
 print("Mean train :", mean_train)
 print("Std train :", std_train)
+
+std_train[-1]=1
 
 # === Normalize data ===
 X_train = (X_train - mean_train) / std_train

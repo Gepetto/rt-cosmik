@@ -60,7 +60,7 @@ json_path      = os.path.join(pretrained_dir, "model.json")
 weights_path   = os.path.join(pretrained_dir, "weights.h5")
 
 batch_size   = 64
-epochs       = 100
+epochs       = 300
 patience     = 5
 learning_rate= 6e-6
 initializer = RandomNormal(mean=0.0, stddev=0.022)
