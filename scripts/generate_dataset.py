@@ -252,8 +252,6 @@ std_train = np.std(X_train.astype(np.float64), axis=(0, 1))
 print("Mean train :", mean_train)
 print("Std train :", std_train)
 
-std_train[-1]=1
-
 # === Normalize data ===
 X_train = (X_train - mean_train) / std_train
 X_val = (X_val - mean_train) / std_train
