@@ -125,9 +125,9 @@ with open(os.path.join(pretrained_dir, f"model_finetuned_{body_part}_ft{fine_tun
 
 # === Load data ===
 X_train = np.load(os.path.join(data_dir, "train", f"X_train_m{use_mocap}.npy"))
-Y_train = np.load(os.path.join(data_dir, "train", "Y_train.npy"))
+Y_train = np.load(os.path.join(data_dir, "train", f"Y_train_m{use_mocap}.npy"))
 X_val = np.load(os.path.join(data_dir, "val", f"X_val_m{use_mocap}.npy"))
-Y_val = np.load(os.path.join(data_dir, "val", "Y_val.npy"))
+Y_val = np.load(os.path.join(data_dir, "val", f"Y_val_m{use_mocap}.npy"))
 mean_train = np.load(os.path.join(data_dir, "stats", f"mean_train_m{use_mocap}.npy"))
 std_train = np.load(os.path.join(data_dir, "stats", f"std_train_m{use_mocap}.npy"))
 
