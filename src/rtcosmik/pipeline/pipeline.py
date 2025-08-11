@@ -1,3 +1,8 @@
+import os
+import sys
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '../../../src')))
+script_directory = os.path.dirname(os.path.abspath(__file__))
+rt_cosmik_path ='/root/workspace/ros_ws/src/rt-cosmik/'
 from rtcosmik.triangulation.triangulation import triangulate_points
 from rtcosmik.augmenter.marker_augmenter import augmentTRC, loadModel
 from rtcosmik.pose_estimator.pose_estimator import BatchPoseTrackerEstimator
@@ -14,6 +19,7 @@ from datetime import datetime
 from multiprocessing import Process, Array, Lock, Value, Event, Queue
 from typing import List
 import time
+from src.rtcosmik.human_model.urdf_model import * 
 
 
 # class PipelineProcess(Process):
@@ -389,7 +395,19 @@ class PipelineProcess(Process):
                             keys_to_add = ['Nose', 'Head', 'REar', 'LEar', 'REye', 'LEye']
                             mks_dict.update({key: kp_dict[key] for key in keys_to_add})
 
-                            self.human_model = build_model_no_visuals(mks_dict)
+                            # self.human_model = build_model_no_visuals(mks_dict)
+
+                            #load urdf
+                            self.human = Robot('/root/workspace/ros_ws/src/rt-cosmik/urdf/human.urdf',rt_cosmik_path,isFext=True) 
+                            self.human_model = self.human.model
+                            self.human_data = self.human.data
+                            self.human_collision_model = self.human.collision_model
+                            self.human_visual_model = self.human.visual_model
+
+                            #scale the model to data
+                            self.human_model = scale_human_model(self.human_model, mks_dict,with_hand=True,gender='male',subject_height=1.70)
+                            self.human_model= mks_registration(self.human_model,mks_dict, with_hand=False)
+                            self.human_data = pin.Data(self.human_model)
                             
                             if self.ik_type == 'sbs':
                                 q = pin.neutral(self.human_model)

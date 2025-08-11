@@ -108,7 +108,7 @@ def main():
                                           save_dir=settings.SAVE_DIR, 
                                           stop_event=stop_event)
 
-    processes = camera_processes  +video_savers+ [pipeline, viewer,vicon,udp_data_saver_process]
+    processes = camera_processes  +video_savers+ [pipeline, viewer]
 
     # Start processes
     for p in processes:

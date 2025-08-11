@@ -41,15 +41,27 @@ class Settings:
 
     # IK AND DATA HANDLING
     # For whole body model :
+    # joint_angles_names = ['FF_X', 'FF_Y', 'FF_Z', 'FF_quatx','FF_quaty',
+    #                       'FF_quatz', 'FF_quatw', 'Lumbar_flex_ext', 'Lumbar_int_ext_rot',
+    #                       'Cervical_flex_ext', 'Cervical_lat_bend', 'Cervical_int_ext_rot',
+    #                       'Rshoulder_flex_ext', 'Rshoulder_abd_add', 'Rshoulder_int_ext_rot',
+    #                       'Relbow_flex_ext', 'Relbow_pron_supi', 'Lshoulder_flex_ext',
+    #                       'Lshoulder_abd_add', 'Lshoulder_int_ext_rot', 'Lelbow_flex_ext',
+    #                       'Lelbow_pron_supi','Rhip_flex_ext','Rhip_abd_add','Rhip_int_ext_rot',
+    #                       'Rknee_flex_ext','Rankle_flex_ext','Lhip_flex_ext', 'Lhip_abd_add', 
+    #                       'Lhip_int_ext_rot', 'Lknee_flex_ext', 'Lankle_flex_ext']
+    
     joint_angles_names = ['FF_X', 'FF_Y', 'FF_Z', 'FF_quatx','FF_quaty',
-                          'FF_quatz', 'FF_quatw', 'Lumbar_flex_ext', 'Lumbar_int_ext_rot',
-                          'Cervical_flex_ext', 'Cervical_lat_bend', 'Cervical_int_ext_rot',
-                          'Rshoulder_flex_ext', 'Rshoulder_abd_add', 'Rshoulder_int_ext_rot',
-                          'Relbow_flex_ext', 'Relbow_pron_supi', 'Lshoulder_flex_ext',
-                          'Lshoulder_abd_add', 'Lshoulder_int_ext_rot', 'Lelbow_flex_ext',
-                          'Lelbow_pron_supi','Rhip_flex_ext','Rhip_abd_add','Rhip_int_ext_rot',
-                          'Rknee_flex_ext','Rankle_flex_ext','Lhip_flex_ext', 'Lhip_abd_add', 
-                          'Lhip_int_ext_rot', 'Lknee_flex_ext', 'Lankle_flex_ext']
+                            'FF_quatz', 'FF_quatw', 'Lhip_flex_ext', 'Lhip_abd_add','Lhip_int_ext_rot','Lknee_flex_ext','Lankle_flex_ext','Lankle_abd_add',
+                            'Lumbar_flex_ext', 'Lumbar_lateral_flex',
+                            'Thoracic_flex_ext','Thoracic_lateral_flex','Thoracic_rot_int_ext',
+                            'Lcalvicule_x',
+                            'Lshoulder_flex_ext','Lshoulder_abd_add', 'Lshoulder_int_ext_rot','Lelbow_flex_ext','Lelbow_pron_supi','Lwrist_flex_ext','Lwrist_x',
+                            'Cervical_flex_ext', 'Cervical_lat_bend', 'Cervical_int_ext_rot',
+                            'rcalvicule_x',
+                            'Rshoulder_flex_ext', 'Rshoulder_abd_add', 'Rshoulder_int_ext_rot','Relbow_flex_ext', 'Relbow_pron_supi', 'Rwrist_flex_ext','Rwrist_x',
+                            'Rhip_flex_ext','Rhip_abd_add','Rhip_int_ext_rot',
+                            'Rknee_flex_ext','Rankle_flex_ext', 'Rankle_abd_add']
 
     # Ik type
     ik_type: str ="mhe" # either "mhe" for SWIKA or "sbs" for sample by sample qp

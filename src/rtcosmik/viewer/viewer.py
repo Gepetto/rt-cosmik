@@ -11,9 +11,11 @@ from rtcosmik.saver.csv_saver import CSVSaver
 from typing import List
 import numpy as np
 from collections import OrderedDict
+rt_cosmik_path ='/root/workspace/ros_ws/src/rt-cosmik/'
 
 from pynput import keyboard
 import threading
+from src.rtcosmik.human_model.urdf_model import * 
 
 class Viewer:
     def __init__(self, model, geom_model, visual_model, keypoint_names, marker_names, freeflyer=False):
@@ -45,9 +47,9 @@ class Viewer:
             publish_kinematics(q, self.q_pub, self.model.names, self.br)
         else:
             pin.framesForwardKinematics(self.model, self.data,q)
-            for frame in self.model.frames.tolist():
-                M = self.data.oMf[self.model.getFrameId(frame.name)]
-                place(self.viz, 'world/'+frame.name,  M)
+            # for frame in self.model.frames.tolist():
+            #     M = self.data.oMf[self.model.getFrameId(frame.name)]
+            #     place(self.viz, 'world/'+frame.name,  M)
             self.viz.display(q)
 
     def display_keypoints(self, pos_keypoints_dict):
@@ -107,9 +109,15 @@ class ViewerProcess(Process):
         # self.geom_model = self.robot.geom_model
         # self.visual_model = self.robot.visual_model
         
-        self.model, self.geom_model, _ = build_dummy_model(self.package_dir)
-        
-        self.visual_model = self.geom_model.copy()
+        # self.model, self.geom_model, _ = build_dummy_model(self.package_dir)
+        # self.visual_model = self.geom_model.copy()
+
+        #load urdf
+        self.human = Robot('/root/workspace/ros_ws/src/rt-cosmik/urdf/human.urdf',rt_cosmik_path,isFext=True) 
+        self.model= self.human.model
+        self.human_data = self.human.data
+        self.geom_model = self.human.collision_model
+        self.visual_model  = self.human.visual_model
 
         self.saving_enabled = False
 
@@ -154,6 +162,11 @@ class ViewerProcess(Process):
                 _, mks_dict = self.result_queues[1].get()
                 _, q = self.result_queues[2].get()
 
+                 #scale the model to data
+                self.model = scale_human_model(self.model, mks_dict,with_hand=True,gender='male',subject_height=1.70)
+                self.model= mks_registration(self.model,mks_dict, with_hand=False)
+                self.human_data = pin.Data(self.model)
+                
                 # print("in viewer, counters are :", cam_counters)
                 self.viewer.display_keypoints(kpts_dict)
                 self.viewer.display_markers(mks_dict)
