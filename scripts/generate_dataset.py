@@ -7,6 +7,7 @@ import numpy as np
 import pandas as pd
 import argparse
 from sklearn.model_selection import train_test_split
+from sklearn.utils import shuffle
 
 # add project root to path so we can import utils
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
@@ -34,16 +35,22 @@ parser.add_argument('--use-mocap',
                         dest='use_mocap',
                         default='',
                         type=str)
+parser.add_argument('--add-noise',
+                        help='if mocap, add noise to the data',
+                        dest='add_noise',
+                        default='F',
+                        type=str)
 opt = parser.parse_args()
 
 data_dir = opt.data_path
 output_dir = opt.output_path
 body_part = opt.body_part
 use_mocap = opt.use_mocap
+add_noise = opt.add_noise
 
-test_size     = 0.2
+test_size     = 2
 random_state  = 42
-seq_len       = 30
+seq_len       = 40
 
 # === Utils ===
 if body_part == "upper":
@@ -191,10 +198,16 @@ mocap_arr = listdicts_to_array(mocap_list, default_mocap_mks_names)
 
 # === generate dataset ===
 def data_generator(kpts_arr, mocap_arr, mid_arr, subject_heights, subject_weights,
-                   chgt_subject_indexes, chgt_trial_indexes, seq_len, mks_of_interest):
+                   chgt_subject_indexes, chgt_trial_indexes, seq_len, mks_of_interest, train="T"):
     
     start_subject = 0
     start_trial = 0
+    if train == "T":
+        chgt_subject_indexes = chgt_subject_indexes[:-test_size]  # Exclude last 2 subjects
+    elif train == "F":
+        chgt_subject_indexes = chgt_subject_indexes[-test_size:]  # Only last 2 subjects
+    else:
+        raise Exception("Please specify train argument as T or F.")
     for ind_subject, end_subject in enumerate(chgt_subject_indexes):
         height = subject_heights[ind_subject]
         weight = subject_weights[ind_subject]
@@ -210,6 +223,8 @@ def data_generator(kpts_arr, mocap_arr, mid_arr, subject_heights, subject_weight
 
                 inp = kbuf - ref[:, None, :]
                 inp = inp / height
+                if use_mocap == "T" and add_noise == "T":
+                    inp = inp + np.random.normal(0, 0.018, inp.shape)
                 inp = inp.reshape(seq_len, -1)
                 inp = np.concatenate([
                     inp,
@@ -232,17 +247,27 @@ def data_generator(kpts_arr, mocap_arr, mid_arr, subject_heights, subject_weight
 X, Y = [], []
 for x, y in data_generator(kpts_arr, mocap_arr, mid_arr, subjects_metadata["height"],
                            subjects_metadata["weight"], chgt_subject_indexes,
-                           chgt_trial_indexes, seq_len, mks_of_interest):
+                           chgt_trial_indexes, seq_len, mks_of_interest, train="T"):
     X.append(x)
     Y.append(y)
 
-X = np.array(X)
-Y = np.array(Y)
-
-# Split
-X_train, X_val, Y_train, Y_val = train_test_split(X, Y, test_size=test_size, shuffle=True, random_state=42)
+X_train = np.array(X)
+Y_train = np.array(Y)
+X_train, Y_train = shuffle(X_train, Y_train, random_state=random_state)
 print("X_train :", X_train.shape)
 print("Y_train :", Y_train.shape)
+
+# Collecte
+X, Y = [], []
+for x, y in data_generator(kpts_arr, mocap_arr, mid_arr, subjects_metadata["height"],
+                           subjects_metadata["weight"], chgt_subject_indexes,
+                           chgt_trial_indexes, seq_len, mks_of_interest, train="F"):
+    X.append(x)
+    Y.append(y)
+
+X_val = np.array(X)
+Y_val = np.array(Y)
+X_val, Y_val = shuffle(X_val, Y_val, random_state=random_state)
 print("X_val :", X_val.shape)
 print("Y_val :", Y_val.shape)
 
@@ -266,9 +291,9 @@ print("Std train :", std_verif)
 os.makedirs(os.path.join(output_dir, body_part, "train"), exist_ok=True)
 os.makedirs(os.path.join(output_dir, body_part, "val"), exist_ok=True)
 os.makedirs(os.path.join(output_dir, body_part, "stats"), exist_ok=True)
-np.save(os.path.join(output_dir, body_part, "train", f"X_train_m{use_mocap}.npy"), X_train)
-np.save(os.path.join(output_dir, body_part, "train", f"Y_train_m{use_mocap}.npy"), Y_train)
-np.save(os.path.join(output_dir, body_part, "val", f"X_val_m{use_mocap}.npy"), X_val)
-np.save(os.path.join(output_dir, body_part, "val", f"Y_val_m{use_mocap}.npy"), Y_val)
-np.save(os.path.join(output_dir, body_part, "stats", f"mean_train_m{use_mocap}.npy"), mean_train)
-np.save(os.path.join(output_dir, body_part, "stats", f"std_train_m{use_mocap}.npy"), std_train)
+np.save(os.path.join(output_dir, body_part, "train", f"X_train_m{use_mocap}_n{add_noise}.npy"), X_train)
+np.save(os.path.join(output_dir, body_part, "train", f"Y_train_m{use_mocap}_n{add_noise}.npy"), Y_train)
+np.save(os.path.join(output_dir, body_part, "val", f"X_val_m{use_mocap}_n{add_noise}.npy"), X_val)
+np.save(os.path.join(output_dir, body_part, "val", f"Y_val_m{use_mocap}_n{add_noise}.npy"), Y_val)
+np.save(os.path.join(output_dir, body_part, "stats", f"mean_train_m{use_mocap}_n{add_noise}.npy"), mean_train)
+np.save(os.path.join(output_dir, body_part, "stats", f"std_train_m{use_mocap}_n{add_noise}.npy"), std_train)
