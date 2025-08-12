@@ -200,17 +200,22 @@ mocap_arr = listdicts_to_array(mocap_list, default_mocap_mks_names)
 def data_generator(kpts_arr, mocap_arr, mid_arr, subject_heights, subject_weights,
                    chgt_subject_indexes, chgt_trial_indexes, seq_len, mks_of_interest, train="T"):
     
-    start_subject = 0
-    start_trial = 0
     if train == "T":
+        ind_subject_shifting = 0
+        start_subject = 0
+        start_trial = 0
         chgt_subject_indexes = chgt_subject_indexes[:-test_size]  # Exclude last 2 subjects
     elif train == "F":
+        ind_subject_shifting = len(chgt_subject_indexes) - test_size
+        start_subject = chgt_subject_indexes[-test_size-1]
+        start_trial = chgt_subject_indexes[-test_size-1]
         chgt_subject_indexes = chgt_subject_indexes[-test_size:]  # Only last 2 subjects
     else:
         raise Exception("Please specify train argument as T or F.")
+
     for ind_subject, end_subject in enumerate(chgt_subject_indexes):
-        height = subject_heights[ind_subject]
-        weight = subject_weights[ind_subject]
+        height = subject_heights[ind_subject+ind_subject_shifting]
+        weight = subject_weights[ind_subject+ind_subject_shifting]
 
         subject_kpts = kpts_arr[start_subject:end_subject]
         subject_mocap = mocap_arr[start_subject:end_subject]
@@ -241,7 +246,7 @@ def data_generator(kpts_arr, mocap_arr, mid_arr, subject_heights, subject_weight
                 yield inp.astype(np.float64), out.astype(np.float64)
         
             start_trial = end_trial
-        start_subject = end_subject
+        start_subject = end_subject    
 
 # Collecte
 X, Y = [], []
