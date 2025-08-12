@@ -170,7 +170,7 @@ else:
     model.compile(optimizer=Adam(learning_rate), loss='mse')
 
 # Sauvegarde de l'architecture dans un fichier JSON
-with open(os.path.join(pretrained_dir, f"model_finetuned_{body_part}_ft{fine_tune}_al{add_layer}_m{use_mocap}_n{add_noise}.json"), "w") as f:
+with open(os.path.join(pretrained_dir, f"model_finetuned_{body_part}_ft{fine_tune}_al{add_layer}_m{use_mocap}_n{add_noise}_w{use_weights}.json"), "w") as f:
     f.write(model.to_json())
 
 
@@ -218,7 +218,7 @@ pred_logger = PredictionLogger(
 
 # === Train ===
 checkpoint = ModelCheckpoint(
-    filepath=os.path.join(pretrained_dir, f"best_finetuned_weights_{body_part}_ft{fine_tune}_al{add_layer}_m{use_mocap}_n{add_noise}.h5"),    
+    filepath=os.path.join(pretrained_dir, f"best_finetuned_weights_{body_part}_ft{fine_tune}_al{add_layer}_m{use_mocap}_n{add_noise}_w{use_weights}.h5"),    
     monitor="val_loss",
     save_best_only=True,
     save_weights_only=True,            # True si tu veux sauvegarder seulement les poids
@@ -241,7 +241,7 @@ else:
     )
 
 # Save fine-tuned weights
-model.save_weights(os.path.join(pretrained_dir, f"weights_finetuned_{body_part}_ft{fine_tune}_al{add_layer}_m{use_mocap}_n{add_noise}.h5"))
-print(f"Fine-tuning complete. Saved to weights_finetuned_{body_part}_ft{fine_tune}_al{add_layer}_m{use_mocap}_n{add_noise}.h5")
+model.save_weights(os.path.join(pretrained_dir, f"weights_finetuned_{body_part}_ft{fine_tune}_al{add_layer}_m{use_mocap}_n{add_noise}_w{use_weights}.h5"))
+print(f"Fine-tuning complete. Saved to weights_finetuned_{body_part}_ft{fine_tune}_al{add_layer}_m{use_mocap}_n{add_noise}_w{use_weights}.h5")
 
 
