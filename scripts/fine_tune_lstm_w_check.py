@@ -54,9 +54,9 @@ parser.add_argument('--add-noise',
                         dest='add_noise',
                         default='F',
                         type=str)
-parser.add_argument('--weights',
+parser.add_argument('--use-weights',
                         help='use foot weights for loss function',
-                        dest='weights',
+                        dest='use_weights',
                         default='F',
                         type=str)
 opt = parser.parse_args()
@@ -69,7 +69,7 @@ fine_tune = opt.fine_tune
 add_layer = opt.add_layer
 use_mocap = opt.use_mocap
 add_noise = opt.add_noise
-weights = opt.weights
+use_weights = opt.use_weights
 monitoring = True
 monitoring_step = 25
 json_path      = os.path.join(pretrained_dir, "model.json")
@@ -147,7 +147,7 @@ else:
     raise Exception("Body part not supported. Please select upper or lower.")
 model.summary()
 
-if body_part == "lower" and weights == "T":
+if body_part == "lower" and use_weights == "T":
     # Create vector of weights for loss function.
     weights_loss = np.ones(len(response_mks_lower)*3)
     for i, marker in enumerate(response_mks_lower):
@@ -162,12 +162,12 @@ def weighted_l2_loss(weights):
         weighted_squared_diff = squared_diff * weights
         return K.mean(weighted_squared_diff, axis=-1)
     return loss
-if weights == "T":
-    model.compile(optimizer=Adam(learning_rate), loss=weighted_l2_loss(weights))
-elif weights == "F":
-    model.compile(optimizer=Adam(learning_rate), loss='mse')
+if body_part == "upper" and use_weights == "T":
+    raise Exception("Weights argument must be F for upper body part.")
+elif body_part == "lower" and use_weights == "T":
+    model.compile(optimizer=Adam(learning_rate), loss=weighted_l2_loss(weights_loss))
 else:
-    raise Exception("Weights argument must be T or F.")
+    model.compile(optimizer=Adam(learning_rate), loss='mse')
 
 # Sauvegarde de l'architecture dans un fichier JSON
 with open(os.path.join(pretrained_dir, f"model_finetuned_{body_part}_ft{fine_tune}_al{add_layer}_m{use_mocap}_n{add_noise}.json"), "w") as f:
