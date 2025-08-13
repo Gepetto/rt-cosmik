@@ -182,6 +182,11 @@ Y_val = np.load(os.path.join(data_dir, "val", f"Y_val_m{use_mocap}_n{add_noise}.
 mean_train = np.load(os.path.join(data_dir, "stats", f"mean_train_m{use_mocap}_n{add_noise}.npy"))
 std_train = np.load(os.path.join(data_dir, "stats", f"std_train_m{use_mocap}_n{add_noise}.npy"))
 
+print(f"X_train shape: {X_train.shape}, Y_train shape: {Y_train.shape}")
+print(f"X_val shape: {X_val.shape}, Y_val shape: {Y_val.shape}")
+print(f"Mean train: {mean_train}")
+print(f"Std train: {std_train}")
+
 # Datasets
 train_dataset = tf.data.Dataset.from_tensor_slices((X_train, Y_train)).batch(batch_size).prefetch(tf.data.AUTOTUNE)
 val_dataset   = tf.data.Dataset.from_tensor_slices((X_val, Y_val)).batch(batch_size).prefetch(tf.data.AUTOTUNE)
