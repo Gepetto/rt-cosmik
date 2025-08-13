@@ -110,7 +110,7 @@ subjects_metadata["height"] = []
 subjects_metadata["weight"] = []
 chgt_subject_indexes = []
 chgt_trial_indexes = []
-for subject in os.listdir(data_dir):
+for subject in os.listdir(data_dir).sort():
     subject_path = os.path.join(data_dir, subject)
 
     metadata_path = os.path.join(subject_path, "infos.txt")
@@ -129,7 +129,7 @@ for subject in os.listdir(data_dir):
             print(f"Skipping {trial} in {subject} due to HPE bug.")
             continue
         
-        print("trial :", trial)
+        # print("trial :", trial)
         # Wether we use cleaned HPE data or raw HPE data
         if use_mocap == "T":
             if "joint_center_positions.csv" in os.listdir(os.path.join(mocap_path, trial)):
