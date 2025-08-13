@@ -110,7 +110,8 @@ subjects_metadata["height"] = []
 subjects_metadata["weight"] = []
 chgt_subject_indexes = []
 chgt_trial_indexes = []
-for subject in os.listdir(data_dir).sort():
+subjects_sorted = sorted(os.listdir(data_dir))
+for subject in subjects_sorted:
     subject_path = os.path.join(data_dir, subject)
 
     metadata_path = os.path.join(subject_path, "infos.txt")
