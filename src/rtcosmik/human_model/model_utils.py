@@ -334,6 +334,113 @@ def get_pelvis_pose(mocap_mks_positions):
     pose[:3,:3] = orthogonalize_matrix(pose[:3,:3])
 
     return pose
+    
+#get_virtual_pelvis_pose, used to get thigh pose
+def get_virtual_pelvis_pose(mks_positions):
+    """
+    Calculate the pelvis pose matrix from motion capture marker positions.
+    The function computes the pelvis pose based on the positions of specific markers.
+    It first determines the center points of the PSIS and ASIS markers, then calculates
+    the X, Y, and Z axes of the pelvis coordinate system. Finally, it constructs the 
+    pose matrix and ensures it is orthogonal.
+    Parameters:
+    mks_positions (dict): A dictionary containing the positions of the motion capture markers.
+                                The keys can be either 'r.PSIS_study', 'L.PSIS_study', 'r.ASIS_study', 
+                                'L.ASIS_study', or 'RIPS', 'LIPS', 'RIAS', 'LIAS'.
+    Returns:
+    numpy.ndarray: A 4x4 pose matrix representing the pelvis pose.
+    """
+
+    pose = np.eye(4,4)
+    X, Y, Z = [], [], []
+    center_PSIS = []
+    center_ASIS = []
+
+    center_PSIS = (mks_positions['r.PSIS_study'] + mks_positions['L.PSIS_study']).reshape(3,1)/2.0
+    center_ASIS = (mks_positions['r.ASIS_study'] + mks_positions['L.ASIS_study']).reshape(3,1)/2.0
+
+    X = center_ASIS - center_PSIS
+    X = X/np.linalg.norm(X)
+    Z = mks_positions['r.ASIS_study'] - mks_positions['L.ASIS_study']
+    Z = Z/np.linalg.norm(Z)
+    Y = np.cross(Z, X, axis=0)
+    Z = np.cross(X, Y, axis=0)
+
+    pose[:3,0] = X.reshape(3,)
+    pose[:3,1] = Y.reshape(3,)
+    pose[:3,2] = Z.reshape(3,)
+    pose[:3,3] = center_ASIS.reshape(3,)
+    pose[:3,:3] = orthogonalize_matrix(pose[:3,:3])
+    return pose
+#et pelvis pose, not used 
+
+def get_pelvis_pose_jcp_mocap(mks_positions, gender = 'male'):
+    """
+    Calculate the pelvis pose matrix from motion capture marker positions.
+    The function computes the pelvis pose based on the positions of specific markers.
+    It first determines the center points of the PSIS and ASIS markers, then calculates
+    the X, Y, and Z axes of the pelvis coordinate system. Finally, it constructs the 
+    pose matrix and ensures it is orthogonal.
+    Parameters:
+    mocap_mks_positions (dict): A dictionary containing the positions of the motion capture markers.
+                                The keys can be either 'r.PSIS_study', 'L.PSIS_study', 'r.ASIS_study', 
+                                'L.ASIS_study', or 'RIPS', 'LIPS', 'RIAS', 'LIAS'.
+    Returns:
+    numpy.ndarray: A 4x4 pose matrix representing the pelvis pose.
+    """
+
+    if gender == 'male':
+        ratio_x = 0.335
+        ratio_y = -0.032
+        ratio_z = 0.0
+    else : 
+        ratio_x = 0.34
+        ratio_y = 0.049
+        ratio_z = 0.0
+
+    pose = np.eye(4,4)
+    center_PSIS = []
+    center_ASIS = []
+    center_right_ASIS_PSIS = []
+    center_left_ASIS_PSIS = []
+    LJC=np.zeros((3,1))
+
+    dist_rPL_lPL = np.linalg.norm(mks_positions["r.ASIS_study"]-mks_positions["L.ASIS_study"])
+    virtual_pelvis_pose = get_virtual_pelvis_pose(mks_positions)
+    LJC = virtual_pelvis_pose[:3, 3].reshape(3,1)
+
+
+    center_PSIS = (mks_positions['r.PSIS_study'] + mks_positions['L.PSIS_study']).reshape(3,1)/2.0
+    center_ASIS = (mks_positions['r.ASIS_study'] + mks_positions['L.ASIS_study']).reshape(3,1)/2.0
+    
+    center_right_ASIS_PSIS = (mks_positions['r.PSIS_study'] + mks_positions['r.ASIS_study']).reshape(3,1)/2.0
+    center_left_ASIS_PSIS = (mks_positions['L.PSIS_study'] + mks_positions['L.ASIS_study']).reshape(3,1)/2.0
+    
+    offset_local = col_vector_3D(
+                                -ratio_x * dist_rPL_lPL,
+                                +ratio_y * dist_rPL_lPL,
+                                ratio_z * dist_rPL_lPL
+                                )
+    LJC = LJC + virtual_pelvis_pose[:3, :3] @ offset_local
+ 
+    X = center_ASIS - center_PSIS
+    X = X/np.linalg.norm(X)
+    # Z = mks_positions['r.ASIS_study'] - mks_positions['L.ASIS_study']
+    Z = center_right_ASIS_PSIS - center_left_ASIS_PSIS
+    Z = Z/np.linalg.norm(Z)
+    Y = np.cross(Z, X, axis=0)
+    Z = np.cross(X, Y, axis=0)
+
+
+    pose[:3,0] = X.reshape(3,)
+    pose[:3,1] = Y.reshape(3,)
+    pose[:3,2] = Z.reshape(3,)
+    pose[:3,3] = ((center_right_ASIS_PSIS + center_left_ASIS_PSIS)/2.0).reshape(3,)
+    # pose[:3,3] = LJC.reshape(3,)
+    pose[:3,:3] = orthogonalize_matrix(pose[:3,:3])
+
+    return pose
+
 
 #construct thigh frames and get their poses
 def get_thighR_pose(mocap_mks_positions):

@@ -1,7 +1,7 @@
 import numpy as np
 from numpy import linalg as LA
 from scipy import signal
-import cv2
+# import cv2
 
 def trace(m):
     return float(np.trace(m))
@@ -94,17 +94,17 @@ def low_pass_filter_data(data,nbutter=5):
      
     return data
 
-def concat_frames(frames):
-    if len(frames) == 2:
-        return cv2.hconcat(frames)
-    elif len(frames) == 4:
-        # Horizontally concatenate pairs
-        h_top = cv2.hconcat(frames[:2])
-        h_bottom = cv2.hconcat(frames[2:])
-        # Vertically concatenate the two rows
-        return cv2.vconcat([h_top, h_bottom])
-    else:
-        raise ValueError("Only 2 or 4 frames are supported for concatenation.")
+# def concat_frames(frames):
+#     if len(frames) == 2:
+#         return cv2.hconcat(frames)
+#     elif len(frames) == 4:
+#         # Horizontally concatenate pairs
+#         h_top = cv2.hconcat(frames[:2])
+#         h_bottom = cv2.hconcat(frames[2:])
+#         # Vertically concatenate the two rows
+#         return cv2.vconcat([h_top, h_bottom])
+#     else:
+#         raise ValueError("Only 2 or 4 frames are supported for concatenation.")
 
 
 
@@ -209,3 +209,16 @@ def reproject_four_frames(results, frame_width, frame_height):
         return [top_left_result,top_right_result,bottom_left_result,bottom_right_result]
 
 
+def transform_to_local_frame(D, origin, rotation_matrix):
+    # Compute D relative to B
+    D_relative = D - origin
+    
+    # Transform D to the local frame
+    D_local = rotation_matrix.T @ D_relative
+    
+    return D_local
+
+def transform_to_global_frame(D, origin, rotation_matrix):
+
+    D_global =  rotation_matrix @ D + origin
+    return D_global

@@ -133,35 +133,38 @@ for subject in subjects_sorted:
         # print("trial :", trial)
         # Wether we use cleaned HPE data or raw HPE data
         if use_mocap == "T":
-            if "joint_center_positions.csv" in os.listdir(os.path.join(mocap_path, trial)):
-                current_input_data_path = os.path.join(mocap_path, trial, "joint_center_positions.csv")
+            if f"{trial}_jcp_mocap.csv" in os.listdir(os.path.join(mocap_path, trial)):
+                current_input_data_path = os.path.join(mocap_path, trial, f"{trial}_jcp_mocap.csv")
                 current_df_inputs = pd.read_csv(current_input_data_path)
             else:
                 print(f"Skipping {trial} in {subject} due to missing JCP mocap data.")
                 continue
-        elif use_mocap == "F":
-            if "3d_keypoints_filtered_2.csv" in os.listdir(os.path.join(cosmik_2cams_path, trial)):
-                current_HPE_data_path = os.path.join(cosmik_2cams_path, trial, "3d_keypoints_filtered_2.csv")
-                current_df_inputs = pd.read_csv(current_HPE_data_path)
-            elif "3d_keypoints_filtered_2_cleaned.csv" in os.listdir(os.path.join(cosmik_2cams_path, trial)):
-                current_HPE_data_path = os.path.join(cosmik_2cams_path, trial, "3d_keypoints_filtered_2_cleaned.csv")
-                current_df_inputs = pd.read_csv(current_HPE_data_path)
-            else:
-                print(f"Skipping {trial} in {subject} due to missing HPE data.")
-                continue
+        # elif use_mocap == "F":
+        #     if "3d_keypoints_filtered_2.csv" in os.listdir(os.path.join(cosmik_2cams_path, trial)):
+        #         current_HPE_data_path = os.path.join(cosmik_2cams_path, trial, "3d_keypoints_filtered_2.csv")
+        #         current_df_inputs = pd.read_csv(current_HPE_data_path)
+        #     elif "3d_keypoints_filtered_2_cleaned.csv" in os.listdir(os.path.join(cosmik_2cams_path, trial)):
+        #         current_HPE_data_path = os.path.join(cosmik_2cams_path, trial, "3d_keypoints_filtered_2_cleaned.csv")
+        #         current_df_inputs = pd.read_csv(current_HPE_data_path)
+        #     else:
+        #         print(f"Skipping {trial} in {subject} due to missing HPE data.")
+        #         continue
         else:
-            raise Exception("Please specify --use-mocap argument as T or F.")
+            raise Exception("Please specify --use-mocap argument as T.")
 
         # Wether we use cleaned mocap data or raw mocap data
-        if "mks_data_cleaned.csv" in os.listdir(os.path.join(mocap_path, trial)):
-            current_mocap_data_path = os.path.join(mocap_path, trial, "mks_data_cleaned.csv")
+        if f"{trial}_trajectories.csv" in os.listdir(os.path.join(mocap_path, trial)):
+            current_mocap_data_path = os.path.join(mocap_path, trial, f"{trial}_mks_data_cleaned.csv")
             current_df_gt = pd.read_csv(current_mocap_data_path)
-        elif "mks_data_gapfilled.csv" in os.listdir(os.path.join(mocap_path, trial)):
-            current_mocap_data_path = os.path.join(mocap_path, trial, "mks_data_gapfilled.csv")
-            current_df_gt = udp_csv_to_dataframe(current_mocap_data_path, default_mocap_mks_names, udp_type="gapfilled")
-        elif "mks_data.csv" in os.listdir(os.path.join(mocap_path, trial)):
-            current_mocap_data_path = os.path.join(mocap_path, trial, "mks_data.csv")
-            current_df_gt = udp_csv_to_dataframe(current_mocap_data_path, default_mocap_mks_names, udp_type="raw")
+        # elif "mks_data_cleaned.csv" in os.listdir(os.path.join(mocap_path, trial)):
+        #     current_mocap_data_path = os.path.join(mocap_path, trial, "mks_data_cleaned.csv")
+        #     current_df_gt = pd.read_csv(current_mocap_data_path)
+        # elif "mks_data_gapfilled.csv" in os.listdir(os.path.join(mocap_path, trial)):
+        #     current_mocap_data_path = os.path.join(mocap_path, trial, "mks_data_gapfilled.csv")
+        #     current_df_gt = udp_csv_to_dataframe(current_mocap_data_path, default_mocap_mks_names, udp_type="gapfilled")
+        # elif "mks_data.csv" in os.listdir(os.path.join(mocap_path, trial)):
+        #     current_mocap_data_path = os.path.join(mocap_path, trial, "mks_data.csv")
+        #     current_df_gt = udp_csv_to_dataframe(current_mocap_data_path, default_mocap_mks_names, udp_type="raw")
         else:
             print(f"Skipping {trial} in {subject} due to missing mocap data.")
             continue
