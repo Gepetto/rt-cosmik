@@ -6,8 +6,8 @@ from src.rtcosmik.config_loader import settings
 import matplotlib.pyplot as plt
 from scipy.interpolate import CubicSpline
 
-no_trial = "Zoe"
-tasks_list = ["bolting","bolting_sat","crouch","crouch_object","hitting","hitting_sat","jump","lifting","lifting_fast","lower","overhead",
+no_trial = "Claire_"
+tasks_list = ["bolting","bolting_sat","crouch","crouch_object","hitting","hitting_sat","jump","lifting","lifting_fast","lower","overhead","overhead_front",
              "robot_sanding","robot_welding",
              "sanding","sanding_sat","sit_to_stand","squat","static","upper","walk","walk_front","welding","welding_sat"]
 mks_names = settings.marker_mocap_names

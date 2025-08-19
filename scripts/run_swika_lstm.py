@@ -9,24 +9,25 @@ rt_cosmik_path = os.path.dirname(script_directory)
 import numpy as np
 import pinocchio as pin
 from pinocchio.visualize import GepettoVisualizer
-from src.rtcosmik.utils.read_write_utils import read_mks_data, marker_data_to_dataframe
+from src.rtcosmik.utils.read_write_utils import read_mks_data
 import pandas as pd
-from src.rtcosmik.viewer.gv_viewer import place, gv_init, Rquat, add_marker, add_frames
+from src.rtcosmik.viewer.gv_viewer import place, gv_init, Rquat, add_marker
 from src.rtcosmik.config_loader import settings
-from src.rtcosmik.human_model.pin_model import build_model
-from src.rtcosmik.human_model.model_utils import construct_segments_frames, get_segments_mks_dict
-from src.rtcosmik.ik.ik import RT_IK,RT_SWIKA
+from src.rtcosmik.ik.ik import RT_SWIKA
 from collections import deque
+from src.rtcosmik.human_model.urdf_model import * 
 
 
 
 mks_to_skip = ['TV8','TV12','SJN','STRN','LForearm','LUArm', 'RUArm','RHJC_study','LHJC_study',
                'LHand2','LHand1','LHL2','LHM5', 'RForearm','RHand2','RHand1','RHL2','RHM5']
 
-no_trial = "trial_2"
-task = "trial_upper3"
-path_to_csv = f"/root/workspace/ros_ws/src/rt-cosmik/output/{no_trial}/{task}/markers.csv"
-path_to_kpt = f"/root/workspace/ros_ws/src/rt-cosmik/output/{no_trial}/{task}/keypoints.csv"
+no_trial = "Mohamed"
+subject_height = 1.80
+task = "bolting"
+gender = 'male'
+path_to_csv = f"/root/workspace/ros_ws/src/rt-cosmik/output/{no_trial}/cosmik_2cams/{task}/augmented_markers_2.csv"
+path_to_kpt = f"/root/workspace/ros_ws/src/rt-cosmik/output/{no_trial}/cosmik_2cams/{task}/3d_keypoints_filtered_2.csv"
 
 keys_to_add = ['Nose', 'Head', 'REar', 'LEar', 'REye', 'LEye']
 
@@ -42,31 +43,70 @@ data_markers_lstm = pd.concat([data_markers_lstm, keypoints[columns_to_add].rese
 
 start_sample=0
 
-result_markers, start_sample_mks = read_mks_data(data_markers_lstm, start_sample=start_sample) #check the function of read 
+result_markers, start_sample_dict = read_mks_data(data_markers_lstm, start_sample=start_sample) #check the function of read 
 
-#build and scale the model in sample 0 
-human_model, human_geom_model, visuals_dict = build_model(start_sample_mks,meshes_folder_path)
+#load urdf
+human = Robot('/root/workspace/ros_ws/src/rt-cosmik/urdf/human.urdf',rt_cosmik_path,isFext=True) 
+human_model = human.model
+human_data = human.data
+human_collision_model = human.collision_model
+human_visual_model = human.visual_model
+
+#scale the model to data
+human_model = scale_human_model(human_model, start_sample_dict,with_hand=True,gender=gender,subject_height=subject_height)
+print(human_model.nq)
+human_model= mks_registration(human_model,start_sample_dict, with_hand=False)
+human_data = pin.Data(human_model)
+
+################################################################################LOCK JOINTS
+all_joint_ids = set(range(1, human_model.njoints))
+joints_to_lock = ["middle_thoracic_X", "middle_thoracic_Y", "middle_thoracic_Z", "left_wrist_X", "left_wrist_Z", "right_wrist_X","right_wrist_Z"]
+joint_ids_to_lock = []
+for jn in joints_to_lock:
+    if human_model.existJointName(jn):
+        joint_ids_to_lock.append(human_model.getJointId(jn))
+    else:
+        print('Warning: joint ' + str(jn) + ' does not belong to the model!')
+
+q0 = pin.neutral(human_model)
+# Build reduced model
+human_model, human_visual_model = pin.buildReducedModel(
+    human_model, human_visual_model, joint_ids_to_lock, q0)
+
+print(human_model.nq)
+human_data = pin.Data(human_model)
+###############################################################################################################
 
 # VISUALIZATION
-viz = gv_init(human_model,human_geom_model.copy(),human_geom_model,start_sample_mks.keys())
-#measured frames
-seg_frames = construct_segments_frames(result_markers[start_sample])
-add_frames(viz,seg_frames,"meas", 0.008, 0.08)
+viz = gv_init(human_model,human_collision_model,human_visual_model,start_sample_dict)
 #model markers spheres 
-add_marker(viz,result_markers[1].keys(), 0, 1,0)
-#model frames
-seg_names_mks = get_segments_mks_dict(result_markers[start_sample])
-add_frames(viz,seg_names_mks,"model", 0.012, 0.05)
+add_marker(viz,result_markers[1].keys(),'_m', 0, 0,1)
 
 q = pin.neutral(human_model) # init pos
 human_data = pin.Data(human_model)
 viz.display(q)
 
-dt = settings.dt
-N = settings.N
+dt = 40
+N = 10
 ik_code = settings.ik_code
 cost_weights = settings.cost_weights
-keys_to_track_list = settings.keys_to_track_list
+keys_to_track_list = ['Nose', 'Head', 'REye', 'LEye',
+        'C7_study', 
+        'r.ASIS_study', 'L.ASIS_study', 
+        'r.PSIS_study', 'L.PSIS_study', 
+        'r_shoulder_study',
+        'r_lelbow_study', 'r_melbow_study',
+        'r_lwrist_study', 'r_mwrist_study',
+        'r_ankle_study', 'r_mankle_study',
+        'r_toe_study','r_5meta_study', 'r_calc_study',
+        'r_knee_study', 'r_mknee_study',
+        'L_shoulder_study', 
+        'L_lelbow_study', 'L_melbow_study',
+        'L_lwrist_study','L_mwrist_study',
+        'L_ankle_study', 'L_mankle_study', 
+        'L_toe_study','L_5meta_study', 'L_calc_study',
+        'L_knee_study', 'L_mknee_study',
+                        ]
 
 ### IK calculations
 
@@ -130,33 +170,38 @@ for ii in range(len(result_markers)):
         rmse_per_marker[marker].append(sq_error)
 
     M_model_list.append(M_model_frame)
-
-    #Display frames from human_model
-    for seg_name, mks in seg_names_mks.items():
-        
-        frame_name = f'world/{seg_name+"_model"}'
-        frame_se3= human_data.oMf[human_model.getFrameId(seg_name)]
-        place(viz, frame_name, frame_se3)
-    
+    pin.forwardKinematics(human_model,human_data, q)
+    pin.updateFramePlacements(human_model,human_data)
+    for frame in human_model.frames.tolist():
+        viz.viewer.gui.addXYZaxis('world/'+frame.name,[1,0,0,1],0.01,0.1)
+        place(viz,'world/'+frame.name,human_data.oMf[human_model.getFrameId(frame.name)])
     
     viz.display(q)
     q_list.append(q)
-    # input()
 
 
-    #save mks est
-# df = pd.DataFrame(M_model_list)
-# csv_file = os.path.join(rt_cosmik_path,f"/root/workspace/ros_ws/src/rt-cosmik/output/{no_trial}/{task}/mks_model.csv") 
-# df.to_csv(csv_file, index=False)
+#save mks est (model markers)
+df = pd.DataFrame(M_model_list)
+csv_file = os.path.join(rt_cosmik_path,f"/root/workspace/ros_ws/src/rt-cosmik/output/{no_trial}/cosmik_2cams/{task}//mks_model_swika.csv") 
+df.to_csv(csv_file, index=False)
 
 # #save angles
-joint_angles_names = settings.joint_angles_names
+joint_angles_names = ['FF_X', 'FF_Y', 'FF_Z', 'FF_quatx','FF_quaty',
+                          'FF_quatz', 'FF_quatw', 'Lhip_flex_ext', 'Lhip_abd_add','Lhip_int_ext_rot','Lknee_flex_ext','Lankle_flex_ext','Lankle_abd_add',
+                          'Lumbar_flex_ext', 'Lumbar_lateral_flex',
+                          'Lcalvicule_x',
+                          'Lshoulder_flex_ext','Lshoulder_abd_add', 'Lshoulder_int_ext_rot','Lelbow_flex_ext','Lelbow_pron_supi',
+                          'Cervical_flex_ext', 'Cervical_lat_bend', 'Cervical_int_ext_rot',
+                          'rcalvicule_x',
+                          'Rshoulder_flex_ext', 'Rshoulder_abd_add', 'Rshoulder_int_ext_rot','Relbow_flex_ext', 'Relbow_pron_supi', 
+                          'Rhip_flex_ext','Rhip_abd_add','Rhip_int_ext_rot',
+                          'Rknee_flex_ext','Rankle_flex_ext', 'Rankle_abd_add']
 num_values = len(q_list[0])
 if len(joint_angles_names) != num_values:
     raise ValueError(f"joint_angles_names has {len(joint_angles_names)} entries but q has {num_values} DOFs.")
 
 df = pd.DataFrame(q_list, columns=joint_angles_names)
-csv_file = os.path.join(rt_cosmik_path, f"output/{no_trial}/{task}/q_cosmik_offline.csv")
+csv_file = os.path.join(rt_cosmik_path, f"output/{no_trial}/cosmik_2cams/{task}/q_cosmik_swika.csv")
 df.to_csv(csv_file, index=False)
 
 

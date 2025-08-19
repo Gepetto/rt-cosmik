@@ -35,7 +35,7 @@ def gv_init(model, geom_model, visual_model, keypoint_names=None, marker_names=N
     # Keypoints
     if keypoint_names is not None : 
         for keypoint in keypoint_names:
-            viz.viewer.gui.addSphere('world/'+keypoint,0.01,[0,1,0,1])
+            viz.viewer.gui.addSphere('world/'+keypoint,0.01,[1,0,0,1])
 
     # measured markers from mocap or lstm
     if marker_names is not None: 

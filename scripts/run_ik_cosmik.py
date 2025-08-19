@@ -25,9 +25,10 @@ mks_to_skip = ['LForearm','LUArm', 'RUArm', 'RHJC_study','LHJC_study','r_pelvis'
 #read mks data
 no_trial = "Mohamed"
 task = "bolting"
-path_to_csv = f"/root/workspace/ros_ws/src/rt-cosmik/output/{no_trial}/cosmik_2cams/{task}/augmented_markers_2_finetuned.csv"
+gender = 'male'
+path_to_csv = f"/root/workspace/ros_ws/src/rt-cosmik/output/{no_trial}/cosmik_2cams/{task}/augmented_markers.csv"
 ###########################################################################################for cosmik data 
-path_to_kpt = f"/root/workspace/ros_ws/src/rt-cosmik/output/{no_trial}/cosmik_2cams/{task}/3d_keypoints_filtered_2.csv"
+path_to_kpt = f"/root/workspace/ros_ws/src/rt-cosmik/output/{no_trial}/cosmik_2cams/{task}/3d_keypoints_filtered.csv"
 
 keys_to_add = ['Nose', 'Head', 'REar', 'LEar', 'REye', 'LEye']
 
@@ -53,7 +54,7 @@ human_collision_model = human.collision_model
 human_visual_model = human.visual_model
 
 #scale the model to data
-human_model = scale_human_model(human_model, start_sample_dict,with_hand=True,gender='male',subject_height=subject_height)
+human_model = scale_human_model(human_model, start_sample_dict,with_hand=True,gender=gender,subject_height=subject_height)
 print(human_model.nq)
 human_model= mks_registration(human_model,start_sample_dict, with_hand=False)
 human_data = pin.Data(human_model)
@@ -187,7 +188,8 @@ for ii in range(start_sample,len(result_markers)):
     #     frame_name = f'world/{seg_name+"_meas"}'
     #     frame_se3 = pin.SE3(M[:3,:3], np.matrix([M[0,3],M[1,3],M[2,3]]).T)
     #     place(viz, frame_name, frame_se3)
-    
+    pin.forwardKinematics(human_model,human_data, q)
+    pin.updateFramePlacements(human_model,human_data)
     # #  Display frames from human_model
     # for joint_id in range(1, human_model.njoints):  # Skip 0 (universe)
     #     frame_name = f'world/{human_model.names[joint_id]+"_model"}'
@@ -222,7 +224,7 @@ if len(joint_angles_names) != num_values:
     raise ValueError(f"joint_angles_names has {len(joint_angles_names)} entries but q has {num_values} DOFs.")
 
 df = pd.DataFrame(q_list, columns=joint_angles_names)
-csv_file = os.path.join(rt_cosmik_path, f"output/{no_trial}/cosmik_2cams/{task}/q_cosmik_finetuned.csv")
+csv_file = os.path.join(rt_cosmik_path, f"output/{no_trial}/cosmik_2cams/{task}/q_cosmik_2.csv")
 df.to_csv(csv_file, index=False)
 
 

@@ -10,13 +10,25 @@ from pinocchio.visualize import GepettoVisualizer
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '../../../src')))
 
 from src.rtcosmik.human_model.urdf_model import *
-from src.rtcosmik.utils.read_write_utils import read_mks_data, udp_csv_to_dataframe
+from src.rtcosmik.utils.read_write_utils import read_mks_data, udp_csv_to_dataframe, read_subject_info
 from src.rtcosmik.viewer.gv_viewer import place, gv_init, Rquat, add_marker, add_frames
 from src.rtcosmik.human_model.model_utils import get_segment_length
 from src.rtcosmik.ik.ik import RT_IK
 
+SUBJECTS = [
+     "Alessandro", "Anais","Anais","Anastasia","Batiste","Bilal","Claire_","Clement","Flavie","Guilhem","Kahina","Marie_M","Mathis",
+     "Maxime_","Mohamed","Nicolas", "Zoe", "Herbert"
+]
 
-def run_ik(task, no_trial="Guilhem", subject_mass=74.0, subject_height=1.76, gender='male', start_sample=0):
+TASKS = ["bolting","bolting_sat","crouch","crouch_object","hitting","hitting_sat","jump","lifting","lifting_fast","lower",
+         "overhead", "overhead_front", "robot_sanding","robot_welding",
+             "sanding","sanding_sat","sit_to_stand","squat","static","upper","walk","walk_front","welding","welding_sat"]
+
+
+def run_ik(task, no_trial,start_sample=0):
+    info_path = f"/root/workspace/ros_ws/src/rt-cosmik/output/{no_trial}/info.txt"
+    subject_height,subject_mass, gender = read_subject_info(info_path) 
+
     rt_cosmik_path = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
     path_to_csv = f"/root/workspace/ros_ws/src/rt-cosmik/output/{no_trial}/mocap/{task}/mks_data_gapfilled.csv"
 
@@ -32,13 +44,13 @@ def run_ik(task, no_trial="Guilhem", subject_mass=74.0, subject_height=1.76, gen
              'r_thigh1_study','r_knee_study','r_mknee_study','r_sh1_study',
              'r_ankle_study','r_mankle_study','r_calc_study','r_5meta_study','r_toe_study',
              'r_pelvis', 'l_pelvis']
-    
+
+    # Load UDP CSV (wide format)
+    df_wide = udp_csv_to_dataframe(path_to_csv, mks_names)
     # df_wide = pd.read_csv(path_to_csv)
     # df_wide.columns = [col.replace(f"{no_trial}:", "") for col in df_wide.columns]
     # frames = df_wide["Frame"] if "Frame" in df_wide.columns else range(len(df_wide))
     # mks_names = sorted(set(col.rsplit("_", 1)[0] for col in df_wide.columns if "_x" in col))
-
-    df_wide = udp_csv_to_dataframe(path_to_csv, mks_names)
     result_markers, start_sample_dict = read_mks_data(df_wide, start_sample=start_sample, converter = 1.0)
 
     # Load URDF
@@ -52,7 +64,7 @@ def run_ik(task, no_trial="Guilhem", subject_mass=74.0, subject_height=1.76, gen
     human_model = mks_registration(human_model, start_sample_dict, with_hand=True)
     human_data = pin.Data(human_model)
 
-    ################################################################################LOCK JOINTS
+    #########################################################LOCK JOINTS 
     all_joint_ids = set(range(1, human_model.njoints))
     joints_to_lock = ["middle_thoracic_X", "middle_thoracic_Y", "middle_thoracic_Z", "left_wrist_X", "left_wrist_Z", "right_wrist_X","right_wrist_Z"]
     joint_ids_to_lock = []
@@ -69,8 +81,9 @@ def run_ik(task, no_trial="Guilhem", subject_mass=74.0, subject_height=1.76, gen
 
     print(human_model.nq)
     human_data = pin.Data(human_model)
-###############################################################################################################
-# VISUALIZATION
+    #######################################################################################
+
+    # VISUALIZATION
     viz = gv_init(human_model, human_collision_model, human_visual_model, start_sample_dict)
     pin.forwardKinematics(human_model, human_data, pin.neutral(human_model))
     pin.updateFramePlacements(human_model, human_data)
@@ -82,13 +95,13 @@ def run_ik(task, no_trial="Guilhem", subject_mass=74.0, subject_height=1.76, gen
     q = pin.neutral(human_model)
     human_data = pin.Data(human_model)
     viz.display(q)
-    # input("Model scaled, you can launch IK")
-    #measured frames
+
+    # measured frames
     seg_frames = construct_segments_frames(result_markers[start_sample])
     add_frames(viz, seg_frames, "meas", 0.008, 0.08)
-    #model markers spheres 
-    add_marker(viz, result_markers[1].keys(), '_m', 1, 0, 0)
-    #model frames
+    # model markers spheres 
+    add_marker(viz, result_markers[1].keys(), '_m', 0, 0, 1)
+    # model frames
     for joint_id in range(1, human_model.njoints):
         frame_name = f'world/{human_model.names[joint_id] + "_model"}'
         viz.viewer.gui.addXYZaxis(frame_name, [255, 0., 0, 1.], 0.012, 0.05)
@@ -116,7 +129,6 @@ def run_ik(task, no_trial="Guilhem", subject_mass=74.0, subject_height=1.76, gen
     q = ik_class.solve_ik_sample_casadi()
     viz.display(q)
     ik_class._q0 = q
-    # input("First sample")
 
     rmse_per_marker = {}
     q_list = []
@@ -150,9 +162,21 @@ def run_ik(task, no_trial="Guilhem", subject_mass=74.0, subject_height=1.76, gen
             rmse_per_marker.setdefault(marker, []).append(sq_error)
 
         M_model_list.append(M_model_frame)
+        pin.forwardKinematics(human_model,human_data, q)
+        pin.updateFramePlacements(human_model,human_data)
+
+        # for frame in human_model.frames.tolist():
+        #     viz.viewer.gui.addXYZaxis('world/'+frame.name,[1,0,0,1],0.01,0.1)
+        #     place(viz,'world/'+frame.name,human_data.oMf[human_model.getFrameId(frame.name)])
+
         viz.display(q)
         ik_class._q0 = q
         q_list.append(q)
+
+    # save mks est (model markers)
+    df = pd.DataFrame(M_model_list)
+    csv_file = os.path.join(rt_cosmik_path,f"/root/workspace/ros_ws/src/rt-cosmik/output/{no_trial}/mocap/{task}/mks_model_mocap.csv") 
+    df.to_csv(csv_file, index=False)
 
     joint_angles_names = ['FF_X', 'FF_Y', 'FF_Z', 'FF_quatx','FF_quaty',
                           'FF_quatz', 'FF_quatw', 'Lhip_flex_ext', 'Lhip_abd_add','Lhip_int_ext_rot','Lknee_flex_ext','Lankle_flex_ext','Lankle_abd_add',
@@ -169,8 +193,8 @@ def run_ik(task, no_trial="Guilhem", subject_mass=74.0, subject_height=1.76, gen
     if len(joint_angles_names) != len(q_list[0]):
         raise ValueError("Mismatch between joint names and q size")
 
-    pd.DataFrame(q_list, columns=joint_angles_names).to_csv(
-        os.path.join(rt_cosmik_path, f"output/{no_trial}/mocap/{task}/q_mocap.csv"), index=False)
+    out_q = os.path.join(rt_cosmik_path, f"output/{no_trial}/mocap/{task}/q_mocap.csv")
+    pd.DataFrame(q_list, columns=joint_angles_names).to_csv(out_q, index=False)
 
     print("\nPer-marker RMSE (in meters):")
     rmse_global, nb_mks = 0, 0
@@ -180,13 +204,16 @@ def run_ik(task, no_trial="Guilhem", subject_mass=74.0, subject_height=1.76, gen
         print(f"{marker}: {rmse:.4f} m")
         rmse_global += rmse
 
-    print(f"Global RMSE: {rmse_global / nb_mks:.4f} m")
+    print(f"Global RMSE: {rmse_global / max(nb_mks,1):.4f} m")
 
 
 if __name__ == "__main__":
-    task_list = ["bolting","bolting_sat","crouch","crouch_object","hitting","hitting_sat","jump","lifting","lifting_fast","lower","overhead", "overhead_front",
-             "robot_sanding","robot_welding",
-             "sanding","sanding_sat","sit_to_stand","squat","static","upper","walk","walk_front","welding","welding_sat"]
-
-    for task in task_list:
-        run_ik(task)
+    if not SUBJECTS or not TASKS:
+        print("Please fill SUBJECTS and TASKS at the top of this script.")
+    for no_trial in SUBJECTS:
+        for task in TASKS:
+            try:
+                print(f"\n=== Subject: {no_trial} | Task: {task} ===")
+                run_ik(task, no_trial=no_trial)
+            except Exception as e:
+                print(f"[ERROR] {no_trial} / {task}: {e}")

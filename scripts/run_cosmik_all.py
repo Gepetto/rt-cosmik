@@ -16,7 +16,7 @@ from src.rtcosmik.utils.linear_algebra_utils import butterworth_filter
 
 import pinocchio as pin
 from pinocchio.visualize import GepettoVisualizer
-from src.rtcosmik.utils.read_write_utils import read_mks_data
+from src.rtcosmik.utils.read_write_utils import read_mks_data,read_subject_info
 from src.rtcosmik.viewer.gv_viewer import place, gv_init, Rquat, add_marker, add_frames
 from src.rtcosmik.config_loader import settings
 from src.rtcosmik.human_model.urdf_model import * 
@@ -26,18 +26,15 @@ import gepetto as gep
 base_path = "/root/workspace/ros_ws/src/rt-cosmik"
 # === Configuration ===
 nbr_cam = 2
-no_trial = "Nicolas"
-# === Subject physical info for LSTM ===
-subject_mass =74.0
-subject_height = 1.81
-gender='male'
 
-task_list = ["static","bolting","bolting_sat","crouch","crouch_object","hitting","hitting_sat","jump","lifting","lifting_fast","lower","overhead",
-             "robot_sanding","robot_welding",
-             "sanding","sanding_sat","sit_to_stand","squat","upper","walk","walk_front","welding","welding_sat"]
+SUBJECTS = [
+     "Alessandro", "Anais","Anais","Anastasia","Batiste","Bilal","Claire_","Clement","Flavie","Guilhem","Kahina","Marie_M","Mathis",
+     "Maxime_","Mohamed","Nicolas", "Zoe", "Herbert"
+]
 
-augmenter_path = os.path.join(base_path, "src/rtcosmik/augmenter/augmentation_model")
-transformation_file = f"{base_path}//config/cam_params/{no_trial}/calib_mocap_2_cam0/soder.txt"
+TASKS = ["bolting","bolting_sat","crouch","crouch_object","hitting","hitting_sat","jump","lifting","lifting_fast","lower",
+         "overhead", "overhead_front", "robot_sanding","robot_welding",
+             "sanding","sanding_sat","sit_to_stand","squat","static","upper","walk","walk_front","welding","welding_sat"]
 
 
 # === Marker headers ===
@@ -137,7 +134,7 @@ def run_ik_pipeline(augmented_csv_path, keypoints_csv_path, meshes_folder_path, 
     # add_frames(viz,seg_frames,"meas", 0.008, 0.08)
 
     #model markers spheres 
-    add_marker(viz,result_markers[1].keys(),'_m', 1, 0,0)
+    add_marker(viz,result_markers[1].keys(),'_m', 0, 0,1)
 
     # IK init
     q = pin.neutral(human_model)
@@ -364,20 +361,36 @@ def main(task, no_trial, nbr_cam, file_paths, base_path, transformation_file, au
     )
 
 
+
 if __name__ == "__main__":
-    task_list = task_list
-    no_trial = no_trial
     nbr_cam = nbr_cam
     base_path = base_path
-    transformation_file = transformation_file
-    augmenter_path = augmenter_path
-    subject_mass = subject_mass  # kg
-    subject_height = subject_height  # meters
+    augmenter_path = os.path.join(base_path, "src/rtcosmik/augmenter/augmentation_model")
 
-    for task in task_list:
-        file_paths = [
-        os.path.join(base_path, f"output/{no_trial}/output_2d/{task}/{task}_camera_0.csv"),
-        os.path.join(base_path, f"output/{no_trial}/output_2d/{task}/{task}_camera_2.csv")
-    ]
-        print(f"\n=== Processing task: {task} ===")
-        main(task, no_trial, nbr_cam, file_paths, base_path, transformation_file, augmenter_path, subject_mass, subject_height)
+    for no_trial in SUBJECTS:    
+        for task in TASKS:
+            info_path = f"/root/workspace/ros_ws/src/rt-cosmik/output/{no_trial}/info.txt"
+            subject_height, subject_mass, gender = read_subject_info(info_path) 
+            transformation_file = f"{base_path}//config/cam_params/{no_trial}/calib_mocap_2_cam0/soder.txt"
+
+            # Build list of camera csvs for this subject+task
+            file_paths = [
+            os.path.join(base_path, f"output/{no_trial}/output_2d/{task}/{task}_camera_0.csv"),
+            os.path.join(base_path, f"output/{no_trial}/output_2d/{task}/{task}_camera_2.csv")
+            ]
+
+            # Display a quick banner
+            print(f"\n=== Subject: {no_trial} | Task: {task}")
+
+            main(
+                task,
+                no_trial,
+                nbr_cam,
+                file_paths,
+                base_path,
+                transformation_file,
+                augmenter_path,
+                subject_mass,
+                subject_height
+            )
+

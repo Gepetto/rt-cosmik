@@ -12,8 +12,8 @@ from src.rtcosmik.utils.read_write_utils import parse_marker_csv,udp_csv_to_data
 from collections import defaultdict
 
 nbr_cam = 2
-no_trial = "Mohamed"
-task = "bolting"
+no_trial = "Claire_"
+task = "sanding"
 
 path_to_csv_mocap = f"/root/workspace/ros_ws/src/rt-cosmik/output/{no_trial}/mocap/{task}/mks_data_gapfilled.csv"
 # path_to_csv = f"/root/workspace/ros_ws/src/rt-cosmik/output/{no_trial}/mouv/{task}/mocap_downsampled_to_40hz.csv"
@@ -22,8 +22,8 @@ path_to_csv_mocap = f"/root/workspace/ros_ws/src/rt-cosmik/output/{no_trial}/moc
 # frames = df_wide["Frame"] if "Frame" in df_wide.columns else range(len(df_wide))
 # mks_names = sorted(set(col.rsplit("_", 1)[0] for col in df_wide.columns if "_x" in col))
 
-path_to_csv_lstm = f"/root/workspace/ros_ws/src/rt-cosmik/output/{no_trial}/cosmik_2cams/{task}/augmented_markers_2.csv"
-path_to_csv_lstm2 = f"/root/workspace/ros_ws/src/rt-cosmik/output/{no_trial}/cosmik_2cams/{task}/augmented_markers_finetuned_hpe.csv"
+path_to_csv_lstm = f"/root/workspace/ros_ws/src/rt-cosmik/output/{no_trial}/cosmik_2cams/{task}/augmented_markers_test.csv"
+path_to_csv_lstm2 = f"/root/workspace/ros_ws/src/rt-cosmik/output/{no_trial}/cosmik_2cams/{task}/augmented_markers_{nbr_cam}.csv"
 path_to_kpt = f"/root/workspace/ros_ws/src/rt-cosmik/output/{no_trial}/cosmik_2cams/{task}/3d_keypoints_filtered_{nbr_cam}.csv"
 # path_to_kpt = f"/root/workspace/ros_ws/src/rt-cosmik/output/{no_trial}/mocap/{task}/joint_center_positions.csv"
 
@@ -105,11 +105,11 @@ for name in hpe_kpt:
     viz.viewer.gui.addSphere(sphere_name, 0.01, [0, 0, 255, 1])
 
 for name in start_sample_lstm2.keys():
-    sphere_n = f'world/lstm_nominal_{name}'
+    sphere_n = f'world/lstm_{name}'
     viz.viewer.gui.addSphere(sphere_n, 0.015, [0, 0, 255, 1.])
 
 for name in start_sample_lstm.keys():
-    sphere_n = f'world/lstm_{name}'
+    sphere_n = f'world/lstm_nominal_{name}'
     viz.viewer.gui.addSphere(sphere_n, 0.015, [0, 255, 0, 1.])
 
 for name in start_sample_mks.keys():
@@ -128,9 +128,9 @@ for i in range(len(result_markers)):
         pos_mks = result_markers_lstm[i][mks].reshape(3,)  # shape (3,)
         pos_mks2 = result_markers_lstm2[i][mks].reshape(3,)  # shape (3,)
 
-        # place(viz, f'world/mocap_{mks}', pin.SE3(np.eye(3), pos_mocap))
-        # place(viz, f'world/lstm_{mks}', pin.SE3(np.eye(3), pos_mks))
-        # place(viz, f'world/lstm_nominal_{mks}', pin.SE3(np.eye(3), pos_mks2))
+        place(viz, f'world/mocap_{mks}', pin.SE3(np.eye(3), pos_mocap))
+        place(viz, f'world/lstm_nominal_{mks}', pin.SE3(np.eye(3), pos_mks))
+        place(viz, f'world/lstm_{mks}', pin.SE3(np.eye(3), pos_mks2))
 
         error = np.linalg.norm(pos_mocap - pos_mks)  # Euclidean distance
         squared_errors[mks].append(error**2)
@@ -141,12 +141,12 @@ for i in range(len(result_markers)):
         all_squared_errors2.append(error2**2)
 
     
-    for mks in hpe_kpt:
-        pos_hpe = result_markers_lstm[i][mks].reshape(3,)
-        place(viz, f'world/tri_{mks}', pin.SE3(np.eye(3), pos_hpe))
+    # for mks in hpe_kpt:
+    #     pos_hpe = result_markers_lstm[i][mks].reshape(3,)
+    #     place(viz, f'world/tri_{mks}', pin.SE3(np.eye(3), pos_hpe))
 
     
-    # time.sleep(0.03)
+    time.sleep(0.03)
 
 # Compute RMSE per marker
 rmse_per_marker = {}

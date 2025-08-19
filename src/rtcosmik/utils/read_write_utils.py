@@ -4,7 +4,7 @@ from typing import Dict, Tuple, List
 import matplotlib.pyplot as plt 
 import os
 import csv
-
+from pathlib import Path
 def set_zero_data_df(df, x=None, y=None, z=None):
     # Isolate the right ankle coordinates for frame 1
     right_ankle_frame1 = df[(df['Frame'] == 1) & (df['Keypoint'] == 'Right Ankle')]
@@ -864,3 +864,36 @@ def transform_keypoints_list_cam0_to_mocap(keypoints_list, R_trans, d_trans):
         transformed_list.append(p3d_mocap.flatten().tolist())
 
     return transformed_list
+
+def read_subject_info(info_path: str):
+    height = None
+    weight = None
+    gender = None
+    p = Path(info_path)
+    if not p.exists():
+        raise FileNotFoundError(f"Missing info file: {info_path}")
+    with p.open('r') as f:
+        for raw in f:
+            line = raw.strip()
+            if not line or line.startswith('#'):
+                continue
+            for sep in ['=', ':']:
+                line = line.replace(sep, ' ')
+            parts = line.split()
+            if len(parts) < 2:
+                continue
+            key = parts[0].lower()
+            val = parts[1]
+            if key.startswith('height'):
+                v = float(val)
+                height = v/100.0 if v > 3.5 else v
+            elif key.startswith('weight'):
+                try:
+                    weight = float(val)
+                except ValueError:
+                    pass
+            elif key.startswith('gender'):
+                gender = val.strip().lower()
+    if height is None or gender is None:
+        raise ValueError(f"info.txt must provide at least height and gender. Got height={height}, gender={gender}")
+    return height, weight, gender
