@@ -6,8 +6,8 @@ import sys
 import numpy as np
 import pandas as pd
 import argparse
-from sklearn.model_selection import train_test_split
 from sklearn.utils import shuffle
+from pathlib import Path
 
 # add project root to path so we can import utils
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
@@ -149,7 +149,7 @@ for subject in subjects_sorted:
 
     metadata_path = os.path.join(subject_path, "info.txt")
     subjects_metadata["name"].append(subject)
-    height, weight, _ = read_metadata(metadata_path)
+    height, weight, _ = read_subject_info(metadata_path)
     subjects_metadata["height"].append(height)
     subjects_metadata["weight"].append(weight)
 
