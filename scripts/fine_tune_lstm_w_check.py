@@ -5,6 +5,7 @@ import os
 import numpy as np
 import pandas as pd
 import tensorflow as tf
+from tensorflow.keras.losses import MeanSquaredError
 from tensorflow.keras.models import model_from_json, Model
 from tensorflow.keras.optimizers import Adam
 from tensorflow.keras.callbacks import EarlyStopping
@@ -71,7 +72,7 @@ use_mocap = opt.use_mocap
 add_noise = opt.add_noise
 use_weights = opt.use_weights
 monitoring = True
-monitoring_step = 25
+monitoring_step = 1
 json_path      = os.path.join(pretrained_dir, "model.json")
 weights_path   = os.path.join(pretrained_dir, "weights.h5")
 
@@ -79,7 +80,7 @@ batch_size   = 64
 epochs       = 500
 patience     = 5
 learning_rate= 6e-6
-initializer = RandomNormal(mean=0.0, stddev=0.022)
+initializer  = RandomNormal(mean=0.0, stddev=0.022)
 weight_decay = 0.01
 
 response_mks_lower = [
@@ -167,7 +168,7 @@ if body_part == "upper" and use_weights == "T":
 elif body_part == "lower" and use_weights == "T":
     model.compile(optimizer=Adam(learning_rate), loss=weighted_l2_loss(weights_loss))
 else:
-    model.compile(optimizer=Adam(learning_rate), loss='mse')
+    model.compile(optimizer=Adam(learning_rate), loss=MeanSquaredError())
 
 # Sauvegarde de l'architecture dans un fichier JSON
 with open(os.path.join(pretrained_dir, f"model_finetuned_{body_part}_ft{fine_tune}_al{add_layer}_m{use_mocap}_n{add_noise}_w{use_weights}.json"), "w") as f:

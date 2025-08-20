@@ -125,7 +125,7 @@ def read_subject_info(info_path: str):
                 try:
                     weight = float(val)
                 except ValueError:
-                    pass
+                    raise(f"Wrong weight format in {info_path}")
             elif key.startswith('gender'):
                 gender = val.strip().lower()
     if height is None or gender is None:
@@ -155,6 +155,8 @@ for subject in subjects_sorted:
 
     print("subject :", subject)
     for trial in os.listdir(subject_path):
+        if trial == "info.txt":
+            continue
         # # Skip trials with HPE bug
         # if use_mocap == "F" and any(keyword in trial for keyword in excluded_trials):
         #     print(f"Skipping {trial} in {subject} due to HPE bug.")
