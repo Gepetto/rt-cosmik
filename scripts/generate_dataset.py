@@ -50,7 +50,7 @@ add_noise = opt.add_noise
 
 test_size     = 2
 random_state  = 42
-seq_len       = 40
+seq_len       = 30
 
 # === Utils ===
 if body_part == "upper":
@@ -99,6 +99,39 @@ def listdicts_to_array(ld, names):
             arr[i, j, :] = frame[key]
     return arr
 
+def read_subject_info(info_path: str):
+    height = None
+    weight = None
+    gender = None
+    p = Path(info_path)
+    if not p.exists():
+        raise FileNotFoundError(f"Missing info file: {info_path}")
+    with p.open('r') as f:
+        for raw in f:
+            line = raw.strip()
+            if not line or line.startswith('#'):
+                continue
+            for sep in ['=', ':']:
+                line = line.replace(sep, ' ')
+            parts = line.split()
+            if len(parts) < 2:
+                continue
+            key = parts[0].lower()
+            val = parts[1]
+            if key.startswith('height'):
+                v = float(val)
+                height = v/100.0 if v > 3.5 else v
+            elif key.startswith('weight'):
+                try:
+                    weight = float(val)
+                except ValueError:
+                    pass
+            elif key.startswith('gender'):
+                gender = val.strip().lower()
+    if height is None or gender is None:
+        raise ValueError(f"info.txt must provide at least height and gender. Got height={height}, gender={gender}")
+    return height, weight, gender
+
 
 # === Load data ===
 df_inputs = pd.DataFrame()
@@ -114,27 +147,24 @@ subjects_sorted = sorted(os.listdir(data_dir))
 for subject in subjects_sorted:
     subject_path = os.path.join(data_dir, subject)
 
-    metadata_path = os.path.join(subject_path, "infos.txt")
-    with open(metadata_path, 'r') as f:
-        metadata = f.readlines()
+    metadata_path = os.path.join(subject_path, "info.txt")
     subjects_metadata["name"].append(subject)
-    subjects_metadata["height"].append(float(metadata[0].strip().split(":")[1]))
-    subjects_metadata["weight"].append(float(metadata[1].strip().split(":")[1]))
+    height, weight, _ = read_metadata(metadata_path)
+    subjects_metadata["height"].append(height)
+    subjects_metadata["weight"].append(weight)
 
-    cosmik_2cams_path = os.path.join(subject_path, "cosmik_2cams")
-    mocap_path = os.path.join(subject_path, "mocap")
     print("subject :", subject)
-    for trial in os.listdir(cosmik_2cams_path):
-        # Skip trials with HPE bug
-        if use_mocap == "F" and any(keyword in trial for keyword in excluded_trials):
-            print(f"Skipping {trial} in {subject} due to HPE bug.")
-            continue
+    for trial in os.listdir(subject_path):
+        # # Skip trials with HPE bug
+        # if use_mocap == "F" and any(keyword in trial for keyword in excluded_trials):
+        #     print(f"Skipping {trial} in {subject} due to HPE bug.")
+        #     continue
         
         # print("trial :", trial)
         # Wether we use cleaned HPE data or raw HPE data
         if use_mocap == "T":
-            if f"{trial}_jcp_mocap.csv" in os.listdir(os.path.join(mocap_path, trial)):
-                current_input_data_path = os.path.join(mocap_path, trial, f"{trial}_jcp_mocap.csv")
+            if f"{trial}_jcp_mocap.csv" in os.listdir(os.path.join(subject_path, trial)):
+                current_input_data_path = os.path.join(subject_path, trial, f"{trial}_jcp_mocap.csv")
                 current_df_inputs = pd.read_csv(current_input_data_path)
             else:
                 print(f"Skipping {trial} in {subject} due to missing JCP mocap data.")
@@ -153,9 +183,9 @@ for subject in subjects_sorted:
             raise Exception("Please specify --use-mocap argument as T.")
 
         # Wether we use cleaned mocap data or raw mocap data
-        if f"{trial}_trajectories.csv" in os.listdir(os.path.join(mocap_path, trial)):
-            current_mocap_data_path = os.path.join(mocap_path, trial, f"{trial}_mks_data_cleaned.csv")
-            current_df_gt = pd.read_csv(current_mocap_data_path)
+        if f"{trial}_trajectories.csv" in os.listdir(os.path.join(subject_path, trial)):
+            current_gt_data_path = os.path.join(subject_path, trial, f"{trial}_trajectories.csv")
+            current_df_gt = pd.read_csv(current_gt_data_path)
         # elif "mks_data_cleaned.csv" in os.listdir(os.path.join(mocap_path, trial)):
         #     current_mocap_data_path = os.path.join(mocap_path, trial, "mks_data_cleaned.csv")
         #     current_df_gt = pd.read_csv(current_mocap_data_path)
@@ -169,9 +199,11 @@ for subject in subjects_sorted:
             print(f"Skipping {trial} in {subject} due to missing mocap data.")
             continue
 
-        # équilibrage des longueurs des datas (si une frame en plus dans l'un ou l'autre)
-        current_df_inputs = current_df_inputs.iloc[:min(len(current_df_inputs), len(current_df_gt)),:]
-        current_df_gt = current_df_gt.iloc[:min(len(current_df_inputs), len(current_df_gt)),:]
+        # # équilibrage des longueurs des datas (si une frame en plus dans l'un ou l'autre)
+        # len_min = min(len(current_df_inputs), len(current_df_gt))
+        # current_df_inputs = current_df_inputs.iloc[:len_min,:]
+        # current_df_gt = current_df_gt.iloc[:len_min,:]
+        # assert len(current_df_inputs) == len(current_df_gt)
 
         # Concatenate HPE and mocap data to previous
         df_inputs = pd.concat([df_inputs, current_df_inputs], ignore_index=True)
@@ -184,10 +216,10 @@ for subject in subjects_sorted:
     chgt_subject_indexes.append(len(df_inputs))
 
 # Convert to lists arrays
-mocap_df = df_gt.copy()
-mocap_list, _ = read_mks_data(mocap_df)
 kpts_df = df_inputs.copy()
 kpts_list, _ = read_mks_data(kpts_df)
+mks_df = df_gt.copy()
+mks_list, _ = read_mks_data(mks_df)
 
 
 # build mid-hip reference array
@@ -198,10 +230,10 @@ for i, sample in enumerate(kpts_list):
 
 # Convert to numpy arrays
 kpts_arr  = listdicts_to_array(kpts_list, kpts_input_lstm)
-mocap_arr = listdicts_to_array(mocap_list, default_mocap_mks_names)
+mks_arr = listdicts_to_array(mks_list, default_mocap_mks_names)
 
 # === generate dataset ===
-def data_generator(kpts_arr, mocap_arr, mid_arr, subject_heights, subject_weights,
+def data_generator(kpts_arr, mks_arr, mid_arr, subject_names, subject_heights, subject_weights,
                    chgt_subject_indexes, chgt_trial_indexes, seq_len, mks_of_interest, train="T"):
     
     if train == "T":
@@ -218,11 +250,13 @@ def data_generator(kpts_arr, mocap_arr, mid_arr, subject_heights, subject_weight
         raise Exception("Please specify train argument as T or F.")
 
     for ind_subject, end_subject in enumerate(chgt_subject_indexes):
+        name = subject_names[ind_subject+ind_subject_shifting]
+        print(train, name)
         height = subject_heights[ind_subject+ind_subject_shifting]
         weight = subject_weights[ind_subject+ind_subject_shifting]
 
         subject_kpts = kpts_arr[start_subject:end_subject]
-        subject_mocap = mocap_arr[start_subject:end_subject]
+        subject_mks = mks_arr[start_subject:end_subject]
         subject_mid = mid_arr[start_subject:end_subject]
 
         for end_trial in [i for i in chgt_trial_indexes if i <= end_subject and i > start_subject]:
@@ -242,7 +276,7 @@ def data_generator(kpts_arr, mocap_arr, mid_arr, subject_heights, subject_weight
                 ], axis=1)
 
                 sel = [default_mocap_mks_names.index(m) for m in mks_of_interest]
-                ybuf = subject_mocap[start:start+seq_len, sel, :]
+                ybuf = subject_mks[start:start+seq_len, sel, :]
                 out = ybuf - ref[:, None, :]
                 out = out / height
                 out = out.reshape(seq_len, -1)
@@ -254,7 +288,7 @@ def data_generator(kpts_arr, mocap_arr, mid_arr, subject_heights, subject_weight
 
 # Collecte
 X, Y = [], []
-for x, y in data_generator(kpts_arr, mocap_arr, mid_arr, subjects_metadata["height"],
+for x, y in data_generator(kpts_arr, mks_arr, mid_arr, subjects_metadata["name"], subjects_metadata["height"],
                            subjects_metadata["weight"], chgt_subject_indexes,
                            chgt_trial_indexes, seq_len, mks_of_interest, train="T"):
     X.append(x)
@@ -268,7 +302,7 @@ print("Y_train :", Y_train.shape)
 
 # Collecte
 X, Y = [], []
-for x, y in data_generator(kpts_arr, mocap_arr, mid_arr, subjects_metadata["height"],
+for x, y in data_generator(kpts_arr, mks_arr, mid_arr, subjects_metadata["name"], subjects_metadata["height"],
                            subjects_metadata["weight"], chgt_subject_indexes,
                            chgt_trial_indexes, seq_len, mks_of_interest, train="F"):
     X.append(x)
