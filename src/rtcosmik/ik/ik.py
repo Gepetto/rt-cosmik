@@ -378,11 +378,11 @@ class RT_IK:
 
         # Set Ipopt options to suppress output
         opts = {
-            "ipopt.print_level": 5,
+            "ipopt.print_level": 0,
             "ipopt.sb": "yes",
             "ipopt.max_iter": 50,
             "ipopt.linear_solver": "mumps",
-            "print_time":1,
+            "print_time":0,
             "expand": True,
 
             # Tolerance options

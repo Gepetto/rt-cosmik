@@ -6,7 +6,11 @@ from src.rtcosmik.config_loader import settings
 import matplotlib.pyplot as plt
 from scipy.interpolate import CubicSpline
 
-no_trial = "Claire_"
+SUBJECTS = [
+     "Alessandro", "Anais","Anastasia","Batiste","Bilal","Claire_","Clement","Flavie","Guilhem","Kahina","Marie_M","Mathis",
+     "Maxime_","Mohamed","Nicolas", "Zoe", "Herbert","Emmanuelle"
+]
+
 tasks_list = ["bolting","bolting_sat","crouch","crouch_object","hitting","hitting_sat","jump","lifting","lifting_fast","lower","overhead","overhead_front",
              "robot_sanding","robot_welding",
              "sanding","sanding_sat","sit_to_stand","squat","static","upper","walk","walk_front","welding","welding_sat"]
@@ -57,34 +61,34 @@ def plot_marker_trajectories(df_wide, marker_names, filled_df):
         plt.tight_layout(rect=[0, 0, 1, 0.96])
         plt.show()
 
+for no_trial in SUBJECTS:
+    for task in tasks_list:
+        print(f"\nProcessing task: {task}")
+        
+        path_to_csv = f"/home/msabbah/pinocchio-3x/src/rt-cosmik/output/{no_trial}/mouv/{task}/mks_data.csv"
+        output_csv = f"/home/msabbah/pinocchio-3x/src/rt-cosmik/output/{no_trial}/mocap/{task}/mks_data_gapfilled.csv"
 
-for task in tasks_list:
-    print(f"\nProcessing task: {task}")
-    
-    path_to_csv = f"/root/workspace/ros_ws/src/rt-cosmik/output/{no_trial}/mouv/{task}/mks_data.csv"
-    output_csv = f"/root/workspace/ros_ws/src/rt-cosmik/output/{no_trial}/mocap/{task}/mks_data_gapfilled.csv"
+        if not os.path.exists(path_to_csv):
+            print(f" CSV file not found for task {task}, skipping...")
+            continue
 
-    if not os.path.exists(path_to_csv):
-        print(f" CSV file not found for task {task}, skipping...")
-        continue
+        os.makedirs(os.path.dirname(output_csv), exist_ok=True)
 
-    os.makedirs(os.path.dirname(output_csv), exist_ok=True)
+        # Load data
+        df_wide = udp_csv_to_dataframe(path_to_csv, mks_names)
+        print(f"Original length: {len(df_wide)}")
 
-    # Load data
-    df_wide = udp_csv_to_dataframe(path_to_csv, mks_names)
-    print(f"Original length: {len(df_wide)}")
+        # Gap filling
+        df_wide_filled = fill_gaps_with_spline(df_wide)
+        print(f"Filled length: {len(df_wide_filled)}")
 
-    # Gap filling
-    df_wide_filled = fill_gaps_with_spline(df_wide)
-    print(f"Filled length: {len(df_wide_filled)}")
+        # Optional: Plot
+        # plot_marker_trajectories(df_wide, mks_names, filled_df=df_wide_filled)
 
-    # Optional: Plot
-    # plot_marker_trajectories(df_wide, mks_names, filled_df=df_wide_filled)
-
-    # Save
-    df_to_save = pd.concat(
-        [pd.Series(df_wide_filled.index, name='timestamp'), df_wide_filled],
-        axis=1
-    )
-    df_to_save.to_csv(output_csv, header=False)
-    print(f"Saved gap-filled data to {output_csv}")
+        # Save
+        df_to_save = pd.concat(
+            [pd.Series(df_wide_filled.index, name='timestamp'), df_wide_filled],
+            axis=1
+        )
+        df_to_save.to_csv(output_csv, header=False)
+        print(f"Saved gap-filled data to {output_csv}")

@@ -16,8 +16,8 @@ from src.rtcosmik.human_model.model_utils import get_segment_length
 from src.rtcosmik.ik.ik import RT_IK
 
 SUBJECTS = [
-     "Alessandro", "Anais","Anais","Anastasia","Batiste","Bilal","Claire_","Clement","Flavie","Guilhem","Kahina","Marie_M","Mathis",
-     "Maxime_","Mohamed","Nicolas", "Zoe", "Herbert"
+      "Anais","Anastasia","Batiste","Bilal","Claire_","Clement","Flavie","Guilhem","Kahina","Marie_M","Mathis",
+     "Maxime_","Mohamed","Nicolas", "Zoe", "Herbert","Emmanuelle"
 ]
 
 TASKS = ["bolting","bolting_sat","crouch","crouch_object","hitting","hitting_sat","jump","lifting","lifting_fast","lower",
@@ -25,12 +25,13 @@ TASKS = ["bolting","bolting_sat","crouch","crouch_object","hitting","hitting_sat
              "sanding","sanding_sat","sit_to_stand","squat","static","upper","walk","walk_front","welding","welding_sat"]
 
 
+
 def run_ik(task, no_trial,start_sample=0):
-    info_path = f"/root/workspace/ros_ws/src/rt-cosmik/output/{no_trial}/info.txt"
+    info_path = f"/home/msabbah/pinocchio-3x/src/rt-cosmik/output/{no_trial}/info.txt"
     subject_height,subject_mass, gender = read_subject_info(info_path) 
 
     rt_cosmik_path = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-    path_to_csv = f"/root/workspace/ros_ws/src/rt-cosmik/output/{no_trial}/mocap/{task}/mks_data_gapfilled.csv"
+    path_to_csv = f"/home/msabbah/pinocchio-3x/src/rt-cosmik/output/{no_trial}/mocap/{task}/mks_data_gapfilled.csv"
 
     mks_to_skip = ['LForearm','LUArm', 'RUArm', 'RHJC_study','LHJC_study','r_pelvis','l_pelvis','LHL2','LHM5','RHL2','RHM5',
                    'LHand', 'RForearm','RHand', 'L_sh1_study', 'L_thigh1_study','r_sh1_study', 'r_thigh1_study']
@@ -54,7 +55,7 @@ def run_ik(task, no_trial,start_sample=0):
     result_markers, start_sample_dict = read_mks_data(df_wide, start_sample=start_sample, converter = 1.0)
 
     # Load URDF
-    human = Robot('/root/workspace/ros_ws/src/rt-cosmik/urdf/human.urdf', rt_cosmik_path, isFext=True)
+    human = Robot('/home/msabbah/pinocchio-3x/src/rt-cosmik/urdf/human.urdf', rt_cosmik_path, isFext=True)
     human_model = human.model
     human_data = human.data
     human_collision_model = human.collision_model
@@ -175,7 +176,7 @@ def run_ik(task, no_trial,start_sample=0):
 
     # save mks est (model markers)
     df = pd.DataFrame(M_model_list)
-    csv_file = os.path.join(rt_cosmik_path,f"/root/workspace/ros_ws/src/rt-cosmik/output/{no_trial}/mocap/{task}/mks_model_mocap.csv") 
+    csv_file = os.path.join(rt_cosmik_path,f"/home/msabbah/pinocchio-3x/src/rt-cosmik/output/{no_trial}/mocap/{task}/mks_model_mocap.csv") 
     df.to_csv(csv_file, index=False)
 
     joint_angles_names = ['FF_X', 'FF_Y', 'FF_Z', 'FF_quatx','FF_quaty',
