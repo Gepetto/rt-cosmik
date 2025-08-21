@@ -2,3 +2,4 @@
 *.h5
 *.csv
 *.json
+*.npy

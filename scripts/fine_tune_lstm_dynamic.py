@@ -5,12 +5,14 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 import tensorflow as tf
+import csv
 from tensorflow.keras.models import model_from_json, Model
 from tensorflow.keras.layers import TimeDistributed, Dense
 from tensorflow.keras.initializers import RandomNormal
 from tensorflow.keras.regularizers import l2
 from tensorflow.keras.optimizers import Adam
 from tensorflow.keras.callbacks import EarlyStopping, ModelCheckpoint
+from tensorflow.keras.layers import Layer, Rescaling, Multiply
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 from src.rtcosmik.utils.read_write_utils import read_mks_data, default_mocap_mks_names
 
@@ -32,6 +34,10 @@ p.add_argument('--lr', type=float, default=1e-3)
 p.add_argument('--weight-decay', type=float, default=0.01)
 p.add_argument('--test-size', type=int, default=2, help="# of subjects reserved for val (last N alphabetical)")
 p.add_argument('--seed', type=int, default=42)
+p.add_argument('--rot-prob', type=float, default=0.0, help='Probability to apply a random yaw rotation per window (0..1)')
+p.add_argument('--rot-max-deg', type=float, default=30.0, help='Max absolute rotation in degrees (uniform in [-max, max])')
+p.add_argument('--up-axis', choices=['y','z'], default='y', help='Which axis is vertical in your data (usually y or z)')
+
 args = p.parse_args()
 
 random.seed(args.seed)
@@ -124,7 +130,7 @@ val_trials   = list(enumerate_trials(val_subjects))
 if not train_trials or not val_trials:
     raise RuntimeError("No usable trials found in train/val.")
 
-# ─────────────── Windowing helpers ───────────────
+# ─────────────── Windowing helpers and data augmentation ───────────────
 def listdicts_to_array(ld, names):
     T = len(ld); P = len(names)
     arr = np.zeros((T,P,3), dtype=np.float32)
@@ -133,7 +139,20 @@ def listdicts_to_array(ld, names):
             arr[i,j,:] = fr[k]
     return arr
 
-def trial_to_windows(trial, seq_len, add_noise=False):
+def _yaw_rotation_matrix(theta_rad: float, up_axis: str = 'y'):
+    c, s = np.cos(theta_rad), np.sin(theta_rad)
+    if up_axis == 'y':  # rotate in XZ plane (Y-up)
+        return np.array([[ c, 0.,  s],
+                         [0., 1., 0.],
+                         [-s, 0.,  c]], dtype=np.float32)
+    elif up_axis == 'z':  # rotate in XY plane (Z-up)
+        return np.array([[ c, -s, 0.],
+                         [ s,  c, 0.],
+                         [0.,  0., 1.]], dtype=np.float32)
+    else:
+        raise ValueError("up_axis must be 'y' or 'z'")
+
+def trial_to_windows(trial, seq_len, add_noise=False, rot_prob=0.0, rot_max_deg=30.0, up_axis='y'):
     """Load one trial from disk, produce windowed (inp, out) samples."""
     # read inputs (jcp) and gt (markers)
     df_in  = pd.read_csv(trial['jcp_csv'])
@@ -156,32 +175,48 @@ def trial_to_windows(trial, seq_len, add_noise=False):
     gt_sel = gt_arr[:, sel, :]  # [T, P_out, 3]
 
     h = float(trial['height']); w = float(trial['weight'] or 0.0)
-
     Ttot = kpts_arr.shape[0]
     n_w  = max(Ttot - seq_len + 1, 0)
     for start in range(n_w):
-        end = start + seq_len
-        kbuf = kpts_arr[start:end]           # [L, P_in, 3]
-        ref  = mid[start:end]                # [L, 3]
+        end  = start + seq_len
+        kbuf = kpts_arr[start:end]         # [L, P_in, 3]
+        ybuf = gt_sel[start:end]           # [L, P_out, 3]
+        ref  = mid[start:end]              # [L, 3]
 
-        inp = kbuf - ref[:,None,:]
-        inp = inp / (h if h>0 else 1.0)
+        # translate to mid-hip
+        din = kbuf - ref[:, None, :]       # [L, P_in, 3]
+        dout= ybuf - ref[:, None, :]       # [L, P_out, 3]
+
+        # --- random yaw rotation (per window) ---
+        if rot_prob > 0.0 and np.random.rand() < rot_prob and rot_max_deg > 0.0:
+            theta = np.deg2rad(np.random.uniform(-rot_max_deg, rot_max_deg))
+            R = _yaw_rotation_matrix(theta, up_axis=up_axis).T   # (3,3)
+            din  = din.reshape(-1, 3) @ R
+            dout = dout.reshape(-1, 3) @ R
+            din  = din.reshape(seq_len, -1, 3)
+            dout = dout.reshape(seq_len, -1, 3)
+
+        # normalize by height
+        inv_h = (1.0 / h)
+        din  = din * inv_h
+        dout = dout * inv_h # To comment if you do not want to normalize out (loss in m²)
+
+        # optional Gaussian noise (already height-normalized)
         if add_noise:
-            inp = inp + np.random.normal(0, 0.018, inp.shape).astype(np.float32)
-        inp = inp.reshape(seq_len, -1)       # flatten joints
-        # append height & weight per frame (as in your script)
-        hw  = np.concatenate([np.full((seq_len,1), h, dtype=np.float32),
-                              np.full((seq_len,1), w, dtype=np.float32)], axis=1)
-        inp = np.concatenate([inp, hw], axis=1)  # [L, P_in*3 + 2]
+            din = din + np.random.normal(0, 0.018, din.shape).astype(np.float32)
 
-        ybuf = gt_sel[start:end]             # [L, P_out, 3]
-        out  = (ybuf - ref[:,None,:]) / (h if h>0 else 1.0)
-        out  = out.reshape(seq_len, -1)      # [L, out_dim]
+        # flatten & append height/weight per frame
+        inp = din.reshape(seq_len, -1)
+        hw  = np.concatenate([
+                np.full((seq_len,1), h, dtype=np.float32),
+                np.full((seq_len,1), w, dtype=np.float32)
+             ], axis=1)
+        inp = np.concatenate([inp, hw], axis=1)           # [L, P_in*3 + 2]
+        out = dout.reshape(seq_len, -1)                   # [L, out_dim]
         yield inp.astype(np.float32), out.astype(np.float32)
 
 # Spec (needed for tf.data.from_generator)
 feature_dim = len(kpts_input_lstm)*3 + 2
-out_dim     = out_dim
 
 output_signature = (
     tf.TensorSpec(shape=(args.seq_len, feature_dim), dtype=tf.float32),
@@ -231,6 +266,8 @@ for x_batch, _ in train_raw:
 
 mean_train = mu_acc.numpy()
 std_train  = np.sqrt((m2_acc.numpy() / max(count,1.0)) + 1e-8)
+mean_train_height = float(mean_train[-2])
+std_train_height  = float(std_train[-2])
 
 # map normalization using captured constants
 mt = tf.constant(mean_train, dtype=tf.float32)
@@ -240,8 +277,9 @@ def normalize_xy(x, y):
     x = (x - mt) / st
     return x, y
 
-train_ds = make_dataset(train_trials, args.seq_len, batch=args.batch_size, shuffle_windows=True, add_noise=(args.add_noise=='T')).map(normalize_xy, num_parallel_calls=tf.data.AUTOTUNE)
-val_ds   = make_dataset(val_trials,   args.seq_len, batch=args.batch_size, shuffle_windows=False, add_noise=False).map(normalize_xy, num_parallel_calls=tf.data.AUTOTUNE)
+train_ds       = make_dataset(train_trials, args.seq_len, batch=args.batch_size, shuffle_windows=True, add_noise=(args.add_noise=='T')).map(normalize_xy, num_parallel_calls=tf.data.AUTOTUNE)
+val_ds         = make_dataset(val_trials,   args.seq_len, batch=args.batch_size, shuffle_windows=False, add_noise=False).map(normalize_xy, num_parallel_calls=tf.data.AUTOTUNE)
+val_ds_monitor = make_dataset(val_trials,   args.seq_len, batch=args.batch_size, shuffle_windows=True, add_noise=False).map(normalize_xy, num_parallel_calls=tf.data.AUTOTUNE)
 
 # ─────────────── Model (reuse your pretrained JSON/weights; adjust last layer when needed) ───────────────
 pretrained_dir = Path(args.pretrained_path) / f"v0.3_{args.body_part}"
@@ -302,7 +340,22 @@ def weighted_l2(weights):
         return tf.reduce_mean(sq, axis=-1)
     return loss
 
+class HeightSlice(Layer):
+    """Retourne height comme [B, L, 1] en découpant la feature -2."""
+    def call(self, x):
+        return x[:, :, -2:-1]
+    def get_config(self):
+        return {}
+
+## IF YOU WANT TO HAVE LOSS IN SQUARED METERS + MODIFS TO NOT SCALE GT
+# h_norm = HeightSlice(name="extract_height_norm")(model.input)  # [B,L,1]
+# h_real = Rescaling(scale=std_train_height, offset=mean_train_height, name="denorm_height")(h_norm) 
+# y_m = Multiply(name="to_meters")([model.output, h_real])  # broadcasting (B,L,out_dim) * (B,L,1)
+# model = tf.keras.Model(inputs=model.input, outputs=y_m, name="wrapped_to_meters")
+
 model.compile(optimizer=Adam(args.lr), loss=weighted_l2(W_loss))
+
+model.summary()
 
 # Save model definition that matches finetune config
 model_json_path = pretrained_dir / f"model_finetuned_momo_{args.body_part}_ft{args.fine_tune}_al{args.add_layer}_m{args.use_mocap}_n{args.add_noise}_w{args.use_weights}.json"
@@ -310,23 +363,77 @@ with open(model_json_path, "w") as f:
     f.write(model.to_json())
 
 # ─────────────── Callbacks ───────────────
+class PredictionLogger(tf.keras.callbacks.Callback):
+    def __init__(self, ds, save_dir, mks_names, every_n_epochs=3, seq_len=30, seed=42, include_height=True):
+        super().__init__()
+        self.ds = ds
+        self.save_dir = Path(save_dir); self.save_dir.mkdir(parents=True, exist_ok=True)
+        self.every = every_n_epochs
+        self.seq_len = seq_len
+        self.mks_names = list(mks_names)
+        self.rng = np.random.default_rng(seed)
+        self.include_height = include_height
+
+    def _one_sequence(self):
+        # Take a random batch then pick the first sample
+        batched = list(self.ds.take(5))  # small pool
+        if not batched:
+            return None, None
+        x, y = batched[self.rng.integers(0, len(batched))]
+        return x[0:1], y[0:1]  # keep shape [1, L, F]
+
+    def on_epoch_end(self, epoch, logs=None):
+        if (epoch + 1) % self.every != 0:
+            return
+        x, y = self._one_sequence()
+        if x is None:
+            return
+        pred = self.model.predict(x, verbose=0)  # [1, L, out_dim]
+        x = x.numpy()[0]     # [L, F]
+        y = y.numpy()[0]     # [L, out_dim]
+        p = pred[0]          # [L, out_dim]
+
+        P = len(self.mks_names)
+        try:
+            y = y.reshape(self.seq_len, P, 3)
+            p = p.reshape(self.seq_len, P, 3)
+        except ValueError:
+            print("[PredictionLogger] reshape failed; skipping")
+            return
+
+        # Build wide dataframe
+        frame = np.arange(self.seq_len)
+        cols = {"Frame": frame}
+        if self.include_height:
+            cols["height"] = np.repeat(x[0, -2]*std_train_height+mean_train_height, self.seq_len)  # height per frame (constant)
+        for j, name in enumerate(self.mks_names):
+            for a, ax in enumerate(['x','y','z']):
+                cols[f"GT.{name}.{ax}"]   = y[:, j, a]*cols["height"]
+                cols[f"Pred.{name}.{ax}"] = p[:, j, a]*cols["height"]
+
+        df = pd.DataFrame(cols)
+        out = self.save_dir / f"pred_epoch{epoch+1}.csv"
+        df.to_csv(out, index=False)
+        print(f"[INFO] Saved {out}")
+
 ckpt_path = pretrained_dir / f"best_finetuned_weights_momo_{args.body_part}_ft{args.fine_tune}_al{args.add_layer}_m{args.use_mocap}_n{args.add_noise}_w{args.use_weights}.h5"
 callbacks = [
     EarlyStopping(monitor='val_loss', patience=args.patience, restore_best_weights=True, verbose=1),
-    ModelCheckpoint(str(ckpt_path), monitor='val_loss', save_best_only=True, save_weights_only=True, verbose=1)
+    ModelCheckpoint(str(ckpt_path), monitor='val_loss', save_best_only=True, save_weights_only=True, verbose=1),
+    PredictionLogger(ds=val_ds_monitor, save_dir=pretrained_dir, mks_names=mks_of_interest, every_n_epochs=5, seed=42)
 ]
 
-# ─────────────── Train ───────────────
+# ─────────────── Save stats + Train ───────────────
 print(f"[Info] Feature mean/std from TRAIN: mean shape {mean_train.shape}, std shape {std_train.shape}")
-history = model.fit(train_ds, validation_data=val_ds, epochs=args.epochs, callbacks=callbacks)
-
-# ─────────────── Save weights + stats ───────────────
-final_w = pretrained_dir / f"weights_finetuned_momo_{args.body_part}_ft{args.fine_tune}_al{args.add_layer}_m{args.use_mocap}_n{args.add_noise}_w{args.use_weights}.h5"
-model.save_weights(str(final_w))
-stats_dir = Path(args.data_path) / args.body_part / "stats_streaming"
+stats_dir = Path(args.pretrained_path) / f"v0.3_{args.body_part}" / "stats_streaming"
 stats_dir.mkdir(parents=True, exist_ok=True)
 np.save(stats_dir / f"mean_train_m{args.use_mocap}_n{args.add_noise}.npy", mean_train)
 np.save(stats_dir / f"std_train_m{args.use_mocap}_n{args.add_noise}.npy",  std_train)
+history = model.fit(train_ds, validation_data=val_ds, epochs=args.epochs, callbacks=callbacks)
+
+# ─────────────── Save weights ───────────────
+final_w = pretrained_dir / f"weights_finetuned_momo_{args.body_part}_ft{args.fine_tune}_al{args.add_layer}_m{args.use_mocap}_n{args.add_noise}_w{args.use_weights}.h5"
+model.save_weights(str(final_w))
 with open(stats_dir / f"norm_meta.json", "w") as f:
     json.dump({
         "feature_dim": int(feature_dim),
