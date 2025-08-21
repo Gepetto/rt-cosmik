@@ -11,6 +11,8 @@ from tensorflow.keras.initializers import RandomNormal
 from tensorflow.keras.regularizers import l2
 from tensorflow.keras.optimizers import Adam
 from tensorflow.keras.callbacks import EarlyStopping, ModelCheckpoint
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+from src.rtcosmik.utils.read_write_utils import read_mks_data, default_mocap_mks_names
 
 # ─────────────── Args ───────────────
 p = argparse.ArgumentParser(description="End-to-end LSTM training with streaming tf.data")
@@ -60,25 +62,6 @@ elif args.body_part == "lower":
 else:
     raise ValueError("Unsupported body_part")
 
-# If you rely on your project's utils for parsing CSV into list-of-dicts, import them.
-# Fallbacks below emulate the column->dict conversion used in your code.
-sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
-try:
-    from src.rtcosmik.utils.read_write_utils import read_mks_data, default_mocap_mks_names
-except Exception:
-    # minimal fallback if the project import isn't available
-    default_mocap_mks_names = mks_of_interest  # will work if your GT CSVs have exactly these names tripled (_x,_y,_z)
-    def read_mks_data(df: pd.DataFrame):
-        # Convert wide dataframe with columns like "Neck_x" into list[dict[name]->np(3,)]
-        names = sorted(set([c.rsplit('_',1)[0] for c in df.columns if c.endswith(('_x','_y','_z'))]))
-        frames = []
-        for _, row in df.iterrows():
-            d = {}
-            for n in names:
-                d[n] = np.array([row[f"{n}_x"], row[f"{n}_y"], row[f"{n}_z"]], dtype=np.float32)
-            frames.append(d)
-        return frames, names
-
 # ─────────────── Files discovery ───────────────
 root = Path(args.data_path)
 subjects = sorted([d.name for d in root.iterdir() if d.is_dir()])
@@ -107,7 +90,7 @@ def read_subject_info(info_path: Path):
                 height = v/100.0 if v > 3.5 else v
             elif key.startswith('weight'):
                 try: weight = float(val)
-                except: pass
+                except: raise(f"Wrong weight format in {info_path}")
             elif key.startswith('gender'):
                 gender = val.strip().lower()
     if height is None:
@@ -156,8 +139,8 @@ def trial_to_windows(trial, seq_len, add_noise=False):
     df_in  = pd.read_csv(trial['jcp_csv'])
     df_gt  = pd.read_csv(trial['gt_csv'])
 
-    k_list, k_names = read_mks_data(df_in)       # includes 'midHip' key
-    m_list, _       = read_mks_data(df_gt)
+    k_list, _ = read_mks_data(df_in, converter = 1000)       # includes 'midHip' key
+    m_list, _ = read_mks_data(df_gt, converter = 1000)
 
     # Build arrays
     kpts_arr = listdicts_to_array(k_list, kpts_input_lstm)         # [T, P_in, 3]
@@ -322,12 +305,12 @@ def weighted_l2(weights):
 model.compile(optimizer=Adam(args.lr), loss=weighted_l2(W_loss))
 
 # Save model definition that matches finetune config
-model_json_path = pretrained_dir / f"model_finetuned_{args.body_part}_ft{args.fine_tune}_al{args.add_layer}_m{args.use_mocap}_n{args.add_noise}_w{args.use_weights}.json"
+model_json_path = pretrained_dir / f"model_finetuned_momo_{args.body_part}_ft{args.fine_tune}_al{args.add_layer}_m{args.use_mocap}_n{args.add_noise}_w{args.use_weights}.json"
 with open(model_json_path, "w") as f:
     f.write(model.to_json())
 
 # ─────────────── Callbacks ───────────────
-ckpt_path = pretrained_dir / f"best_finetuned_weights_{args.body_part}_ft{args.fine_tune}_al{args.add_layer}_m{args.use_mocap}_n{args.add_noise}_w{args.use_weights}.h5"
+ckpt_path = pretrained_dir / f"best_finetuned_weights_momo_{args.body_part}_ft{args.fine_tune}_al{args.add_layer}_m{args.use_mocap}_n{args.add_noise}_w{args.use_weights}.h5"
 callbacks = [
     EarlyStopping(monitor='val_loss', patience=args.patience, restore_best_weights=True, verbose=1),
     ModelCheckpoint(str(ckpt_path), monitor='val_loss', save_best_only=True, save_weights_only=True, verbose=1)
@@ -338,7 +321,7 @@ print(f"[Info] Feature mean/std from TRAIN: mean shape {mean_train.shape}, std s
 history = model.fit(train_ds, validation_data=val_ds, epochs=args.epochs, callbacks=callbacks)
 
 # ─────────────── Save weights + stats ───────────────
-final_w = pretrained_dir / f"weights_finetuned_{args.body_part}_ft{args.fine_tune}_al{args.add_layer}_m{args.use_mocap}_n{args.add_noise}_w{args.use_weights}.h5"
+final_w = pretrained_dir / f"weights_finetuned_momo_{args.body_part}_ft{args.fine_tune}_al{args.add_layer}_m{args.use_mocap}_n{args.add_noise}_w{args.use_weights}.h5"
 model.save_weights(str(final_w))
 stats_dir = Path(args.data_path) / args.body_part / "stats_streaming"
 stats_dir.mkdir(parents=True, exist_ok=True)

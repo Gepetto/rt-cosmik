@@ -587,7 +587,7 @@ def save_to_csv(data, output_path, header=None):
     df.to_csv(output_path, index=False, header=header if header is not None else False)
     print(f"Saved {len(data)} frames to {output_path}")
 
-def read_mks_data(data_markers, start_sample=0):
+def read_mks_data(data_markers, start_sample=0, converter = 1.0):
     #the mks are ordered in a csv like this : "time,r.ASIS_study_x,r.ASIS_study_y,r.ASIS_study_z...."
     """    
     Parameters:
@@ -601,7 +601,6 @@ def read_mks_data(data_markers, start_sample=0):
     """
     # Extract marker column names
     marker_columns = [col[:-2] for col in data_markers.columns if col.endswith("_x")]
-    # print(marker_columns)
     
     # Initialize the result list
     result_markers = []
@@ -610,9 +609,9 @@ def read_mks_data(data_markers, start_sample=0):
     for _, row in data_markers.iterrows():
         frame_dict = {}
         for marker in marker_columns:
-            x = row[f"{marker}_x"]
-            y = row[f"{marker}_y"]
-            z = row[f"{marker}_z"]
+            x = row[f"{marker}_x"] / converter  #convert to m if neede
+            y = row[f"{marker}_y"] / converter
+            z = row[f"{marker}_z"] / converter
             frame_dict[marker] = np.array([x, y, z])  # Store as a NumPy array
         result_markers.append(frame_dict)
     
@@ -620,6 +619,7 @@ def read_mks_data(data_markers, start_sample=0):
     start_sample_mks = result_markers[start_sample]
     
     return result_markers, start_sample_mks
+
 
 def parse_marker_csv(path_to_csv, mks_names, column_name='marker_data', delimiter=';'):
     """
