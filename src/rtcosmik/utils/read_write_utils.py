@@ -4,6 +4,7 @@ from typing import Dict, Tuple, List
 import matplotlib.pyplot as plt 
 import os
 import csv
+from pathlib import Path
 
 #### ======= Mocap markerset ======== ####
 default_mocap_mks_names = ['r.ASIS_study','L.ASIS_study','r.PSIS_study','L.PSIS_study',
@@ -584,6 +585,7 @@ def save_q_to_csv(csv_path, q, frame_idx, formatted_timestamp):
 def save_to_csv(data, output_path, header=None):
     """Save 3D keypoints to a CSV file with optional header."""
     df = pd.DataFrame(data)
+    os.makedirs(os.path.dirname(output_path), exist_ok=True)
     df.to_csv(output_path, index=False, header=header if header is not None else False)
     print(f"Saved {len(data)} frames to {output_path}")
 
@@ -796,3 +798,118 @@ def transform_keypoints_list_cam0_to_mocap(keypoints_list, R_trans, d_trans):
         transformed_list.append(p3d_mocap.flatten().tolist())
 
     return transformed_list
+
+def read_subject_info(info_path: Path):
+    height = weight = gender = None
+    with info_path.open('r') as f:
+        for raw in f:
+            line = raw.strip()
+            if not line or line.startswith('#'):
+                continue
+            for sep in ['=', ':']:
+                line = line.replace(sep, ' ')
+            parts = line.split()
+            if len(parts) < 2:
+                continue
+            key = parts[0].lower()
+            val = parts[1]
+            if key.startswith('height'):
+                v = float(val)
+                height = v/100.0 if v > 3.5 else v
+            elif key.startswith('weight'):
+                try: weight = float(val)
+                except: raise(f"Wrong weight format in {info_path}")
+            elif key.startswith('gender'):
+                gender = val.strip().lower()
+    if height is None:
+        raise ValueError(f"Missing height in {info_path}")
+    return height, weight, gender
+
+
+#plot mks trajectories to compare and get rmse.
+def plot_marker_comparison(gt_data, pred_data, markers_to_plot=None, labels=['mocap', 'cosmik'], save_fig=False):
+    """
+    Plot and compare X, Y, Z trajectories over time for selected markers from two datasets.
+
+    Parameters:
+        gt_data (list of dict): Ground truth data [{marker_name: np.array([x, y, z])}, ...]
+        pred_data (list of dict): Predicted data (same format as gt_data)
+        markers_to_plot (list of str): Markers to plot. If None, plots all markers found in gt_data.
+        labels (tuple): Labels for legend, e.g. ('Ground Truth', 'Prediction')
+        save_fig (bool): If True, saves the figure instead of displaying.
+    """
+    if not gt_data or not pred_data:
+        print("Error: One or both datasets are empty.")
+        return
+
+    # Determine which markers to plot
+    all_markers = set()
+    for frame in gt_data:
+        all_markers.update(frame.keys())
+    if markers_to_plot is None:
+        markers_to_plot = sorted(all_markers)
+
+    rmse_results = {}
+    for marker in markers_to_plot:
+        gt_x, gt_y, gt_z = [], [], []
+        pred_x, pred_y, pred_z = [], [], []
+
+        for gt_frame, pred_frame in zip(gt_data, pred_data):
+            # Ground truth values
+            if marker in gt_frame:
+                gx, gy, gz = gt_frame[marker]
+            else:
+                gx, gy, gz = np.nan, np.nan, np.nan
+            gt_x.append(gx)
+            gt_y.append(gy)
+            gt_z.append(gz)
+
+            # Predicted values
+            if marker in pred_frame:
+                px, py, pz = pred_frame[marker]
+            else:
+                px, py, pz = np.nan, np.nan, np.nan
+            pred_x.append(px)
+            pred_y.append(py)
+            pred_z.append(pz)
+
+        # Convert to arrays
+        gt_x, gt_y, gt_z = map(np.array, (gt_x, gt_y, gt_z))
+        pred_x, pred_y, pred_z = map(np.array, (pred_x, pred_y, pred_z))
+
+        # Compute RMSE (ignoring NaNs)
+        rmse_x = np.sqrt(np.nanmean((gt_x - pred_x) ** 2))
+        rmse_y = np.sqrt(np.nanmean((gt_y - pred_y) ** 2))
+        rmse_z = np.sqrt(np.nanmean((gt_z - pred_z) ** 2))
+        rmse_results[marker] = {'x': rmse_x, 'y': rmse_y, 'z': rmse_z}
+
+        frames = np.arange(len(gt_data))
+        fig, axs = plt.subplots(3, 1, figsize=(10, 10), sharex=True)
+
+        axs[0].plot(frames, gt_x, 'r-', label="mocap")
+        axs[0].plot(frames, pred_x, 'g--', label="Cosmik")
+        axs[0].set_title(f"X (RMSE: {rmse_x:.4f})")
+
+        axs[1].plot(frames, gt_y, 'r-', label=labels[0])
+        axs[1].plot(frames, pred_y, 'g--', label=labels[1])
+        axs[1].set_title(f"Y (RMSE: {rmse_y:.4f})")
+
+        axs[2].plot(frames, gt_z, 'r-', label=labels[0])
+        axs[2].plot(frames, pred_z, 'g--', label=labels[1])
+        axs[2].set_title(f"Z (RMSE: {rmse_z:.4f})")
+        axs[2].set_xlabel("Frame")
+
+        fig.suptitle(
+            f"{marker}",
+            fontsize=14
+        )
+        for ax in axs:
+            ax.grid(True)
+
+        plt.tight_layout(rect=[0, 0.03, 1, 0.95])
+
+        if save_fig:
+            plt.savefig(f"{marker}_comparison.png")
+            plt.close()
+        else:
+            plt.show()
