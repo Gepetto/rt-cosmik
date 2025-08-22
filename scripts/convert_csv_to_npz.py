@@ -6,14 +6,18 @@ import numpy as np
 import pandas as pd
 
 dataset_path = Path("/home/ngouget/Codes/datasets/COSMIK_dataset")
-output_path  = Path("/home/ngouget/Codes/datasets/COSMIK_dataset_npy")
+output_path  = Path("/home/ngouget/Codes/datasets/COSMIK_dataset_npz")
 
-def save_csv_as_npy(csv_path: Path, out_npy_path: Path, float_dtype=np.float32):
+def save_csv_as_npz(csv_path: Path, out_npz_path: Path, float_dtype=np.float32):
+    """Load CSV -> save as .npz with both data and column names."""
     if not csv_path.exists():
         print(f"[warn] missing file: {csv_path}")
         return
-    arr = pd.read_csv(csv_path).to_numpy(dtype=float_dtype, copy=False)
-    np.save(out_npy_path, arr)
+    df = pd.read_csv(csv_path)
+    # Use .to_numpy for speed and consistent dtype
+    data = df.to_numpy(dtype=float_dtype, copy=False)
+    cols = df.columns.to_numpy()
+    np.savez_compressed(out_npz_path, data=data, columns=cols)
 
 def main():
     if not dataset_path.exists():
@@ -43,9 +47,9 @@ def main():
             devices_csv  = trial_path / f"{trial}_devices.csv"
 
             # Convert each CSV → NPZ (compressed) preserving headers
-            save_csv_as_npy(jcp_csv,     out_trial / f"{trial}_jcp_mocap.npy")
-            save_csv_as_npy(mks_csv,     out_trial / f"{trial}_trajectories.npy")
-            save_csv_as_npy(devices_csv, out_trial / f"{trial}_devices.npy")
+            save_csv_as_npz(jcp_csv,     out_trial / f"{trial}_jcp_mocap.npz")
+            save_csv_as_npz(mks_csv,     out_trial / f"{trial}_trajectories.npz")
+            save_csv_as_npz(devices_csv, out_trial / f"{trial}_devices.npz")
 
             # If there are other non-CSV assets in trial dir you want to keep:
             # for f in trial_path.iterdir():

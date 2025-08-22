@@ -14,7 +14,7 @@ from tensorflow.keras.optimizers import Adam
 from tensorflow.keras.callbacks import EarlyStopping, ModelCheckpoint
 from tensorflow.keras.layers import Layer, Rescaling, Multiply
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
-from src.rtcosmik.utils.read_write_utils import read_mks_data, default_mocap_mks_names
+from src.rtcosmik.utils.read_write_utils import read_mks_data, default_mocap_mks_names, read_subject_info
 
 # ─────────────── Args ───────────────
 p = argparse.ArgumentParser(description="End-to-end LSTM training with streaming tf.data")
@@ -83,32 +83,6 @@ if len(subjects) < args.test_size + 1:
 train_subjects = subjects[:-args.test_size]
 val_subjects   = subjects[-args.test_size:]
 
-def read_subject_info(info_path: Path):
-    height = weight = gender = None
-    with info_path.open('r') as f:
-        for raw in f:
-            line = raw.strip()
-            if not line or line.startswith('#'):
-                continue
-            for sep in ['=', ':']:
-                line = line.replace(sep, ' ')
-            parts = line.split()
-            if len(parts) < 2:
-                continue
-            key = parts[0].lower()
-            val = parts[1]
-            if key.startswith('height'):
-                v = float(val)
-                height = v/100.0 if v > 3.5 else v
-            elif key.startswith('weight'):
-                try: weight = float(val)
-                except: raise(f"Wrong weight format in {info_path}")
-            elif key.startswith('gender'):
-                gender = val.strip().lower()
-    if height is None:
-        raise ValueError(f"Missing height in {info_path}")
-    return height, weight, gender
-
 def enumerate_trials(subject_list):
     """Yield dicts describing usable trials with paths & metadata."""
     for s in subject_list:
@@ -116,8 +90,8 @@ def enumerate_trials(subject_list):
         h, w, _ = read_subject_info(sp/'info.txt')
         for trial in sorted([d.name for d in sp.iterdir() if d.is_dir()]):
             trial_dir = sp/trial
-            jcp_name  = f"{trial}_jcp_mocap.csv"
-            mocap_name= f"{trial}_trajectories.csv"
+            jcp_name  = f"{trial}_jcp_mocap.npz"
+            mocap_name= f"{trial}_trajectories.npz"
             if args.use_mocap != 'T':
                 raise RuntimeError("This streaming script is set for --use-mocap T.")
             if not (trial_dir/jcp_name).exists() or not (trial_dir/mocap_name).exists():
@@ -127,8 +101,8 @@ def enumerate_trials(subject_list):
                 'height': h,
                 'weight': w,
                 'trial': trial,
-                'jcp_csv': str(trial_dir/jcp_name),
-                'gt_csv':  str(trial_dir/mocap_name),
+                'jcp_npz': str(trial_dir/jcp_name),
+                'gt_npz':  str(trial_dir/mocap_name),
             }
 
 train_trials = list(enumerate_trials(train_subjects))
@@ -178,8 +152,17 @@ def trial_to_windows(
        If rotation_scheme == 'det', yields n_rotations evenly-spaced yaw copies per window (like Stanford circleRotation)."""
 
     # read inputs (jcp) and gt (markers)
-    df_in  = pd.read_csv(trial['jcp_csv'])
-    df_gt  = pd.read_csv(trial['gt_csv'])
+    jcp = np.load(trial['jcp_npz'], allow_pickle=True)
+    gt  = np.load(trial['gt_npz'], allow_pickle=True)
+
+    arr_in  = jcp["data"]         # numpy array (T, n_features)
+    cols_in = jcp["columns"]      # array de strings (n_features,)
+
+    arr_gt  = gt["data"]
+    cols_gt = gt["columns"]
+
+    df_in = pd.DataFrame(arr_in, columns=cols_in)
+    df_gt = pd.DataFrame(arr_gt, columns=cols_gt)
 
     k_list, _ = read_mks_data(df_in, converter=1000)        # includes 'midHip'
     m_list, _ = read_mks_data(df_gt, converter=1000)
