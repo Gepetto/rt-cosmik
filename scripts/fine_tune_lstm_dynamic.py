@@ -505,8 +505,8 @@ callbacks = [
 print(f"[Info] Feature mean/std from TRAIN: mean shape {mean_train.shape}, std shape {std_train.shape}")
 stats_dir = Path(args.pretrained_path) / f"v0.3_{args.body_part}" / "stats_streaming"
 stats_dir.mkdir(parents=True, exist_ok=True)
-np.save(stats_dir / f"mean_train_m{args.use_mocap}_n{args.add_noise}.npy", mean_train)
-np.save(stats_dir / f"std_train_m{args.use_mocap}_n{args.add_noise}.npy",  std_train)
+np.save(stats_dir / f"mean_train_m{args.use_mocap}_n{args.add_noise}_w{args.use_weights}_rot{args.rotation_scheme}_nbrot{args.n_rotations}.npy", mean_train)
+np.save(stats_dir / f"std_train_m{args.use_mocap}_n{args.add_noise}_w{args.use_weights}_rot{args.rotation_scheme}_nbrot{args.n_rotations}.npy",  std_train)
 history = model.fit(train_ds, validation_data=val_ds, epochs=args.epochs, callbacks=callbacks)
 
 # ─────────────── Save weights ───────────────

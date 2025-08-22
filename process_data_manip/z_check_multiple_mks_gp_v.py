@@ -83,7 +83,7 @@ columns_to_add = [col for col in keypoints.columns if any(key + '_' in col for k
 
 data_markers_lstm = pd.concat([data_markers_lstm, keypoints[columns_to_add].reset_index(drop=True)], axis=1)
 
-result_markers_lstm, start_sample_lstm = read_mks_data(data_markers_lstm, converter = 1.0)
+result_markers_lstm, start_sample_lstm = read_mks_data(data_markers_lstm, converter = 1000.0)
 # result_markers_lstm2, start_sample_lstm2 = read_mks_data(data_markers_lstm2, converter = 1.0)
 
 # plot_marker_comparison(result_markers, result_markers_lstm, markers_to_plot=markers_to_display)
