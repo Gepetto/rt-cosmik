@@ -46,12 +46,11 @@ from typing import List, Tuple
 nbr_cam = 2
 base_path = "/root/workspace/ros_ws/src/rt-cosmik"
 
-SUBJECTS = [
-    "Alessandro", "Anais", "Anais", "Anastasia", "Batiste", "Bilal", "Claire_", "Clement",
-    "Flavie", "Guilhem", "Kahina", "Marie_M", "Mathis", "Maxime_", "Mohamed", "Nicolas",
-    "Zoe", "Herbert"
+SUBJECTS = ["Claire_", "Clement",
+    "Flavie", "Guilhem", "Kahina", "Marie_M","Maxime_", "Mohamed", "Nicolas",
+    "Herbert"
 ]
-
+#mathis et zoe a lancer a part
 TASKS = [
     "bolting", "bolting_sat", "crouch", "crouch_object", "hitting", "hitting_sat", "jump", "lifting",
     "lifting_fast", "lower", "overhead", "overhead_front", "robot_sanding", "robot_welding",
@@ -84,7 +83,7 @@ augmented_header = [f"{marker}_{axis}" for marker in augmented_markers for axis 
 
 ###########################################################################
 # IK function
-def run_ik_pipeline(augmented_csv_path, keypoints_csv_path, meshes_folder_path, output_path, visualize: bool = False):
+def run_ik_pipeline(augmented_csv_path, keypoints_csv_path, meshes_folder_path, output_path,gender, subject_height,visualize: bool = False):
     start_sample = 0
     mks_to_skip = [
         'LForearm', 'LUArm', 'RUArm', 'RHJC_study', 'LHJC_study', 'r_pelvis', 'l_pelvis',
@@ -227,7 +226,7 @@ def run_ik_pipeline(augmented_csv_path, keypoints_csv_path, meshes_folder_path, 
 
     # save mks est
     df = pd.DataFrame(M_model_list)
-    csv_file = os.path.join(output_path, f"mks_model_cosmik_{nbr_cam}_finetuned.csv")
+    csv_file = os.path.join(output_path, f"mks_model_cosmik.csv")
     df.to_csv(csv_file, index=False)
 
     # save angles
@@ -247,7 +246,7 @@ def run_ik_pipeline(augmented_csv_path, keypoints_csv_path, meshes_folder_path, 
 
     # save joint angles
     df = pd.DataFrame(q_list, columns=joint_angles_names)
-    csv_file = os.path.join(output_path, f"q_cosmik_ipopt_{nbr_cam}_finetuned.csv")
+    csv_file = os.path.join(output_path, f"q_cosmik_ipopt.csv")
     df.to_csv(csv_file, index=False)
     rmse_global = 0
     nb_mks = 0
@@ -263,7 +262,7 @@ def run_ik_pipeline(augmented_csv_path, keypoints_csv_path, meshes_folder_path, 
     print(f" Global RMSE across all markers and frames: {rmse_global:.4f} m")
 
 
-def main(task, no_trial, nbr_cam, file_paths, base_path, transformation_file, augmenter_path, subject_mass, subject_height, visualize: bool = False):
+def main(task, no_trial, nbr_cam, file_paths, base_path, transformation_file, augmenter_path, subject_mass, subject_height, gender, visualize: bool = False):
     num_keypoints = 26
 
     # === Paths ===
@@ -271,8 +270,8 @@ def main(task, no_trial, nbr_cam, file_paths, base_path, transformation_file, au
     output_path = os.path.join(base_path, f"output/{no_trial}/cosmik_{nbr_cam}cams/{task}")
     os.makedirs(output_path, exist_ok=True)
 
-    filtered_kpt_path = os.path.join(output_path, f"3d_keypoints_filtered_{nbr_cam}.csv")
-    augmented_output_path = os.path.join(output_path, f"augmented_markers_{nbr_cam}_finetuned.csv")
+    filtered_kpt_path = os.path.join(output_path, f"3d_keypoints_filtered.csv")
+    augmented_output_path = os.path.join(output_path, f"augmented_markers.csv")
 
     # === Load MoCap transformation ===
     R_trans, d_trans, s_trans, rms_error = load_transformation(transformation_file)
@@ -352,6 +351,8 @@ def main(task, no_trial, nbr_cam, file_paths, base_path, transformation_file, au
         keypoints_csv_path=filtered_kpt_path,
         meshes_folder_path=os.path.join(base_path, "meshes"),
         output_path=output_path,
+        gender = gender, 
+        subject_height = subject_height,
         visualize=visualize
     )
 
@@ -393,6 +394,7 @@ def _process_subject(no_trial: str, tasks: List[str], nbr_cam_in: int, base_path
                 augmenter_path=augmenter_path_in,
                 subject_mass=subject_mass_val,
                 subject_height=subject_height_val,
+                gender = gender_val,
                 visualize=visualize
             )
             ok += 1

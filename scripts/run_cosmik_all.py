@@ -28,13 +28,12 @@ base_path = "/root/workspace/ros_ws/src/rt-cosmik"
 nbr_cam = 2
 
 SUBJECTS = [
-     "Alessandro", "Anais","Anais","Anastasia","Batiste","Bilal","Claire_","Clement","Flavie","Guilhem","Kahina","Marie_M","Mathis",
-     "Maxime_","Mohamed","Nicolas", "Zoe", "Herbert"
+     "Zoe"
 ]
 
-TASKS = ["bolting","bolting_sat","crouch","crouch_object","hitting","hitting_sat","jump","lifting","lifting_fast","lower",
-         "overhead", "overhead_front", "robot_sanding","robot_welding",
-             "sanding","sanding_sat","sit_to_stand","squat","static","upper","walk","walk_front","welding","welding_sat"]
+TASKS = ["bolting_sat","hitting_sat",
+         "overhead", "robot_sanding","robot_welding",
+             "sanding_sat","welding_sat"]
 
 
 # === Marker headers ===
@@ -229,7 +228,7 @@ def run_ik_pipeline(augmented_csv_path, keypoints_csv_path, meshes_folder_path, 
 
     #save mks est
     df = pd.DataFrame(M_model_list)
-    csv_file = os.path.join(output_path,f"mks_model_cosmik_{nbr_cam}_finetuned.csv") 
+    csv_file = os.path.join(output_path,f"mks_model_cosmik.csv") 
     df.to_csv(csv_file, index=False)
 
     #save angles
@@ -251,7 +250,7 @@ def run_ik_pipeline(augmented_csv_path, keypoints_csv_path, meshes_folder_path, 
 
     #save joint angles
     df = pd.DataFrame(q_list, columns=joint_angles_names)    
-    csv_file = os.path.join(output_path, f"q_cosmik_ipopt_{nbr_cam}_finetuned.csv")
+    csv_file = os.path.join(output_path, f"q_cosmik_ipopt.csv")
     df.to_csv(csv_file, index=False)
     rmse_global = 0
     nb_mks =0 
@@ -276,8 +275,8 @@ def main(task, no_trial, nbr_cam, file_paths, base_path, transformation_file, au
     output_path = os.path.join(base_path, f"output/{no_trial}/cosmik_{nbr_cam}cams/{task}")
     os.makedirs(output_path, exist_ok=True)
 
-    filtered_kpt_path = os.path.join(output_path, f"3d_keypoints_filtered_{nbr_cam}.csv")
-    augmented_output_path = os.path.join(output_path, f"augmented_markers_{nbr_cam}_finetuned.csv")
+    filtered_kpt_path = os.path.join(output_path, f"3d_keypoints_filtered.csv")
+    augmented_output_path = os.path.join(output_path, f"augmented_markers.csv")
 
     # === Load MoCap transformation ===
     R_trans, d_trans, s_trans, rms_error = load_transformation(transformation_file)
@@ -371,7 +370,7 @@ if __name__ == "__main__":
         for task in TASKS:
             info_path = f"/root/workspace/ros_ws/src/rt-cosmik/output/{no_trial}/info.txt"
             subject_height, subject_mass, gender = read_subject_info(info_path) 
-            transformation_file = f"{base_path}//config/cam_params/{no_trial}/calib_mocap_2_cam0/soder.txt"
+            transformation_file = f"{base_path}//config/cam_params/{no_trial}/calib_2/calib_mocap_2_cam0/soder.txt"
 
             # Build list of camera csvs for this subject+task
             file_paths = [
