@@ -11,6 +11,7 @@ from src.rtcosmik.config_loader import settings
 from src.rtcosmik.ik.ik import RT_SWIKA
 from collections import deque
 from src.rtcosmik.human_model.urdf_model import *
+import multiprocessing as mp
 
 # Add the src folder to sys.path so that viewer modules can be found.
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '../../../src')))
@@ -22,8 +23,9 @@ rt_cosmik_path = os.path.dirname(script_directory)
 
 
 SUBJECTS = [
-     "Alessandro", "Anais","Anais","Anastasia","Batiste","Bilal","Claire_","Clement","Flavie","Guilhem","Kahina","Marie_M","Mathis",
-     "Maxime_","Mohamed","Nicolas", "Zoe", "Herbert"
+     "Alessandro", 
+     "Anais","Anais","Anastasia","Batiste","Bilal","Claire_","Clement","Flavie","Guilhem","Kahina","Marie_M","Mathis",
+     "Maxime_","Mohamed","Nicolas", "Herbert"
 ]
 
 TASKS = ["bolting","bolting_sat","crouch","crouch_object","hitting","hitting_sat","jump","lifting","lifting_fast","lower",
@@ -232,12 +234,23 @@ def run_swika(no_trial: str, task: str):
     print(f" Global RMSE across all markers and frames: {rmse_global:.4f} m")
 
 
+
+def run_wrapper(args):
+    no_trial, task = args
+    try:
+        run_swika(no_trial, task)
+    except Exception as e:
+        print(f"[ERROR] {no_trial} / {task}: {e}")
+
 if __name__ == "__main__":
     if not SUBJECTS or not TASKS:
         print("Please fill SUBJECTS and TASKS at the top of this script.")
-    for no_trial in SUBJECTS:
-        for task in TASKS:
-            try:
-                run_swika(no_trial, task)
-            except Exception as e:
-                print(f"[ERROR] {no_trial} / {task}: {e}")
+    else:
+        # Build all combinations of (subject, task)
+        jobs = [(no_trial, task) for no_trial in SUBJECTS for task in TASKS]
+
+        # Decide number of parallel processes (e.g. number of CPU cores)
+        n_proc = min(len(jobs), mp.cpu_count())
+
+        with mp.Pool(processes=n_proc) as pool:
+            pool.map(run_wrapper, jobs)

@@ -90,7 +90,8 @@ for subject in os.listdir(data_path):
         cosmik_trials = os.path.join(cosmik_2cams_path, trial)
         mocap_trials = os.path.join(mocap_path, trial)
         path_cosmik = os.path.join(cosmik_trials, "q_cosmik_ipopt.csv")
-        path_mocap = os.path.join(mocap_trials, "q_mocap.csv")  # removed extra 'mocap/'
+        path_mocap = os.path.join(mocap_trials, "q_mocap.csv")
+
         # Skip trial if any file is missing
         if not os.path.exists(path_cosmik):
             print(f"Skipping {trial}: CoSMIK file not found at {path_cosmik}")
@@ -116,6 +117,24 @@ for subject in os.listdir(data_path):
 
         metrics_par_dof_over_trials.loc[:, (trial, "rmse_deg")] = metrics_par_dof["rmse_deg"]
         metrics_par_dof_over_trials.loc[:, (trial, "corr")] = metrics_par_dof["corr"]
+
+        # ----------------------
+        # Plot each DOF and save figure
+        # ----------------------
+        plot_dir = os.path.join(subject_path, "results", "plots", trial)
+        os.makedirs(plot_dir, exist_ok=True)
+
+        for dof in q_cosmik.columns:
+            plt.figure(figsize=(10, 4))
+            plt.plot(q_mocap[dof], label='Mocap', color='blue')
+            plt.plot(q_cosmik[dof], label='CoSMIK', color='red')
+            plt.title(f"{subject} - {trial} - {dof}")
+            plt.xlabel("Frame")
+            plt.ylabel("Angle [rad]")
+            plt.legend()
+            plt.tight_layout()
+            plt.savefig(os.path.join(plot_dir, f"{dof}.png"))
+            plt.close()
 
     print(metrics_par_dof_over_trials)
     os.makedirs(os.path.join(subject_path, "results"), exist_ok=True)
