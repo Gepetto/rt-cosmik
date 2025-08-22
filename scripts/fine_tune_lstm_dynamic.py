@@ -37,6 +37,12 @@ p.add_argument('--seed', type=int, default=42)
 p.add_argument('--rot-prob', type=float, default=0.0, help='Probability to apply a random yaw rotation per window (0..1)')
 p.add_argument('--rot-max-deg', type=float, default=30.0, help='Max absolute rotation in degrees (uniform in [-max, max])')
 p.add_argument('--up-axis', choices=['y','z'], default='y', help='Which axis is vertical in your data (usually y or z)')
+p.add_argument('--rotation-scheme', choices=['off','prob','det'], default='off',
+               help="off: no rotation; prob: single random yaw per window using --rot-prob/--rot-max-deg; det: emit n evenly-spaced yaws per window")
+p.add_argument('--n-rotations', type=int, default=1,
+               help="When --rotation-scheme det, emit this many evenly-spaced yaw angles per window (full circle).")
+# tip: set --up-axis z for your dataset
+
 
 args = p.parse_args()
 
@@ -139,7 +145,7 @@ def listdicts_to_array(ld, names):
             arr[i,j,:] = fr[k]
     return arr
 
-def _yaw_rotation_matrix(theta_rad: float, up_axis: str = 'y'):
+def _yaw_rotation_matrix(theta_rad: float, up_axis: str = 'z'):
     c, s = np.cos(theta_rad), np.sin(theta_rad)
     if up_axis == 'y':  # rotate in XZ plane (Y-up)
         return np.array([[ c, 0.,  s],
@@ -152,68 +158,117 @@ def _yaw_rotation_matrix(theta_rad: float, up_axis: str = 'y'):
     else:
         raise ValueError("up_axis must be 'y' or 'z'")
 
-def trial_to_windows(trial, seq_len, add_noise=False, rot_prob=0.0, rot_max_deg=30.0, up_axis='y'):
-    """Load one trial from disk, produce windowed (inp, out) samples."""
+def _even_yaw_angles(n: int):
+    if n <= 1:
+        return [0.0]
+    return [2.0*np.pi*k/n for k in range(n)]
+
+
+def trial_to_windows(
+    trial,
+    seq_len,
+    add_noise=False,
+    rot_prob=0.0,
+    rot_max_deg=30.0,
+    up_axis='y',
+    rotation_scheme='off',   # 'off' | 'prob' | 'det'
+    n_rotations=1
+):
+    """Load one trial from disk, produce windowed (inp, out) samples.
+       If rotation_scheme == 'det', yields n_rotations evenly-spaced yaw copies per window (like Stanford circleRotation)."""
+
     # read inputs (jcp) and gt (markers)
     df_in  = pd.read_csv(trial['jcp_csv'])
     df_gt  = pd.read_csv(trial['gt_csv'])
 
-    k_list, _ = read_mks_data(df_in, converter = 1000)       # includes 'midHip' key
-    m_list, _ = read_mks_data(df_gt, converter = 1000)
+    k_list, _ = read_mks_data(df_in, converter=1000)        # includes 'midHip'
+    m_list, _ = read_mks_data(df_gt, converter=1000)
 
     # Build arrays
-    kpts_arr = listdicts_to_array(k_list, kpts_input_lstm)         # [T, P_in, 3]
-    gt_arr   = listdicts_to_array(m_list, default_mocap_mks_names) # [T, P_all, 3]
+    kpts_arr = listdicts_to_array(k_list, kpts_input_lstm)         # [T, Pin, 3]
+    gt_arr   = listdicts_to_array(m_list, default_mocap_mks_names) # [T, Pall, 3]
 
-    # mid-hip ref
+    # mid-hip reference
     mid = np.zeros((len(k_list), 3), dtype=np.float32)
     for i, fr in enumerate(k_list):
         mid[i] = fr['midHip']
 
     # select GT markers of interest
     sel = [default_mocap_mks_names.index(m) for m in mks_of_interest]
-    gt_sel = gt_arr[:, sel, :]  # [T, P_out, 3]
+    gt_sel = gt_arr[:, sel, :]  # [T, Pout, 3]
 
     h = float(trial['height']); w = float(trial['weight'] or 0.0)
+    inv_h = 1.0 / h
+
     Ttot = kpts_arr.shape[0]
     n_w  = max(Ttot - seq_len + 1, 0)
+
+    # Precompute deterministic yaw set if needed
+    if rotation_scheme == 'det':
+        yaw_set = _even_yaw_angles(max(1, int(n_rotations)))
+    else:
+        yaw_set = [None]  # single pathway
+
     for start in range(n_w):
         end  = start + seq_len
-        kbuf = kpts_arr[start:end]         # [L, P_in, 3]
-        ybuf = gt_sel[start:end]           # [L, P_out, 3]
+        kbuf = kpts_arr[start:end]         # [L, Pin, 3]
+        ybuf = gt_sel[start:end]           # [L, Pout, 3]
         ref  = mid[start:end]              # [L, 3]
 
         # translate to mid-hip
-        din = kbuf - ref[:, None, :]       # [L, P_in, 3]
-        dout= ybuf - ref[:, None, :]       # [L, P_out, 3]
+        din  = kbuf - ref[:, None, :]
+        dout = ybuf - ref[:, None, :]
 
-        # --- random yaw rotation (per window) ---
-        if rot_prob > 0.0 and np.random.rand() < rot_prob and rot_max_deg > 0.0:
-            theta = np.deg2rad(np.random.uniform(-rot_max_deg, rot_max_deg))
-            R = _yaw_rotation_matrix(theta, up_axis=up_axis).T   # (3,3)
-            din  = din.reshape(-1, 3) @ R
-            dout = dout.reshape(-1, 3) @ R
-            din  = din.reshape(seq_len, -1, 3)
-            dout = dout.reshape(seq_len, -1, 3)
-
-        # normalize by height
-        inv_h = (1.0 / h)
+        # height-norm (features & labels)
         din  = din * inv_h
-        dout = dout * inv_h # To comment if you do not want to normalize out (loss in m²)
+        dout = dout * inv_h
 
-        # optional Gaussian noise (already height-normalized)
-        if add_noise:
-            din = din + np.random.normal(0, 0.018, din.shape).astype(np.float32)
+        # rotation paths
+        if rotation_scheme == 'det':
+            for theta in yaw_set:
+                if theta is not None:
+                    R = _yaw_rotation_matrix(theta, up_axis=up_axis).T
+                    din_r  = (din.reshape(-1,3)  @ R).reshape(seq_len, -1, 3)
+                    dout_r = (dout.reshape(-1,3) @ R).reshape(seq_len, -1, 3)
+                else:
+                    din_r, dout_r = din, dout
 
-        # flatten & append height/weight per frame
-        inp = din.reshape(seq_len, -1)
-        hw  = np.concatenate([
-                np.full((seq_len,1), h, dtype=np.float32),
-                np.full((seq_len,1), w, dtype=np.float32)
-             ], axis=1)
-        inp = np.concatenate([inp, hw], axis=1)           # [L, P_in*3 + 2]
-        out = dout.reshape(seq_len, -1)                   # [L, out_dim]
-        yield inp.astype(np.float32), out.astype(np.float32)
+                # optional Gaussian noise on features only (XYZ)
+                din_noisy = din_r
+                if add_noise:
+                    din_noisy = din_noisy + np.random.normal(0.0, 0.018, din_noisy.shape).astype(np.float32)
+
+                # flatten & append height/weight (not rotated)
+                inp = din_noisy.reshape(seq_len, -1)
+                hw  = np.concatenate([
+                        np.full((seq_len,1), h, dtype=np.float32),
+                        np.full((seq_len,1), w, dtype=np.float32)
+                    ], axis=1)
+                inp = np.concatenate([inp, hw], axis=1)  # [L, Pin*3 + 2]
+                out = dout_r.reshape(seq_len, -1)        # [L, Pout*3]
+                yield inp.astype(np.float32), out.astype(np.float32)
+
+        else:
+            # probabilistic (your old) or off
+            din_r, dout_r = din, dout
+            if rotation_scheme == 'prob' and rot_prob > 0.0 and np.random.rand() < rot_prob and rot_max_deg > 0.0:
+                theta = np.deg2rad(np.random.uniform(-rot_max_deg, rot_max_deg))
+                R = _yaw_rotation_matrix(theta, up_axis=up_axis).T
+                din_r  = (din.reshape(-1,3)  @ R).reshape(seq_len, -1, 3)
+                dout_r = (dout.reshape(-1,3) @ R).reshape(seq_len, -1, 3)
+
+            if add_noise:
+                din_r = din_r + np.random.normal(0.0, 0.018, din_r.shape).astype(np.float32)
+
+            inp = din_r.reshape(seq_len, -1)
+            hw  = np.concatenate([
+                    np.full((seq_len,1), h, dtype=np.float32),
+                    np.full((seq_len,1), w, dtype=np.float32)
+                ], axis=1)
+            inp = np.concatenate([inp, hw], axis=1)
+            out = dout_r.reshape(seq_len, -1)
+            yield inp.astype(np.float32), out.astype(np.float32)
+
 
 # Spec (needed for tf.data.from_generator)
 feature_dim = len(kpts_input_lstm)*3 + 2
@@ -223,21 +278,43 @@ output_signature = (
     tf.TensorSpec(shape=(args.seq_len, out_dim),     dtype=tf.float32)
 )
 
-def make_dataset(trials, seq_len, batch, shuffle_windows=True, add_noise=False):
+def make_dataset(trials, seq_len, batch, shuffle_windows=True, add_noise=False,
+                 rotation_scheme='off', n_rotations=1, rot_prob=0.0, rot_max_deg=30.0, up_axis='y'):
     def gen():
         # interleave trials deterministically; you can randomize order here
         for t in trials:
-            for inp, out in trial_to_windows(t, seq_len, add_noise=add_noise):
+            for inp, out in trial_to_windows(
+                t, seq_len,
+                add_noise=add_noise,
+                rot_prob=rot_prob,
+                rot_max_deg=rot_max_deg,
+                up_axis=up_axis,
+                rotation_scheme=rotation_scheme,
+                n_rotations=n_rotations
+            ):
                 yield inp, out
+
     ds = tf.data.Dataset.from_generator(gen, output_signature=output_signature)
     if shuffle_windows:
-        ds = ds.shuffle(buffer_size=8192, reshuffle_each_iteration=True)
+        ds = ds.shuffle(buffer_size=max(8192, 2048 * n_rotations), reshuffle_each_iteration=True)
+
     ds = ds.batch(batch, drop_remainder=False).prefetch(tf.data.AUTOTUNE)
     return ds
 
+
 # ─────────────── Two-pass normalization (streaming) ───────────────
 # Pass 1: compute mean/std over TRAIN only
-train_raw = make_dataset(train_trials, args.seq_len, batch=256, shuffle_windows=False, add_noise=(args.add_noise=='T'))
+train_raw = make_dataset(
+    train_trials, args.seq_len, batch=256,
+    shuffle_windows=False,
+    add_noise=(args.add_noise=='T'),
+    rotation_scheme=args.rotation_scheme,
+    n_rotations=args.n_rotations,
+    rot_prob=args.rot_prob,
+    rot_max_deg=args.rot_max_deg,
+    up_axis=args.up_axis
+)
+
 
 @tf.function
 def batch_stats(x):
@@ -277,9 +354,32 @@ def normalize_xy(x, y):
     x = (x - mt) / st
     return x, y
 
-train_ds       = make_dataset(train_trials, args.seq_len, batch=args.batch_size, shuffle_windows=True, add_noise=(args.add_noise=='T')).map(normalize_xy, num_parallel_calls=tf.data.AUTOTUNE)
-val_ds         = make_dataset(val_trials,   args.seq_len, batch=args.batch_size, shuffle_windows=False, add_noise=False).map(normalize_xy, num_parallel_calls=tf.data.AUTOTUNE)
-val_ds_monitor = make_dataset(val_trials,   args.seq_len, batch=args.batch_size, shuffle_windows=True, add_noise=False).map(normalize_xy, num_parallel_calls=tf.data.AUTOTUNE)
+train_ds = make_dataset(
+    train_trials, args.seq_len, batch=args.batch_size,
+    shuffle_windows=True,
+    add_noise=(args.add_noise=='T'),
+    rotation_scheme=args.rotation_scheme,
+    n_rotations=args.n_rotations,
+    rot_prob=args.rot_prob,
+    rot_max_deg=args.rot_max_deg,
+    up_axis=args.up_axis
+).map(normalize_xy, num_parallel_calls=tf.data.AUTOTUNE)
+
+val_ds = make_dataset(
+    val_trials, args.seq_len, batch=args.batch_size,
+    shuffle_windows=False,
+    add_noise=False,
+    rotation_scheme='off',                # keep val clean (their practice)
+    up_axis=args.up_axis
+).map(normalize_xy, num_parallel_calls=tf.data.AUTOTUNE)
+
+val_ds_monitor = make_dataset(
+    val_trials, args.seq_len, batch=args.batch_size,
+    shuffle_windows=True,
+    add_noise=False,
+    rotation_scheme='off',
+    up_axis=args.up_axis
+).map(normalize_xy, num_parallel_calls=tf.data.AUTOTUNE)
 
 # ─────────────── Model (reuse your pretrained JSON/weights; adjust last layer when needed) ───────────────
 pretrained_dir = Path(args.pretrained_path) / f"v0.3_{args.body_part}"
@@ -337,6 +437,7 @@ def weighted_l2(weights):
             return tf.reduce_mean(tf.square(y_true - y_pred), axis=-1)
         sq = tf.square(y_true - y_pred)
         sq = sq * weights  # broadcast on last dim
+        # sq = sq + tf.reduce_mean(tf.square(y_pred))*1e-3
         return tf.reduce_mean(sq, axis=-1)
     return loss
 
@@ -346,12 +447,6 @@ class HeightSlice(Layer):
         return x[:, :, -2:-1]
     def get_config(self):
         return {}
-
-## IF YOU WANT TO HAVE LOSS IN SQUARED METERS + MODIFS TO NOT SCALE GT
-# h_norm = HeightSlice(name="extract_height_norm")(model.input)  # [B,L,1]
-# h_real = Rescaling(scale=std_train_height, offset=mean_train_height, name="denorm_height")(h_norm) 
-# y_m = Multiply(name="to_meters")([model.output, h_real])  # broadcasting (B,L,out_dim) * (B,L,1)
-# model = tf.keras.Model(inputs=model.input, outputs=y_m, name="wrapped_to_meters")
 
 model.compile(optimizer=Adam(args.lr), loss=weighted_l2(W_loss))
 
