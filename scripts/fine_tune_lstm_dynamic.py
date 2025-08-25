@@ -36,7 +36,7 @@ p.add_argument('--test-size', type=int, default=2, help="# of subjects reserved 
 p.add_argument('--seed', type=int, default=42)
 p.add_argument('--rot-prob', type=float, default=0.0, help='Probability to apply a random yaw rotation per window (0..1)')
 p.add_argument('--rot-max-deg', type=float, default=30.0, help='Max absolute rotation in degrees (uniform in [-max, max])')
-p.add_argument('--up-axis', choices=['y','z'], default='y', help='Which axis is vertical in your data (usually y or z)')
+p.add_argument('--up-axis', choices=['y','z'], default='z', help='Which axis is vertical in your data (usually y or z)')
 p.add_argument('--rotation-scheme', choices=['off','prob','det'], default='off',
                help="off: no rotation; prob: single random yaw per window using --rot-prob/--rot-max-deg; det: emit n evenly-spaced yaws per window")
 p.add_argument('--n-rotations', type=int, default=1,
@@ -436,81 +436,161 @@ model.compile(optimizer=Adam(args.lr), loss=weighted_l2(W_loss))
 model.summary()
 
 # Save model definition that matches finetune config
-model_json_path = pretrained_dir / f"model_finetuned_momo_{args.body_part}_ft{args.fine_tune}_al{args.add_layer}_m{args.use_mocap}_n{args.add_noise}_w{args.use_weights}.json"
+model_json_path = pretrained_dir / f"model_finetuned_momo_{args.body_part}_ft{args.fine_tune}_al{args.add_layer}_m{args.use_mocap}_n{args.add_noise}_w{args.use_weights}_prot{args.rot_prob}_maxrot{args.rot_max_deg}_rotscheme{args.rotation_scheme}_up{args.up_axis}_nrot{args.n_rotations}.h5"
 with open(model_json_path, "w") as f:
     f.write(model.to_json())
 
 # ─────────────── Callbacks ───────────────
 class PredictionLogger(tf.keras.callbacks.Callback):
-    def __init__(self, ds, save_dir, mks_names, every_n_epochs=3, seq_len=30, seed=42, include_height=True):
+    def __init__(self, ds, save_dir, mks_names,
+                 every_n_epochs=3, seq_len=30, seed=42,
+                 n_samples=50, include_height=True,
+                 mean_height=None, std_height=None,
+                 preds_are_div_by_height=True):
+        """
+        - ds: tf.data.Dataset (x,y) normalisé comme en training
+        - mks_names: liste des markers (P)
+        - mean_height/std_height: floats pour dénormaliser la height si elle est z-scalée.
+          Si None, on considère que la height est déjà en mètres dans x.
+        - preds_are_div_by_height: True si vos y/pred sont encore en '/height'
+          (cas sans wrapper to_meters) → on re-multiplie par la height pour logger en mètres.
+        """
         super().__init__()
         self.ds = ds
         self.save_dir = Path(save_dir); self.save_dir.mkdir(parents=True, exist_ok=True)
         self.every = every_n_epochs
         self.seq_len = seq_len
+        self.P = len(mks_names)
         self.mks_names = list(mks_names)
         self.rng = np.random.default_rng(seed)
+        self.n_samples = n_samples
         self.include_height = include_height
+        self.mean_h = mean_height
+        self.std_h  = std_height
+        self.preds_are_div_by_height = preds_are_div_by_height
 
-    def _one_sequence(self):
-        # Take a random batch then pick the first sample
-        batched = list(self.ds.take(5))  # small pool
-        if not batched:
+    def _collect_random_samples(self):
+        """
+        Balaye quelques batches de ds et prélève au total n_samples séquences aléatoires.
+        Retourne x_sel, y_sel : [N, L, F], [N, L, out_dim]
+        """
+        X_sel, Y_sel = [], []
+        remaining = self.n_samples
+
+        # on balaye un nombre raisonnable de batches jusqu'à remplir notre quota
+        # (évite de matérialiser tout le dataset)
+        for x_b, y_b in self.ds.take(100):
+            x_b = x_b.numpy()
+            y_b = y_b.numpy()
+            B = x_b.shape[0]
+            if B == 0:
+                continue
+            k = min(remaining, B)
+            idxs = self.rng.choice(B, size=k, replace=False)
+            X_sel.append(x_b[idxs])
+            Y_sel.append(y_b[idxs])
+            remaining -= k
+            if remaining <= 0:
+                break
+
+        if not X_sel:
             return None, None
-        x, y = batched[self.rng.integers(0, len(batched))]
-        return x[0:1], y[0:1]  # keep shape [1, L, F]
+        x_sel = np.concatenate(X_sel, axis=0)
+        y_sel = np.concatenate(Y_sel, axis=0)
+        # au cas où on a dépassé (peu probable)
+        if x_sel.shape[0] > self.n_samples:
+            x_sel = x_sel[:self.n_samples]
+            y_sel = y_sel[:self.n_samples]
+        return x_sel, y_sel
 
     def on_epoch_end(self, epoch, logs=None):
         if (epoch + 1) % self.every != 0:
             return
-        x, y = self._one_sequence()
-        if x is None:
-            return
-        pred = self.model.predict(x, verbose=0)  # [1, L, out_dim]
-        x = x.numpy()[0]     # [L, F]
-        y = y.numpy()[0]     # [L, out_dim]
-        p = pred[0]          # [L, out_dim]
 
-        P = len(self.mks_names)
+        x_sel, y_sel = self._collect_random_samples()
+        if x_sel is None:
+            print("[PredictionLogger] no samples collected; skipping")
+            return
+
+        # prédictions par batch (une seule passe)
+        preds = self.model.predict(x_sel, verbose=0)  # [N, L, out_dim]
+
+        # dernière frame seulement
+        t_last = self.seq_len - 1
+        x_last = x_sel[:, t_last, :]     # [N, F]
+        y_last = y_sel[:, t_last, :]     # [N, out_dim]
+        p_last = preds[:, t_last, :]     # [N, out_dim]
+
+        # reshape en [N, P, 3]
         try:
-            y = y.reshape(self.seq_len, P, 3)
-            p = p.reshape(self.seq_len, P, 3)
+            y_last = y_last.reshape(-1, self.P, 3)
+            p_last = p_last.reshape(-1, self.P, 3)
         except ValueError:
-            print("[PredictionLogger] reshape failed; skipping")
+            print("[PredictionLogger] reshape failed; check out_dim vs P*3")
             return
 
-        # Build wide dataframe
-        frame = np.arange(self.seq_len)
-        cols = {"Frame": frame}
-        if self.include_height:
-            cols["height"] = np.repeat(x[0, -2]*std_train_height+mean_train_height, self.seq_len)  # height per frame (constant)
-        for j, name in enumerate(self.mks_names):
-            for a, ax in enumerate(['x','y','z']):
-                cols[f"GT.{name}.{ax}"]   = y[:, j, a]*cols["height"]
-                cols[f"Pred.{name}.{ax}"] = p[:, j, a]*cols["height"]
+        # height réelle (m)
+        # - si mean/std fournis → on dénormalise: h = z*std + mean
+        # - sinon on suppose déjà en mètres dans x
+        h_norm = x_last[:, -2]  # [N], feature 'height' (z-scalée ou non)
+        if (self.mean_h is not None) and (self.std_h is not None):
+            h_real = h_norm * self.std_h + self.mean_h
+        else:
+            h_real = h_norm
+        h_real = h_real.astype(np.float32)  # [N]
 
-        df = pd.DataFrame(cols)
-        out = self.save_dir / f"pred_epoch{epoch+1}.csv"
+        # si vos sorties sont en '/height' (pas de wrapper to_meters), loggez en mètres :
+        if self.preds_are_div_by_height:
+            y_last = y_last * h_real[:, None, None]
+            p_last = p_last * h_real[:, None, None]
+
+        # construire le DataFrame (une ligne par séquence)
+        rows = {}
+        rows["Seq"] = np.arange(y_last.shape[0])
+        if self.include_height:
+            rows["height"] = h_real
+
+        for j, name in enumerate(self.mks_names):
+            for a, ax in enumerate(["x", "y", "z"]):
+                rows[f"GT.{name}.{ax}"]   = y_last[:, j, a]
+                rows[f"Pred.{name}.{ax}"] = p_last[:, j, a]
+
+        df = pd.DataFrame(rows)
+        out = self.save_dir / f"pred_epoch{epoch+1}_laststep_{self.n_samples}.csv"
         df.to_csv(out, index=False)
         print(f"[INFO] Saved {out}")
 
-ckpt_path = pretrained_dir / f"best_finetuned_weights_momo_{args.body_part}_ft{args.fine_tune}_al{args.add_layer}_m{args.use_mocap}_n{args.add_noise}_w{args.use_weights}.h5"
+ckpt_path = pretrained_dir / f"best_finetuned_weights_momo_{args.body_part}_ft{args.fine_tune}_al{args.add_layer}_m{args.use_mocap}_n{args.add_noise}_w{args.use_weights}_prot{args.rot_prob}_maxrot{args.rot_max_deg}_rotscheme{args.rotation_scheme}_up{args.up_axis}_nrot{args.n_rotations}.h5"
 callbacks = [
     EarlyStopping(monitor='val_loss', patience=args.patience, restore_best_weights=True, verbose=1),
     ModelCheckpoint(str(ckpt_path), monitor='val_loss', save_best_only=True, save_weights_only=True, verbose=1),
-    PredictionLogger(ds=val_ds_monitor, save_dir=pretrained_dir, mks_names=mks_of_interest, every_n_epochs=5, seed=42)
 ]
+callbacks.append(
+    PredictionLogger(
+        ds=val_ds_monitor,
+        save_dir=pretrained_dir,             # ou un sous-dossier 'pred_logs'
+        mks_names=mks_of_interest,
+        every_n_epochs=1,
+        seq_len=args.seq_len,
+        seed=42,
+        n_samples=50,
+        include_height=True,
+        mean_height=mean_train_height,       # passe None si height déjà en mètres
+        std_height=std_train_height,
+        preds_are_div_by_height=True         # False si ton modèle sort déjà des mètres
+    )
+)
 
 # ─────────────── Save stats + Train ───────────────
 print(f"[Info] Feature mean/std from TRAIN: mean shape {mean_train.shape}, std shape {std_train.shape}")
 stats_dir = Path(args.pretrained_path) / f"v0.3_{args.body_part}" / "stats_streaming"
 stats_dir.mkdir(parents=True, exist_ok=True)
-np.save(stats_dir / f"mean_train_m{args.use_mocap}_n{args.add_noise}_w{args.use_weights}_rot{args.rotation_scheme}_nbrot{args.n_rotations}.npy", mean_train)
-np.save(stats_dir / f"std_train_m{args.use_mocap}_n{args.add_noise}_w{args.use_weights}_rot{args.rotation_scheme}_nbrot{args.n_rotations}.npy",  std_train)
+np.save(stats_dir / f"mean_train_ft{args.fine_tune}_al{args.add_layer}_m{args.use_mocap}_n{args.add_noise}_w{args.use_weights}_prot{args.rot_prob}_maxrot{args.rot_max_deg}_rotscheme{args.rotation_scheme}_up{args.up_axis}_nrot{args.n_rotations}.npy", mean_train)
+np.save(stats_dir / f"std_train_ft{args.fine_tune}_al{args.add_layer}_m{args.use_mocap}_n{args.add_noise}_w{args.use_weights}_prot{args.rot_prob}_maxrot{args.rot_max_deg}_rotscheme{args.rotation_scheme}_up{args.up_axis}_nrot{args.n_rotations}.npy",  std_train)
 history = model.fit(train_ds, validation_data=val_ds, epochs=args.epochs, callbacks=callbacks)
 
 # ─────────────── Save weights ───────────────
-final_w = pretrained_dir / f"weights_finetuned_momo_{args.body_part}_ft{args.fine_tune}_al{args.add_layer}_m{args.use_mocap}_n{args.add_noise}_w{args.use_weights}.h5"
+final_w = pretrained_dir / f"weights_finetuned_momo_{args.body_part}_ft{args.fine_tune}_al{args.add_layer}_m{args.use_mocap}_n{args.add_noise}_w{args.use_weights}_prot{args.rot_prob}_maxrot{args.rot_max_deg}_rotscheme{args.rotation_scheme}_up{args.up_axis}_nrot{args.n_rotations}.h5"
 model.save_weights(str(final_w))
 with open(stats_dir / f"norm_meta.json", "w") as f:
     json.dump({

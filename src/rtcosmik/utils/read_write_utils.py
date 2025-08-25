@@ -679,7 +679,7 @@ def marker_data_to_dataframe(df, mks_names, marker_column='marker_data', delimit
     return wide_df
 
 
-def udp_csv_to_dataframe(csv_path, marker_names, udp_type="gapfilled"):
+def udp_csv_to_dataframe(csv_path, marker_names, udp_type="raw"):
     """
     Preprocess a UDP CSV file into a DataFrame suitable for read_mks_data.
 
