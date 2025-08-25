@@ -26,7 +26,7 @@ def marker(buffer, keypoint_index):
     return reference_marker_trajectory
 
 def loadModel(augmenterDir, augmenterModelName="LSTM",augmenter_model='v0.3', use_mocap="T", add_noise="F", fine_tune="F", 
-            add_layer=a"T", use_weights="F", rot_prob=0.0, rot_max_deg=30.0, rotation_scheme="off", n_rotations=1):
+            add_layer="T", use_weights="F", rot_prob=0.0, rot_max_deg=30.0, rotation_scheme="off", n_rotations=1):
     """
     Load and initialize LSTM models for different augmenter types.
     Parameters:
@@ -153,7 +153,7 @@ def augmentTRC(keypoints_buffer, subject_mass, subject_height,
 
         # Load mean and std for normalization
         #print(augmenterModelDir)
-        pathMean = os.path.join(augmenterModelDir, "stats_streaming", f"mean_train_ft{args.fine_tune}_al{args.add_layer}_m{args.use_mocap}_n{args.add_noise}_w{args.use_weights}_prot{args.rot_prob}_maxrot{args.rot_max_deg}_rotscheme{args.rotation_scheme}_up{args.up_axis}_nrot{args.n_rotations}.npy.npy")
+        pathMean = os.path.join(augmenterModelDir, "stats_streaming", f"mean_train_ft{args.fine_tune}_al{args.add_layer}_m{args.use_mocap}_n{args.add_noise}_w{args.use_weights}_prot{args.rot_prob}_maxrot{args.rot_max_deg}_rotscheme{args.rotation_scheme}_up{args.up_axis}_nrot{args.n_rotations}.npy")
         pathSTD = os.path.join(augmenterModelDir, "stats_streaming", f"std_train_ft{args.fine_tune}_al{args.add_layer}_m{args.use_mocap}_n{args.add_noise}_w{args.use_weights}_prot{args.rot_prob}_maxrot{args.rot_max_deg}_rotscheme{args.rotation_scheme}_up{args.up_axis}_nrot{args.n_rotations}.npy")
         #print(pathMean)
 

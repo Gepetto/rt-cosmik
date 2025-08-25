@@ -436,7 +436,7 @@ model.compile(optimizer=Adam(args.lr), loss=weighted_l2(W_loss))
 model.summary()
 
 # Save model definition that matches finetune config
-model_json_path = pretrained_dir / f"model_finetuned_momo_{args.body_part}_ft{args.fine_tune}_al{args.add_layer}_m{args.use_mocap}_n{args.add_noise}_w{args.use_weights}_prot{args.rot_prob}_maxrot{args.rot_max_deg}_rotscheme{args.rotation_scheme}_up{args.up_axis}_nrot{args.n_rotations}.h5"
+model_json_path = pretrained_dir / f"model_finetuned_momo_{args.body_part}_ft{args.fine_tune}_al{args.add_layer}_m{args.use_mocap}_n{args.add_noise}_w{args.use_weights}_prot{args.rot_prob}_maxrot{args.rot_max_deg}_rotscheme{args.rotation_scheme}_up{args.up_axis}_nrot{args.n_rotations}.json"
 with open(model_json_path, "w") as f:
     f.write(model.to_json())
 

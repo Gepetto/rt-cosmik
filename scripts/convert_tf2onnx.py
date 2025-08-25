@@ -21,12 +21,12 @@ p.add_argument('--rotation-scheme', choices=['off','prob','det'], default='off',
 p.add_argument('--n-rotations', type=int, default=1,
                help="When --rotation-scheme det, emit this many evenly-spaced yaw angles per window (full circle).")
 # tip: set --up-axis z for your dataset
-p = p.parse_args()
+args = p.parse_args()
 
 # Paths to your files
 base_path = "/home/ngouget/Codes/rt-cosmik/src/rtcosmik/augmenter/augmentation_model/LSTM"
-json_path = os.path.join(base_path, f"v0.3_{p.body_part}", f"model_finetuned_momo_{p.body_part}_ft{args.fine_tune}_al{args.add_layer}_m{args.use_mocap}_n{args.add_noise}_w{args.use_weights}_prot{args.rot_prob}_maxrot{args.rot_max_deg}_rotscheme{args.rotation_scheme}_up{args.up_axis}_nrot{args.n_rotations}.json")
-weights_path = os.path.join(base_path, f"v0.3_{p.body_part}", f"best_finetuned_weights_momo_{args.body_part}_ft{args.fine_tune}_al{args.add_layer}_m{args.use_mocap}_n{args.add_noise}_w{args.use_weights}_prot{args.rot_prob}_maxrot{args.rot_max_deg}_rotscheme{args.rotation_scheme}_up{args.up_axis}_nrot{args.n_rotations}.h5")
+json_path = os.path.join(base_path, f"v0.3_{args.body_part}", f"model_finetuned_momo_{args.body_part}_ft{args.fine_tune}_al{args.add_layer}_m{args.use_mocap}_n{args.add_noise}_w{args.use_weights}_prot{args.rot_prob}_maxrot{args.rot_max_deg}_rotscheme{args.rotation_scheme}_up{args.up_axis}_nrot{args.n_rotations}.json")
+weights_path = os.path.join(base_path, f"v0.3_{args.body_part}", f"best_finetuned_weights_momo_{args.body_part}_ft{args.fine_tune}_al{args.add_layer}_m{args.use_mocap}_n{args.add_noise}_w{args.use_weights}_prot{args.rot_prob}_maxrot{args.rot_max_deg}_rotscheme{args.rotation_scheme}_up{args.up_axis}_nrot{args.n_rotations}.h5")
 
 # Load the model architecture
 with open(json_path, 'r') as json_file:
