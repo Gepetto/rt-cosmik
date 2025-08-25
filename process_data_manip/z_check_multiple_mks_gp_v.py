@@ -12,7 +12,7 @@ import pandas as pd
 from src.rtcosmik.utils.read_write_utils import parse_marker_csv,udp_csv_to_dataframe,read_mks_data,load_transformation,plot_marker_comparison
 from collections import defaultdict
 
-p.add_argument('--body-part', choices=['upper','lower'], required=True)
+p = argparse.ArgumentParser(description="calculate rmse over all markers and frames with augmented local data")
 p.add_argument('--use-mocap', choices=['T','F'], default='T', required=True)        # must be 'T' for this script (mocap JCP + mocap GT)
 p.add_argument('--add-noise', choices=['T','F'], default='F')
 p.add_argument('--fine-tune', choices=['T','F'], default='F')
@@ -32,8 +32,8 @@ args = p.parse_args()
 
 base_path = "/home/ngouget/Codes/"
 
-subject_path = os.path.join(base_path, f"datasets/COSMIK_dataset/{subject}")
-trial_path = os.path.join(subject_path, trial)
+subject_path = os.path.join(base_path, f"datasets/COSMIK_dataset/{args.subject}")
+trial_path = os.path.join(subject_path, args.trial)
 
 
 # path_to_csv = f"/root/workspace/ros_ws/src/rt-cosmik/output/{no_trial}/mouv/{task}/mocap_downsampled_to_40hz.csv"
@@ -43,15 +43,15 @@ trial_path = os.path.join(subject_path, trial)
 # mks_names = sorted(set(col.rsplit("_", 1)[0] for col in df_wide.columns if "_x" in col))
 
 if args.use_mocap == "T":
-    path_to_csv_mocap = os.path.join(trial_path, f"{trial}_trajectories.csv")
-    path_to_csv_lstm = os.path.join(base_path, f"rt-cosmik/output/{subject}/{trial}/{trial}_augmented_markers_mocap_ft{args.fine_tune}_al{args.add_layer}_m{args.use_mocap}_n{args.add_noise}_w{args.use_weights}_prot{args.rot_prob}_maxrot{args.rot_max_deg}_rotscheme{args.rotation_scheme}_up{args.up_axis}_nrot{args.n_rotations}.csv")
-    path_to_csv_lstm_OpenCap = os.path.join(base_path, f"rt-cosmik/output/{subject}/{trial}/{trial}_augmented_markers_mocap_OpenCap.csv")
-    path_to_kpt = os.path.join(trial_path, f"{trial}_jcp_mocap.csv")
+    path_to_csv_mocap = os.path.join(trial_path, f"{args.trial}_trajectories.csv")
+    path_to_csv_lstm = os.path.join(base_path, f"rt-cosmik/output/{args.subject}/{args.trial}/{args.trial}_augmented_markers_mocap_ft{args.fine_tune}_al{args.add_layer}_m{args.use_mocap}_n{args.add_noise}_w{args.use_weights}_prot{args.rot_prob}_maxrot{args.rot_max_deg}_rotscheme{args.rotation_scheme}_up{args.up_axis}_nrot{args.n_rotations}.csv")
+    path_to_csv_lstm_OpenCap = os.path.join(base_path, f"rt-cosmik/output/{args.subject}/{args.trial}/{args.trial}_augmented_markers_mocap_OpenCap.csv")
+    path_to_kpt = os.path.join(trial_path, f"{args.trial}_jcp_mocap.csv")
 elif args.use_mocap == "F":
-    path_to_csv_mocap = os.path.join(trial_path, f"{trial}_trajectories_rt.csv")
-    path_to_csv_lstm = os.path.join(base_path, f"rt-cosmik/output/{subject}/{trial}/{trial}_augmented_markers_hpe_ft{args.fine_tune}_al{args.add_layer}_m{args.use_mocap}_n{args.add_noise}_w{args.use_weights}_prot{args.rot_prob}_maxrot{args.rot_max_deg}_rotscheme{args.rotation_scheme}_up{args.up_axis}_nrot{args.n_rotations}.csv")
-    path_to_csv_lstm_OpenCap = os.path.join(base_path, f"rt-cosmik/output/{subject}/{trial}/{trial}_augmented_markers_hpe_OpenCap.csv")
-    path_to_kpt = os.path.join(trial_path, f"{trial}_jcp_hpe.csv")
+    path_to_csv_mocap = os.path.join(trial_path, f"{args.trial}_trajectories_rt.csv")
+    path_to_csv_lstm = os.path.join(base_path, f"rt-cosmik/output/{args.subject}/{args.trial}/{args.trial}_augmented_markers_hpe_ft{args.fine_tune}_al{args.add_layer}_m{args.use_mocap}_n{args.add_noise}_w{args.use_weights}_prot{args.rot_prob}_maxrot{args.rot_max_deg}_rotscheme{args.rotation_scheme}_up{args.up_axis}_nrot{args.n_rotations}.csv")
+    path_to_csv_lstm_OpenCap = os.path.join(base_path, f"rt-cosmik/output/{args.subject}/{args.trial}/{args.trial}_augmented_markers_hpe_OpenCap.csv")
+    path_to_kpt = os.path.join(trial_path, f"{args.trial}_jcp_hpe.csv")
 else:
     raise Exception("Use mocap not supported. Please select T or F.")
 

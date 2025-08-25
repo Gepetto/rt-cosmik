@@ -56,6 +56,6 @@ spec = (tf.TensorSpec(model.input_shape, tf.float32, name="input"),)
 onnx_model, _ = tf2onnx.convert.from_keras(model, input_signature=spec, opset=13)
 
 # Save to file
-with open(os.path.join(base_path, f"v0.3_{p.body_part}", f"model_{args.body_part}_ft{args.fine_tune}_al{args.add_layer}_m{args.use_mocap}_n{args.add_noise}_w{args.use_weights}_prot{args.rot_prob}_maxrot{args.rot_max_deg}_rotscheme{args.rotation_scheme}_up{args.up_axis}_nrot{args.n_rotations}.onnx"), 'wb') as f:
+with open(os.path.join(base_path, f"v0.3_{args.body_part}", f"model_{args.body_part}_ft{args.fine_tune}_al{args.add_layer}_m{args.use_mocap}_n{args.add_noise}_w{args.use_weights}_prot{args.rot_prob}_maxrot{args.rot_max_deg}_rotscheme{args.rotation_scheme}_up{args.up_axis}_nrot{args.n_rotations}.onnx"), 'wb') as f:
     f.write(onnx_model.SerializeToString())
     

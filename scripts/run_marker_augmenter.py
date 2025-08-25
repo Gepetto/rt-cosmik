@@ -14,7 +14,7 @@ from src.rtcosmik.utils.linear_algebra_utils import butterworth_filter
 
 base_path = "/home/ngouget/Codes/"
 
-p.add_argument('--body-part', choices=['upper','lower'], required=True)
+p = argparse.ArgumentParser(description="augment data w local lstm")
 p.add_argument('--use-mocap', choices=['T','F'], default='T', required=True)        # must be 'T' for this script (mocap JCP + mocap GT)
 p.add_argument('--add-noise', choices=['T','F'], default='F')
 p.add_argument('--fine-tune', choices=['T','F'], default='F')
@@ -34,7 +34,7 @@ args = p.parse_args()
 
 
 subject_path = os.path.join(base_path, f"datasets/COSMIK_dataset/{args.subject}")
-trial_path = os.path.join(args.subject_path, args.trial)
+trial_path = os.path.join(subject_path, args.trial)
 if args.use_mocap == "T":
     converter = 1000.0
     path_to_3d_kpt = os.path.join(trial_path, f"{args.trial}_jcp_mocap.csv")
@@ -73,8 +73,8 @@ def main():
     augmented_markers_list_opencap = []
     first_frame = True
     #load lstm model
-    warmed_models = loadModel(augmenterDir=augmenter_path, augmenterModelName="LSTM",augmenter_model='v0.3', use_mocap=use_mocap, add_noise=add_noise, fine_tune=fine_tune, 
-                                add_layer=add_layer, use_weights=use_weights, rot_prob=rot_prob, rot_max_deg=rot_max_deg, rotation_scheme=rotation_scheme, n_rotations=n_rotations)
+    warmed_models = loadModel(augmenterDir=augmenter_path, augmenterModelName="LSTM",augmenter_model='v0.3', use_mocap=args.use_mocap, add_noise=args.add_noise, fine_tune=args.fine_tune, 
+                                add_layer=args.add_layer, use_weights=args.use_weights, rot_prob=args.rot_prob, rot_max_deg=args.rot_max_deg, rotation_scheme=args.rotation_scheme, n_rotations=args.n_rotations)
     warmed_models_opencap = loadModelOpenCap(augmenterDir=augmenter_path, augmenterModelName="LSTM",augmenter_model='v0.3')
 
     #load 3d keypoints

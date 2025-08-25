@@ -26,7 +26,7 @@ def marker(buffer, keypoint_index):
     return reference_marker_trajectory
 
 def loadModel(augmenterDir, augmenterModelName="LSTM",augmenter_model='v0.3', use_mocap="T", add_noise="F", fine_tune="F", 
-            add_layer="T", use_weights="F", rot_prob=0.0, rot_max_deg=30.0, rotation_scheme="off", n_rotations=1):
+            add_layer="T", use_weights="F", rot_prob=0.0, rot_max_deg=30.0, rotation_scheme="off", up_axis="z", n_rotations=1):
     """
     Load and initialize LSTM models for different augmenter types.
     Parameters:
@@ -69,7 +69,7 @@ def loadModel(augmenterDir, augmenterModelName="LSTM",augmenter_model='v0.3', us
 def augmentTRC(keypoints_buffer, subject_mass, subject_height,
                models, augmenterDir, augmenterModelName='LSTM', augmenter_model='v0.3', offset=True,
                use_mocap="T", add_noise="F", fine_tune="F", 
-               add_layer="T", use_weights="F", rot_prob=0.0, rot_max_deg=30.0, rotation_scheme="off", n_rotations=1):
+               add_layer="T", use_weights="F", rot_prob=0.0, rot_max_deg=30.0, rotation_scheme="off", n_rotations=1, up_axis="z"):
     """
     Augments the given keypoints buffer using specified models and parameters.
     Parameters:
@@ -101,10 +101,10 @@ def augmentTRC(keypoints_buffer, subject_mass, subject_height,
     featureWeight = True
     
     outputs_all = {}
-    if input_type == "T":
+    if use_mocap == "T":
         marker_indices_lower = [2, 0, 1, 7, 8, 10, 11, 12, 13, 14, 15, 18, 19, 16, 17] #['Neck', 'RShoulder', 'LShoulder', 'RHip', 'LHip', 'RKnee', 'LKnee', 'RAnkle', 'LAnkle', 'RHeel', 'LHeel', 'RSmallToe', 'LSmallToe', 'RBigToe', 'LBigToe']
         marker_indices_upper = [2, 0, 1, 3, 4, 5, 6] #['Neck', 'RShoulder', 'LShoulder', 'RElbow', 'LElbow', 'RWrist', 'LWrist']
-    elif input_type == "F":
+    elif use_mocap == "F":
         marker_indices_lower = [18, 6, 5, 12, 11, 14, 13, 16, 15, 25, 24, 23, 22, 21, 20] #['Neck', 'RShoulder', 'LShoulder', 'RHip', 'LHip', 'RKnee', 'LKnee', 'RAnkle', 'LAnkle', 'RHeel', 'LHeel', 'RSmallToe', 'LSmallToe', 'RBigToe', 'LBigToe']
         marker_indices_upper = [18, 6, 5, 8, 7, 10, 9] #['Neck', 'RShoulder', 'LShoulder', 'RElbow', 'LElbow', 'RWrist', 'LWrist']
     else:
@@ -127,9 +127,9 @@ def augmentTRC(keypoints_buffer, subject_mass, subject_height,
         augmenterModelDir = os.path.join(augmenterDir, augmenterModelName, 
                                          augmenterModelType)
         # Process the keypoints buffer
-        if input_type == "T":
+        if use_mocap == "T":
             referenceMarker_data = marker(keypoints_buffer, 9)  # midihip
-        elif input_type == "F":
+        elif use_mocap == "F":
             referenceMarker_data = marker(keypoints_buffer, 19)  # midhip
         else:
             raise Exception("Input type not supported. Please select T or F.")
@@ -153,8 +153,8 @@ def augmentTRC(keypoints_buffer, subject_mass, subject_height,
 
         # Load mean and std for normalization
         #print(augmenterModelDir)
-        pathMean = os.path.join(augmenterModelDir, "stats_streaming", f"mean_train_ft{args.fine_tune}_al{args.add_layer}_m{args.use_mocap}_n{args.add_noise}_w{args.use_weights}_prot{args.rot_prob}_maxrot{args.rot_max_deg}_rotscheme{args.rotation_scheme}_up{args.up_axis}_nrot{args.n_rotations}.npy")
-        pathSTD = os.path.join(augmenterModelDir, "stats_streaming", f"std_train_ft{args.fine_tune}_al{args.add_layer}_m{args.use_mocap}_n{args.add_noise}_w{args.use_weights}_prot{args.rot_prob}_maxrot{args.rot_max_deg}_rotscheme{args.rotation_scheme}_up{args.up_axis}_nrot{args.n_rotations}.npy")
+        pathMean = os.path.join(augmenterModelDir, "stats_streaming", f"mean_train_ft{fine_tune}_al{add_layer}_m{use_mocap}_n{add_noise}_w{use_weights}_prot{rot_prob}_maxrot{rot_max_deg}_rotscheme{rotation_scheme}_up{up_axis}_nrot{n_rotations}.npy")
+        pathSTD = os.path.join(augmenterModelDir, "stats_streaming", f"std_train_ft{fine_tune}_al{add_layer}_m{use_mocap}_n{add_noise}_w{use_weights}_prot{rot_prob}_maxrot{rot_max_deg}_rotscheme{rotation_scheme}_up{up_axis}_nrot{n_rotations}.npy")
         #print(pathMean)
 
         if os.path.isfile(pathMean):
@@ -249,7 +249,7 @@ def loadModelOpenCap(augmenterDir, augmenterModelName="LSTM",augmenter_model='v0
 
 
 def augmentTRCOpenCap(keypoints_buffer, subject_mass, subject_height,
-               models, augmenterDir, augmenterModelName='LSTM', augmenter_model='v0.3', offset=True, input_type="T"
+               models, augmenterDir, augmenterModelName='LSTM', augmenter_model='v0.3', offset=True, use_mocap="T"
                ):
     """
     Augments the given keypoints buffer using specified models and parameters.
@@ -282,10 +282,10 @@ def augmentTRCOpenCap(keypoints_buffer, subject_mass, subject_height,
     featureWeight = True
     
     outputs_all = {}
-    if input_type == "T":
+    if use_mocap == "T":
         marker_indices_lower = [2, 0, 1, 7, 8, 10, 11, 12, 13, 14, 15, 18, 19, 16, 17] #['Neck', 'RShoulder', 'LShoulder', 'RHip', 'LHip', 'RKnee', 'LKnee', 'RAnkle', 'LAnkle', 'RHeel', 'LHeel', 'RSmallToe', 'LSmallToe', 'RBigToe', 'LBigToe']
         marker_indices_upper = [2, 0, 1, 3, 4, 5, 6] #['Neck', 'RShoulder', 'LShoulder', 'RElbow', 'LElbow', 'RWrist', 'LWrist']
-    elif input_type == "F":
+    elif use_mocap == "F":
         marker_indices_lower = [18, 6, 5, 12, 11, 14, 13, 16, 15, 25, 24, 23, 22, 21, 20] #['Neck', 'RShoulder', 'LShoulder', 'RHip', 'LHip', 'RKnee', 'LKnee', 'RAnkle', 'LAnkle', 'RHeel', 'LHeel', 'RSmallToe', 'LSmallToe', 'RBigToe', 'LBigToe']
         marker_indices_upper = [18, 6, 5, 8, 7, 10, 9] #['Neck', 'RShoulder', 'LShoulder', 'RElbow', 'LElbow', 'RWrist', 'LWrist']
     else:
@@ -307,9 +307,9 @@ def augmentTRCOpenCap(keypoints_buffer, subject_mass, subject_height,
         augmenterModelDir = os.path.join(augmenterDir, augmenterModelName, 
                                          augmenterModelType)
         # Process the keypoints buffer
-        if input_type == "T":
+        if use_mocap == "T":
             referenceMarker_data = marker(keypoints_buffer, 9)  # midihip
-        elif input_type == "F":
+        elif use_mocap == "F":
             referenceMarker_data = marker(keypoints_buffer, 19)  # midhip
         else:
             raise Exception("Input type not supported. Please select T or F.")
