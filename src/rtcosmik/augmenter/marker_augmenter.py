@@ -59,9 +59,11 @@ def loadModel(augmenterDir, augmenterModelName="LSTM",augmenter_model='v0.3', us
     
     for idx_augm, augmenterModelType in enumerate(augmenterModelType_all):
         augmenterModelDir = os.path.join(augmenterDir, augmenterModelName, 
-                                         augmenterModelType)
-        session = ort.InferenceSession(f"{augmenterModelDir}/model_{augmenterModelType[5:]}_ft{fine_tune}_al{add_layer}_m{use_mocap}_n{add_noise}_w{use_weights}_prot{rot_prob}_maxrot{rot_max_deg}_rotscheme{rotation_scheme}_up{up_axis}_nrot{n_rotations}.onnx")
-
+                                            augmenterModelType)
+        if augmenterModelType == "{}_lower".format(augmenter_model):
+            session = ort.InferenceSession(f"{augmenterModelDir}/model_{augmenterModelType[5:]}_ft{fine_tune}_al{add_layer}_m{use_mocap}_n{add_noise}_w{use_weights}_prot{rot_prob}_maxrot{rot_max_deg}_rotscheme{rotation_scheme}_up{up_axis}_nrot{n_rotations}.onnx")
+        else:
+            session = ort.InferenceSession(f"{augmenterModelDir}/model_{augmenterModelType[5:]}_ft{fine_tune}_al{add_layer}_m{use_mocap}_n{add_noise}_wF_prot{rot_prob}_maxrot{rot_max_deg}_rotscheme{rotation_scheme}_up{up_axis}_nrot{n_rotations}.onnx")
         models[augmenterModelType] = session
 
     return models
@@ -153,8 +155,12 @@ def augmentTRC(keypoints_buffer, subject_mass, subject_height,
 
         # Load mean and std for normalization
         #print(augmenterModelDir)
-        pathMean = os.path.join(augmenterModelDir, "stats_streaming", f"mean_train_ft{fine_tune}_al{add_layer}_m{use_mocap}_n{add_noise}_w{use_weights}_prot{rot_prob}_maxrot{rot_max_deg}_rotscheme{rotation_scheme}_up{up_axis}_nrot{n_rotations}.npy")
-        pathSTD = os.path.join(augmenterModelDir, "stats_streaming", f"std_train_ft{fine_tune}_al{add_layer}_m{use_mocap}_n{add_noise}_w{use_weights}_prot{rot_prob}_maxrot{rot_max_deg}_rotscheme{rotation_scheme}_up{up_axis}_nrot{n_rotations}.npy")
+        if "lower" in augmenterModelType:
+            pathMean = os.path.join(augmenterModelDir, "stats_streaming", f"mean_train_ft{fine_tune}_al{add_layer}_m{use_mocap}_n{add_noise}_w{use_weights}_prot{rot_prob}_maxrot{rot_max_deg}_rotscheme{rotation_scheme}_up{up_axis}_nrot{n_rotations}.npy")
+            pathSTD = os.path.join(augmenterModelDir, "stats_streaming", f"std_train_ft{fine_tune}_al{add_layer}_m{use_mocap}_n{add_noise}_w{use_weights}_prot{rot_prob}_maxrot{rot_max_deg}_rotscheme{rotation_scheme}_up{up_axis}_nrot{n_rotations}.npy")
+        else:
+            pathMean = os.path.join(augmenterModelDir, "stats_streaming", f"mean_train_ft{fine_tune}_al{add_layer}_m{use_mocap}_n{add_noise}_wF_prot{rot_prob}_maxrot{rot_max_deg}_rotscheme{rotation_scheme}_up{up_axis}_nrot{n_rotations}.npy")
+            pathSTD = os.path.join(augmenterModelDir, "stats_streaming", f"std_train_ft{fine_tune}_al{add_layer}_m{use_mocap}_n{add_noise}_wF_prot{rot_prob}_maxrot{rot_max_deg}_rotscheme{rotation_scheme}_up{up_axis}_nrot{n_rotations}.npy")
         #print(pathMean)
 
         if os.path.isfile(pathMean):
@@ -401,4 +407,3 @@ def augmentTRCOpenCap(keypoints_buffer, subject_mass, subject_height,
     responses_all_conc = np.concatenate((v0_3_lower, v0_3_upper))
     # print(responses_all_conc)
     return responses_all_conc
-
