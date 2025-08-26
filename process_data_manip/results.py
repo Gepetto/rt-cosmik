@@ -7,7 +7,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__)))) 
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "src")) # src dir
 from src.rtcosmik.config_loader import settings
 from src.rtcosmik.utils.read_write_utils import read_mks_data, marker_data_to_dataframe,read_joint_angles_wholebody,read_specific_joint
-
+from src.rtcosmik.utils.linear_algebra_utils import butterworth_filter
 
 
 def metrics_par_colonne_df(A: pd.DataFrame, B: pd.DataFrame) -> pd.Series:
@@ -55,6 +55,11 @@ upper_dof = ['Lumbar_flex_ext', 'Lumbar_lateral_flex',
 lower_dof=['Rhip_flex_ext','Rhip_abd_add','Rhip_int_ext_rot','Lhip_flex_ext', 'Lhip_abd_add', 
                           'Lhip_int_ext_rot',
                           'Rknee_flex_ext','Rankle_flex_ext', 'Lknee_flex_ext', 'Lankle_flex_ext']
+
+# subject = "Emmanuelle"  # replace with your subject folder name
+# subject_path = os.path.join(data_path, subject)
+# cosmik_2cams_path = os.path.join(subject_path, "cosmik_2cams")  # cosmiks folder
+# mocap_path = os.path.join(subject_path, "mocap")  # mocaps folder
 for subject in os.listdir(data_path):
     subject_path = os.path.join(data_path, subject)
     cosmik_2cams_path = os.path.join(subject_path, "cosmik_2cams")  # cosmiks folder
@@ -74,17 +79,17 @@ for subject in os.listdir(data_path):
 
     multi_cols = pd.MultiIndex.from_product([list_of_trials, ['rmse_deg', 'corr']])
     metrics_par_dof_over_trials = pd.DataFrame(index=['Lhip_flex_ext', 'Lhip_abd_add','Lhip_int_ext_rot','Lknee_flex_ext','Lankle_flex_ext','Lankle_abd_add',
-                          'Lumbar_flex_ext', 'Lumbar_lateral_flex',
+                            'Lumbar_flex_ext', 'Lumbar_lateral_flex',
                         #   'thoracic_flex_ext','thoracic_lateral_flex','thoracic_rot_int_ext',
-                          'Lcalvicule_x',
-                          'Lshoulder_flex_ext','Lshoulder_abd_add', 'Lshoulder_int_ext_rot','Lelbow_flex_ext','Lelbow_pron_supi',
-                          'Cervical_flex_ext', 'Cervical_lat_bend', 'Cervical_int_ext_rot',
-                          'rcalvicule_x',
-                          'Rshoulder_flex_ext', 'Rshoulder_abd_add', 'Rshoulder_int_ext_rot','Relbow_flex_ext', 'Relbow_pron_supi',
-                          'Rhip_flex_ext','Rhip_abd_add','Rhip_int_ext_rot',
-                          'Rknee_flex_ext','Rankle_flex_ext', 'Rankle_abd_add', "mean", "std"], columns=multi_cols)
-    print([dof for dof in dofs if dof not in excluded_dofs].append(["mean", "std"]))
-    print(metrics_par_dof_over_trials.index)
+                            'Lcalvicule_x',
+                            'Lshoulder_flex_ext','Lshoulder_abd_add', 'Lshoulder_int_ext_rot','Lelbow_flex_ext','Lelbow_pron_supi',
+                            'Cervical_flex_ext', 'Cervical_lat_bend', 'Cervical_int_ext_rot',
+                            'rcalvicule_x',
+                            'Rshoulder_flex_ext', 'Rshoulder_abd_add', 'Rshoulder_int_ext_rot','Relbow_flex_ext', 'Relbow_pron_supi',
+                            'Rhip_flex_ext','Rhip_abd_add','Rhip_int_ext_rot',
+                            'Rknee_flex_ext','Rankle_flex_ext', 'Rankle_abd_add', "mean", "std"], columns=multi_cols)
+    # print([dof for dof in dofs if dof not in excluded_dofs] + ["mean", "std"])
+    # print(metrics_par_dof_over_trials.index)
 
     for trial in list_of_trials:
         cosmik_trials = os.path.join(cosmik_2cams_path, trial)
@@ -104,6 +109,12 @@ for subject in os.listdir(data_path):
         q_cosmik = pd.read_csv(path_cosmik).iloc[:, 7:]
         q_mocap = pd.read_csv(path_mocap).iloc[:, 7:]
 
+        q_cosmik = pd.DataFrame(
+                    butterworth_filter(q_cosmik, cutoff_frequency=10.0, order=5, sampling_frequency=40),
+                    columns=q_cosmik.columns,
+                    index=q_cosmik.index
+                )
+
         # align row counts
         if q_cosmik.shape[0] > q_mocap.shape[0]:
             q_cosmik = q_cosmik.iloc[:-1, :]
@@ -118,10 +129,8 @@ for subject in os.listdir(data_path):
         metrics_par_dof_over_trials.loc[:, (trial, "rmse_deg")] = metrics_par_dof["rmse_deg"]
         metrics_par_dof_over_trials.loc[:, (trial, "corr")] = metrics_par_dof["corr"]
 
-        # ----------------------
         # Plot each DOF and save figure
-        # ----------------------
-        plot_dir = os.path.join(subject_path, "results", "plots", trial)
+        plot_dir = os.path.join(subject_path, "results", "plots_swika", trial)
         os.makedirs(plot_dir, exist_ok=True)
 
         for dof in q_cosmik.columns:
@@ -136,11 +145,23 @@ for subject in os.listdir(data_path):
             plt.savefig(os.path.join(plot_dir, f"{dof}.png"))
             plt.close()
 
-    print(metrics_par_dof_over_trials)
-    os.makedirs(os.path.join(subject_path, "results"), exist_ok=True)
-    metrics_par_dof_over_trials.to_excel(os.path.join(subject_path, "results", f"rmse_par_dof_over_trials_{subject}.xlsx"))
+    # rmse across all trials
+    rmse_mean_over_trials = metrics_par_dof_over_trials.xs('rmse_deg', axis=1, level=1).mean(axis=1)
 
-        
+    metrics_par_dof_over_trials[('mean', 'rmse_deg')] = rmse_mean_over_trials
+    corr_mean_over_trials = metrics_par_dof_over_trials.xs('corr', axis=1, level=1).mean(axis=1)
+    metrics_par_dof_over_trials[('mean', 'corr')] = corr_mean_over_trials
+
+    # Save 
+    results_dir = os.path.join(subject_path, "results")
+    os.makedirs(results_dir, exist_ok=True)
+
+
+    with pd.ExcelWriter(os.path.join(results_dir, f"swika_rmse_par_dof_over_trials_{subject}.xlsx")) as writer:
+        metrics_par_dof_over_trials.to_excel(writer, sheet_name="per_trial")
+
+
+    
 
 
 

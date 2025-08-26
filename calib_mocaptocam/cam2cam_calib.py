@@ -31,7 +31,7 @@ def load_cam_params(path):
 K1, D1 = load_cam_params(os.path.join(f"/root/workspace/ros_ws/src/rt-cosmik/config/cam_params/{subject}", "c0_params_color.yaml"))
 K2, D2 = load_cam_params(os.path.join(f"/root/workspace/ros_ws/src/rt-cosmik/config/cam_params/{subject}", "c2_params_color.yaml"))
 
-soder_dir = f"/root/workspace/ros_ws/src/rt-cosmik/config/cam_params/{subject}/calib_2/calib_mocap_2_cam"
+soder_dir = f"/root/workspace/ros_ws/src/rt-cosmik/config/cam_params/{subject}/calib_1/calib_mocap_2_cam"
 cam2cam_dir = f"/root/workspace/ros_ws/src/rt-cosmik/config/cam_params/{subject}/c0_to_c2_params_color.yaml"
 
 R_c1_in_mocap, d_c1_in_mocap, _, _ = load_transformation(soder_dir + "0" + "/soder.txt")

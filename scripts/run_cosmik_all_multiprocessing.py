@@ -46,9 +46,9 @@ from typing import List, Tuple
 nbr_cam = 2
 base_path = "/root/workspace/ros_ws/src/rt-cosmik"
 
-SUBJECTS = ["Claire_", "Clement",
-    "Flavie", "Guilhem", "Kahina", "Marie_M","Maxime_", "Mohamed", "Nicolas",
-    "Herbert"
+SUBJECTS = [
+     "Alessandro", "Anais","Anastasia","Batiste","Bilal","Claire_","Clement","Flavie","Guilhem","Kahina","Marie_M","Mathis",
+     "Maxime_","Mohamed","Nicolas", "Zoe", "Herbert","Emmanuelle"
 ]
 #mathis et zoe a lancer a part
 TASKS = [

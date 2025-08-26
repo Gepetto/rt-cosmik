@@ -24,10 +24,10 @@ rt_cosmik_path = os.path.dirname(script_directory)
 
 SUBJECTS = [
      "Alessandro", 
-     "Anais","Anais","Anastasia","Batiste","Bilal","Claire_","Clement","Flavie","Guilhem","Kahina","Marie_M","Mathis",
+     "Anais","Anastasia","Batiste","Bilal","Claire_","Clement","Flavie","Guilhem","Kahina","Marie_M","Mathis",
      "Maxime_","Mohamed","Nicolas", "Herbert"
 ]
-
+#emmanuelle et Zoe
 TASKS = ["bolting","bolting_sat","crouch","crouch_object","hitting","hitting_sat","jump","lifting","lifting_fast","lower",
          "overhead", "overhead_front", "robot_sanding","robot_welding",
              "sanding","sanding_sat","sit_to_stand","squat","static","upper","walk","walk_front","welding","welding_sat"]
@@ -131,13 +131,13 @@ def run_swika(no_trial: str, task: str):
     #######################################################################################""
 
     # VISUALIZATION
-    viz = gv_init(human_model,human_collision_model,human_visual_model,start_sample_dict)
+    # viz = gv_init(human_model,human_collision_model,human_visual_model,start_sample_dict)
     # model markers spheres 
-    add_marker(viz,result_markers[1].keys(),'_m', 0, 0,1)
+    # add_marker(viz,result_markers[1].keys(),'_m', 0, 0,1)
 
     q = pin.neutral(human_model) # init pos
     human_data = pin.Data(human_model)
-    viz.display(q)
+    # viz.display(q)
 
     # IK init
     ik_class = RT_SWIKA(human_model, keys_to_track_list, N, code = ik_code)
@@ -185,8 +185,8 @@ def run_swika(no_trial: str, task: str):
             M_model_frame[f"{marker}_y"] = M_model.translation[1]
             M_model_frame[f"{marker}_z"] = M_model.translation[2]
             
-            place(viz,'world/'+marker,M)
-            place(viz,'world/'+marker+"_m",M_model)
+            # place(viz,'world/'+marker,M)
+            # place(viz,'world/'+marker+"_m",M_model)
 
             # RMSE calculation
             sq_error = np.sum((pos_gt - pos_model) ** 2)
@@ -203,7 +203,7 @@ def run_swika(no_trial: str, task: str):
         #     viz.viewer.gui.addXYZaxis('world/'+frame.name,[1,0,0,1],0.01,0.1)
         #     place(viz,'world/'+frame.name,human_data.oMf[human_model.getFrameId(frame.name)])
         
-        viz.display(q)
+        # viz.display(q)
         q_list.append(q)
 
     # save mks est (model markers)

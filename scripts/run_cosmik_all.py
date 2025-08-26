@@ -28,13 +28,12 @@ base_path = "/root/workspace/ros_ws/src/rt-cosmik"
 nbr_cam = 2
 
 SUBJECTS = [
-     "Zoe"
+     "Emmanuelle"
 ]
 
-TASKS = ["bolting_sat","hitting_sat",
-         "overhead", "robot_sanding","robot_welding",
-             "sanding_sat","welding_sat"]
-
+TASKS = ["bolting","bolting_sat","crouch","crouch_object","hitting","hitting_sat","jump","lifting","lifting_fast","lower",
+         "overhead", "overhead_front", "robot_sanding","robot_welding",
+             "sanding","sanding_sat","sit_to_stand","squat","static","upper","walk","walk_front","welding","welding_sat"]
 
 # === Marker headers ===
 num_keypoints = 26
@@ -114,7 +113,7 @@ def run_ik_pipeline(augmented_csv_path, keypoints_csv_path, meshes_folder_path, 
 
 
     # VISUALIZATION
-    viz = gv_init(human_model,human_collision_model,human_visual_model,start_sample_dict)
+    # viz = gv_init(human_model,human_collision_model,human_visual_model,start_sample_dict)
     pin.forwardKinematics(human_model,human_data, pin.neutral(human_model))
     pin.updateFramePlacements(human_model,human_data)
 
@@ -125,7 +124,7 @@ def run_ik_pipeline(augmented_csv_path, keypoints_csv_path, meshes_folder_path, 
 
     q =pin.neutral(human_model)
 
-    viz.display(q)
+    # viz.display(q)
     # input("model scaled, you can launch ik")
 
     #measured frames
@@ -133,7 +132,7 @@ def run_ik_pipeline(augmented_csv_path, keypoints_csv_path, meshes_folder_path, 
     # add_frames(viz,seg_frames,"meas", 0.008, 0.08)
 
     #model markers spheres 
-    add_marker(viz,result_markers[1].keys(),'_m', 0, 0,1)
+    # add_marker(viz,result_markers[1].keys(),'_m', 0, 0,1)
 
     # IK init
     q = pin.neutral(human_model)
@@ -160,7 +159,7 @@ def run_ik_pipeline(augmented_csv_path, keypoints_csv_path, meshes_folder_path, 
 
     ik_class = RT_IK(human_model, start_sample_dict, q, keys_to_track, dt)
     q = ik_class.solve_ik_sample_casadi()
-    viz.display(q)
+    # viz.display(q)
     ik_class._q0 = q
 
     q_list, rmse_per_marker, M_model_list = [], {}, []
@@ -192,8 +191,8 @@ def run_ik_pipeline(augmented_csv_path, keypoints_csv_path, meshes_folder_path, 
             M_model_frame[f"{marker}_y"] = M_model.translation[1]
             M_model_frame[f"{marker}_z"] = M_model.translation[2]
             
-            place(viz,'world/'+marker,M)
-            place(viz,'world/'+marker+"_m",M_model)
+            # place(viz,'world/'+marker,M)
+            # place(viz,'world/'+marker+"_m",M_model)
 
 
             # RMSE calculation
@@ -220,7 +219,7 @@ def run_ik_pipeline(augmented_csv_path, keypoints_csv_path, meshes_folder_path, 
         #     place(viz, frame_name, frame_se3)
 
         #display q
-        viz.display(q)
+        # viz.display(q)
         # input("Press Enter to continue...")
         ik_class._q0 = q 
 
@@ -370,7 +369,7 @@ if __name__ == "__main__":
         for task in TASKS:
             info_path = f"/root/workspace/ros_ws/src/rt-cosmik/output/{no_trial}/info.txt"
             subject_height, subject_mass, gender = read_subject_info(info_path) 
-            transformation_file = f"{base_path}//config/cam_params/{no_trial}/calib_2/calib_mocap_2_cam0/soder.txt"
+            transformation_file = f"{base_path}//config/cam_params/{no_trial}/calib_mocap_2_cam0/soder.txt"
 
             # Build list of camera csvs for this subject+task
             file_paths = [
