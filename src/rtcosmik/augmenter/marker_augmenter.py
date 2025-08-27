@@ -3,6 +3,11 @@ import os
 import numpy as np
 import onnxruntime as ort
 
+so = ort.SessionOptions()
+so.intra_op_num_threads = 1
+so.inter_op_num_threads = 1
+so.execution_mode = ort.ExecutionMode.ORT_SEQUENTIAL
+
 def marker(buffer, keypoint_index):
     """
     Retrieves the 3D trajectory of a reference marker: midhip
@@ -61,9 +66,9 @@ def loadModel(augmenterDir, augmenterModelName="LSTM",augmenter_model='v0.3', us
         augmenterModelDir = os.path.join(augmenterDir, augmenterModelName, 
                                             augmenterModelType)
         if augmenterModelType == "{}_lower".format(augmenter_model):
-            session = ort.InferenceSession(f"{augmenterModelDir}/model_{augmenterModelType[5:]}_ft{fine_tune}_al{add_layer}_m{use_mocap}_n{add_noise}_w{use_weights}_prot{rot_prob}_maxrot{rot_max_deg}_rotscheme{rotation_scheme}_up{up_axis}_nrot{n_rotations}.onnx")
+            session = ort.InferenceSession(f"{augmenterModelDir}/model_{augmenterModelType[5:]}_ft{fine_tune}_al{add_layer}_m{use_mocap}_n{add_noise}_w{use_weights}_prot{rot_prob}_maxrot{rot_max_deg}_rotscheme{rotation_scheme}_up{up_axis}_nrot{n_rotations}.onnx", sess_options=so, providers=["CPUExecutionProvider"])
         else:
-            session = ort.InferenceSession(f"{augmenterModelDir}/model_{augmenterModelType[5:]}_ft{fine_tune}_al{add_layer}_m{use_mocap}_n{add_noise}_wF_prot{rot_prob}_maxrot{rot_max_deg}_rotscheme{rotation_scheme}_up{up_axis}_nrot{n_rotations}.onnx")
+            session = ort.InferenceSession(f"{augmenterModelDir}/model_{augmenterModelType[5:]}_ft{fine_tune}_al{add_layer}_m{use_mocap}_n{add_noise}_wF_prot{rot_prob}_maxrot{rot_max_deg}_rotscheme{rotation_scheme}_up{up_axis}_nrot{n_rotations}.onnx", sess_options=so, providers=["CPUExecutionProvider"])
         models[augmenterModelType] = session
 
     return models
@@ -247,7 +252,7 @@ def loadModelOpenCap(augmenterDir, augmenterModelName="LSTM",augmenter_model='v0
     for idx_augm, augmenterModelType in enumerate(augmenterModelType_all):
         augmenterModelDir = os.path.join(augmenterDir, augmenterModelName, 
                                          augmenterModelType)
-        session = ort.InferenceSession(f"{augmenterModelDir}/model.onnx")
+        session = ort.InferenceSession(f"{augmenterModelDir}/model.onnx", sess_options=so, providers=["CPUExecutionProvider"])
 
         models[augmenterModelType] = session
 

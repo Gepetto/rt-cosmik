@@ -30,9 +30,9 @@ p.add_argument('--trial', type=str, default=None)
 
 args = p.parse_args()
 
-base_path = "/home/ngouget/Codes/"
+base_path = "/pfcalcul/work/ngouget/"
 
-subject_path = os.path.join(base_path, f"datasets/COSMIK_dataset/{args.subject}")
+subject_path = f"/pfcalcul/work/ngouget/COSMIK_dataset_raw/{args.subject}"
 trial_path = os.path.join(subject_path, args.trial)
 
 

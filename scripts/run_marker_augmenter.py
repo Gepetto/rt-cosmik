@@ -12,7 +12,7 @@ from src.rtcosmik.augmenter.marker_augmenter import augmentTRC, loadModel, augme
 from src.rtcosmik.utils.read_write_utils import read_mmpose_file, save_to_csv, read_subject_info
 from src.rtcosmik.utils.linear_algebra_utils import butterworth_filter
 
-base_path = "/home/ngouget/Codes/"
+base_path = "/pfcalcul/work/ngouget/"
 
 p = argparse.ArgumentParser(description="augment data w local lstm")
 p.add_argument('--use-mocap', choices=['T','F'], default='T', required=True)        # must be 'T' for this script (mocap JCP + mocap GT)
@@ -33,7 +33,7 @@ p.add_argument('--trial', type=str, default=None)
 args = p.parse_args()
 
 
-subject_path = os.path.join(base_path, f"datasets/COSMIK_dataset/{args.subject}")
+subject_path = f"/pfcalcul/work/ngouget/COSMIK_dataset_raw/{args.subject}"
 trial_path = os.path.join(subject_path, args.trial)
 if args.use_mocap == "T":
     converter = 1000.0
