@@ -225,11 +225,12 @@ for ii in range(robot_q_data.shape[0]):
     q_panda[:] = robot_q_data[ii, :]
     viz_robot.display(q_panda)
 
-    # schedule next frame based on absolute time, not cumulative sleeps
-    next_t += timestamp_deltas[ii]
-    while True:
-        remaining = next_t - time.perf_counter()
-        if remaining <= 0:
-            break
-        time.sleep(min(remaining, 0.005))  # small sleeps to stay responsive
+    time.sleep(1/40)
+    # # schedule next frame based on absolute time, not cumulative sleeps
+    # next_t += timestamp_deltas[ii]
+    # while True:
+    #     remaining = next_t - time.perf_counter()
+    #     if remaining <= 0:
+    #         break
+    #     time.sleep(min(remaining, 0.005))  # small sleeps to stay responsive
 
