@@ -83,7 +83,8 @@ marker_names = ['rshoulder', 'lshoulder', 'r_lelbow', 'l_lelbow',
                 'r_melbow', 'l_melbow', 'r_lwrist', 'l_lwrist', 'r_mwrist',
                 'l_mwrist', 'r_ASIS', 'l_ASIS', 'r_PSIS', 'l_PSIS', 'r_knee',
                 'l_knee', 'r_mknee', 'l_mknee', 'r_ankle', 'l_ankle', 'r_mankle',
-                'l_mankle', 'r_5meta', 'l_5meta', 'r_big_toe', 'l_big_toe', 'l_calc', 'r_calc', 'C7']
+                'l_mankle', 'r_5meta', 'l_5meta', 'r_big_toe', 'l_big_toe', 'l_calc', 'r_calc', 'C7',
+                'nose', 'head', 'right_ear', 'left_ear', 'right_eye', 'left_eye']
 
 # Desired final marker names (target order)
 new_marker_names = ['r.ASIS_study','L.ASIS_study','r.PSIS_study','L.PSIS_study','r_knee_study',
@@ -91,7 +92,8 @@ new_marker_names = ['r.ASIS_study','L.ASIS_study','r.PSIS_study','L.PSIS_study',
                     'r_calc_study','L_knee_study','L_mknee_study','L_ankle_study','L_mankle_study',
                     'L_toe_study','L_calc_study','L_5meta_study','r_shoulder_study','L_shoulder_study',
                     'C7_study','r_lelbow_study', 'r_melbow_study','r_lwrist_study','r_mwrist_study',
-                    'L_lelbow_study','L_melbow_study','L_lwrist_study','L_mwrist_study']
+                    'L_lelbow_study','L_melbow_study','L_lwrist_study','L_mwrist_study',
+                    'Nose','Head', 'REar', 'LEar', 'REye', 'LEye']
 
 # Mapping from original marker names to new marker names
 name_map = {
@@ -123,7 +125,13 @@ name_map = {
     'l_lelbow': 'L_lelbow_study',
     'l_melbow': 'L_melbow_study',
     'l_lwrist': 'L_lwrist_study',
-    'l_mwrist': 'L_mwrist_study'
+    'l_mwrist': 'L_mwrist_study',
+    'nose': 'Nose',
+    'head': 'Head',
+    'right_ear': 'REar',
+    'left_ear': 'LEar',
+    'right_eye': 'REye',
+    'left_eye': 'LEye'
 }
 
 # Build an inverse mapping: new marker name -> original marker name
@@ -154,7 +162,7 @@ out_dir = opt.out_dir
 
 script_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)))
 script_above_dir_path = script_dir.split('/')
-marker_csv = '/' + os.path.join(*script_above_dir_path[:-1], 'amass', 'vertices_keypoints_corr.csv')
+marker_csv = '/' + os.path.join(*script_above_dir_path[:-1], 'amass', 'vertices_keypoints_corr_head.csv')
 markers_df = pd.read_csv(marker_csv, delimiter=',')
 
 # ----------------------------
