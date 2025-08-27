@@ -10,6 +10,7 @@ sys.path.insert(0, os.path.join(cosmik_path, "src")) # src dir
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '../../../src')))
 from src.rtcosmik.ergonomics.reba_offline import RebaScore
 
+
 data_dir_path = sys.argv[1]
 frame_number = int(sys.argv[2])
 
