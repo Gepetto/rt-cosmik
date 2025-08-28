@@ -515,7 +515,7 @@ total_steps = steps_per_epoch * 20
 cosine_scheduler = CosineDecay(
     initial_learning_rate=args.lr,
     decay_steps=total_steps,
-    alpha=args.min_lr / args.lr  # ratio final_lr / initial_lr
+    alpha=1e-6 / args.lr  # ratio final_lr / initial_lr
 )
     
 optimizer = Adam(cosine_scheduler)
