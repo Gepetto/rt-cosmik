@@ -25,7 +25,7 @@ from src.rtcosmik.human_model.model_utils import get_segment_length
 from src.rtcosmik.ik.ik import RT_IK
 
 SUBJECTS = [
-    "Anais","Anastasia","Batiste","Bilal","Claire_","Clement","Flavie","Guilhem",
+    "Alessandro","Anais","Anastasia","Batiste","Bilal","Claire_","Clement","Flavie","Guilhem",
     "Kahina","Marie_M","Mathis","Maxime_","Mohamed","Nicolas","Zoe","Herbert","Emmanuelle"
 ]
 
@@ -38,11 +38,12 @@ TASKS = [
 
 
 def run_ik(task, no_trial, start_sample=0, visualize=False):
-    info_path = f"/home/msabbah/pinocchio-3x/src/rt-cosmik/output/{no_trial}/info.txt"
+    info_path = f"/root/workspace/ros_ws/src/rt-cosmik/output/{no_trial}/info.txt"
     subject_height,subject_mass, gender = read_subject_info(info_path)
 
     rt_cosmik_path = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-    path_to_csv = f"/home/msabbah/pinocchio-3x/src/rt-cosmik/output/{no_trial}/mocap/{task}/mks_data_gapfilled.csv"
+    path_to_csv = f"/root/workspace/ros_ws/src/rt-cosmik/output/{no_trial}/mouv/{task}/mocap_downsampled_to_40hz.csv"
+    df_wide = pd.read_csv(path_to_csv)
 
     mks_to_skip = ['LForearm','LUArm', 'RUArm', 'RHJC_study','LHJC_study','r_pelvis','l_pelvis','LHL2','LHM5','RHL2','RHM5',
                    'LHand', 'RForearm','RHand', 'L_sh1_study', 'L_thigh1_study','r_sh1_study', 'r_thigh1_study']
@@ -60,11 +61,11 @@ def run_ik(task, no_trial, start_sample=0, visualize=False):
     # Load UDP CSV (wide format)
     if not os.path.exists(path_to_csv):
         raise FileNotFoundError(f"Missing CSV: {path_to_csv}")
-    df_wide = udp_csv_to_dataframe(path_to_csv, mks_names)
-    result_markers, start_sample_dict = read_mks_data(df_wide, start_sample=start_sample, converter = 1.0)
+    # df_wide = udp_csv_to_dataframe(path_to_csv, mks_names)
+    result_markers, start_sample_dict = read_mks_data(df_wide, start_sample=start_sample, converter = 1000.0)
 
     # Load URDF
-    human = Robot('/home/msabbah/pinocchio-3x/src/rt-cosmik/urdf/human.urdf', rt_cosmik_path, isFext=True)
+    human = Robot('/root/workspace/ros_ws/src/rt-cosmik/urdf/human.urdf', rt_cosmik_path, isFext=True)
     human_model = human.model
     human_data = human.data
     human_collision_model = human.collision_model
@@ -176,7 +177,7 @@ def run_ik(task, no_trial, start_sample=0, visualize=False):
     # save mks est (model markers)
     df = pd.DataFrame(M_model_list)
     # FIX: os.path.join with an absolute path argument discards the prefix; use the absolute path directly.
-    csv_file = f"/home/msabbah/pinocchio-3x/src/rt-cosmik/output/{no_trial}/mocap/{task}/mks_model_mocap.csv"
+    csv_file = f"/root/workspace/ros_ws/src/rt-cosmik/output/{no_trial}/mocap/{task}/mks_model_mocap_downsampled.csv"
     os.makedirs(os.path.dirname(csv_file), exist_ok=True)
     df.to_csv(csv_file, index=False)
 
@@ -194,7 +195,7 @@ def run_ik(task, no_trial, start_sample=0, visualize=False):
     if len(joint_angles_names) != len(q_list[0]):
         raise ValueError("Mismatch between joint names and q size")
 
-    out_q = f"/home/msabbah/pinocchio-3x/src/rt-cosmik/output/{no_trial}/mocap/{task}/q_mocap.csv"
+    out_q = f"/root/workspace/ros_ws/src/rt-cosmik/output/{no_trial}/mocap/{task}/q_mocap_downsampled.csv"
     os.makedirs(os.path.dirname(out_q), exist_ok=True)
     pd.DataFrame(q_list, columns=joint_angles_names).to_csv(out_q, index=False)
 

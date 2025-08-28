@@ -23,9 +23,9 @@ from src.rtcosmik.ik.ik import RT_IK
 mks_to_skip = ['LForearm','LUArm', 'RUArm', 'RHJC_study','LHJC_study','r_pelvis','l_pelvis','LHL2','LHM5','RHL2','RHM5',
                'LHand', 'RForearm','RHand', 'L_sh1_study', 'L_thigh1_study','r_sh1_study', 'r_thigh1_study']
 #read mks data
-no_trial = "Maxime"
+no_trial = "Mathis"
 task = "static" #hitting sat probleme
-path_to_csv = f"/root/workspace/ros_ws/src/rt-cosmik/output/{no_trial}/mouv/{task}/mks_data.csv"
+path_to_csv = f"/root/workspace/ros_ws/src/rt-cosmik/output/{no_trial}/mouv/{task}/mocap_downsampled_to_40hz.csv"
 
 subject_mass = 72.0
 subject_height = 1.80
@@ -41,10 +41,11 @@ mks_names = ['r.ASIS_study','L.ASIS_study','r.PSIS_study','L.PSIS_study',
              'r_thigh1_study','r_knee_study','r_mknee_study','r_sh1_study',
              'r_ankle_study','r_mankle_study','r_calc_study','r_5meta_study','r_toe_study',
              'r_pelvis', 'l_pelvis']
-# df_raw = pd.read_8data_to_dataframe(df_raw, mks_names) #marker data are string 
-mks_data = udp_csv_to_dataframe(path_to_csv, mks_names) #float
-result_markers, start_sample_dict = read_mks_data(mks_data, start_sample=start_sample) #check the function of read 
-print(result_markers)
+# df_raw = pd.read_data_to_dataframe(df_raw, mks_names) #marker data are string 
+# mks_data = udp_csv_to_dataframe(path_to_csv, mks_names) #float
+df_wide = pd.read_csv(path_to_csv)
+result_markers, start_sample_dict = read_mks_data(df_wide, start_sample=start_sample,converter = 1000.0) #check the function of read 
+# print(result_markers)
 input()
 #load urdf
 human = Robot('/root/workspace/ros_ws/src/rt-cosmik/urdf/human.urdf',rt_cosmik_path,isFext=True) 
@@ -96,7 +97,7 @@ seg_frames = construct_segments_frames(result_markers[start_sample])
 add_frames(viz,seg_frames,"meas", 0.008, 0.08)
 
 #model markers spheres 
-add_marker(viz,result_markers[1].keys(),'_m', 1, 0,0)
+add_marker(viz,result_markers[1].keys(),'_m', 0, 1,0)
 #model frames
 for joint_id in range(1, human_model.njoints):  # Skip 0 (universe)
     frame_name = f'world/{human_model.names[joint_id]+"_model"}'

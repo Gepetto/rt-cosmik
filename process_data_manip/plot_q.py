@@ -5,13 +5,14 @@ import numpy as np
 from src.rtcosmik.config_loader import settings
 from src.rtcosmik.utils.read_write_utils import read_mks_data, marker_data_to_dataframe,read_joint_angles_wholebody,read_specific_joint
 from scipy.spatial.transform import Rotation as R
+from scipy.signal import correlation_lags
+from scipy.signal import correlate
 
-no_trial = "Mohamed"
-task = "jump"
-path_mocap= f"/root/workspace/ros_ws/src/rt-cosmik/output/{no_trial}/mocap/{task}/q_mocap.csv"
 
-# path_cosmik= f"/root/workspace/ros_ws/src/rt-cosmik/output/{no_trial}/cosmik_4cams/{task}/q_cosmik_ipopt_4.csv" 
-path_cosmik= f"/root/workspace/ros_ws/src/rt-cosmik/output/{no_trial}/cosmik_2cams/{task}/q_cosmik_ipopt_2.csv"
+no_trial = "Anastasia"
+task = "lower"
+path_mocap= f"/root/workspace/ros_ws/src/rt-cosmik/output/{no_trial}/mocap/{task}/q_mocap_downsampled.csv"
+path_cosmik= f"/root/workspace/ros_ws/src/rt-cosmik/output/{no_trial}/cosmik_2cams/{task}/q_cosmik_swika.csv"
 
 dofs  =  ['Lhip_flex_ext', 'Lhip_abd_add','Lhip_int_ext_rot','Lknee_flex_ext','Lankle_flex_ext','Lankle_abd_add',
                           'Lumbar_flex_ext', 'Lumbar_lateral_flex',
@@ -54,11 +55,38 @@ else:
     dof=dofs
 
 
+def synchronize_signals(sig1, sig2):
+    """
+    Synchronize two signals by shifting sig2 relative to sig1.
+
+    Args:
+        sig1: numpy array, reference signal
+        sig2: numpy array, signal to be shifted
+
+    Returns:
+        lag: number of samples sig2 was shifted (+ means sig2 delayed)
+    """
+
+    corr = correlate(sig1, sig2, mode="full")
+    lags = correlation_lags(len(sig1), len(sig2), mode="full")
+    lag = lags[np.argmax(corr)]
+    return lag
+
+df_cosmik = pd.read_csv(path_cosmik).iloc[:, 7:]
+df_mocap  = pd.read_csv(path_mocap).iloc[:, 7:]
+
+if df_cosmik.shape[0] > df_mocap.shape[0]:
+            df_cosmik = df_cosmik.iloc[:-1, :]
+elif df_cosmik.shape[0] < df_mocap.shape[0]:
+    df_mocap = df_mocap.iloc[:-1, :]
+
+# Use knee angle to compute lag
+knee_cosmik = df_cosmik["Rknee_flex_ext"].values
+knee_mocap  = df_mocap["Rknee_flex_ext"].values
+lag = synchronize_signals(knee_cosmik, knee_mocap)
+print("lag",lag)
+
 start_sample = 0
-
-# q_cosmik= read_joint_angles_wholebody(path_cosmik, start_sample)
-# q_mocap = read_joint_angles_wholebody(path_mocap, start_sample)
-
 quat = ['FF_quatx','FF_quaty',
                           'FF_quatz', 'FF_quatw']
 quaternion_cosmik = read_specific_joint(path_cosmik,quat, start_sample)
@@ -69,22 +97,21 @@ quaternion_mocap = read_specific_joint(path_mocap,quat, start_sample)
 r_mocap = R.from_quat(quaternion_mocap)
 euler_angles_rad_mocap = r_mocap.as_euler('xyz', degrees=False)
 
-
 q_cosmik= read_specific_joint(path_cosmik,dof, start_sample)
 q_mocap = read_specific_joint(path_mocap,dof, start_sample)
-
 rmse_list = []
 corr_list = []
 mae_list =  []
 
-excluded_joints = ['Lwrist_flex_ext', 'Lwrist_x', 'Rwrist_flex_ext', 'Rwrist_x']
+excluded_joints = ['Lwrist_flex_ext', 'Lwrist_x', 'Rwrist_flex_ext', 'Rwrist_x','Lelbow_pron_supi','Relbow_pron_supi']
 
 # Filter the indices of joints to include
 joint_indices = [i for i in range(start_dof, len(dof)) if dof[i] not in excluded_joints]
 n_per_fig = 6  # Number of subplots per figure
 
-q_cosmik = q_cosmik[0:]
-q_mocap = q_mocap[:len(q_cosmik)]  # truncate Cosmik accordingly
+if lag > 0:
+    q_cosmik = q_cosmik[lag:]
+    q_mocap = q_mocap[:len(q_cosmik)]  # truncate Cosmik accordingly
 
 
 for j, i in enumerate(joint_indices):
@@ -147,63 +174,6 @@ plt.grid(axis='y', linestyle='--', alpha=0.7)
 plt.legend()
 plt.tight_layout()
 plt.show()
-
-# n_dofs = len(dof)
-# print(n_dofs)
-# first_batch = 6
-# remaining = n_dofs - first_batch
-# # First batch: plot first 6 as subplots
-# fig, axes = plt.subplots(2, 3, figsize=(15, 8))
-# axes = axes.flatten()  # make it easier to index
-
-# for i in range(first_batch):
-#     name = dof[i]
-#     rmse = np.sqrt(np.mean((q_mocap[:, i] - q_cosmik[:, i]) ** 2))
-#     rmse = rmse * (180 / np.pi)
-#     print(name, ':', rmse)
-#     rmse_list.append(rmse)
-    
-#     ax = axes[i]
-#     ax.plot(q_cosmik[:, i], label="Cosmik", linewidth=2, color='blue')
-#     ax.plot(q_mocap[:, i], label="Mocap", linewidth=2, color='red')
-#     ax.set_title(f"{name} (RMSE: {rmse:.4f})")
-#     ax.set_xlabel("samples")
-#     ax.set_ylabel("Angle (rad)")
-#     ax.grid(True)
-#     ax.legend()
-
-# plt.tight_layout()
-# plt.show()
-
-# if remaining > 0:
-#     n_cols = 3
-#     n_rows = int(np.ceil(remaining / n_cols))
-#     fig, axes = plt.subplots(n_rows, n_cols, figsize=(15, 5 * n_rows))
-#     axes = axes.flatten()
-
-#     for j in range(remaining):
-#         i = first_batch + j
-#         name = dof[i]
-#         rmse = np.sqrt(np.mean((q_mocap[:, i] - q_cosmik[:, i]) ** 2))
-#         rmse = rmse * (180 / np.pi)
-#         print(name, ':', rmse)
-#         rmse_list.append(rmse)
-        
-#         ax = axes[j]
-#         ax.plot(q_cosmik[:, i], label="Cosmik", linewidth=2, color='blue')
-#         ax.plot(q_mocap[:, i], label="Mocap", linewidth=2, color='red')
-#         ax.set_title(f"{name} (RMSE: {rmse:.4f})")
-#         ax.set_xlabel("samples")
-#         ax.set_ylabel("Angle (rad)")
-#         ax.grid(True)
-#         ax.legend()
-
-#     # Hide unused subplots if any
-#     for j in range(remaining, len(axes)):
-#         fig.delaxes(axes[j])
-
-# plt.tight_layout()
-# plt.show()
 
 rmse_array = np.array(rmse_list)
 std_rmse = np.std(rmse_array)

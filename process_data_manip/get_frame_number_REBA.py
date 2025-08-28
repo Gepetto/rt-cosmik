@@ -11,10 +11,7 @@ ROOT_DIR   = "output"  # <- change me (this folder contains the subject folders)
 MOUV_DIR   = "mouv"                    # fixed subfolder name between subject and task
 VIDEO_NAME = "camera_0.mp4"            # video file name
 
-SUBJECTS = [
-    "Anais","Anastasia","Batiste","Bilal","Claire_","Clement","Flavie","Guilhem","Kahina",
-    "Marie_M","Mathis","Maxime_","Mohamed","Nicolas","Zoe","Herbert","Emmanuelle"
-]  # or set your own list
+SUBJECTS = ["Alessandro"]  # or set your own list
 
 TASKS = ["lifting","overhead","crouch_object","robot_sanding", "robot_welding"]  # add more if needed
 

@@ -9,29 +9,31 @@ data_path = "/root/workspace/ros_ws/src/rt-cosmik/output"
 excel_files = []
 for subject in os.listdir(data_path):
     results_dir = os.path.join(data_path, subject, "results")
-    excel_file = os.path.join(results_dir, f"rmse_par_dof_over_trials_{subject}.xlsx")
+    excel_file = os.path.join(results_dir, f"swika_mocap_lag_rmse_par_dof_over_trials_{subject}.xlsx")
     if os.path.exists(excel_file):
         excel_files.append(excel_file)
 
 dfs = []
-all_trials = set()
-for f in excel_files:
-    df = pd.read_excel(f, sheet_name="per_trial", header=[0,1], index_col=0)
-    dfs.append(df)
-    # get trials name
-    all_trials.update([col[0] for col in df.columns])
-
-skip_trial = "overhead_front"  # the trial you want to skip
-
-dfs = []
 all_trials = []
+
+# liste des trials que tu veux garder
+keep_trials = ["bolting", "bolting_sat", "crouch_object","robot_sanding","robot_welding","lifting","hitting","hitting_sat","overhead","sanding"]  # remplace par les noms réels
+
 for f in excel_files:
     df = pd.read_excel(f, sheet_name="per_trial", header=[0,1], index_col=0)
+    
+    # filtrer les colonnes pour ne garder que les trials désirés
+    cols_to_keep = [col for col in df.columns.get_level_values(0) if col in keep_trials]
+    df = df.loc[:, df.columns.get_level_values(0).isin(keep_trials)]
+    
     dfs.append(df)
-    # garder l'ordre d'apparition des trials en sautant le skip_trial
-    for col in df.columns.get_level_values(0).unique():
-        if col not in all_trials and col != skip_trial:
+    
+    # garder l'ordre d'apparition
+    for col in cols_to_keep:
+        if col not in all_trials:
             all_trials.append(col)
+
+# print("Trials gardées :", all_trials)
             
 metrics = ['rmse_deg', 'corr']
 full_columns = pd.MultiIndex.from_product([all_trials, metrics])
@@ -56,8 +58,11 @@ dofs_to_use = ['Lhip_flex_ext', 'Lhip_abd_add','Lhip_int_ext_rot','Lknee_flex_ex
 mean_across_subjects = mean_across_subjects.reindex(dofs_to_use + ["mean", "std"])
 
 std_across_subjects = all_data.groupby(level=1).std().reindex(dofs_to_use + ["mean", "std"])
+# Calculer la moyenne des métriques pour chaque DoF
+mean_across_subjects['rmse_mean'] = mean_across_subjects.xs('rmse_deg', level=1, axis=1).mean(axis=1)
+mean_across_subjects['corr_mean'] = mean_across_subjects.xs('corr', level=1, axis=1).mean(axis=1)
 
-output_file = os.path.join(data_path, "ipopt_rmse_per_dof_over_trials_all_subjects.xlsx")
+output_file = os.path.join(data_path, "swika_down_rmse_per_dof_over_trials_all_subjects.xlsx")
 with pd.ExcelWriter(output_file) as writer:
     mean_across_subjects.to_excel(writer, sheet_name="mean_across_subjects")
 
