@@ -13,6 +13,8 @@ from tensorflow.keras.regularizers import l2
 from tensorflow.keras.optimizers import Adam
 from tensorflow.keras.callbacks import EarlyStopping, ModelCheckpoint
 from tensorflow.keras.layers import Layer, Rescaling, Multiply
+from tensorflow.keras.callbacks import LearningRateScheduler
+from tensorflow.keras.optimizers.schedules import CosineDecay
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 from src.rtcosmik.utils.read_write_utils import read_mks_data, default_mocap_mks_names, read_subject_info
 
@@ -37,7 +39,7 @@ p.add_argument('--seed', type=int, default=42)
 p.add_argument('--rot-prob', type=float, default=0.0, help='Probability to apply a random yaw rotation per window (0..1)')
 p.add_argument('--rot-max-deg', type=float, default=0.0, help='Max absolute rotation in degrees (uniform in [-max, max])')
 p.add_argument('--up-axis', choices=['y','z'], default='z', help='Which axis is vertical in your data (usually y or z)')
-p.add_argument('--rotation-scheme', choices=['off','prob','det'], default='off',
+p.add_argument('--rotation-scheme', choices=['off','prob','det','max'], default='off',
                help="off: no rotation; prob: single random yaw per window using --rot-prob/--rot-max-deg; det: emit n evenly-spaced yaws per window")
 p.add_argument('--n-rotations', type=int, default=1,
                help="When --rotation-scheme det, emit this many evenly-spaced yaw angles per window (full circle).")
@@ -131,6 +133,60 @@ def _yaw_rotation_matrix(theta_rad: float, up_axis: str = 'z'):
                          [0.,  0., 1.]], dtype=np.float32)
     else:
         raise ValueError("up_axis must be 'y' or 'z'")
+    
+def random_rotation_matrix(method='euler', seed=None):
+    """
+    Génère une matrice de rotation 3D aléatoire uniforme.
+    
+    Args:
+        method: 'quaternion' (recommandé) ou 'euler' ou 'axis_angle'
+        seed: graine pour la reproductibilité (optionnel)
+    
+    Returns:
+        np.array: matrice 3x3 de rotation orthogonale
+    """
+    if seed is not None:
+        np.random.seed(seed)
+    
+    if method == 'quaternion':
+        # Méthode quaternion (plus uniforme)
+        # Génère un quaternion unitaire aléatoire uniforme
+        u = np.random.random(3)
+        q = np.array([
+            np.sqrt(1 - u[0]) * np.sin(2 * np.pi * u[1]),
+            np.sqrt(1 - u[0]) * np.cos(2 * np.pi * u[1]),
+            np.sqrt(u[0]) * np.sin(2 * np.pi * u[2]),
+            np.sqrt(u[0]) * np.cos(2 * np.pi * u[2])
+        ])
+        
+        # Conversion quaternion -> matrice de rotation
+        w, x, y, z = q
+        return np.array([
+            [1 - 2*(y**2 + z**2), 2*(x*y - w*z), 2*(x*z + w*y)],
+            [2*(x*y + w*z), 1 - 2*(x**2 + z**2), 2*(y*z - w*x)],
+            [2*(x*z - w*y), 2*(y*z + w*x), 1 - 2*(x**2 + y**2)]
+        ], dtype=np.float32)
+    
+    elif method == 'euler':
+        # Méthode angles d'Euler (moins uniforme mais simple)
+        roll = np.random.uniform(0, 2*np.pi)   # rotation X
+        pitch = np.random.uniform(0, 2*np.pi)  # rotation Y  
+        yaw = np.random.uniform(0, 2*np.pi)    # rotation Z
+        
+        # Matrices de rotation élémentaires
+        Rx = np.array([[1, 0, 0],
+                       [0, np.cos(roll), -np.sin(roll)],
+                       [0, np.sin(roll), np.cos(roll)]])
+        
+        Ry = np.array([[np.cos(pitch), 0, np.sin(pitch)],
+                       [0, 1, 0],
+                       [-np.sin(pitch), 0, np.cos(pitch)]])
+        
+        Rz = np.array([[np.cos(yaw), -np.sin(yaw), 0],
+                       [np.sin(yaw), np.cos(yaw), 0],
+                       [0, 0, 1]])
+        
+        return (Rz @ Ry @ Rx).astype(np.float32)
 
 def _even_yaw_angles(n: int):
     if n <= 1:
@@ -187,7 +243,7 @@ def trial_to_windows(
     n_w  = max(Ttot - seq_len + 1, 0)
 
     # Precompute deterministic yaw set if needed
-    if rotation_scheme == 'det':
+    if rotation_scheme == 'det' or rotation_scheme == "max":
         yaw_set = _even_yaw_angles(max(1, int(n_rotations)))
     else:
         yaw_set = [None]  # single pathway
@@ -207,7 +263,7 @@ def trial_to_windows(
         dout = dout * inv_h
 
         # rotation paths
-        if rotation_scheme == 'det':
+        if rotation_scheme == 'det' or rotation_scheme == "max":
             for theta in yaw_set:
                 if theta is not None:
                     R = _yaw_rotation_matrix(theta, up_axis=up_axis).T
@@ -219,7 +275,7 @@ def trial_to_windows(
                 # optional Gaussian noise on features only (XYZ)
                 din_noisy = din_r
                 if add_noise:
-                    din_noisy = din_noisy + np.random.normal(0.0, 0.018, din_noisy.shape).astype(np.float32)
+                    din_noisy = din_noisy + np.random.normal(0.0, 0.030, din_noisy.shape).astype(np.float32)
 
                 # flatten & append height/weight (not rotated)
                 inp = din_noisy.reshape(seq_len, -1)
@@ -231,6 +287,27 @@ def trial_to_windows(
                 out = dout_r.reshape(seq_len, -1)        # [L, Pout*3]
                 yield inp.astype(np.float32), out.astype(np.float32)
 
+            if rotation_scheme == 'max':
+                for i in range(n_rotations//3):
+                    R = random_rotation_matrix(seed=args.seed)
+                    din_r = (din.reshape(-1,3)  @ R).reshape(seq_len, -1, 3)
+                    dout_r = (dout.reshape(-1,3) @ R).reshape(seq_len, -1, 3)
+
+                    # optional Gaussian noise on features only (XYZ)
+                    din_noisy = din_r
+                    if add_noise:
+                        din_noisy = din_noisy + np.random.normal(0.0, 0.030, din_noisy.shape).astype(np.float32)
+                    
+                    # flatten & append height/weight (not rotated)
+                    inp = din_noisy.reshape(seq_len, -1)
+                    hw  = np.concatenate([
+                            np.full((seq_len,1), h, dtype=np.float32),
+                            np.full((seq_len,1), w, dtype=np.float32)
+                        ], axis=1)
+                    inp = np.concatenate([inp, hw], axis=1)  # [L, Pin*3 + 2]
+                    out = dout_r.reshape(seq_len, -1)        # [L, Pout*3]
+                    yield inp.astype(np.float32), out.astype(np.float32)
+
         else:
             # probabilistic (your old) or off
             din_r, dout_r = din, dout
@@ -241,7 +318,7 @@ def trial_to_windows(
                 dout_r = (dout.reshape(-1,3) @ R).reshape(seq_len, -1, 3)
 
             if add_noise:
-                din_r = din_r + np.random.normal(0.0, 0.018, din_r.shape).astype(np.float32)
+                din_r = din_r + np.random.normal(0.0, 0.030, din_r.shape).astype(np.float32)
 
             inp = din_r.reshape(seq_len, -1)
             hw  = np.concatenate([
@@ -431,7 +508,19 @@ class HeightSlice(Layer):
     def get_config(self):
         return {}
 
-model.compile(optimizer=Adam(args.lr), loss=weighted_l2(W_loss))
+steps_per_epoch = max(1, len(train_trials) * 50 // args.batch_size)  # estimation
+total_steps = steps_per_epoch * 20
+    
+# Cosine decay scheduler
+cosine_scheduler = CosineDecay(
+    initial_learning_rate=args.lr,
+    decay_steps=total_steps,
+    alpha=args.min_lr / args.lr  # ratio final_lr / initial_lr
+)
+    
+optimizer = Adam(cosine_scheduler)
+
+model.compile(optimizer=optimizer, loss=weighted_l2(W_loss))
 
 model.summary()
 
@@ -560,6 +649,14 @@ class PredictionLogger(tf.keras.callbacks.Callback):
         df.to_csv(out, index=False)
         print(f"[INFO] Saved {out}")
 
+class LRLogger(tf.keras.callbacks.Callback):
+    def on_epoch_end(self, epoch, logs=None):
+        lr = float(tf.keras.backend.get_value(self.model.optimizer.learning_rate))
+        logs = logs or {}
+        logs['lr'] = lr
+        if (epoch + 1) % 1 == 0:  # log tous les epochs
+            print(f"[INFO] Epoch {epoch+1}: lr = {lr:.2e}")
+
 ckpt_path = pretrained_dir / f"best_finetuned_weights_momo_{args.body_part}_ft{args.fine_tune}_al{args.add_layer}_m{args.use_mocap}_n{args.add_noise}_w{args.use_weights}_prot{args.rot_prob}_maxrot{args.rot_max_deg}_rotscheme{args.rotation_scheme}_up{args.up_axis}_nrot{args.n_rotations}.h5"
 callbacks = [
     EarlyStopping(monitor='val_loss', patience=args.patience, restore_best_weights=True, verbose=1),
@@ -570,7 +667,7 @@ callbacks.append(
         ds=val_ds_monitor,
         save_dir=pretrained_dir,             # ou un sous-dossier 'pred_logs'
         mks_names=mks_of_interest,
-        every_n_epochs=1,
+        every_n_epochs=3,
         seq_len=args.seq_len,
         seed=42,
         n_samples=50,
@@ -580,6 +677,7 @@ callbacks.append(
         preds_are_div_by_height=True         # False si ton modèle sort déjà des mètres
     )
 )
+callbacks.append(LRLogger())
 
 # ─────────────── Save stats + Train ───────────────
 print(f"[Info] Feature mean/std from TRAIN: mean shape {mean_train.shape}, std shape {std_train.shape}")
