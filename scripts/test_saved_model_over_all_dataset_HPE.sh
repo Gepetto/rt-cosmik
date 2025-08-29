@@ -1,6 +1,7 @@
 #!/bin/bash
 set -euo pipefail
 
+read -p "Use mocap (T/F)? " use_mocap
 read -p "Add noise (T/F)? " add_noise
 read -p "Use weights (T/F)? " use_weights
 read -p "Rotation probability (0-1)? " rot_prob
@@ -32,7 +33,7 @@ for subject_dir in "$dataset_path"/*; do
   [ -d "$subject_dir" ] || continue
   subject="$(basename "$subject_dir")"
 
-  if [ "$sujet" != "Flavie" ] && [ "$sujet" = "Kahina" ]; then
+  if [ $subject != "Flavie" ] && [ $subject = "Kahina" ]; then
         continue
   fi
 

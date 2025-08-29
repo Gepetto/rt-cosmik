@@ -12,7 +12,7 @@ from src.rtcosmik.augmenter.marker_augmenter import augmentTRC, loadModel, augme
 from src.rtcosmik.utils.read_write_utils import read_mmpose_file, save_to_csv, read_subject_info
 from src.rtcosmik.utils.linear_algebra_utils import butterworth_filter
 
-base_path = "/pfcalcul/work/ngouget/"
+base_path = "/home/ngouget/Codes"
 
 p = argparse.ArgumentParser(description="augment data w local lstm")
 p.add_argument('--use-mocap', choices=['T','F'], default='T', required=True)        # must be 'T' for this script (mocap JCP + mocap GT)
