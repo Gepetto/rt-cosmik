@@ -32,7 +32,8 @@ from typing import Any, Optional, Set, List, Tuple, Dict
 
 # ======= Your subject & task catalogs =======
 SUBJECTS = [
-    "Alessandro"
+    "Alessandro","Anais","Anastasia","Batiste","Bilal","Claire_","Clement","Flavie","Guilhem",
+    "Kahina","Marie_M","Mathis","Maxime_","Mohamed","Nicolas","Zoe","Herbert","Emmanuelle"
 ]
 # Canonical task names and simple path match synonyms
 TASK_SYNONYMS: Dict[str, List[str]] = {
@@ -141,9 +142,8 @@ def find_candidate_bags(root_in: Path) -> List[Path]:
 
 # ======= Core export =======
 
-def export_joint_states(bagpath: Path, outdir: Path, topic: str = '/joint_states'):
-    outdir.mkdir(parents=True, exist_ok=True)
-    outfile = outdir / 'joint_states_welding.csv'
+def export_joint_states(bagpath: Path, outfile: Path, topic: str = '/joint_states'):
+    outfile.parent.mkdir(parents=True, exist_ok=True)
 
     # -------- Pass 1: collect all NON-FINGER joint names seen in the bag --------
     joint_names: Set[str] = set()
@@ -229,8 +229,12 @@ def main():
         print(f"[batch] Found {len(bags)} candidates under {root_in}")
         for bag in bags:
             subj, task = infer_subject_and_task(bag)
-            outdir = root_out / subj / task / bag.stem
-            export_joint_states(bag, outdir)
+            
+            # --- NEW CODE ---
+            output_folder = Path("robot_data_csv")  # folder where all CSVs go
+            output_folder.mkdir(exist_ok=True)
+            outfile = output_folder / f"{subj}_{task}.csv"
+            export_joint_states(bag, outfile)
         print("[batch] Done.")
         return
 

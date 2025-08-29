@@ -34,7 +34,7 @@ def downsample_mocap_to_lstm(task, no_trial, mocap_offset_sec=0.0):
     
     # === Save result ===
     df_downsampled = pd.DataFrame(downsampled_columns)
-    output_path = f"{base_path2}/mouv/{task}/mocap_downsampled_to_40hz.csv"
+    output_path = f"{base_path2}/mocap/{task}/mocap_downsampled_to_40hz.csv"
     df_downsampled.to_csv(output_path, index=False)
     print(f"✅ Saved downsampled mocap aligned to 40Hz video: {output_path}")
 

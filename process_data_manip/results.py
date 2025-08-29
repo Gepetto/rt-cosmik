@@ -30,8 +30,7 @@ def synchronize_signals(sig1, sig2):
 
 def metrics_par_colonne_df(A: pd.DataFrame, B: pd.DataFrame) -> pd.DataFrame:
     """
-    Calcule la RMSE (en degrés) et la corrélation pour chaque colonne 
-    entre deux DataFrames A et B.
+    Compute metrics per column (DOF) between two DataFrames A and B.
 
     Retourne un DataFrame avec index = noms de colonnes
     et colonnes = ['rmse_deg', 'corr'].

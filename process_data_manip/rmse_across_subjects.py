@@ -46,7 +46,7 @@ for df in dfs:
 all_data = pd.concat(dfs_aligned, keys=[os.path.basename(f).split("_")[4] for f in excel_files], names=["subject"])
 
 #mea per dof across all subject
-mean_across_subjects = all_data.groupby(level=1).mean()
+# mean_across_subjects = all_data.groupby(level=1).mean()
 
 dofs_to_use = ['Lhip_flex_ext', 'Lhip_abd_add','Lhip_int_ext_rot','Lknee_flex_ext','Lankle_flex_ext','Lankle_abd_add',
                'Lumbar_flex_ext', 'Lumbar_lateral_flex','Lcalvicule_x',
@@ -55,15 +55,46 @@ dofs_to_use = ['Lhip_flex_ext', 'Lhip_abd_add','Lhip_int_ext_rot','Lknee_flex_ex
                'Rshoulder_flex_ext','Rshoulder_abd_add','Rshoulder_int_ext_rot','Relbow_flex_ext','Relbow_pron_supi',
                'Rhip_flex_ext','Rhip_abd_add','Rhip_int_ext_rot','Rknee_flex_ext','Rankle_flex_ext','Rankle_abd_add']
 
-mean_across_subjects = mean_across_subjects.reindex(dofs_to_use + ["mean", "std"])
+# mean_across_subjects = mean_across_subjects.reindex(dofs_to_use + ["mean", "std"])
 
-std_across_subjects = all_data.groupby(level=1).std().reindex(dofs_to_use + ["mean", "std"])
-# Calculer la moyenne des métriques pour chaque DoF
-mean_across_subjects['rmse_mean'] = mean_across_subjects.xs('rmse_deg', level=1, axis=1).mean(axis=1)
-mean_across_subjects['corr_mean'] = mean_across_subjects.xs('corr', level=1, axis=1).mean(axis=1)
+# std_across_subjects = all_data.groupby(level=1).std().reindex(dofs_to_use + ["mean", "std"])
+# # Calculer la moyenne des métriques pour chaque DoF
+# mean_across_subjects['rmse_mean'] = mean_across_subjects.xs('rmse_deg', level=1, axis=1).mean(axis=1)
+# mean_across_subjects['corr_mean'] = mean_across_subjects.xs('corr', level=1, axis=1).mean(axis=1)
 
+# output_file = os.path.join(data_path, "swika_down_rmse_per_dof_over_trials_all_subjects.xlsx")
+# with pd.ExcelWriter(output_file) as writer:
+#     mean_across_subjects.to_excel(writer, sheet_name="mean_across_subjects")
+
+# print(f"Fichier moyen généré : {output_file}")
+# Compute mean and std across subjects for each DOF and each trial
+mean_across_subjects = all_data.groupby(level=1).mean()
+std_across_subjects = all_data.groupby(level=1).std()
+
+# Reindex to keep only the DOFs you want
+mean_across_subjects = mean_across_subjects.reindex(dofs_to_use)
+std_across_subjects = std_across_subjects.reindex(dofs_to_use)
+
+# Create new MultiIndex columns to interleave std next to mean for each trial
+new_cols = []
+for trial in all_trials:
+    new_cols.append((trial, 'rmse_deg'))
+    new_cols.append((trial, 'rmse_std'))
+    new_cols.append((trial, 'corr'))
+    new_cols.append((trial, 'corr_std'))
+
+# Build a new DataFrame with interleaved columns
+df_combined = pd.DataFrame(index=mean_across_subjects.index, columns=pd.MultiIndex.from_tuples(new_cols))
+
+for trial in all_trials:
+    df_combined[(trial, 'rmse_deg')] = mean_across_subjects[(trial, 'rmse_deg')]
+    df_combined[(trial, 'rmse_std')] = std_across_subjects[(trial, 'rmse_deg')]
+    df_combined[(trial, 'corr')] = mean_across_subjects[(trial, 'corr')]
+    df_combined[(trial, 'corr_std')] = std_across_subjects[(trial, 'corr')]
+
+# Save to Excel
 output_file = os.path.join(data_path, "swika_down_rmse_per_dof_over_trials_all_subjects.xlsx")
 with pd.ExcelWriter(output_file) as writer:
-    mean_across_subjects.to_excel(writer, sheet_name="mean_across_subjects")
+    df_combined.to_excel(writer, sheet_name="mean_std_per_trial")
 
-print(f"Fichier moyen généré : {output_file}")
+print(f"Fichier moyen et std par trial généré : {output_file}")

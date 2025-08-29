@@ -13,6 +13,7 @@ import pandas as pd
 import numpy as np
 from pathlib import Path
 from typing import Optional, Tuple
+from typing import Union
 
 PREF_TS_NAMES = ["timestamp", "time", "ts", "date", "datetime", "header.stamp", "stamp"]
 
@@ -72,7 +73,7 @@ def load_timeseries(csv_path: Path) -> Tuple[pd.DataFrame, str]:
     )
     return df, ts_col
 
-def ensure_utc_index(ts_like: pd.Series | pd.DatetimeIndex) -> pd.DatetimeIndex:
+def ensure_utc_index(ts_like: Union[pd.Series, pd.DatetimeIndex]) -> pd.DatetimeIndex:
     """
     Return a tz-aware (UTC) DatetimeIndex without dropping tz info.
     """
@@ -238,23 +239,28 @@ def interpolate_robot_at_camera(
 
 # ---------- Example usage ----------
 if __name__ == "__main__":
-    # Adjust these paths
-    CAMERA_CSV = "/home/msabbah/pinocchio-3x/src/rt-cosmik/output/robot/camera_0_timestamps.csv"
-    ROBOT_CSV  = "/home/msabbah/pinocchio-3x/src/rt-cosmik/output/robot/joint_states_welding.csv"
-    OUTPUT_CSV = "/home/msabbah/pinocchio-3x/src/rt-cosmik/output/robot/cam0_robot_interpolated.csv"
+    SUBJECTS = [
+    "Alessandro","Anais","Anastasia","Batiste","Bilal","Claire_","Clement","Flavie","Guilhem",
+    "Kahina","Marie_M","Mathis","Maxime_","Mohamed","Nicolas","Zoe","Herbert","Emmanuelle"
+]
+    TASKS = ["robot_sanding", "robot_welding"]   # <-- put your tasks here
 
-    # Typical settings when camera started earlier:
-    # - drop_outside=True: remove early camera frames with no robot data
-    # - max_gap_ms=100: mask interpolations that would bridge >100 ms gaps
-    # - estimate_offset=False: set True only if clocks are not aligned
-    df_out = interpolate_robot_at_camera(
-        camera_csv=CAMERA_CSV,
-        robot_csv=ROBOT_CSV,
-        out_csv=OUTPUT_CSV,
-        estimate_offset=False,   # set True if you suspect a constant clock offset
-        offset_tol_s=10.0,
-        drop_outside=True,       # important since cameras started earlier
-        max_gap_ms=100.0         # None to disable gap masking
-    )
+    for subject in SUBJECTS:
+        for task in TASKS:
+            CAMERA_CSV = f"/root/workspace/ros_ws/src/rt-cosmik/output/{subject}/mouv/{task}/camera_0_timestamps.csv"
+            ROBOT_CSV  = f"/root/workspace/ros_ws/src/rt-cosmik/output/robot/robot_data_csv/{subject}_{task}.csv"
+            OUTPUT_CSV = f"/root/workspace/ros_ws/src/rt-cosmik/output/robot/aligned_data/{subject}_{task}.csv"
 
-    print(df_out.head())
+            try:
+                df_out = interpolate_robot_at_camera(
+                    camera_csv=CAMERA_CSV,
+                    robot_csv=ROBOT_CSV,
+                    out_csv=OUTPUT_CSV,
+                    estimate_offset=False,   # set True if you suspect a constant clock offset
+                    offset_tol_s=10.0,
+                    drop_outside=True,       # important since cameras started earlier
+                    max_gap_ms=100.0         # None to disable gap masking
+                )
+                print(f"[ok] Done: {subject} - {task} ({len(df_out)} rows)")
+            except Exception as e:
+                print(f"[ERROR] {subject} - {task}: {e}")
