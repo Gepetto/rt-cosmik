@@ -33,7 +33,7 @@ p.add_argument('--trial', type=str, default=None)
 args = p.parse_args()
 
 
-subject_path = f"/pfcalcul/work/ngouget/COSMIK_dataset_raw/{args.subject}"
+subject_path = f"/home/ngouget/Codes/datasets/COSMIK_dataset/{args.subject}"
 trial_path = os.path.join(subject_path, args.trial)
 if args.use_mocap == "T":
     converter = 1000.0
@@ -42,7 +42,7 @@ if args.use_mocap == "T":
     output_csv_path_OpenCap = os.path.join(base_path, f"rt-cosmik/output/{args.subject}/{args.trial}/{args.trial}_augmented_markers_mocap_OpenCap.csv")
 elif args.use_mocap == "F":
     converter = 1.0
-    path_to_3d_kpt = os.path.join(trial_path, f"{args.trial}_jcp_hpe.csv")
+    path_to_3d_kpt = os.path.join(trial_path, f"3d_keypoints_filtered.csv")
     output_csv_path = os.path.join(base_path, f"rt-cosmik/output/{args.subject}/{args.trial}/{args.trial}_augmented_markers_hpe_ft{args.fine_tune}_al{args.add_layer}_m{args.use_mocap}_n{args.add_noise}_w{args.use_weights}_prot{args.rot_prob}_maxrot{args.rot_max_deg}_rotscheme{args.rotation_scheme}_up{args.up_axis}_nrot{args.n_rotations}.csv")
     output_csv_path_OpenCap = os.path.join(base_path, f"rt-cosmik/output/{args.subject}/{args.trial}/{args.trial}_augmented_markers_hpe_OpenCap.csv")
 else :
@@ -73,7 +73,7 @@ def main():
     augmented_markers_list_opencap = []
     first_frame = True
     #load lstm model
-    warmed_models = loadModel(augmenterDir=augmenter_path, augmenterModelName="LSTM",augmenter_model='v0.3', use_mocap=args.use_mocap, add_noise=args.add_noise, fine_tune=args.fine_tune, 
+    warmed_models = loadModel(augmenterDir=augmenter_path, augmenterModelName="LSTM",augmenter_model='v0.3', use_mocap="T", add_noise=args.add_noise, fine_tune=args.fine_tune, 
                                 add_layer=args.add_layer, use_weights=args.use_weights, rot_prob=args.rot_prob, rot_max_deg=args.rot_max_deg, rotation_scheme=args.rotation_scheme, n_rotations=args.n_rotations)
     warmed_models_opencap = loadModelOpenCap(augmenterDir=augmenter_path, augmenterModelName="LSTM",augmenter_model='v0.3')
 

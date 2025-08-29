@@ -48,10 +48,10 @@ if args.use_mocap == "T":
     path_to_csv_lstm_OpenCap = os.path.join(base_path, f"rt-cosmik/output/{args.subject}/{args.trial}/{args.trial}_augmented_markers_mocap_OpenCap.csv")
     path_to_kpt = os.path.join(trial_path, f"{args.trial}_jcp_mocap.csv")
 elif args.use_mocap == "F":
-    path_to_csv_mocap = os.path.join(trial_path, f"{args.trial}_trajectories_rt.csv")
+    path_to_csv_mocap = os.path.join(trial_path, f"mks_data.csv")
     path_to_csv_lstm = os.path.join(base_path, f"rt-cosmik/output/{args.subject}/{args.trial}/{args.trial}_augmented_markers_hpe_ft{args.fine_tune}_al{args.add_layer}_m{args.use_mocap}_n{args.add_noise}_w{args.use_weights}_prot{args.rot_prob}_maxrot{args.rot_max_deg}_rotscheme{args.rotation_scheme}_up{args.up_axis}_nrot{args.n_rotations}.csv")
     path_to_csv_lstm_OpenCap = os.path.join(base_path, f"rt-cosmik/output/{args.subject}/{args.trial}/{args.trial}_augmented_markers_hpe_OpenCap.csv")
-    path_to_kpt = os.path.join(trial_path, f"{args.trial}_jcp_hpe.csv")
+    path_to_kpt = os.path.join(trial_path, f"3d_keypoints_filtered.csv")
 else:
     raise Exception("Use mocap not supported. Please select T or F.")
 
@@ -160,7 +160,7 @@ all_squared_errors = []
 squared_errors_OpenCap = defaultdict(list)
 all_squared_errors_OpenCap = []
 
-for i in range(len(result_markers)):
+for i in range(min(len(result_markers), len(result_markers_lstm))):
     for mks in markers_to_display:
         pos_mocap = result_markers[i][mks].reshape(3,)  # shape (3,)
         pos_mks = result_markers_lstm[i][mks].reshape(3,)  # shape (3,)
