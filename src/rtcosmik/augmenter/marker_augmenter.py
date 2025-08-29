@@ -161,11 +161,11 @@ def augmentTRC(keypoints_buffer, subject_mass, subject_height,
         # Load mean and std for normalization
         #print(augmenterModelDir)
         if "lower" in augmenterModelType:
-            pathMean = os.path.join(augmenterModelDir, "stats_streaming", f"mean_train_ft{fine_tune}_al{add_layer}_m{use_mocap}_n{add_noise}_w{use_weights}_prot{rot_prob}_maxrot{rot_max_deg}_rotscheme{rotation_scheme}_up{up_axis}_nrot{n_rotations}.npy")
-            pathSTD = os.path.join(augmenterModelDir, "stats_streaming", f"std_train_ft{fine_tune}_al{add_layer}_m{use_mocap}_n{add_noise}_w{use_weights}_prot{rot_prob}_maxrot{rot_max_deg}_rotscheme{rotation_scheme}_up{up_axis}_nrot{n_rotations}.npy")
+            pathMean = os.path.join(augmenterModelDir, "stats_streaming", f"mean_train_ft{fine_tune}_al{add_layer}_mT_n{add_noise}_w{use_weights}_prot{rot_prob}_maxrot{rot_max_deg}_rotscheme{rotation_scheme}_up{up_axis}_nrot{n_rotations}.npy")
+            pathSTD = os.path.join(augmenterModelDir, "stats_streaming", f"std_train_ft{fine_tune}_al{add_layer}_mT_n{add_noise}_w{use_weights}_prot{rot_prob}_maxrot{rot_max_deg}_rotscheme{rotation_scheme}_up{up_axis}_nrot{n_rotations}.npy")
         else:
-            pathMean = os.path.join(augmenterModelDir, "stats_streaming", f"mean_train_ft{fine_tune}_al{add_layer}_m{use_mocap}_n{add_noise}_wF_prot{rot_prob}_maxrot{rot_max_deg}_rotscheme{rotation_scheme}_up{up_axis}_nrot{n_rotations}.npy")
-            pathSTD = os.path.join(augmenterModelDir, "stats_streaming", f"std_train_ft{fine_tune}_al{add_layer}_m{use_mocap}_n{add_noise}_wF_prot{rot_prob}_maxrot{rot_max_deg}_rotscheme{rotation_scheme}_up{up_axis}_nrot{n_rotations}.npy")
+            pathMean = os.path.join(augmenterModelDir, "stats_streaming", f"mean_train_ft{fine_tune}_al{add_layer}_mT_n{add_noise}_wF_prot{rot_prob}_maxrot{rot_max_deg}_rotscheme{rotation_scheme}_up{up_axis}_nrot{n_rotations}.npy")
+            pathSTD = os.path.join(augmenterModelDir, "stats_streaming", f"std_train_ft{fine_tune}_al{add_layer}_mT_n{add_noise}_wF_prot{rot_prob}_maxrot{rot_max_deg}_rotscheme{rotation_scheme}_up{up_axis}_nrot{n_rotations}.npy")
         #print(pathMean)
 
         if os.path.isfile(pathMean):
