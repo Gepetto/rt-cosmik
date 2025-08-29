@@ -33,8 +33,8 @@ for subject_dir in "$dataset_path"/*; do
   [ -d "$subject_dir" ] || continue
   subject="$(basename "$subject_dir")"
 
-  if [ $subject != "Flavie" ] && [ $subject = "Kahina" ]; then
-        continue
+  if [ $subject != "Flavie" ] && [ $subject != "Kahina" ]; then
+     continue
   fi
 
   for trial_dir in "$subject_dir"/*; do
