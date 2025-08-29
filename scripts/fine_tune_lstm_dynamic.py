@@ -651,11 +651,27 @@ class PredictionLogger(tf.keras.callbacks.Callback):
 
 class LRLogger(tf.keras.callbacks.Callback):
     def on_epoch_end(self, epoch, logs=None):
-        lr = float(tf.keras.backend.get_value(self.model.optimizer.learning_rate))
-        logs = logs or {}
-        logs['lr'] = lr
-        if (epoch + 1) % 1 == 0:  # log tous les epochs
+        try:
+            # Méthode qui marche avec CosineDecay et LR constants
+            current_lr = self.model.optimizer.learning_rate
+            
+            if callable(current_lr):
+                # Pour les schedulers comme CosineDecay
+                step = self.model.optimizer.iterations
+                lr = float(current_lr(step).numpy())
+            else:
+                # Pour les LR constants
+                lr = float(tf.keras.backend.get_value(current_lr))
+                
             print(f"[INFO] Epoch {epoch+1}: lr = {lr:.2e}")
+            
+            # Ajoute aussi aux logs pour les autres callbacks
+            logs = logs or {}
+            logs['lr'] = lr
+            
+        except Exception as e:
+            print(f"[WARNING] Could not retrieve learning rate at epoch {epoch+1}: {e}")
+
 
 ckpt_path = pretrained_dir / f"best_finetuned_weights_momo_{args.body_part}_ft{args.fine_tune}_al{args.add_layer}_m{args.use_mocap}_n{args.add_noise}_w{args.use_weights}_prot{args.rot_prob}_maxrot{args.rot_max_deg}_rotscheme{args.rotation_scheme}_up{args.up_axis}_nrot{args.n_rotations}.h5"
 callbacks = [
