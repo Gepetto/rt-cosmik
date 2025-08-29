@@ -26,7 +26,7 @@ subject_ids = {
 
 # Folder where all subjects have their info.txt
 base_path = "/root/workspace/ros_ws/src/rt-cosmik/output"
-output_folder = "participants_yaml"
+output_folder = "/root/workspace/ros_ws/src/rt-cosmik/output/metadata"
 os.makedirs(output_folder, exist_ok=True)
 
 for subject, subj_id in subject_ids.items():
