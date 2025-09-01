@@ -206,7 +206,10 @@ if __name__ == "__main__":
         tasks = os.listdir(base_path)
 
         for task in tasks:
-            if os.path.exists(os.path.join(base_path, f"{task}_jcp_mocap.csv")):
+            
+            if task == "info.txt":
+                continue
+            if os.path.exists(os.path.join(base_path, task, f"{task}_jcp_mocap.csv")):
                 print(f"Skipping {task} in {subject} due to existing jcp_mocap.csv file.")
                 continue
             

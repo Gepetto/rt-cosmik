@@ -5,8 +5,8 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
-dataset_path = Path("/home/ngouget/Codes/datasets/COSMIK_dataset")
-output_path  = Path("/home/ngouget/Codes/datasets/COSMIK_dataset_npz")
+dataset_path = Path("/home/ngouget/Codes/datasets/COSMIK_dataset_mixed")
+output_path  = Path("/home/ngouget/Codes/datasets/COSMIK_dataset_mixed_npz")
 
 def save_csv_as_npz(csv_path: Path, out_npz_path: Path, float_dtype=np.float32):
     """Load CSV -> save as .npz with both data and column names."""
@@ -42,16 +42,14 @@ def main():
             out_trial.mkdir(parents=True, exist_ok=True)
 
             # Build expected CSV paths
-            jcp_csv      = trial_path / f"{trial}_jcp_mocap_rt.csv"
+            jcp_csv      = trial_path / f"{trial}_jcp_mocap.csv"
             jcp_hpe      = trial_path / f"{trial}_jcp_hpe.csv"
-            mks_csv      = trial_path / f"{trial}_mks_mocap_rt.csv"
-            devices_csv  = trial_path / f"{trial}_devices.csv"
+            mks_csv      = trial_path / f"{trial}_mks_rt.csv"
 
             # Convert each CSV → NPZ (compressed) preserving headers
             save_csv_as_npz(jcp_csv,     out_trial / f"{trial}_jcp_mocap_rt.npz")
             save_csv_as_npz(jcp_hpe,     out_trial / f"{trial}_jcp_hpe.npz")
             save_csv_as_npz(mks_csv,     out_trial / f"{trial}_mks_mocap_rt.npz")
-            save_csv_as_npz(devices_csv, out_trial / f"{trial}_devices.npz")
 
             # If there are other non-CSV assets in trial dir you want to keep:
             # for f in trial_path.iterdir():

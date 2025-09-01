@@ -23,14 +23,13 @@ p = argparse.ArgumentParser(description="End-to-end LSTM training with streaming
 p.add_argument('--data-path', required=True, type=str)
 p.add_argument('--pretrained-path', required=True, type=str)
 p.add_argument('--body-part', choices=['upper','lower'], required=True)
-p.add_argument('--use-mocap', choices=['T','F'], default='T', required=True)        # must be 'T' for this script (mocap JCP + mocap GT)
 p.add_argument('--add-noise', choices=['T','F'], default='F')
 p.add_argument('--use-weights', choices=['T','F'], default='F')
 p.add_argument('--seq-len', type=int, default=30)
 p.add_argument('--batch-size', type=int, default=64)
 p.add_argument('--epochs', type=int, default=100)
 p.add_argument('--patience', type=int, default=4)
-p.add_argument('--lr', type=float, default=1e-4)
+p.add_argument('--lr', type=float, default=1e-3)
 p.add_argument('--weight-decay', type=float, default=0.01)
 p.add_argument('--test-size', type=int, default=2, help="# of subjects reserved for val (last N alphabetical)")
 p.add_argument('--seed', type=int, default=42)
@@ -171,9 +170,9 @@ def trial_to_windows(
     df_in_hpe = pd.DataFrame(arr_in_hpe, columns=cols_in_hpe)
     df_gt = pd.DataFrame(arr_gt, columns=cols_gt)
 
-    k_list, _ = read_mks_data(df_in, converter=1000)        # includes 'midHip'
+    k_list, _ = read_mks_data(df_in, converter=1)        # includes 'midHip'
     k_list_hpe, _ = read_mks_data(df_in_hpe, converter=1)
-    m_list, _ = read_mks_data(df_gt, converter=1000)
+    m_list, _ = read_mks_data(df_gt, converter=1)
 
     # Build arrays
     kpts_arr = listdicts_to_array(k_list, kpts_input_lstm)         # [T, Pin, 3]
@@ -352,26 +351,11 @@ base.load_weights(str(pretrained_dir/"weights.h5"))
 
 initializer = RandomNormal(mean=0.0, stddev=0.022)
 if args.body_part == "upper":
-    if args.add_layer == "T":
-        proj = TimeDistributed(Dense(out_dim, kernel_initializer=initializer, bias_initializer='zeros', kernel_regularizer=l2(args.weight_decay)), name="layer_added")(base.output)
-        model = Model(inputs=base.input, outputs=proj)
-    else:
-        model = Model(inputs=base.input, outputs=base.output)  # assumes base already matches out_dim
+    proj = TimeDistributed(Dense(out_dim, kernel_initializer=initializer, bias_initializer='zeros', kernel_regularizer=l2(args.weight_decay)), name="layer_added")(base.output)
+    model = Model(inputs=base.input, outputs=proj)
 else:
-    if args.add_layer == "T":
-        proj = TimeDistributed(Dense(out_dim, kernel_initializer=initializer, bias_initializer='zeros', kernel_regularizer=l2(args.weight_decay)), name="layer_added")(base.output)
-        model = Model(inputs=base.input, outputs=proj)
-    else:
-        x = base.layers[-2].output
-        new_out = TimeDistributed(Dense(out_dim, kernel_initializer=initializer, bias_initializer='zeros', kernel_regularizer=l2(args.weight_decay)), name="replaced_last_layer")(x)
-        model = Model(inputs=base.input, outputs=new_out)
-
-# Fine-tune freezing policy
-if args.fine_tune == "T":
-    for layer in base.layers[:-1]:
-        layer.trainable = False
-    if args.add_layer == "T":
-        base.layers[-1].trainable = False
+    proj = TimeDistributed(Dense(out_dim, kernel_initializer=initializer, bias_initializer='zeros', kernel_regularizer=l2(args.weight_decay)), name="layer_added")(base.output)
+    model = Model(inputs=base.input, outputs=proj)
 
 # Optional weighted loss for lower body
 response_mks_lower = [
@@ -411,24 +395,33 @@ class HeightSlice(Layer):
     def get_config(self):
         return {}
 
-steps_per_epoch = max(1, len(train_trials) * 50 // args.batch_size)  # estimation
-total_steps = steps_per_epoch * 20
-    
-# Cosine decay scheduler
-cosine_scheduler = CosineDecay(
-    initial_learning_rate=args.lr,
-    decay_steps=total_steps,
-    alpha=1e-6 / args.lr  # ratio final_lr / initial_lr
+
+initial_lr = args.lr
+final_lr   = 1e-6
+
+steps_per_epoch = max(1, len(train_trials) * 3680 // args.batch_size)
+epochs = 20
+T = steps_per_epoch * epochs   # nombre total de steps
+
+# Ici on choisit decay_steps = T (donc la formule devient simple)
+decay_steps = T
+decay_rate = final_lr / initial_lr  # car (final/initial)^(decay_steps/T) = final/initial
+
+exp_scheduler = tf.keras.optimizers.schedules.ExponentialDecay(
+    initial_learning_rate=initial_lr,
+    decay_steps=decay_steps,
+    decay_rate=decay_rate,
+    staircase=False  # décroissance lisse, pas par paliers
 )
-    
-optimizer = Adam(cosine_scheduler)
+
+optimizer = tf.keras.optimizers.Adam(learning_rate=exp_scheduler)
 
 model.compile(optimizer=optimizer, loss=weighted_l2(W_loss))
 
 model.summary()
 
 # Save model definition that matches finetune config
-model_json_path = pretrained_dir / f"model_finetuned_optimised.json"
+model_json_path = pretrained_dir / f"model_finetuned_optimised_n{args.add_noise}_w{args.use_weights}_sl{args.seq_len}.json"
 with open(model_json_path, "w") as f:
     f.write(model.to_json())
 
@@ -576,7 +569,7 @@ class LRLogger(tf.keras.callbacks.Callback):
             print(f"[WARNING] Could not retrieve learning rate at epoch {epoch+1}: {e}")
 
 
-ckpt_path = pretrained_dir / f"best_finetuned_weights_final.h5"
+ckpt_path = pretrained_dir / f"best_finetuned_weights_final_n{args.add_noise}_w{args.use_weights}_sl{args.seq_len}.h5"
 callbacks = [
     EarlyStopping(monitor='val_loss', patience=args.patience, restore_best_weights=True, verbose=1),
     ModelCheckpoint(str(ckpt_path), monitor='val_loss', save_best_only=True, save_weights_only=True, verbose=1),
@@ -602,14 +595,14 @@ callbacks.append(LRLogger())
 print(f"[Info] Feature mean/std from TRAIN: mean shape {mean_train.shape}, std shape {std_train.shape}")
 stats_dir = Path(args.pretrained_path) / f"v0.3_{args.body_part}" / "stats_streaming"
 stats_dir.mkdir(parents=True, exist_ok=True)
-np.save(stats_dir / f"mean_train_final.npy", mean_train)
-np.save(stats_dir / f"std_train_final.npy",  std_train)
+np.save(stats_dir / f"mean_train_final_n{args.add_noise}_w{args.use_weights}_sl{args.seq_len}.npy", mean_train)
+np.save(stats_dir / f"std_train_final_n{args.add_noise}_w{args.use_weights}_sl{args.seq_len}.npy",  std_train)
 history = model.fit(train_ds, validation_data=val_ds, epochs=args.epochs, callbacks=callbacks)
 
 # ─────────────── Save weights ───────────────
-final_w = pretrained_dir / f"weights_finetuned_final.h5"
+final_w = pretrained_dir / f"weights_finetuned_final_n{args.add_noise}_w{args.use_weights}_sl{args.seq_len}.h5"
 model.save_weights(str(final_w))
-with open(stats_dir / f"norm_meta.json", "w") as f:
+with open(stats_dir / f"norm_meta_n{args.add_noise}_w{args.use_weights}_sl{args.seq_len}.json", "w") as f:
     json.dump({
         "feature_dim": int(feature_dim),
         "seq_len": int(args.seq_len),

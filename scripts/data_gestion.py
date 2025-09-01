@@ -10,9 +10,10 @@ src_repo_path = sys.argv[1]
 dst_repo_path = sys.argv[2]
 
 list_of_good_trials = ["static", "upper", "lower", "walk", "sit_to_stand", "bolting", "hitting", "sanding", "hitting", "welding",
-                       "robot_sanding", "robot_welding", "overhead", "overhead_front"]
+                       "robot_sanding", "robot_welding", "overhead", "overhead_front", "lifting_fast", "bolting_sat", "hitting_sat", "sanding_sat",
+                       "welding_sat", "walk", "walk_front"]
 
-list_of_subjects_to_avoid = ["Alessandro", "Bilal"]
+list_of_subjects_to_avoid = ["Alessandro", "Bilal", "Mathis"]
 
 mks_names = ['r.ASIS_study','L.ASIS_study','r.PSIS_study','L.PSIS_study',
              'TV8','TV12','SJN','STRN','C7_study','r_shoulder_study','L_shoulder_study',
@@ -109,7 +110,7 @@ for subject_mocap_data_repo in repos_mocap_subjects :
         dst_current_data_path = os.path.join(dst_repo_path, subject, trial)
         os.makedirs(dst_current_data_path, exist_ok=True)
 
-        if trial in list_of_good_trials :
+        if trial in list_of_good_trials and subject not in list_of_subjects_to_avoid:
             
             mks_data_rt_path = os.path.join(mocap_trial_path, "mks_data_gapfilled.csv")
             jcp_hpe_data_path = os.path.join(cosmik_trial_path, "3d_keypoints_filtered.csv")
@@ -155,6 +156,7 @@ for subject_mocap_data_repo in repos_mocap_subjects :
         df_mks_mocap.index.name = "Frame"
         df_jcp_hpe.index.name = "Frame"
         df_mks_mocap = df_mks_mocap[order_mks_must_have]
+        df_mks_mocap/=1000
         df_jcp_hpe = df_jcp_hpe[order_jcp_must_have]
         df_mks_mocap.to_csv(os.path.join(dst_current_data_path, f"{trial}_mks_rt.csv"))
         df_jcp_hpe.to_csv(os.path.join(dst_current_data_path, f"{trial}_jcp_hpe.csv"))
