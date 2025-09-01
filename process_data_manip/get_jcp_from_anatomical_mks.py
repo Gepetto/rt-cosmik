@@ -3,10 +3,13 @@ from  src.rtcosmik.utils.read_write_utils  import read_mks_data,udp_csv_to_dataf
 import pandas as pd
 from src.rtcosmik.utils.linear_algebra_utils import transform_to_local_frame,transform_to_global_frame
 from src.rtcosmik.human_model.model_utils import get_pelvis_pose
-
-no_trial = "Mathis"
+import os
+subjects = [
+    "Alessandro","Anais","Anastasia","Batiste","Bilal","Claire_","Clement","Flavie","Guilhem",
+    "Kahina","Marie_M","Mathis","Maxime_","Mohamed","Nicolas","Zoe","Herbert","Emmanuelle"
+]
 tasks = ["static","bolting","bolting_sat","crouch","crouch_object","hitting","hitting_sat","jump","lifting","lifting_fast","lower","overhead",
-             "robot_sanding","robot_welding",
+             "robot_sanding","robot_welding","overhead_front",
              "sanding","sanding_sat","sit_to_stand","squat","upper","walk","walk_front","welding","welding_sat"]
 gender = 'male'
 
@@ -180,35 +183,42 @@ def compute_joint_centers_from_mks(markers):
         jcp_global[name] = global_coords.flatten()
 
     return jcp_global
+for no_trial in subjects:
+    for task in tasks:
+        base_path = f"/root/workspace/ros_ws/src/rt-cosmik/output/{no_trial}"
+        path_to_csv =f"{base_path}/mocap/{task}/mocap_downsampled_to_40hz.csv"
+         # Skip if file doesn't exist
+        if not os.path.exists(path_to_csv):
+            print(f"Skipping missing task: {no_trial} / {task}")
+            continue
+        
+        df = pd.read_csv(path_to_csv)
+        # df = udp_csv_to_dataframe(path_to_csv, mks_names)
+        df.columns = [col.replace(f"{no_trial}:", "") for col in df.columns]
+        frames = df["Frame"] if "Frame" in df.columns else range(len(df))
+        mks_names = sorted(set(col.rsplit("_", 1)[0] for col in df.columns if "_x" in col))
 
-for task in tasks:
-    base_path = f"/root/workspace/ros_ws/src/rt-cosmik/output/{no_trial}"
-    # path_to_csv = f"{base_path}/{task}/mks_data_gapfilled.csv"
-    path_to_csv =f"{base_path}/mocap_data/{task}_trajectories.csv"
+        mks_dict, start_sample_dict = read_mks_data(df, start_sample=0)
 
-    df = pd.read_csv(path_to_csv)
-    # df = udp_csv_to_dataframe(path_to_csv, mks_names)
-    df.columns = [col.replace(f"{no_trial}:", "") for col in df.columns]
-    frames = df["Frame"] if "Frame" in df.columns else range(len(df))
-    mks_names = sorted(set(col.rsplit("_", 1)[0] for col in df.columns if "_x" in col))
+        jcp_per_frame = []
+        for frame_id in range(len(mks_dict)):
+            markers_frame = mks_dict[frame_id]
+            jcp = compute_joint_centers_from_mks(markers_frame)
+            jcp_per_frame.append(jcp)
 
-    mks_dict, start_sample_dict = read_mks_data(df, start_sample=0)
+        jcp_rows = []
+        for jcp in jcp_per_frame:
+            flat_jcp = {}
+            for name, coords in jcp.items():
+                flat_jcp[f"{name}_x"] = coords[0]
+                flat_jcp[f"{name}_y"] = coords[1]
+                flat_jcp[f"{name}_z"] = coords[2]
+            jcp_rows.append(flat_jcp)
 
-    jcp_per_frame = []
-    for frame_id in range(len(mks_dict)):
-        markers_frame = mks_dict[frame_id]
-        jcp = compute_joint_centers_from_mks(markers_frame)
-        jcp_per_frame.append(jcp)
+        jcp_df = pd.DataFrame(jcp_rows)
+        path = f"{base_path}/jcp/{task}"
+        os.makedirs(path, exist_ok=True)
 
-    jcp_rows = []
-    for jcp in jcp_per_frame:
-        flat_jcp = {}
-        for name, coords in jcp.items():
-            flat_jcp[f"{name}_x"] = coords[0]
-            flat_jcp[f"{name}_y"] = coords[1]
-            flat_jcp[f"{name}_z"] = coords[2]
-        jcp_rows.append(flat_jcp)
+        output_csv_path = f"{path}/joint_center_positions.csv"
 
-    jcp_df = pd.DataFrame(jcp_rows)
-    output_csv_path = f"{base_path}/{task}/joint_center_positions.csv"
-    jcp_df.to_csv(output_csv_path, index=False)
+        jcp_df.to_csv(output_csv_path, index=False)

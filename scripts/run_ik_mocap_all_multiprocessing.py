@@ -42,7 +42,7 @@ def run_ik(task, no_trial, start_sample=0, visualize=False):
     subject_height,subject_mass, gender = read_subject_info(info_path)
 
     rt_cosmik_path = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-    path_to_csv = f"/root/workspace/ros_ws/src/rt-cosmik/output/{no_trial}/mouv/{task}/mocap_downsampled_to_40hz.csv"
+    path_to_csv = f"/root/workspace/ros_ws/src/rt-cosmik/COSMIK_dataset/{no_trial}/{task}/{task}_trajectories.csv"
     df_wide = pd.read_csv(path_to_csv)
 
     mks_to_skip = ['LForearm','LUArm', 'RUArm', 'RHJC_study','LHJC_study','r_pelvis','l_pelvis','LHL2','LHM5','RHL2','RHM5',
@@ -177,7 +177,7 @@ def run_ik(task, no_trial, start_sample=0, visualize=False):
     # save mks est (model markers)
     df = pd.DataFrame(M_model_list)
     # FIX: os.path.join with an absolute path argument discards the prefix; use the absolute path directly.
-    csv_file = f"/root/workspace/ros_ws/src/rt-cosmik/output/{no_trial}/mocap/{task}/mks_model_mocap_downsampled.csv"
+    csv_file = f"/root/workspace/ros_ws/src/rt-cosmik/COSMIK_dataset/{no_trial}/{task}/joint_angles.csv"
     os.makedirs(os.path.dirname(csv_file), exist_ok=True)
     df.to_csv(csv_file, index=False)
 
