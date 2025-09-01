@@ -32,7 +32,6 @@ mks_names = ['r.ASIS_study','L.ASIS_study','r.PSIS_study','L.PSIS_study',
 jcp_names = [
         "LShoulder", "RShoulder", "Neck",  "RElbow", "LElbow", 
         "RWrist", "LWrist", "RHip", "LHip", "midHip",
-
         "RKnee", "LKnee", "RAnkle", "LAnkle","RHeel", "LHeel",
          "RBigToe", "LBigToe", "RSmallToe", "LSmallToe"
     ]
@@ -198,22 +197,25 @@ if __name__ == "__main__":
 
     for subject in subjects:
 
-        files = os.listdir(os.path.join(dataset_path, subject))
-
-        tasks = [file[:-17] for file in files if file.endswith("_trajectories.csv")]
-
         gender = 'female' if subject in list_of_female else 'male'
 
         print(f"Processing subject {subject} : {gender} ...")
 
         base_path = os.path.join(dataset_path, subject)
 
+        tasks = os.listdir(base_path)
+
         for task in tasks:
             if os.path.exists(os.path.join(base_path, f"{task}_jcp_mocap.csv")):
                 print(f"Skipping {task} in {subject} due to existing jcp_mocap.csv file.")
                 continue
             
-            path_to_csv = os.path.join(base_path, f"{task}_trajectories.csv")
+            if sys.argv[2] == "100hz":
+                path_to_csv = os.path.join(base_path, task, f"{task}_trajectories.csv")
+            elif sys.argv[2] == "40hz":
+                path_to_csv = os.path.join(base_path, task, f"{task}_mks_rt.csv")
+            else:
+                raise Exception
 
             df = pd.read_csv(path_to_csv)
             # mks_data = udp_csv_to_dataframe(path_to_csv, mks_names)
@@ -235,5 +237,5 @@ if __name__ == "__main__":
                 jcp_rows.append(flat_jcp)
 
             jcp_df = pd.DataFrame(jcp_rows)
-            output_csv_path = os.path.join(base_path, f"{task}_jcp_mocap.csv")
+            output_csv_path = os.path.join(base_path, task, f"{task}_jcp_mocap.csv")
             jcp_df.to_csv(output_csv_path, index=False)

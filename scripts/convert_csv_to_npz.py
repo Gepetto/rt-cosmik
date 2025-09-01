@@ -42,13 +42,15 @@ def main():
             out_trial.mkdir(parents=True, exist_ok=True)
 
             # Build expected CSV paths
-            jcp_csv      = trial_path / f"{trial}_jcp_mocap.csv"
-            mks_csv      = trial_path / f"{trial}_trajectories.csv"
+            jcp_csv      = trial_path / f"{trial}_jcp_mocap_rt.csv"
+            jcp_hpe      = trial_path / f"{trial}_jcp_hpe.csv"
+            mks_csv      = trial_path / f"{trial}_mks_mocap_rt.csv"
             devices_csv  = trial_path / f"{trial}_devices.csv"
 
             # Convert each CSV → NPZ (compressed) preserving headers
-            save_csv_as_npz(jcp_csv,     out_trial / f"{trial}_jcp_mocap.npz")
-            save_csv_as_npz(mks_csv,     out_trial / f"{trial}_trajectories.npz")
+            save_csv_as_npz(jcp_csv,     out_trial / f"{trial}_jcp_mocap_rt.npz")
+            save_csv_as_npz(jcp_hpe,     out_trial / f"{trial}_jcp_hpe.npz")
+            save_csv_as_npz(mks_csv,     out_trial / f"{trial}_mks_mocap_rt.npz")
             save_csv_as_npz(devices_csv, out_trial / f"{trial}_devices.npz")
 
             # If there are other non-CSV assets in trial dir you want to keep:
