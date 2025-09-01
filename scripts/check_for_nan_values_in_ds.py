@@ -5,7 +5,7 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
-dataset_path = Path("/home/ngouget/Codes/datasets/COSMIK_dataset")
+dataset_path = Path("/home/ngouget/Codes/datasets/COSMIK_dataset_mixed")
 
 def has_no_nan(csv_path: str) -> bool:
     """
@@ -36,16 +36,16 @@ def main():
             trial_path = subject_path / trial
 
             # Build expected CSV paths
-            jcp_csv      = trial_path / f"{trial}_jcp_mocap.csv"
-            mks_csv      = trial_path / f"{trial}_trajectories.csv"
-            devices_csv  = trial_path / f"{trial}_devices.csv"
+            jcp_csv      = trial_path / f"{trial}_jcp_hpe.csv"
+            mks_csv      = trial_path / f"{trial}_mks_rt.csv"
+            # devices_csv  = trial_path / f"{trial}_devices.csv"
 
             # Check for NaN values in CSVs
             has_nan_jcp = has_no_nan(jcp_csv)
             has_nan_mks = has_no_nan(mks_csv)
-            has_nan_dev = has_no_nan(devices_csv)
+            # has_nan_dev = has_no_nan(devices_csv)
 
-            if not has_nan_jcp or not has_nan_mks or not has_nan_dev:
+            if not has_nan_jcp or not has_nan_mks:
                 print(f"[WARN] Found NaN values in {subject} {trial}")
                 continue
 

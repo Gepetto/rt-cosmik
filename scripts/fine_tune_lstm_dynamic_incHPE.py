@@ -33,6 +33,7 @@ p.add_argument('--lr', type=float, default=1e-3)
 p.add_argument('--weight-decay', type=float, default=0.01)
 p.add_argument('--test-size', type=int, default=2, help="# of subjects reserved for val (last N alphabetical)")
 p.add_argument('--seed', type=int, default=42)
+p.add_argument("--exclude-trials", type=str, default="none", help="Exclude trials from the dataset")
 
 args = p.parse_args()
 
@@ -64,6 +65,17 @@ elif args.body_part == "lower":
 else:
     raise ValueError("Unsupported body_part")
 
+if args.exclude_trials == "all":
+    excluded_trials = ["static", "crouch", "crouch_object", "hitting", "hitting_sat", "jump", "lifting_fast", "lower",
+             "overhead_front",
+             "sanding_sat", "sit_to_stand", "squat", "upper", "walk", "walk_front", "welding", "welding_sat"]
+elif args.exclude_trials == "bugs":
+    excluded_trials = ["lifting", "crouch", "crouch_object"]
+elif args.exclude_trials == "none":
+    excluded_trials = []
+else:
+    raise ValueError(f"Unknown value for --exclude-trials: {args.exclude_trials}")
+
 # ─────────────── Files discovery ───────────────
 root = Path(args.data_path)
 subjects = sorted([d.name for d in root.iterdir() if d.is_dir()])
@@ -79,6 +91,8 @@ def enumerate_trials(subject_list):
         sp = root/s
         h, w, _ = read_subject_info(sp/'info.txt')
         for trial in sorted([d.name for d in sp.iterdir() if d.is_dir()]):
+            if trial in excluded_trials:
+                continue
             trial_dir = sp/trial
             jcp_name  = f"{trial}_jcp_mocap_rt.npz"
             hpe_name  = f"{trial}_jcp_hpe.npz"
@@ -421,7 +435,7 @@ model.compile(optimizer=optimizer, loss=weighted_l2(W_loss))
 model.summary()
 
 # Save model definition that matches finetune config
-model_json_path = pretrained_dir / f"model_finetuned_optimised_n{args.add_noise}_w{args.use_weights}_sl{args.seq_len}.json"
+model_json_path = pretrained_dir / f"model_finetuned_optimised_n{args.add_noise}_w{args.use_weights}_sl{args.seq_len}_exclude{args.exclude_trials}.json"
 with open(model_json_path, "w") as f:
     f.write(model.to_json())
 
@@ -569,7 +583,7 @@ class LRLogger(tf.keras.callbacks.Callback):
             print(f"[WARNING] Could not retrieve learning rate at epoch {epoch+1}: {e}")
 
 
-ckpt_path = pretrained_dir / f"best_finetuned_weights_final_n{args.add_noise}_w{args.use_weights}_sl{args.seq_len}.h5"
+ckpt_path = pretrained_dir / f"best_finetuned_weights_final_n{args.add_noise}_w{args.use_weights}_sl{args.seq_len}_exclude{args.exclude_trials}.h5"
 callbacks = [
     EarlyStopping(monitor='val_loss', patience=args.patience, restore_best_weights=True, verbose=1),
     ModelCheckpoint(str(ckpt_path), monitor='val_loss', save_best_only=True, save_weights_only=True, verbose=1),
@@ -595,14 +609,14 @@ callbacks.append(LRLogger())
 print(f"[Info] Feature mean/std from TRAIN: mean shape {mean_train.shape}, std shape {std_train.shape}")
 stats_dir = Path(args.pretrained_path) / f"v0.3_{args.body_part}" / "stats_streaming"
 stats_dir.mkdir(parents=True, exist_ok=True)
-np.save(stats_dir / f"mean_train_final_n{args.add_noise}_w{args.use_weights}_sl{args.seq_len}.npy", mean_train)
-np.save(stats_dir / f"std_train_final_n{args.add_noise}_w{args.use_weights}_sl{args.seq_len}.npy",  std_train)
+np.save(stats_dir / f"mean_train_final_n{args.add_noise}_w{args.use_weights}_sl{args.seq_len}_exclude{args.exclude_trials}.npy", mean_train)
+np.save(stats_dir / f"std_train_final_n{args.add_noise}_w{args.use_weights}_sl{args.seq_len}_exclude{args.exclude_trials}.npy",  std_train)
 history = model.fit(train_ds, validation_data=val_ds, epochs=args.epochs, callbacks=callbacks)
 
 # ─────────────── Save weights ───────────────
-final_w = pretrained_dir / f"weights_finetuned_final_n{args.add_noise}_w{args.use_weights}_sl{args.seq_len}.h5"
+final_w = pretrained_dir / f"weights_finetuned_final_n{args.add_noise}_w{args.use_weights}_sl{args.seq_len}_exclude{args.exclude_trials}.h5"
 model.save_weights(str(final_w))
-with open(stats_dir / f"norm_meta_n{args.add_noise}_w{args.use_weights}_sl{args.seq_len}.json", "w") as f:
+with open(stats_dir / f"norm_meta_n{args.add_noise}_w{args.use_weights}_sl{args.seq_len}_exclude{args.exclude_trials}.json", "w") as f:
     json.dump({
         "feature_dim": int(feature_dim),
         "seq_len": int(args.seq_len),

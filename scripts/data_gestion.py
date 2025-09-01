@@ -151,15 +151,14 @@ for subject_mocap_data_repo in repos_mocap_subjects :
                 # No lag
                 df_jcp_hpe = df_jcp_hpe.reset_index(drop=True)
                 df_mks_mocap  = df_mks_mocap.reset_index(drop=True)
+            
+            df_mks_mocap/=1000
 
         # génération data recalée bon format et saving dans dest
-        df_mks_mocap.index.name = "Frame"
-        df_jcp_hpe.index.name = "Frame"
         df_mks_mocap = df_mks_mocap[order_mks_must_have]
-        df_mks_mocap/=1000
         df_jcp_hpe = df_jcp_hpe[order_jcp_must_have]
-        df_mks_mocap.to_csv(os.path.join(dst_current_data_path, f"{trial}_mks_rt.csv"))
-        df_jcp_hpe.to_csv(os.path.join(dst_current_data_path, f"{trial}_jcp_hpe.csv"))
+        df_mks_mocap.to_csv(os.path.join(dst_current_data_path, f"{trial}_mks_rt.csv"), index=False)
+        df_jcp_hpe.to_csv(os.path.join(dst_current_data_path, f"{trial}_jcp_hpe.csv"), index=False)
 
 
 

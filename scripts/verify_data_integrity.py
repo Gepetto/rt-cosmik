@@ -20,15 +20,8 @@ for subject in subjects:
         jcp_hpe_df = pd.read_csv(jcp_hpe_path)
         # jcp_mocap_df = pd.read_csv(jcp_mocap_path)
 
-        print(f"Checking {task} in {subject} ...")
-
-        # if len(mks_rt_df) > len(jcp_hpe_df) :
-        #     mks_rt_df = mks_rt_df.iloc[:-1]
-        #     # jcp_mocap_df = jcp_mocap_df.iloc[:-1]
-        #     mks_rt_df.to_csv(mks_rt_path, index=False)
-        #     # jcp_mocap_df.to_csv(jcp_mocap_path, index=False)
-        # elif len(jcp_hpe_df) > len(mks_rt_df) :
-        #     jcp_hpe_df = jcp_hpe_df.iloc[:-1]
-        #     jcp_hpe_df.to_csv(jcp_hpe_path, index=False)
-        assert len(mks_rt_df) == len(jcp_hpe_df)
-        # assert len(jcp_mocap_df) == len(jcp_hpe_df)
+        if abs(mks_rt_df.iloc[1,1]) < 1e-3 or abs(mks_rt_df.iloc[1,1]) > 5:
+            print(f'{subject}, {task}, mks_rt_df')
+        
+        if abs(jcp_hpe_df.iloc[1,1]) < 1e-3 or abs(jcp_hpe_df.iloc[1,1]) > 5:
+            print(f'{subject}, {task}, jcp_hpe_df')
