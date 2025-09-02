@@ -171,12 +171,12 @@ for i in range(min(len(result_markers), len(result_markers_lstm))):
         # place(viz, f'world/lstm_{mks}', pin.SE3(np.eye(3), pos_mks_OpenCap))
 
         error = np.linalg.norm(pos_mocap - pos_mks)  # Euclidean distance
-        squared_errors[mks].append(error**2)
-        all_squared_errors.append(error**2)
+        squared_errors[mks].append(error)
+        all_squared_errors.append(error)
 
         error_OpenCap = np.linalg.norm(pos_mocap - pos_mks_OpenCap)  # Euclidean distance
-        squared_errors_OpenCap[mks].append(error_OpenCap**2)
-        all_squared_errors_OpenCap.append(error_OpenCap**2)
+        squared_errors_OpenCap[mks].append(error_OpenCap)
+        all_squared_errors_OpenCap.append(error_OpenCap)
 
     # if args.use_mocap == "T":
     #     for mks in jcp_kpt_to_display:
@@ -200,20 +200,20 @@ for i in range(min(len(result_markers), len(result_markers_lstm))):
 rmse_per_marker = {}
 for mks, errors in squared_errors.items():
     mse = np.mean(errors)
-    rmse = np.sqrt(mse)
+    rmse = mse
     rmse_per_marker[mks] = rmse
 
 rmse_per_marker_OpenCap = {}
 for mks, errors in squared_errors_OpenCap.items():
     mse = np.mean(errors)
-    rmse = np.sqrt(mse)
+    rmse = mse
     rmse_per_marker_OpenCap[mks] = rmse
 
 # Print or log RMSE
 for mks, rmse in rmse_per_marker.items():
     print(f"RMSE for marker {mks}: {rmse:.3f} m")
 
-average_rmse = np.sqrt(np.mean(all_squared_errors))
+average_rmse = np.mean(all_squared_errors)
 print(f"\nAverage RMSE over all markers and frames: {average_rmse:} m")
 
 print("rmse lstm finetuned ##############################################################")
@@ -221,7 +221,7 @@ print("rmse lstm finetuned #####################################################
 for mks, rmse in rmse_per_marker_OpenCap.items():
     print(f"OpenCap RMSE for marker {mks}: {rmse:.3f} m")
 
-average_rmse_OpenCap = np.sqrt(np.mean(all_squared_errors_OpenCap))
+average_rmse_OpenCap = np.mean(all_squared_errors_OpenCap)
 print(f"\nOpenCap Average RMSE over all markers and frames: {average_rmse_OpenCap:} m")
 
 # 🔑 ligne spéciale pour parsing

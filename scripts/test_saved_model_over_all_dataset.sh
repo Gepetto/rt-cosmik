@@ -33,9 +33,20 @@ for subject_dir in "$dataset_path"/*; do
   [ -d "$subject_dir" ] || continue
   subject="$(basename "$subject_dir")"
 
+  if [ $subject != "Flavie" ] && [ $subject != "Kahina" ]; then
+     continue
+  fi
+
   for trial_dir in "$subject_dir"/*; do
     [ -d "$trial_dir" ] || continue
     trial="$(basename "$trial_dir")"
+
+    case "$trial" in
+      bolting|sanding|overhead|robot_sanding|robot_welding|bolting_sat|lifting)
+        ;;  # OK -> on garde
+      *)
+      continue ;; # sinon on passe au suivant
+    esac
 
     wait_for_slot
 

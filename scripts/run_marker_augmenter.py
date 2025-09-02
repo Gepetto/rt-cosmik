@@ -75,8 +75,8 @@ def main():
     #load lstm model
     warmed_models = loadModel(augmenterDir=augmenter_path, augmenterModelName="LSTM",augmenter_model='v0.3', use_mocap="T", add_noise=args.add_noise, fine_tune=args.fine_tune, 
                                 add_layer=args.add_layer, use_weights=args.use_weights, rot_prob=args.rot_prob, rot_max_deg=args.rot_max_deg, rotation_scheme=args.rotation_scheme, n_rotations=args.n_rotations)
-    if not os.path.exists(output_csv_path):
-        warmed_models_opencap = loadModelOpenCap(augmenterDir=augmenter_path, augmenterModelName="LSTM",augmenter_model='v0.3')
+    # if not os.path.exists(output_csv_path):
+    warmed_models_opencap = loadModelOpenCap(augmenterDir=augmenter_path, augmenterModelName="LSTM",augmenter_model='v0.3')
 
     #load 3d keypoints
     data = pd.read_csv(path_to_3d_kpt).values
@@ -107,17 +107,17 @@ def main():
                                 augmenterDir=augmenter_path, augmenter_model='v0.3', use_mocap=args.use_mocap, add_noise=args.add_noise, fine_tune=args.fine_tune, 
                                 add_layer=args.add_layer, use_weights=args.use_weights, rot_prob=args.rot_prob, rot_max_deg=args.rot_max_deg, rotation_scheme=args.rotation_scheme, n_rotations=args.n_rotations)
             augmented_markers_list.append(augmented_markers)
-            if not os.path.exists(output_csv_path_OpenCap):
-                augmented_markers_opencap = augmentTRCOpenCap(keypoints_buffer_array, subject_mass=subject_weight, subject_height=subject_height, models = warmed_models_opencap,
-                                    augmenterDir=augmenter_path, augmenter_model='v0.3', offset=False, use_mocap=args.use_mocap)
-                augmented_markers_list_opencap.append(augmented_markers_opencap)            
+            # if not os.path.exists(output_csv_path_OpenCap):
+            augmented_markers_opencap = augmentTRCOpenCap(keypoints_buffer_array, subject_mass=subject_weight, subject_height=subject_height, models = warmed_models_opencap,
+                                augmenterDir=augmenter_path, augmenter_model='v0.3', offset=False)
+            augmented_markers_list_opencap.append(augmented_markers_opencap)            
 
     augmented_array = np.vstack(augmented_markers_list) 
     save_to_csv(augmented_array, output_csv_path, header=header)
 
-    if not os.path.exists(output_csv_path_OpenCap):
-        augmented_array_opencap = np.vstack(augmented_markers_list_opencap)
-        save_to_csv(augmented_array_opencap, output_csv_path_OpenCap, header=header)
+    # if not os.path.exists(output_csv_path_OpenCap):
+    augmented_array_opencap = np.vstack(augmented_markers_list_opencap)
+    save_to_csv(augmented_array_opencap, output_csv_path_OpenCap, header=header)
 
     # filtered_data = butterworth_filter(
     # data=augmented_array,

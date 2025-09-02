@@ -293,11 +293,10 @@ def augmentTRCOpenCap(keypoints_buffer, subject_mass, subject_height,
     featureWeight = True
     
     outputs_all = {}
-    marker_indices_lower = [2, 0, 1, 7, 8, 10, 11, 12, 13, 14, 15, 18, 19, 16, 17] #['Neck', 'RShoulder', 'LShoulder', 'RHip', 'LHip', 'RKnee', 'LKnee', 'RAnkle', 'LAnkle', 'RHeel', 'LHeel', 'RSmallToe', 'LSmallToe', 'RBigToe', 'LBigToe']
-    marker_indices_upper = [2, 0, 1, 3, 4, 5, 6] #['Neck', 'RShoulder', 'LShoulder', 'RElbow', 'LElbow', 'RWrist', 'LWrist']
-    # elif use_mocap == "F":
-    #     marker_indices_lower = [18, 6, 5, 12, 11, 14, 13, 16, 15, 25, 24, 23, 22, 21, 20] #['Neck', 'RShoulder', 'LShoulder', 'RHip', 'LHip', 'RKnee', 'LKnee', 'RAnkle', 'LAnkle', 'RHeel', 'LHeel', 'RSmallToe', 'LSmallToe', 'RBigToe', 'LBigToe']
-    #     marker_indices_upper = [18, 6, 5, 8, 7, 10, 9] #['Neck', 'RShoulder', 'LShoulder', 'RElbow', 'LElbow', 'RWrist', 'LWrist']
+    # marker_indices_lower = [2, 0, 1, 7, 8, 10, 11, 12, 13, 14, 15, 18, 19, 16, 17] #['Neck', 'RShoulder', 'LShoulder', 'RHip', 'LHip', 'RKnee', 'LKnee', 'RAnkle', 'LAnkle', 'RHeel', 'LHeel', 'RSmallToe', 'LSmallToe', 'RBigToe', 'LBigToe']
+    # marker_indices_upper = [2, 0, 1, 3, 4, 5, 6] #['Neck', 'RShoulder', 'LShoulder', 'RElbow', 'LElbow', 'RWrist', 'LWrist']
+    marker_indices_lower = [18, 6, 5, 12, 11, 14, 13, 16, 15, 25, 24, 23, 22, 21, 20] #['Neck', 'RShoulder', 'LShoulder', 'RHip', 'LHip', 'RKnee', 'LKnee', 'RAnkle', 'LAnkle', 'RHeel', 'LHeel', 'RSmallToe', 'LSmallToe', 'RBigToe', 'LBigToe']
+    marker_indices_upper = [18, 6, 5, 8, 7, 10, 9] #['Neck', 'RShoulder', 'LShoulder', 'RElbow', 'LElbow', 'RWrist', 'LWrist']
     # else:
     #     raise Exception("Input type not supported. Please select T or F.")
 
@@ -317,9 +316,8 @@ def augmentTRCOpenCap(keypoints_buffer, subject_mass, subject_height,
         augmenterModelDir = os.path.join(augmenterDir, augmenterModelName, 
                                          augmenterModelType)
         # Process the keypoints buffer
-        referenceMarker_data = marker(keypoints_buffer, 9)  # midihip
-        # elif use_mocap == "F":
-        #     referenceMarker_data = marker(keypoints_buffer, 19)  # midhip
+        # referenceMarker_data = marker(keypoints_buffer, 9)  # midihip
+        referenceMarker_data = marker(keypoints_buffer, 19)  # midhip
         # else:
         #     raise Exception("Input type not supported. Please select T or F.")
         norm_buffer = np.zeros_like(keypoints_buffer)
