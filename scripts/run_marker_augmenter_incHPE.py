@@ -18,6 +18,7 @@ p = argparse.ArgumentParser(description="augment data w local lstm")
 p.add_argument('--add-noise', choices=['T','F'], default='F')
 p.add_argument('--use-weights', choices=['T','F'], default='F')
 p.add_argument('--seq-len', type=int, default=30)
+p.add_argument("--exclude-trials", type=str, default="none", help="Exclude trials from the dataset")
 p.add_argument('--subject', type=str, default=None)
 p.add_argument('--trial', type=str, default=None)
 
@@ -28,7 +29,7 @@ subject_path = f"/home/ngouget/Codes/datasets/COSMIK_dataset_mixed/{args.subject
 trial_path = os.path.join(subject_path, args.trial)
 
 path_to_3d_kpt = os.path.join(trial_path, f"{args.trial}_jcp_hpe.csv")
-output_csv_path = os.path.join(base_path, f"rt-cosmik/output/{args.subject}/{args.trial}/{args.trial}_augmented_markers_mocap_n{args.add_noise}_w{args.use_weights}_sl{args.seq_len}.csv")
+output_csv_path = os.path.join(base_path, f"rt-cosmik/output/{args.subject}/{args.trial}/{args.trial}_augmented_markers_mocap_n{args.add_noise}_w{args.use_weights}_sl{args.seq_len}_exclude{args.exclude_trials}.csv")
 output_csv_path_OpenCap = os.path.join(base_path, f"rt-cosmik/output/{args.subject}/{args.trial}/{args.trial}_augmented_markers_mocap_OpenCap.csv")
 
 info_path = Path(os.path.join(subject_path, "info.txt"))
@@ -56,7 +57,7 @@ def main():
     first_frame = True
     #load lstm model
     warmed_models = loadModel_incHPE(augmenterDir=augmenter_path, augmenterModelName="LSTM",augmenter_model='v0.3', add_noise=args.add_noise,
-                             use_weights=args.use_weights, seq_len=args.seq_len)
+                             use_weights=args.use_weights, seq_len=args.seq_len, exclude_trials=args.exclude_trials)
     if not os.path.exists(output_csv_path):
         warmed_models_opencap = loadModelOpenCap(augmenterDir=augmenter_path, augmenterModelName="LSTM",augmenter_model='v0.3')
 
@@ -87,7 +88,7 @@ def main():
             keypoints_buffer_array = np.array(keypoints_buffer)
             augmented_markers = augmentTRC_incHPE(keypoints_buffer_array, subject_mass=subject_weight, subject_height=subject_height, models = warmed_models,
                                 augmenterDir=augmenter_path, augmenter_model='v0.3', add_noise=args.add_noise,
-                                use_weights=args.use_weights, seq_len=args.seq_len)
+                                use_weights=args.use_weights, seq_len=args.seq_len, exclude_trials=args.exclude_trials)
             augmented_markers_list.append(augmented_markers)
             if not os.path.exists(output_csv_path_OpenCap):
                 augmented_markers_opencap = augmentTRCOpenCap(keypoints_buffer_array, subject_mass=subject_weight, subject_height=subject_height, models = warmed_models_opencap,

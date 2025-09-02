@@ -413,7 +413,7 @@ def augmentTRCOpenCap(keypoints_buffer, subject_mass, subject_height,
 
 
 def loadModel_incHPE(augmenterDir, augmenterModelName="LSTM",augmenter_model='v0.3', add_noise="F", 
-            use_weights="F", seq_len=30):
+            use_weights="F", seq_len=30, exclude_trials="none"):
     """
     Load and initialize LSTM models for different augmenter types.
     Parameters:
@@ -448,9 +448,9 @@ def loadModel_incHPE(augmenterDir, augmenterModelName="LSTM",augmenter_model='v0
         augmenterModelDir = os.path.join(augmenterDir, augmenterModelName, 
                                             augmenterModelType)
         if augmenterModelType == "{}_lower".format(augmenter_model):
-            session = ort.InferenceSession(f"{augmenterModelDir}/model_{augmenterModelType[5:]}_n{add_noise}_w{use_weights}_sl{seq_len}.onnx", sess_options=so, providers=["CPUExecutionProvider"])
+            session = ort.InferenceSession(f"{augmenterModelDir}/model_{augmenterModelType[5:]}_n{add_noise}_w{use_weights}_sl{seq_len}_exclude{exclude_trials}.onnx", sess_options=so, providers=["CPUExecutionProvider"])
         else:
-            session = ort.InferenceSession(f"{augmenterModelDir}/model_{augmenterModelType[5:]}_n{add_noise}_wF_sl{seq_len}.onnx", sess_options=so, providers=["CPUExecutionProvider"])
+            session = ort.InferenceSession(f"{augmenterModelDir}/model_{augmenterModelType[5:]}_n{add_noise}_wF_sl{seq_len}_exclude{exclude_trials}.onnx", sess_options=so, providers=["CPUExecutionProvider"])
         models[augmenterModelType] = session
 
     return models
@@ -458,7 +458,7 @@ def loadModel_incHPE(augmenterDir, augmenterModelName="LSTM",augmenter_model='v0
 def augmentTRC_incHPE(keypoints_buffer, subject_mass, subject_height,
                models, augmenterDir, augmenterModelName='LSTM', augmenter_model='v0.3', offset=True,
                add_noise="F",
-               use_weights="F", seq_len=30):
+               use_weights="F", seq_len=30, exclude_trials="none"):
     """
     Augments the given keypoints buffer using specified models and parameters.
     Parameters:
@@ -542,11 +542,11 @@ def augmentTRC_incHPE(keypoints_buffer, subject_mass, subject_height,
         # Load mean and std for normalization
         #print(augmenterModelDir)
         if "lower" in augmenterModelType:
-            pathMean = os.path.join(augmenterModelDir, "stats_streaming", f"mean_train_final_n{add_noise}_w{use_weights}_sl{seq_len}.npy")
-            pathSTD = os.path.join(augmenterModelDir, "stats_streaming", f"std_train_final_n{add_noise}_w{use_weights}_sl{seq_len}.npy")
+            pathMean = os.path.join(augmenterModelDir, "stats_streaming", f"mean_train_final_n{add_noise}_w{use_weights}_sl{seq_len}_exclude{exclude_trials}.npy")
+            pathSTD = os.path.join(augmenterModelDir, "stats_streaming", f"std_train_final_n{add_noise}_w{use_weights}_sl{seq_len}_exclude{exclude_trials}.npy")
         else:
-            pathMean = os.path.join(augmenterModelDir, "stats_streaming", f"mean_train_final_n{add_noise}_wF_sl{seq_len}.npy")
-            pathSTD = os.path.join(augmenterModelDir, "stats_streaming", f"std_train_final_n{add_noise}_wF_sl{seq_len}.npy")
+            pathMean = os.path.join(augmenterModelDir, "stats_streaming", f"mean_train_final_n{add_noise}_wF_sl{seq_len}_exclude{exclude_trials}.npy")
+            pathSTD = os.path.join(augmenterModelDir, "stats_streaming", f"std_train_final_n{add_noise}_wF_sl{seq_len}_exclude{exclude_trials}.npy")
         #print(pathMean)
 
         if os.path.isfile(pathMean):

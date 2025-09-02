@@ -11,13 +11,14 @@ p.add_argument('--body-part', choices=['upper','lower'], required=True)
 p.add_argument('--add-noise', choices=['T','F'], default='F')
 p.add_argument('--use-weights', choices=['T','F'], default='F')
 p.add_argument('--seq-len', type=int, default=30)
+p.add_argument("--exclude-trials", type=str, default="none", help="Exclude trials from the dataset")
 
 args = p.parse_args()
 
 # Paths to your files
 base_path = "/home/ngouget/Codes/rt-cosmik/src/rtcosmik/augmenter/augmentation_model/LSTM"
-json_path = os.path.join(base_path, f"v0.3_{args.body_part}", f"model_finetuned_optimised_n{args.add_noise}_w{args.use_weights}_sl{args.seq_len}.json")
-weights_path = os.path.join(base_path, f"v0.3_{args.body_part}", f"best_finetuned_weights_final_n{args.add_noise}_w{args.use_weights}_sl{args.seq_len}.h5")
+json_path = os.path.join(base_path, f"v0.3_{args.body_part}", f"model_finetuned_optimised_n{args.add_noise}_w{args.use_weights}_sl{args.seq_len}_exclude{args.exclude_trials}.json")
+weights_path = os.path.join(base_path, f"v0.3_{args.body_part}", f"best_finetuned_weights_final_n{args.add_noise}_w{args.use_weights}_sl{args.seq_len}_exclude{args.exclude_trials}.h5")
 
 # Load the model architecture
 with open(json_path, 'r') as json_file:
@@ -47,6 +48,6 @@ spec = (tf.TensorSpec(model.input_shape, tf.float32, name="input"),)
 onnx_model, _ = tf2onnx.convert.from_keras(model, input_signature=spec, opset=13)
 
 # Save to file
-with open(os.path.join(base_path, f"v0.3_{args.body_part}", f"model_{args.body_part}_n{args.add_noise}_w{args.use_weights}_sl{args.seq_len}.onnx"), 'wb') as f:
+with open(os.path.join(base_path, f"v0.3_{args.body_part}", f"model_{args.body_part}_n{args.add_noise}_w{args.use_weights}_sl{args.seq_len}_exclude{args.exclude_trials}.onnx"), 'wb') as f:
     f.write(onnx_model.SerializeToString())
     

@@ -4,12 +4,13 @@ set -euo pipefail
 read -p "Add noise (T/F)? " add_noise
 read -p "Use weights (T/F)? " use_weights
 read -p "Sequence lenght ? " seq_len
+read -p "Exclude trials (all/bugs/none)? " exclude_trials
 
 # --- config ---
 dataset_path="/home/ngouget/Codes/datasets/COSMIK_dataset"
 MAX_JOBS=6
-RESULTS_FILE="../../Results/Tests_perfos_LSTM/detailed_rmse/resultsHPE_n${add_noise}_w${use_weights}_sl${seq_len}.csv"
-LOG_DIR="../../Results/Tests_perfos_LSTM/logsHPE_n${add_noise}_w${use_weights}_sl${seq_len}"
+RESULTS_FILE="../../Results/Tests_perfos_LSTM/detailed_rmse/resultsHPE_n${add_noise}_w${use_weights}_sl${seq_len}_exclude${exclude_trials}.csv"
+LOG_DIR="../../Results/Tests_perfos_LSTM/logsHPE_n${add_noise}_w${use_weights}_sl${seq_len}_exclude${exclude_trials}"
 mkdir -p "$LOG_DIR"
 
 # header du CSV
@@ -36,6 +37,24 @@ for subject_dir in "$dataset_path"/*; do
   for trial_dir in "$subject_dir"/*; do
     [ -d "$trial_dir" ] || continue
     trial="$(basename "$trial_dir")"
+    
+    # 1) Exclure certains trials si exclude_trials == "bugs"
+    if [[ "$exclude_trials" == "bugs" && ( "$trial" == "lifting" || "$trial" == "crouch" || "$trial" == "crouch_object" ) ]]; then
+      continue
+    fi
+
+    # 2) Si exclude_trials == "all", ne garder QUE cette liste ; sinon continuer
+    #    => on "continue" quand $trial n'est dans AUCUN des autorisés
+    if [[ "$exclude_trials" == "all" \
+          && "$trial" != "bolting" \
+          && "$trial" != "sanding" \
+          && "$trial" != "overhead" \
+          && "$trial" != "robot_sanding" \
+          && "$trial" != "robot_welding" \
+          && "$trial" != "bolting_sat" \
+          && "$trial" != "lifting" ]]; then
+      continue
+    fi
 
     wait_for_slot
 
@@ -44,17 +63,17 @@ for subject_dir in "$dataset_path"/*; do
 
       # 1) run augmenter
       if ! python run_marker_augmenter_incHPE.py --subject $subject --trial $trial --add-noise $add_noise \
- --use-weights $use_weights --seq-len $seq_len; then
+ --use-weights $use_weights --seq-len $seq_len --exclude-trials $exclude_trials; then
         echo "[FAIL] run_marker_augmenter_incHPE.py $subject $trial" >&2
         python run_marker_augmenter_incHPE.py --subject $subject --trial $trial --add-noise $add_noise \
- --use-weights $use_weights --seq-len $seq_len \ 
+ --use-weights $use_weights --seq-len $seq_len --exclude-trials $exclude_trials \ 
  >"$LOG_DIR/${subject}__${trial}_augmenter.log" 2>&1 || true
         exit 1
       fi
 
       # 2) run checker
       results_line="$(python ../process_data_manip/z_check_multiple_mks_gp_v_incHPE.py --subject $subject --trial $trial --add-noise $add_noise \
- --use-weights $use_weights --seq-len $seq_len \
+ --use-weights $use_weights --seq-len $seq_len --exclude-trials $exclude_trials \
  2> >(tee "$LOG_DIR/${subject}__${trial}_checker.log" >&2) \
                       | grep -E '^RESULTS[, ]' || true)"
 

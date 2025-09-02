@@ -122,7 +122,13 @@ def listdicts_to_array(ld, names):
         for j, k in enumerate(names):
             arr[i,j,:] = fr[k]
     return arr
-    
+
+def _yaw_rotation_matrix(theta_rad: float):
+    c, s = np.cos(theta_rad), np.sin(theta_rad)
+    return np.array([[ c, -s, 0.],
+                        [ s,  c, 0.],
+                        [0.,  0., 1.]], dtype=np.float32)
+
 def random_rotation_matrix(seed=None):
     """
     Génère une matrice de rotation 3D aléatoire uniforme.
@@ -230,39 +236,75 @@ def trial_to_windows(
         dout = dout * inv_h
 
         if rotation_scheme == "max":
-            R = random_rotation_matrix(seed=args.seed)
+            for i in range(4):
+                if i == 3:
+                    R = random_rotation_matrix(seed=args.seed)
+                else:
+                    theta = np.deg2rad(np.random.uniform(-180.0, 180.0))
+                    R = _yaw_rotation_matrix(theta).T
+                din_r = (din.reshape(-1,3)  @ R).reshape(seq_len, -1, 3)
+                din_r_hpe = (din_hpe.reshape(-1,3)  @ R).reshape(seq_len, -1, 3)
+                dout_r = (dout.reshape(-1,3) @ R).reshape(seq_len, -1, 3)
+
+                # optional Gaussian noise on features only (XYZ)
+                din_noisy = din_r
+                din_noisy_hpe = din_r_hpe
+                if add_noise :
+                    din_noisy = din_noisy + np.random.normal(0.0, 0.018, din_noisy.shape).astype(np.float32)
+
+                
+                # flatten & append height/weight (not rotated)
+                inp = din_noisy.reshape(seq_len, -1)
+                hw  = np.concatenate([
+                        np.full((seq_len,1), h, dtype=np.float32),
+                        np.full((seq_len,1), w, dtype=np.float32)
+                    ], axis=1)
+                inp = np.concatenate([inp, hw], axis=1)  # [L, Pin*3 + 2]
+                out = dout_r.reshape(seq_len, -1)        # [L, Pout*3]
+                yield inp.astype(np.float32), out.astype(np.float32)
+
+                # flatten & append height/weight (not rotated)
+                inp_hpe = din_noisy_hpe.reshape(seq_len, -1)
+                hw  = np.concatenate([
+                        np.full((seq_len,1), h, dtype=np.float32),
+                        np.full((seq_len,1), w, dtype=np.float32)
+                    ], axis=1)
+                inp_hpe = np.concatenate([inp_hpe, hw], axis=1)  # [L, Pin*3 + 2]
+                out = dout_r.reshape(seq_len, -1)        # [L, Pout*3]
+                yield inp_hpe.astype(np.float32), out.astype(np.float32)
+
         else:
             R = np.eye(3)
-        din_r = (din.reshape(-1,3)  @ R).reshape(seq_len, -1, 3)
-        din_r_hpe = (din_hpe.reshape(-1,3)  @ R).reshape(seq_len, -1, 3)
-        dout_r = (dout.reshape(-1,3) @ R).reshape(seq_len, -1, 3)
+            din_r = (din.reshape(-1,3)  @ R).reshape(seq_len, -1, 3)
+            din_r_hpe = (din_hpe.reshape(-1,3)  @ R).reshape(seq_len, -1, 3)
+            dout_r = (dout.reshape(-1,3) @ R).reshape(seq_len, -1, 3)
 
-        # optional Gaussian noise on features only (XYZ)
-        din_noisy = din_r
-        din_noisy_hpe = din_r_hpe
-        if add_noise :
-            din_noisy = din_noisy + np.random.normal(0.0, 0.018, din_noisy.shape).astype(np.float32)
+            # optional Gaussian noise on features only (XYZ)
+            din_noisy = din_r
+            din_noisy_hpe = din_r_hpe
+            if add_noise :
+                din_noisy = din_noisy + np.random.normal(0.0, 0.018, din_noisy.shape).astype(np.float32)
 
-        
-        # flatten & append height/weight (not rotated)
-        inp = din_noisy.reshape(seq_len, -1)
-        hw  = np.concatenate([
-                np.full((seq_len,1), h, dtype=np.float32),
-                np.full((seq_len,1), w, dtype=np.float32)
-            ], axis=1)
-        inp = np.concatenate([inp, hw], axis=1)  # [L, Pin*3 + 2]
-        out = dout_r.reshape(seq_len, -1)        # [L, Pout*3]
-        yield inp.astype(np.float32), out.astype(np.float32)
+            
+            # flatten & append height/weight (not rotated)
+            inp = din_noisy.reshape(seq_len, -1)
+            hw  = np.concatenate([
+                    np.full((seq_len,1), h, dtype=np.float32),
+                    np.full((seq_len,1), w, dtype=np.float32)
+                ], axis=1)
+            inp = np.concatenate([inp, hw], axis=1)  # [L, Pin*3 + 2]
+            out = dout_r.reshape(seq_len, -1)        # [L, Pout*3]
+            yield inp.astype(np.float32), out.astype(np.float32)
 
-        # flatten & append height/weight (not rotated)
-        inp_hpe = din_noisy_hpe.reshape(seq_len, -1)
-        hw  = np.concatenate([
-                np.full((seq_len,1), h, dtype=np.float32),
-                np.full((seq_len,1), w, dtype=np.float32)
-            ], axis=1)
-        inp_hpe = np.concatenate([inp_hpe, hw], axis=1)  # [L, Pin*3 + 2]
-        out = dout_r.reshape(seq_len, -1)        # [L, Pout*3]
-        yield inp_hpe.astype(np.float32), out.astype(np.float32)
+            # flatten & append height/weight (not rotated)
+            inp_hpe = din_noisy_hpe.reshape(seq_len, -1)
+            hw  = np.concatenate([
+                    np.full((seq_len,1), h, dtype=np.float32),
+                    np.full((seq_len,1), w, dtype=np.float32)
+                ], axis=1)
+            inp_hpe = np.concatenate([inp_hpe, hw], axis=1)  # [L, Pin*3 + 2]
+            out = dout_r.reshape(seq_len, -1)        # [L, Pout*3]
+            yield inp_hpe.astype(np.float32), out.astype(np.float32)
 
 
 # Spec (needed for tf.data.from_generator)

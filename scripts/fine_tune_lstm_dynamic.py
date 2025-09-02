@@ -76,6 +76,10 @@ elif args.body_part == "lower":
 else:
     raise ValueError("Unsupported body_part")
 
+excluded_trials = ["static", "crouch", "crouch_object", "hitting", "hitting_sat", "jump", "lifting_fast", "lower",
+            "overhead_front",
+            "sanding_sat", "sit_to_stand", "squat", "upper", "walk", "walk_front", "welding", "welding_sat"]
+
 # ─────────────── Files discovery ───────────────
 root = Path(args.data_path)
 subjects = sorted([d.name for d in root.iterdir() if d.is_dir()])
@@ -275,7 +279,7 @@ def trial_to_windows(
                 # optional Gaussian noise on features only (XYZ)
                 din_noisy = din_r
                 if add_noise:
-                    din_noisy = din_noisy + np.random.normal(0.0, 0.030, din_noisy.shape).astype(np.float32)
+                    din_noisy = din_noisy + np.random.normal(0.0, 0.018, din_noisy.shape).astype(np.float32)
 
                 # flatten & append height/weight (not rotated)
                 inp = din_noisy.reshape(seq_len, -1)
@@ -296,7 +300,7 @@ def trial_to_windows(
                     # optional Gaussian noise on features only (XYZ)
                     din_noisy = din_r
                     if add_noise:
-                        din_noisy = din_noisy + np.random.normal(0.0, 0.030, din_noisy.shape).astype(np.float32)
+                        din_noisy = din_noisy + np.random.normal(0.0, 0.018, din_noisy.shape).astype(np.float32)
                     
                     # flatten & append height/weight (not rotated)
                     inp = din_noisy.reshape(seq_len, -1)
@@ -318,7 +322,7 @@ def trial_to_windows(
                 dout_r = (dout.reshape(-1,3) @ R).reshape(seq_len, -1, 3)
 
             if add_noise:
-                din_r = din_r + np.random.normal(0.0, 0.030, din_r.shape).astype(np.float32)
+                din_r = din_r + np.random.normal(0.0, 0.018, din_r.shape).astype(np.float32)
 
             inp = din_r.reshape(seq_len, -1)
             hw  = np.concatenate([
@@ -508,17 +512,25 @@ class HeightSlice(Layer):
     def get_config(self):
         return {}
 
-steps_per_epoch = max(1, len(train_trials) * 50 // args.batch_size)  # estimation
-total_steps = steps_per_epoch * 20
-    
-# Cosine decay scheduler
-cosine_scheduler = CosineDecay(
-    initial_learning_rate=args.lr,
-    decay_steps=total_steps,
-    alpha=1e-6 / args.lr  # ratio final_lr / initial_lr
+initial_lr = args.lr
+final_lr   = 1e-6
+
+steps_per_epoch = max(1, len(train_trials) * 1800 // args.batch_size)
+epochs = 10
+T = steps_per_epoch * epochs   # nombre total de steps
+
+# Ici on choisit decay_steps = T (donc la formule devient simple)
+decay_steps = T
+decay_rate = final_lr / initial_lr  # car (final/initial)^(decay_steps/T) = final/initial
+
+exp_scheduler = tf.keras.optimizers.schedules.ExponentialDecay(
+    initial_learning_rate=initial_lr,
+    decay_steps=decay_steps,
+    decay_rate=decay_rate,
+    staircase=False  # décroissance lisse, pas par paliers
 )
-    
-optimizer = Adam(cosine_scheduler)
+
+optimizer = tf.keras.optimizers.Adam(learning_rate=exp_scheduler)
 
 model.compile(optimizer=optimizer, loss=weighted_l2(W_loss))
 
