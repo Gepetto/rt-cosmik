@@ -65,6 +65,8 @@ elif args.body_part == "lower":
 else:
     raise ValueError("Unsupported body_part")
 
+trials_to_include = ["robot_welding"]
+
 if args.exclude_trials == "all":
     excluded_trials = ["static", "crouch", "crouch_object", "hitting", "hitting_sat", "jump", "lifting_fast", "lower",
              "overhead_front",
@@ -91,7 +93,7 @@ def enumerate_trials(subject_list):
         sp = root/s
         h, w, _ = read_subject_info(sp/'info.txt')
         for trial in sorted([d.name for d in sp.iterdir() if d.is_dir()]):
-            if trial in excluded_trials:
+            if trial not in trials_to_include :
                 continue
             trial_dir = sp/trial
             jcp_name  = f"{trial}_jcp_mocap_rt.npz"

@@ -80,6 +80,8 @@ excluded_trials = ["static", "crouch", "crouch_object", "hitting", "hitting_sat"
             "overhead_front",
             "sanding_sat", "sit_to_stand", "squat", "upper", "walk", "walk_front", "welding", "welding_sat"]
 
+trials_to_include = ["robot_welding"]
+
 # ─────────────── Files discovery ───────────────
 root = Path(args.data_path)
 subjects = sorted([d.name for d in root.iterdir() if d.is_dir()])
@@ -95,6 +97,8 @@ def enumerate_trials(subject_list):
         sp = root/s
         h, w, _ = read_subject_info(sp/'info.txt')
         for trial in sorted([d.name for d in sp.iterdir() if d.is_dir()]):
+            if trial not in trials_to_include:
+                continue
             trial_dir = sp/trial
             jcp_name  = f"{trial}_jcp_mocap.npz"
             mocap_name= f"{trial}_trajectories.npz"
@@ -247,10 +251,10 @@ def trial_to_windows(
     n_w  = max(Ttot - seq_len + 1, 0)
 
     # Precompute deterministic yaw set if needed
-    if rotation_scheme == 'det' or rotation_scheme == "max":
-        yaw_set = _even_yaw_angles(max(1, int(n_rotations)))
-    else:
-        yaw_set = [None]  # single pathway
+    # if rotation_scheme == 'det' or rotation_scheme == "max":
+    #     yaw_set = _even_yaw_angles(max(1, int(n_rotations)))
+    # else:
+    #     yaw_set = [None]  # single pathway
 
     for start in range(n_w):
         end  = start + seq_len
@@ -267,7 +271,7 @@ def trial_to_windows(
         dout = dout * inv_h
 
         # rotation paths
-        if rotation_scheme == 'det' or rotation_scheme == "max":
+        if rotation_scheme == 'det':
             for theta in yaw_set:
                 if theta is not None:
                     R = _yaw_rotation_matrix(theta, up_axis=up_axis).T
@@ -291,26 +295,32 @@ def trial_to_windows(
                 out = dout_r.reshape(seq_len, -1)        # [L, Pout*3]
                 yield inp.astype(np.float32), out.astype(np.float32)
 
-            if rotation_scheme == 'max':
-                for i in range(n_rotations//3):
+        elif rotation_scheme == "max":
+            for i in range(4):
+                if i == 3:
                     R = random_rotation_matrix(seed=args.seed)
-                    din_r = (din.reshape(-1,3)  @ R).reshape(seq_len, -1, 3)
-                    dout_r = (dout.reshape(-1,3) @ R).reshape(seq_len, -1, 3)
+                else:
+                    theta = np.deg2rad(np.random.uniform(-180.0, 180.0))
+                    R = _yaw_rotation_matrix(theta).T
+                din_r = (din.reshape(-1,3)  @ R).reshape(seq_len, -1, 3)
+                dout_r = (dout.reshape(-1,3) @ R).reshape(seq_len, -1, 3)
 
-                    # optional Gaussian noise on features only (XYZ)
-                    din_noisy = din_r
-                    if add_noise:
-                        din_noisy = din_noisy + np.random.normal(0.0, 0.018, din_noisy.shape).astype(np.float32)
-                    
-                    # flatten & append height/weight (not rotated)
-                    inp = din_noisy.reshape(seq_len, -1)
-                    hw  = np.concatenate([
-                            np.full((seq_len,1), h, dtype=np.float32),
-                            np.full((seq_len,1), w, dtype=np.float32)
-                        ], axis=1)
-                    inp = np.concatenate([inp, hw], axis=1)  # [L, Pin*3 + 2]
-                    out = dout_r.reshape(seq_len, -1)        # [L, Pout*3]
-                    yield inp.astype(np.float32), out.astype(np.float32)
+                # optional Gaussian noise on features only (XYZ)
+                din_noisy = din_r
+                if add_noise :
+                    din_noisy = din_noisy + np.random.normal(0.0, 0.018, din_noisy.shape).astype(np.float32)
+
+                
+                # flatten & append height/weight (not rotated)
+                inp = din_noisy.reshape(seq_len, -1)
+                hw  = np.concatenate([
+                        np.full((seq_len,1), h, dtype=np.float32),
+                        np.full((seq_len,1), w, dtype=np.float32)
+                    ], axis=1)
+                inp = np.concatenate([inp, hw], axis=1)  # [L, Pin*3 + 2]
+                out = dout_r.reshape(seq_len, -1)        # [L, Pout*3]
+                yield inp.astype(np.float32), out.astype(np.float32)
+
 
         else:
             # probabilistic (your old) or off
