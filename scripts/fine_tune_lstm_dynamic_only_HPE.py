@@ -6,6 +6,7 @@ import numpy as np
 import pandas as pd
 import tensorflow as tf
 import csv
+import random
 from tensorflow.keras.models import model_from_json, Model
 from tensorflow.keras.layers import TimeDistributed, Dense
 from tensorflow.keras.initializers import RandomNormal
@@ -36,10 +37,6 @@ p.add_argument('--seed', type=int, default=42)
 p.add_argument("--exclude-trials", type=str, default="none", help="Exclude trials from the dataset")
 
 args = p.parse_args()
-
-random.seed(args.seed)
-np.random.seed(args.seed)
-tf.random.set_seed(args.seed)
 
 # ─────────────── Config derived from body part ───────────────
 if args.body_part == "upper":
@@ -80,12 +77,14 @@ else:
 
 # ─────────────── Files discovery ───────────────
 root = Path(args.data_path)
-subjects = sorted([d.name for d in root.iterdir() if d.is_dir()])
+subjects = [d.name for d in root.iterdir() if d.is_dir()]
+random.shuffle(subjects)
 if len(subjects) < args.test_size + 1:
     raise RuntimeError("Not enough subjects to split.")
 
 train_subjects = subjects[:-args.test_size]
 val_subjects   = subjects[-args.test_size:]
+print("val_set :", val_subjects)
 
 def enumerate_trials(subject_list):
     """Yield dicts describing usable trials with paths & metadata."""
