@@ -96,6 +96,7 @@ def enumerate_trials(subject_list):
             if trial not in trials_to_include :
                 continue
             trial_dir = sp/trial
+            jcp_name  = f"{trial}_jcp_mocap_rt.npz"
             hpe_name  = f"{trial}_jcp_hpe.npz"
             mocap_name= f"{trial}_mks_mocap_rt.npz"
             if not (trial_dir/mocap_name).exists() or not (trial_dir/hpe_name).exists():
@@ -105,6 +106,7 @@ def enumerate_trials(subject_list):
                 'height': h,
                 'weight': w,
                 'trial': trial,
+                'jcp_npz': str(trial_dir/jcp_name),
                 'jcp_hpe': str(trial_dir/hpe_name),
                 'gt_npz':  str(trial_dir/mocap_name),
             }
@@ -174,26 +176,35 @@ def trial_to_windows(
        If rotation_scheme == 'det', yields n_rotations evenly-spaced yaw copies per window (like Stanford circleRotation)."""
 
     # read inputs (jcp) and gt (markers)
+    jcp = np.load(trial['jcp_npz'], allow_pickle=True)
     jcp_hpe = np.load(trial['jcp_hpe'], allow_pickle=True)
     gt  = np.load(trial['gt_npz'], allow_pickle=True)
 
+    arr_in  = jcp["data"]         # numpy array (T, n_features)
     arr_in_hpe = jcp_hpe["data"]
+    cols_in = jcp["columns"]      # array de strings (n_features,)
     cols_in_hpe = jcp_hpe["columns"]
 
     arr_gt  = gt["data"]
     cols_gt = gt["columns"]
 
+    df_in = pd.DataFrame(arr_in, columns=cols_in)
     df_in_hpe = pd.DataFrame(arr_in_hpe, columns=cols_in_hpe)
     df_gt = pd.DataFrame(arr_gt, columns=cols_gt)
 
+    k_list, _ = read_mks_data(df_in, converter=1)        # includes 'midHip'
     k_list_hpe, _ = read_mks_data(df_in_hpe, converter=1)
     m_list, _ = read_mks_data(df_gt, converter=1)
 
     # Build arrays
+    kpts_arr = listdicts_to_array(k_list, kpts_input_lstm)         # [T, Pin, 3]
     kpts_arr_hpe = listdicts_to_array(k_list_hpe, kpts_input_lstm)
     gt_arr   = listdicts_to_array(m_list, default_mocap_mks_names) # [T, Pall, 3]
 
     # mid-hip reference
+    mid = np.zeros((len(k_list), 3), dtype=np.float32)
+    for i, fr in enumerate(k_list):
+        mid[i] = fr['midHip']
     mid_hpe = np.zeros((len(k_list_hpe), 3), dtype=np.float32)
     for i, fr in enumerate(k_list_hpe):
         mid_hpe[i] = fr['midHip']
@@ -212,6 +223,7 @@ def trial_to_windows(
         end  = start + seq_len
         kbuf_hpe = kpts_arr_hpe[start:end]
         ybuf = gt_sel[start:end]           # [L, Pout, 3]
+        ref  = mid[start:end]              # [L, 3]
         ref_hpe = mid_hpe[start:end]
 
         # translate to mid-hip
@@ -247,26 +259,11 @@ def trial_to_windows(
 
         else:
             R = np.eye(3)
-            din_r = (din.reshape(-1,3)  @ R).reshape(seq_len, -1, 3)
             din_r_hpe = (din_hpe.reshape(-1,3)  @ R).reshape(seq_len, -1, 3)
             dout_r = (dout.reshape(-1,3) @ R).reshape(seq_len, -1, 3)
 
             # optional Gaussian noise on features only (XYZ)
-            din_noisy = din_r
             din_noisy_hpe = din_r_hpe
-            if add_noise :
-                din_noisy = din_noisy + np.random.normal(0.0, 0.018, din_noisy.shape).astype(np.float32)
-
-            
-            # flatten & append height/weight (not rotated)
-            inp = din_noisy.reshape(seq_len, -1)
-            hw  = np.concatenate([
-                    np.full((seq_len,1), h, dtype=np.float32),
-                    np.full((seq_len,1), w, dtype=np.float32)
-                ], axis=1)
-            inp = np.concatenate([inp, hw], axis=1)  # [L, Pin*3 + 2]
-            out = dout_r.reshape(seq_len, -1)        # [L, Pout*3]
-            yield inp.astype(np.float32), out.astype(np.float32)
 
             # flatten & append height/weight (not rotated)
             inp_hpe = din_noisy_hpe.reshape(seq_len, -1)
