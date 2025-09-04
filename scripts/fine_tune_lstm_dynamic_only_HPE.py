@@ -64,19 +64,19 @@ else:
 
 if args.excluded_trials == "all":
     excluded_trials = ["static", "crouch", "crouch_object", "hitting", "hitting_sat", "jump", "lifting_fast", "lower",
-             "overhead_front",
+             "overhead_front", "sanding",
              "sanding_sat", "sit_to_stand", "squat", "upper", "walk", "walk_front", "welding", "welding_sat"]
 elif args.excluded_trials == "bugs":
     excluded_trials = ["lifting", "crouch", "crouch_object"]
 elif args.excluded_trials == "none":
     excluded_trials = []
 elif args.excluded_trials == "robweld":
-    excluded_trials = ["static", "crouch", "crouch_object", "hitting", "hitting_sat", "jump", "lifting_fast", "lower",
-             "overhead_front",
+    excluded_trials = ["static", "crouch", "crouch_object", "hitting_sat", "jump", "lifting_fast", "lower",
+             "overhead_front", "sanding",
              "sanding_sat", "sit_to_stand", "squat", "upper", "walk", "walk_front", "welding", "welding_sat",
              "robot_sanding", "hitting", "bolting", "bolting_sat", "lifting", "overhead"]
 else:
-    raise ValueError(f"Unknown value for --exclude-trials: {args.exclude_trials}")
+    raise ValueError(f"Unknown value for --exclude-trials: {args.excluded_trials}")
 
 # ─────────────── Files discovery ───────────────
 root = Path(args.data_path)
