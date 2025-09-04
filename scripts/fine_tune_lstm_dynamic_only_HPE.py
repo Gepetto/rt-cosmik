@@ -24,7 +24,6 @@ p = argparse.ArgumentParser(description="End-to-end LSTM training with streaming
 p.add_argument('--data-path', required=True, type=str)
 p.add_argument('--pretrained-path', required=True, type=str)
 p.add_argument('--body-part', choices=['upper','lower'], required=True)
-p.add_argument('--add-noise', choices=['T','F'], default='F')
 p.add_argument('--use-weights', choices=['T','F'], default='F')
 p.add_argument('--seq-len', type=int, default=30)
 p.add_argument('--batch-size', type=int, default=64)
@@ -172,7 +171,6 @@ def random_rotation_matrix(seed=None):
 def trial_to_windows(
     trial,
     seq_len,
-    add_noise=True,
     rotation_scheme="max"
 ):
     """Load one trial from disk, produce windowed (inp, out) samples.
@@ -287,12 +285,12 @@ output_signature = (
     tf.TensorSpec(shape=(args.seq_len, out_dim),     dtype=tf.float32)
 )
 
-def make_dataset(trials, seq_len, batch, shuffle_windows=True, add_noise=True, rotation_scheme="max"):
+def make_dataset(trials, seq_len, batch, shuffle_windows=True, rotation_scheme="max"):
     def gen():
         # interleave trials deterministically; you can randomize order here
         for t in trials:
             for inp, out in trial_to_windows(
-                t, seq_len, add_noise=add_noise, rotation_scheme=rotation_scheme
+                t, seq_len, rotation_scheme=rotation_scheme
             ):
                 yield inp, out
 
@@ -353,21 +351,18 @@ def normalize_xy(x, y):
 train_ds = make_dataset(
     train_trials, args.seq_len, batch=args.batch_size,
     shuffle_windows=True,
-    add_noise=True,
     rotation_scheme="max"
 ).map(normalize_xy, num_parallel_calls=tf.data.AUTOTUNE)
 
 val_ds = make_dataset(
     val_trials, args.seq_len, batch=args.batch_size,
     shuffle_windows=False,
-    add_noise=False,
     rotation_scheme='off',                # keep val clean (their practice)
 ).map(normalize_xy, num_parallel_calls=tf.data.AUTOTUNE)
 
 val_ds_monitor = make_dataset(
     val_trials, args.seq_len, batch=args.batch_size,
     shuffle_windows=True,
-    add_noise=False,
     rotation_scheme='off'
 ).map(normalize_xy, num_parallel_calls=tf.data.AUTOTUNE)
 
