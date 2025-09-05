@@ -14,6 +14,21 @@ from src.rtcosmik.utils.linear_algebra_utils import butterworth_filter
 
 base_path = "/home/ngouget/Codes"
 
+order_jcp_must_have = ['RShoulder_x', 'RShoulder_y', 'RShoulder_z', 
+                        'LShoulder_x', 'LShoulder_y', 'LShoulder_z', 
+                        'Neck_x', 'Neck_y', 'Neck_z', 'RElbow_x', 
+                        'RElbow_y', 'RElbow_z', 'LElbow_x', 'LElbow_y', 
+                        'LElbow_z', 'RWrist_x', 'RWrist_y', 'RWrist_z', 
+                        'LWrist_x', 'LWrist_y', 'LWrist_z', 'RHip_x', 
+                        'RHip_y', 'RHip_z', 'LHip_x', 'LHip_y', 'LHip_z', 
+                        'midHip_x', 'midHip_y', 'midHip_z', 'RKnee_x', 
+                        'RKnee_y', 'RKnee_z', 'LKnee_x', 'LKnee_y', 'LKnee_z', 
+                        'RAnkle_x', 'RAnkle_y', 'RAnkle_z', 'LAnkle_x', 'LAnkle_y', 
+                        'LAnkle_z', 'RHeel_x', 'RHeel_y', 'RHeel_z', 'LHeel_x', 'LHeel_y', 
+                        'LHeel_z', 'RBigToe_x', 'RBigToe_y', 'RBigToe_z', 'LBigToe_x', 
+                        'LBigToe_y', 'LBigToe_z', 'RSmallToe_x', 'RSmallToe_y', 'RSmallToe_z', 
+                        'LSmallToe_x', 'LSmallToe_y', 'LSmallToe_z']
+
 p = argparse.ArgumentParser(description="augment data w local lstm")
 p.add_argument('--use-mocap', choices=['T','F'], default='T', required=True)        # must be 'T' for this script (mocap JCP + mocap GT)
 p.add_argument('--add-noise', choices=['T','F'], default='F')
@@ -32,8 +47,9 @@ p.add_argument('--trial', type=str, default=None)
 
 args = p.parse_args()
 
+procrustes = True
 
-subject_path = f"/home/ngouget/Codes/datasets/COSMIK_dataset/{args.subject}"
+subject_path = f"/home/ngouget/Codes/datasets/COSMIK_dataset_mixed/{args.subject}"
 trial_path = os.path.join(subject_path, args.trial)
 if args.use_mocap == "T":
     converter = 1000.0
@@ -42,7 +58,7 @@ if args.use_mocap == "T":
     output_csv_path_OpenCap = os.path.join(base_path, f"rt-cosmik/output/{args.subject}/{args.trial}/{args.trial}_augmented_markers_mocap_OpenCap.csv")
 elif args.use_mocap == "F":
     converter = 1.0
-    path_to_3d_kpt = os.path.join(trial_path, f"3d_keypoints_filtered.csv")
+    path_to_3d_kpt = os.path.join(trial_path, f"{args.trial}_jcp_hpe.csv")
     output_csv_path = os.path.join(base_path, f"rt-cosmik/output/{args.subject}/{args.trial}/{args.trial}_augmented_markers_hpe_ft{args.fine_tune}_al{args.add_layer}_m{args.use_mocap}_n{args.add_noise}_w{args.use_weights}_prot{args.rot_prob}_maxrot{args.rot_max_deg}_rotscheme{args.rotation_scheme}_up{args.up_axis}_nrot{args.n_rotations}.csv")
     output_csv_path_OpenCap = os.path.join(base_path, f"rt-cosmik/output/{args.subject}/{args.trial}/{args.trial}_augmented_markers_hpe_OpenCap.csv")
 else :
@@ -68,7 +84,73 @@ for marker in markers:
 
 keypoints_buffer = deque(maxlen=30)
 
+def kabsch_global(P_cam_seq, P_mocap_seq, weights=None):
+    """
+    P_cam_seq, P_mocap_seq: arrays (T, N, 3) alignés temporellement et par point.
+    Calcule UN seul (R,t) qui aligne tout (cam -> mocap) en minimisant la somme des erreurs.
+    """
+
+    assert P_cam_seq.shape == P_mocap_seq.shape and P_cam_seq.shape[-1] == 3
+    T, N, _ = P_cam_seq.shape
+    X = P_cam_seq.reshape(T*N, 3)
+    Y = P_mocap_seq.reshape(T*N, 3)
+
+    if weights is not None:
+        w = np.asarray(weights).reshape(T, N)
+        w = w / (w.sum() + 1e-12)
+        w = w.reshape(T*N, 1)
+        Xc = (X * w).sum(axis=0)     # weighted means
+        Yc = (Y * w).sum(axis=0)
+        X0 = X - Xc
+        Y0 = Y - Yc
+        H = (Y0 * w).T @ X0
+    else:
+        Xc = X.mean(axis=0)
+        Yc = Y.mean(axis=0)
+        X0 = X - Xc
+        Y0 = Y - Yc
+        H = Y0.T @ X0
+
+    U, S, Vt = np.linalg.svd(H)
+    R = U @ Vt
+    if np.linalg.det(R) < 0:  # corrige réflexion
+        U[:, -1] *= -1
+        R = U @ Vt
+    t = Yc - R @ Xc
+
+    X_align = (R @ X.T).T + t
+    rms = np.sqrt(np.mean(np.sum((X_align - Y)**2, axis=1)))
+    return R, t, rms
+
+def apply_transform_df(df, R, t):
+    """
+    Applique R, t à un DataFrame (T, 3N) de colonnes x,y,z concaténées.
+    """
+    arr = df.to_numpy()                # (T,3N)
+    T, C = arr.shape
+    assert C % 3 == 0
+    N = C // 3
+
+    # reshape en (T,N,3), appliquer la transfo, re-flatten
+    arr3 = arr.reshape(T, N, 3)
+    arr3_aligned = (arr3 @ R.T) + t
+    arr_aligned = arr3_aligned.reshape(T, C)
+
+    return pd.DataFrame(arr_aligned, columns=df.columns, index=df.index)
+
 def main():
+
+    if procrustes:
+        path_to_jcp_mocap = os.path.join(trial_path, f"{args.trial}_jcp_mocap.csv")
+        data_jcp_hpe = pd.read_csv(path_to_3d_kpt)
+        data_jcp_hpe = data_jcp_hpe[order_jcp_must_have]
+        data_jcp_mocap = pd.read_csv(path_to_jcp_mocap)
+        jcp_mocap = (np.array(data_jcp_mocap.values)).reshape(data_jcp_mocap.shape[0], 20, 3)
+        jcp_hpe = (np.array(data_jcp_hpe.values)).reshape(data_jcp_hpe.shape[0], 20, 3)
+        R, t, rms_error = kabsch_global(jcp_hpe, jcp_mocap)
+
+        data_jcp_hpe = apply_transform_df(data_jcp_hpe, R, t)
+
     augmented_markers_list = []
     augmented_markers_list_opencap = []
     first_frame = True
@@ -79,7 +161,11 @@ def main():
     warmed_models_opencap = loadModelOpenCap(augmenterDir=augmenter_path, augmenterModelName="LSTM",augmenter_model='v0.3')
 
     #load 3d keypoints
-    data = pd.read_csv(path_to_3d_kpt).values
+    if procrustes:
+        data_jcp_hpe.to_csv(f"{path_to_3d_kpt[:-4]}_aligned.csv", index=False)
+        data = data_jcp_hpe.values
+    else:
+        data = pd.read_csv(path_to_3d_kpt).values
     num_columns = data.shape[1]
 
     if num_columns % 3 != 0:

@@ -4,9 +4,10 @@ import shutil
 from pathlib import Path
 import numpy as np
 import pandas as pd
+import sys
 
-dataset_path = Path("/home/ngouget/Codes/datasets/COSMIK_dataset_mixed")
-output_path  = Path("/home/ngouget/Codes/datasets/COSMIK_dataset_mixed_npz")
+dataset_path = Path(sys.argv[1])
+output_path  = Path(sys.argv[2])
 
 def save_csv_as_npz(csv_path: Path, out_npz_path: Path, float_dtype=np.float32):
     """Load CSV -> save as .npz with both data and column names."""

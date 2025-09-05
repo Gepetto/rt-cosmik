@@ -24,8 +24,9 @@ p = argparse.ArgumentParser(description="End-to-end LSTM training with streaming
 p.add_argument('--data-path', required=True, type=str)
 p.add_argument('--pretrained-path', required=True, type=str)
 p.add_argument('--body-part', choices=['upper','lower'], required=True)
+p.add_argument('--add-noise', choices=['T','F'], default='T')
 p.add_argument('--use-weights', choices=['T','F'], default='F')
-p.add_argument('--seq-len', type=int, default=30)
+p.add_argument('--seq-len', type=int, default=100)
 p.add_argument('--batch-size', type=int, default=64)
 p.add_argument('--epochs', type=int, default=300)
 p.add_argument('--patience', type=int, default=10)
@@ -102,10 +103,9 @@ def enumerate_trials(subject_list):
             if trial in excluded_trials:
                 continue
             trial_dir = sp/trial
-            jcp_name  = f"{trial}_jcp_mocap_rt.npz"
-            hpe_name  = f"{trial}_jcp_hpe.npz"
-            mocap_name= f"{trial}_mks_mocap_rt.npz"
-            if not (trial_dir/mocap_name).exists() or not (trial_dir/hpe_name).exists() or not (trial_dir/jcp_name).exists():
+            jcp_name  = f"{trial}_jcp_mocap.npz"
+            mocap_name= f"{trial}_trajectories.npz"
+            if not (trial_dir/mocap_name).exists() or not (trial_dir/jcp_name).exists():
                 raise FileNotFoundError(f"Some files are missing in {s} : {trial}")
             yield {
                 'subject': s,
@@ -113,7 +113,6 @@ def enumerate_trials(subject_list):
                 'weight': w,
                 'trial': trial,
                 'jcp_npz': str(trial_dir/jcp_name),
-                'jcp_hpe': str(trial_dir/hpe_name),
                 'gt_npz':  str(trial_dir/mocap_name),
             }
 
@@ -182,7 +181,8 @@ def random_rotation_matrix(seed=None):
 def trial_to_windows(
     trial, ### Un élément issu de enumerate_trials
     seq_len, ### La longueur des fenêtres d'après args.seq_len
-    rotation_scheme="max" ### le type de rotation, ici seul max a été codé
+    rotation_scheme="max", ### le type de rotation, ici seul max a été codé
+    add_noise=True
 ):
     """Load one trial from disk, produce windowed (inp, out) samples.
        If rotation_scheme == 'det', yields n_rotations evenly-spaced yaw copies per window (like Stanford circleRotation)."""
@@ -190,28 +190,22 @@ def trial_to_windows(
     ### Partie loading et mise au bon format du trial en cours de processing
     # read inputs (jcp) and gt (markers)
     jcp = np.load(trial['jcp_npz'], allow_pickle=True)
-    jcp_hpe = np.load(trial['jcp_hpe'], allow_pickle=True)
     gt  = np.load(trial['gt_npz'], allow_pickle=True)
 
     arr_in  = jcp["data"]         # numpy array (T, n_features)
-    arr_in_hpe = jcp_hpe["data"]
     cols_in = jcp["columns"]      # array de strings (n_features,)
-    cols_in_hpe = jcp_hpe["columns"]
 
     arr_gt  = gt["data"]
     cols_gt = gt["columns"]
 
     df_in = pd.DataFrame(arr_in, columns=cols_in)
-    df_in_hpe = pd.DataFrame(arr_in_hpe, columns=cols_in_hpe)
     df_gt = pd.DataFrame(arr_gt, columns=cols_gt)
 
     k_list, _ = read_mks_data(df_in, converter=1)        # includes 'midHip'
-    k_list_hpe, _ = read_mks_data(df_in_hpe, converter=1)
     m_list, _ = read_mks_data(df_gt, converter=1)
 
     # Build arrays
     kpts_arr = listdicts_to_array(k_list, kpts_input_lstm)         # [T, Pin, 3]
-    kpts_arr_hpe = listdicts_to_array(k_list_hpe, kpts_input_lstm)
     gt_arr   = listdicts_to_array(m_list, default_mocap_mks_names) # [T, Pall, 3]
 
     # mid-hip reference
@@ -219,9 +213,6 @@ def trial_to_windows(
     mid = np.zeros((len(k_list), 3), dtype=np.float32)
     for i, fr in enumerate(k_list):
         mid[i] = fr['midHip']
-    mid_hpe = np.zeros((len(k_list_hpe), 3), dtype=np.float32)
-    for i, fr in enumerate(k_list_hpe):
-        mid_hpe[i] = fr['midHip']
 
     # select GT markers of interest
     sel = [default_mocap_mks_names.index(m) for m in mks_of_interest]
@@ -240,21 +231,19 @@ def trial_to_windows(
     for start in range(n_w):
         ### end = indice de fin de la fenêtre en cours
         end  = start + seq_len
-        ### kbuf_hpe = fenêtre de kpts du hpe
-        kbuf_hpe = kpts_arr_hpe[start:end]
+        ### kbuf = fenêtre de kpts de jcp_mocap
+        kbuf = kpts_arr[start:end]
         ### ybuf = fenêtre de ground_truth correspondante
         ybuf = gt_sel[start:end]           # [L, Pout, 3]
         ### ref = midhip du mocap correspondant
         ref  = mid[start:end]              # [L, 3]
-        ### ref_hpe = midhip du hpe correspondant
-        ref_hpe = mid_hpe[start:end]
 
         ### recentrage input et ground_truth autour de leurs midhip respectifs
-        din_hpe = kbuf_hpe - ref_hpe[:, None, :]
+        din = kbuf - ref[:, None, :]
         dout = ybuf - ref[:, None, :]
 
         ### Normalisation de input et gt par la taille du sujet
-        din_hpe = din_hpe * inv_h
+        din = din * inv_h
         dout = dout * inv_h
 
         ### Data augmentation si rotation_scheme == "max" (en gros pour le train set actuellement)
@@ -271,42 +260,46 @@ def trial_to_windows(
                     ### Génération de la matrice de rotation
                     R = _yaw_rotation_matrix(theta).T
                 ### On applique la rotation sur les inputs et ground_truth
-                din_r_hpe = (din_hpe.reshape(-1,3)  @ R).reshape(seq_len, -1, 3)
+                din_r = (din.reshape(-1,3)  @ R).reshape(seq_len, -1, 3)
                 dout_r = (dout.reshape(-1,3) @ R).reshape(seq_len, -1, 3)
 
                 ### Ici comme il s'agit des données HPE en input, je ne rajoute pas de noise
-                din_noisy_hpe = din_r_hpe
+                din_noisy = din_r
+                if add_noise:
+                    din_noisy = din_noisy + np.random.normal(0.0, 0.018, din_noisy.shape).astype(np.float32)
 
                 ### reshaping et ajout de height et weight au bout des samples
-                inp_hpe = din_noisy_hpe.reshape(seq_len, -1)
+                inp = din_noisy.reshape(seq_len, -1)
                 hw  = np.concatenate([
                         np.full((seq_len,1), h, dtype=np.float32),
                         np.full((seq_len,1), w, dtype=np.float32)
                     ], axis=1)
-                inp_hpe = np.concatenate([inp_hpe, hw], axis=1)  # [L, Pin*3 + 2]
+                inp = np.concatenate([inp, hw], axis=1)  # [L, Pin*3 + 2]
                 out = dout_r.reshape(seq_len, -1)        # [L, Pout*3]
                 ### yield les fenêtres d'input et ground_truth pour génération on the fly, la normalisation par mean et std est faite
                 ### au moment de la génération de la data
-                yield inp_hpe.astype(np.float32), out.astype(np.float32)
+                yield inp.astype(np.float32), out.astype(np.float32)
 
         ### Partie sans data augmentation pour le set de validation
         else:
             R = np.eye(3)
-            din_r_hpe = (din_hpe.reshape(-1,3)  @ R).reshape(seq_len, -1, 3)
+            din_r = (din.reshape(-1,3)  @ R).reshape(seq_len, -1, 3)
             dout_r = (dout.reshape(-1,3) @ R).reshape(seq_len, -1, 3)
 
             # optional Gaussian noise on features only (XYZ)
-            din_noisy_hpe = din_r_hpe
+            din_noisy = din_r
+            if add_noise:
+                din_noisy = din_noisy + np.random.normal(0.0, 0.018, din_noisy.shape).astype(np.float32)
 
             # flatten & append height/weight (not rotated)
-            inp_hpe = din_noisy_hpe.reshape(seq_len, -1)
+            inp = din_noisy.reshape(seq_len, -1)
             hw  = np.concatenate([
                     np.full((seq_len,1), h, dtype=np.float32),
                     np.full((seq_len,1), w, dtype=np.float32)
                 ], axis=1)
-            inp_hpe = np.concatenate([inp_hpe, hw], axis=1)  # [L, Pin*3 + 2]
+            inp = np.concatenate([inp, hw], axis=1)  # [L, Pin*3 + 2]
             out = dout_r.reshape(seq_len, -1)        # [L, Pout*3]
-            yield inp_hpe.astype(np.float32), out.astype(np.float32)
+            yield inp.astype(np.float32), out.astype(np.float32)
 
 
 # Spec (needed for tf.data.from_generator)
@@ -320,12 +313,12 @@ output_signature = (
 
 ### Le data generator est déroulé dans cette fonction, lorsqu'elle est appelée, elle génère les fenêtres d'input et ground_truth
 ### quand elles sont demandées par .fit
-def make_dataset(trials, seq_len, batch, shuffle_windows=True, rotation_scheme="max"):
+def make_dataset(trials, seq_len, batch, shuffle_windows=True, rotation_scheme="max", add_noise=True):
     def gen():
         # interleave trials deterministically; you can randomize order here
         for t in trials:
             for inp, out in trial_to_windows(
-                t, seq_len, rotation_scheme=rotation_scheme
+                t, seq_len, rotation_scheme=rotation_scheme, add_noise=add_noise
             ):
                 yield inp, out
 
@@ -400,7 +393,8 @@ def normalize_xy(x, y):
 train_ds = make_dataset(
     train_trials, args.seq_len, batch=args.batch_size,
     shuffle_windows=True,
-    rotation_scheme="max"
+    rotation_scheme="max",
+    add_noise=args.add_noise
 ).map(normalize_xy, num_parallel_calls=tf.data.AUTOTUNE)
 
 ### génération du val set avec normalisation on the fly, pas de data augmentation pour le set de validation
@@ -408,13 +402,15 @@ val_ds = make_dataset(
     val_trials, args.seq_len, batch=args.batch_size,
     shuffle_windows=False,
     rotation_scheme='off',                # keep val clean (their practice)
+    add_noise=False
 ).map(normalize_xy, num_parallel_calls=tf.data.AUTOTUNE)
 
 ### génération du val set de monitoring qui permet ensuite de print pred vs gt (optionnel, à enlever si on utilise pas PreddictionLogger)
 val_ds_monitor = make_dataset(
     val_trials, args.seq_len, batch=args.batch_size,
     shuffle_windows=True,
-    rotation_scheme='off'
+    rotation_scheme='off',
+    add_noise=False
 ).map(normalize_xy, num_parallel_calls=tf.data.AUTOTUNE)
 
 # ─────────────── Model (reuse your pretrained JSON/weights; adjust last layer when needed) ───────────────

@@ -32,9 +32,8 @@ args = p.parse_args()
 
 base_path = "/home/ngouget/Codes"
 
-subject_path = f"/home/ngouget/Codes/datasets/COSMIK_dataset/{args.subject}"
+subject_path = f"/home/ngouget/Codes/datasets/COSMIK_dataset_mixed/{args.subject}"
 trial_path = os.path.join(subject_path, args.trial)
-
 
 # path_to_csv = f"/root/workspace/ros_ws/src/rt-cosmik/output/{no_trial}/mouv/{task}/mocap_downsampled_to_40hz.csv"
 # df_wide = pd.read_csv(path_to_csv)
@@ -48,10 +47,10 @@ if args.use_mocap == "T":
     path_to_csv_lstm_OpenCap = os.path.join(base_path, f"rt-cosmik/output/{args.subject}/{args.trial}/{args.trial}_augmented_markers_mocap_OpenCap.csv")
     path_to_kpt = os.path.join(trial_path, f"{args.trial}_jcp_mocap.csv")
 elif args.use_mocap == "F":
-    path_to_csv_mocap = os.path.join(trial_path, f"mks_data.csv")
+    path_to_csv_mocap = os.path.join(trial_path, f"{args.trial}_mks_rt.csv")
     path_to_csv_lstm = os.path.join(base_path, f"rt-cosmik/output/{args.subject}/{args.trial}/{args.trial}_augmented_markers_hpe_ft{args.fine_tune}_al{args.add_layer}_m{args.use_mocap}_n{args.add_noise}_w{args.use_weights}_prot{args.rot_prob}_maxrot{args.rot_max_deg}_rotscheme{args.rotation_scheme}_up{args.up_axis}_nrot{args.n_rotations}.csv")
     path_to_csv_lstm_OpenCap = os.path.join(base_path, f"rt-cosmik/output/{args.subject}/{args.trial}/{args.trial}_augmented_markers_hpe_OpenCap.csv")
-    path_to_kpt = os.path.join(trial_path, f"3d_keypoints_filtered.csv")
+    path_to_kpt = os.path.join(trial_path, f"{args.trial}_jcp_hpe_aligned.csv")
 else:
     raise Exception("Use mocap not supported. Please select T or F.")
 
@@ -72,7 +71,7 @@ if args.use_mocap == "T":
     df_wide = pd.read_csv(path_to_csv_mocap)
     result_markers, start_sample_mks = read_mks_data(df_wide, converter = 1000.0)
 elif args.use_mocap == "F":
-    df_wide = udp_csv_to_dataframe(path_to_csv_mocap, mks_names)
+    df_wide = pd.read_csv(path_to_csv_mocap)
     result_markers, start_sample_mks = read_mks_data(df_wide, converter = 1.0)
 
 jcp_kpt = [
@@ -106,6 +105,8 @@ markers_to_display = ['r.ASIS_study','L.ASIS_study','r.PSIS_study','L.PSIS_study
            'L_lwrist_study','L_mwrist_study']
 # lstm_mks_names = ["Nose","LEye","REye","LEar","REar","LShoulder","RShoulder","LElbow","RElbow","LWrist","RWrist","LHip","RHip","LKnee","Rknee","LAnkle","RAnkle","Head","Neck","Hip","LBigToe","RBigToe","LSmallToe", "RSmallToe", "LHeel","RHeel"]
 
+
+
 data_markers_lstm = pd.read_csv(path_to_csv_lstm)
 data_markers_lstm_OpenCap = pd.read_csv(path_to_csv_lstm_OpenCap)
 keypoints = pd.read_csv(path_to_kpt) 
@@ -120,39 +121,39 @@ data_markers_lstm = pd.concat([data_markers_lstm, keypoints[columns_to_add].rese
 result_markers_lstm, start_sample_lstm = read_mks_data(data_markers_lstm, converter = 1.0)
 result_markers_lstmOpenCap, start_sample_lstm_OpenCap = read_mks_data(data_markers_lstm_OpenCap, converter = 1.0)
 
-## plot_marker_comparison(result_markers, result_markers_lstm, markers_to_plot=markers_to_display)
-## === Initialiser le visualiseur Gepetto ===
-# viz = GepettoVisualizer()
-# try:
-#     viz.initViewer()
-# except ImportError as err:
-#     print("Install gepetto-viewer.")
-#     sys.exit(0)
+# plot_marker_comparison(result_markers, result_markers_lstm, markers_to_plot=markers_to_display)
+# === Initialiser le visualiseur Gepetto ===
+viz = GepettoVisualizer()
+try:
+    viz.initViewer()
+except ImportError as err:
+    print("Install gepetto-viewer.")
+    sys.exit(0)
 
-# try:
-#     viz.loadViewerModel("pinocchio")
-# except AttributeError as err:
-#     print("Start gepetto-viewer before running this script.")
-#     sys.exit(0)
+try:
+    viz.loadViewerModel("pinocchio")
+except AttributeError as err:
+    print("Start gepetto-viewer before running this script.")
+    sys.exit(0)
 
-# viz.viewer.gui.addXYZaxis('world/base_frame', [255, 0., 0, 1.], 0.04, 0.2)
-# place(viz, 'world/base_frame', pin.SE3(np.eye(3), np.zeros((3,1))))
+viz.viewer.gui.addXYZaxis('world/base_frame', [255, 0., 0, 1.], 0.04, 0.2)
+place(viz, 'world/base_frame', pin.SE3(np.eye(3), np.zeros((3,1))))
 
-# for name in jcp_kpt_to_display:
-#     sphere_name = f"world/tri_{name}"
-#     viz.viewer.gui.addSphere(sphere_name, 0.01, [0, 0, 255, 1])
+for name in jcp_kpt_to_display:
+    sphere_name = f"world/tri_{name}"
+    viz.viewer.gui.addSphere(sphere_name, 0.01, [0, 0, 255, 1])
 
-# for name in start_sample_lstm_OpenCap.keys():
-#     sphere_n = f'world/lstm_{name}'
-#     viz.viewer.gui.addSphere(sphere_n, 0.015, [0, 0, 0, 1.])
+for name in start_sample_lstm_OpenCap.keys():
+    sphere_n = f'world/lstm_{name}'
+    viz.viewer.gui.addSphere(sphere_n, 0.015, [0, 0, 0, 1.])
 
-# for name in start_sample_lstm.keys():
-#     sphere_n = f'world/lstm_nominal_{name}'
-#     viz.viewer.gui.addSphere(sphere_n, 0.015, [0, 255, 0, 1.])
+for name in start_sample_lstm.keys():
+    sphere_n = f'world/lstm_nominal_{name}'
+    viz.viewer.gui.addSphere(sphere_n, 0.015, [0, 255, 0, 1.])
 
-# for name in start_sample_mks.keys():
-#     sphere_name = f'world/mocap_{name}'
-#     viz.viewer.gui.addSphere(sphere_name, 0.015, [255, 0, 0, 1.])
+for name in start_sample_mks.keys():
+    sphere_name = f'world/mocap_{name}'
+    viz.viewer.gui.addSphere(sphere_name, 0.015, [255, 0, 0, 1.])
 
 squared_errors = defaultdict(list)
 all_squared_errors = []  
@@ -166,9 +167,9 @@ for i in range(min(len(result_markers), len(result_markers_lstm))):
         pos_mks = result_markers_lstm[i][mks].reshape(3,)  # shape (3,)
         pos_mks_OpenCap = result_markers_lstmOpenCap[i][mks].reshape(3,)  # shape (3,)
 
-        # place(viz, f'world/mocap_{mks}', pin.SE3(np.eye(3), pos_mocap))
-        # place(viz, f'world/lstm_nominal_{mks}', pin.SE3(np.eye(3), pos_mks))
-        # place(viz, f'world/lstm_{mks}', pin.SE3(np.eye(3), pos_mks_OpenCap))
+        place(viz, f'world/mocap_{mks}', pin.SE3(np.eye(3), pos_mocap))
+        place(viz, f'world/lstm_nominal_{mks}', pin.SE3(np.eye(3), pos_mks))
+        place(viz, f'world/lstm_{mks}', pin.SE3(np.eye(3), pos_mks_OpenCap))
 
         error = np.linalg.norm(pos_mocap - pos_mks)  # Euclidean distance
         squared_errors[mks].append(error)
@@ -178,20 +179,20 @@ for i in range(min(len(result_markers), len(result_markers_lstm))):
         squared_errors_OpenCap[mks].append(error_OpenCap)
         all_squared_errors_OpenCap.append(error_OpenCap)
 
-    # if args.use_mocap == "T":
-    #     for mks in jcp_kpt_to_display:
-    #         pos_hpe_x = keypoints[f"{mks}_x"].values[i]/1000.0
-    #         pos_hpe_y = keypoints[f"{mks}_y"].values[i]/1000.0
-    #         pos_hpe_z = keypoints[f"{mks}_z"].values[i]/1000.0
-    #         place(viz, f'world/tri_{mks}', pin.SE3(np.eye(3), np.array([pos_hpe_x, pos_hpe_y, pos_hpe_z])))
-    # elif args.use_mocap == "F":
-    #     for mks in jcp_kpt_to_display:
-    #         pos_hpe_x = keypoints[f"{mks}_x"].values[i]/1.0
-    #         pos_hpe_y = keypoints[f"{mks}_y"].values[i]/1.0
-    #         pos_hpe_z = keypoints[f"{mks}_z"].values[i]/1.0
-    #         place(viz, f'world/tri_{mks}', pin.SE3(np.eye(3), np.array([pos_hpe_x, pos_hpe_y, pos_hpe_z])))
-    # else:
-    #     raise Exception("Input type not supported. Please select T or F.")
+    if args.use_mocap == "T":
+        for mks in jcp_kpt_to_display:
+            pos_hpe_x = keypoints[f"{mks}_x"].values[i]/1000.0
+            pos_hpe_y = keypoints[f"{mks}_y"].values[i]/1000.0
+            pos_hpe_z = keypoints[f"{mks}_z"].values[i]/1000.0
+            place(viz, f'world/tri_{mks}', pin.SE3(np.eye(3), np.array([pos_hpe_x, pos_hpe_y, pos_hpe_z])))
+    elif args.use_mocap == "F":
+        for mks in jcp_kpt_to_display:
+            pos_hpe_x = keypoints[f"{mks}_x"].values[i]/1.0
+            pos_hpe_y = keypoints[f"{mks}_y"].values[i]/1.0
+            pos_hpe_z = keypoints[f"{mks}_z"].values[i]/1.0
+            place(viz, f'world/tri_{mks}', pin.SE3(np.eye(3), np.array([pos_hpe_x, pos_hpe_y, pos_hpe_z])))
+    else:
+        raise Exception("Input type not supported. Please select T or F.")
 
     
     time.sleep(0.03)

@@ -10,11 +10,21 @@ dataset_path = sys.argv[1]
 dst_dir = sys.argv[2]
 mode = sys.argv[3]
 
+tasks_w_front = ["static","bolting","bolting_sat","crouch","crouch_object","hitting","hitting_sat","jump","lifting","lifting_fast","lower","overhead",
+             "overhead_front",
+             "robot_sanding","robot_welding",
+             "sanding","sanding_sat","sit_to_stand","squat","upper","walk","walk_front","welding","welding_sat"]
+
+for task in tasks_w_front:
+    globals()[f"{task}_counter"] = 0
+
 threshold = 1
 
 subjects = os.listdir(dataset_path)
 
 for subject in subjects:
+
+    print(f"Checking {subject} ...")
 
     for task in os.listdir(os.path.join(dataset_path, subject)):
         if mode == "correcter":
@@ -73,9 +83,16 @@ for subject in subjects:
             difference_df = jcp_hpe_df.sub(jcp_mocap_df)
             
             for column in range(difference_df.shape[1]):
+                activated = False
                 for row in range(difference_df.shape[0]):
                     if (abs(difference_df.iloc[row, column]) > threshold):
-                        print(f'{subject}, {task}, {row}')
+                        globals()[f"{task}_counter"] += 1
+                        activated = True
+                        break
+
+                if activated:
+                    break
+                
         
         elif mode == "test_verifier":
             if subject in ["Kahina", "Flavie"]:
@@ -155,3 +172,7 @@ for subject in subjects:
                 for row in range(difference_df.shape[0]):
                     if (abs(difference_df.iloc[row, column]) > threshold):
                         print(f'{subject}, {task}, {row}')
+
+if mode == "verifier":
+    for task in tasks_w_front:
+        print(f"{task}: {globals()[f'{task}_counter']}")
