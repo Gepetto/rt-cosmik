@@ -12,7 +12,7 @@ from scipy.signal import correlate
 no_trial = "4279"
 task = "robot_welding"
 path_mocap= f"/root/workspace/ros_ws/src/rt-cosmik/output/{no_trial}/mocap/{task}/q_mocap.csv"
-path_cosmik= f"/root/workspace/ros_ws/src/rt-cosmik/output/{no_trial}/cosmik_2cams/{task}/q_cosmik_ipopt.csv"
+path_cosmik= f"/root/workspace/ros_ws/src/rt-cosmik/output/{no_trial}/cosmik_2cams/{task}/q_cosmik.csv"
 
 dofs  =  ['Lhip_flex_ext', 'Lhip_abd_add','Lhip_int_ext_rot','Lknee_flex_ext','Lankle_flex_ext','Lankle_abd_add',
                           'Lumbar_flex_ext', 'Lumbar_lateral_flex',
@@ -113,7 +113,7 @@ joint_indices = [i for i in range(start_dof, len(dof)) if dof[i] not in excluded
 n_per_fig = 6  # Number of subplots per figure
 
 if lag > 0:
-    q_cosmik = q_cosmik[lag-1:]
+    q_cosmik = q_cosmik[lag:]
     q_mocap = q_mocap[:len(q_cosmik)]  # truncate Cosmik accordingly
 
 

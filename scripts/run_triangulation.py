@@ -10,10 +10,10 @@ from src.rtcosmik.triangulation.triangulation import triangulate_offline,triangu
 from src.rtcosmik.utils.read_write_utils import read_mmpose_file, save_to_csv,load_transformation,transform_keypoints_list_cam0_to_mocap,read_mmpose_scores
 from src.rtcosmik.utils.linear_algebra_utils import butterworth_filter
 #check paths in load_camera_parameters and load_world_transformation
-no_trial = "Mohamed"
-task = "squat"
-
-transformation_file = f"/root/workspace/ros_ws/src/rt-cosmik/config/cam_params/{no_trial}/calib_mocap_2_cam0/soder.txt"
+no_trial = "4279"
+task = "robot_welding"
+subject = "Alessandro"
+transformation_file = f"/root/workspace/ros_ws/src/rt-cosmik/config/cam_params/{subject}/calib_mocap_2_cam0/soder.txt"
 R_trans, d_trans, s_trans, rms_error = load_transformation(transformation_file)
 
 num_keypoints=26 
@@ -30,11 +30,13 @@ for marker in markers:
 
 def main():
     base_path = "/root/workspace/ros_ws/src/rt-cosmik"
-    config_path = os.path.join(base_path, f"config/cam_params/{no_trial}")
-    output_csv_path = os.path.join(base_path, f"output/{no_trial}/cosmik_2cams/{task}/3d_keypoints_filtred.csv")
+    config_path = os.path.join(base_path, f"config/cam_params/{subject}")
+    output_csv_path = os.path.join(base_path, f"output/{no_trial}/cosmik_2cams/{task}/3d_keypoints_4cams.csv")
     file_paths = [
-        os.path.join(base_path, f"output/{no_trial}/output_2d/{task}/{task}_camera_0.csv"),
-        os.path.join(base_path, f"output/{no_trial}/output_2d/{task}/{task}_camera_2.csv")
+        os.path.join(base_path, f"output/{no_trial}/output_2d/{task}/{task}_2d_keypoints_0.csv"),
+        os.path.join(base_path, f"output/{no_trial}/output_2d/{task}/{task}_2d_keypoints_2.csv"),
+        os.path.join(base_path, f"output/{no_trial}/output_2d/{task}/{task}_2d_keypoints_4.csv"),
+        os.path.join(base_path, f"output/{no_trial}/output_2d/{task}/{task}_2d_keypoints_6.csv")
     ]
     
     camera_data = [read_mmpose_file(file) for file in file_paths]
@@ -44,13 +46,14 @@ def main():
         for data in camera_data
     ]
 
-    mtxs, dists, projections, rotations, translations = load_camera_parameters(config_path)
+    # mtxs, dists, projections, rotations, translations = load_camera_parameters(config_path)
+    mtxs, dists, projections, rotations, translations = load_four_camera_parameters(config_path)
     world_R1_cam, world_T1_cam = load_world_transformation(config_path)
     
-    keypoints_in_cam0_list = triangulate_offline(uvs, mtxs, dists, projections, world_R1_cam, world_T1_cam)
-    # scores = read_mmpose_scores(file_paths)
-    # threshold = 0.0
-    # keypoints_in_cam0_list = triangulate_points_adaptive(uvs, mtxs, dists, projections, scores, threshold)
+    # keypoints_in_cam0_list = triangulate_offline(uvs, mtxs, dists, projections, world_R1_cam, world_T1_cam)
+    scores = read_mmpose_scores(file_paths)
+    threshold = 0.5
+    keypoints_in_cam0_list = triangulate_points_adaptive(uvs, mtxs, dists, projections, scores, threshold)
 
     keypoints_in_mocap = transform_keypoints_list_cam0_to_mocap(
         keypoints_in_cam0_list,
