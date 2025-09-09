@@ -5,12 +5,9 @@ from src.rtcosmik.utils.linear_algebra_utils import transform_to_local_frame,tra
 from src.rtcosmik.human_model.model_utils import get_pelvis_pose
 import os
 subjects = [
-    "Alessandro","Anais","Anastasia","Batiste","Bilal","Claire_","Clement","Flavie","Guilhem",
-    "Kahina","Marie_M","Mathis","Maxime_","Mohamed","Nicolas","Zoe","Herbert","Emmanuelle"
+    "4279"
 ]
-tasks = ["static","bolting","bolting_sat","crouch","crouch_object","hitting","hitting_sat","jump","lifting","lifting_fast","lower","overhead",
-             "robot_sanding","robot_welding","overhead_front",
-             "sanding","sanding_sat","sit_to_stand","squat","upper","walk","walk_front","welding","welding_sat"]
+tasks = ["robot_welding"]
 gender = 'male'
 
 mks_names = ['r.ASIS_study','L.ASIS_study','r.PSIS_study','L.PSIS_study',
@@ -216,7 +213,7 @@ for no_trial in subjects:
             jcp_rows.append(flat_jcp)
 
         jcp_df = pd.DataFrame(jcp_rows)
-        path = f"{base_path}/jcp/{task}"
+        path = f"{base_path}/mocap/{task}"
         os.makedirs(path, exist_ok=True)
 
         output_csv_path = f"{path}/joint_center_positions.csv"

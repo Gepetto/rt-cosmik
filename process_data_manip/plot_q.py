@@ -9,10 +9,10 @@ from scipy.signal import correlation_lags
 from scipy.signal import correlate
 
 
-no_trial = "Anastasia"
-task = "lower"
-path_mocap= f"/root/workspace/ros_ws/src/rt-cosmik/output/{no_trial}/mocap/{task}/q_mocap_downsampled.csv"
-path_cosmik= f"/root/workspace/ros_ws/src/rt-cosmik/output/{no_trial}/cosmik_2cams/{task}/q_cosmik_swika.csv"
+no_trial = "4279"
+task = "robot_welding"
+path_mocap= f"/root/workspace/ros_ws/src/rt-cosmik/output/{no_trial}/mocap/{task}/q_mocap.csv"
+path_cosmik= f"/root/workspace/ros_ws/src/rt-cosmik/output/{no_trial}/cosmik_2cams/{task}/q_cosmik_ipopt.csv"
 
 dofs  =  ['Lhip_flex_ext', 'Lhip_abd_add','Lhip_int_ext_rot','Lknee_flex_ext','Lankle_flex_ext','Lankle_abd_add',
                           'Lumbar_flex_ext', 'Lumbar_lateral_flex',
@@ -74,6 +74,7 @@ def synchronize_signals(sig1, sig2):
 
 df_cosmik = pd.read_csv(path_cosmik).iloc[:, 7:]
 df_mocap  = pd.read_csv(path_mocap).iloc[:, 7:]
+# df_mocap = df_mocap.iloc[280::2]
 
 if df_cosmik.shape[0] > df_mocap.shape[0]:
             df_cosmik = df_cosmik.iloc[:-1, :]
@@ -99,6 +100,8 @@ euler_angles_rad_mocap = r_mocap.as_euler('xyz', degrees=False)
 
 q_cosmik= read_specific_joint(path_cosmik,dof, start_sample)
 q_mocap = read_specific_joint(path_mocap,dof, start_sample)
+# q_mocap = q_mocap[280::2]
+# q_cosmik = q_cosmik[280::2]
 rmse_list = []
 corr_list = []
 mae_list =  []
@@ -110,7 +113,7 @@ joint_indices = [i for i in range(start_dof, len(dof)) if dof[i] not in excluded
 n_per_fig = 6  # Number of subplots per figure
 
 if lag > 0:
-    q_cosmik = q_cosmik[lag:]
+    q_cosmik = q_cosmik[lag-1:]
     q_mocap = q_mocap[:len(q_cosmik)]  # truncate Cosmik accordingly
 
 

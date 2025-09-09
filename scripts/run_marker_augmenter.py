@@ -13,14 +13,14 @@ from src.rtcosmik.utils.read_write_utils import read_mmpose_file, save_to_csv
 from src.rtcosmik.utils.linear_algebra_utils import butterworth_filter
 base_path = "/root/workspace/ros_ws/src/rt-cosmik"
 
-no_trial = "Claire_"
-task = "sanding"
+no_trial = "4279"
+task = "robot_welding"
 # path_to_3d_kpt = f"/root/workspace/ros_ws/src/rt-cosmik/output/{no_trial}/mocap/{task}/joint_center_positions.csv"
-path_to_3d_kpt = os.path.join(base_path, f"output/{no_trial}/cosmik_2cams/{task}/3d_keypoints_filtered_2.csv")
-output_csv_path = os.path.join(base_path, f"output/{no_trial}/cosmik_2cams/{task}/augmented_markers_test.csv")
+path_to_3d_kpt = os.path.join(base_path, f"output/{no_trial}/cosmik_2cams/{task}/3d_keypoints.csv")
+output_csv_path = os.path.join(base_path, f"output/{no_trial}/cosmik_2cams/{task}/augmented_markers.csv")
 
-subject_mass =62.0
-subject_height = 1.72
+subject_mass =73.0
+subject_height = 1.87
 augmenter_path = '/root/workspace/ros_ws/src/rt-cosmik/src/rtcosmik/augmenter/augmentation_model'
 markers = [
            'r.ASIS_study','L.ASIS_study','r.PSIS_study','L.PSIS_study','r_knee_study',
