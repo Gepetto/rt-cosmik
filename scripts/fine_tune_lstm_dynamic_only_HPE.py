@@ -30,7 +30,7 @@ p.add_argument('--batch-size', type=int, default=64)
 p.add_argument('--epochs', type=int, default=300)
 p.add_argument('--patience', type=int, default=10)
 p.add_argument('--lr', type=float, default=1e-6)
-p.add_argument('--test-size', type=int, default=2, help="# of subjects reserved for val (last N alphabetical)")
+p.add_argument('--test-size', type=int, default=2, help="random split of the dataset")
 p.add_argument("--excluded-trials", type=str, default="none", help="Exclude trials from the dataset")
 p.add_argument("--id", type=str, default="0", help="Experiment ID")
 
@@ -184,8 +184,7 @@ def trial_to_windows(
     seq_len, ### La longueur des fenêtres d'après args.seq_len
     rotation_scheme="max" ### le type de rotation, ici seul max a été codé
 ):
-    """Load one trial from disk, produce windowed (inp, out) samples.
-       If rotation_scheme == 'det', yields n_rotations evenly-spaced yaw copies per window (like Stanford circleRotation)."""
+    """Load one trial from disk, produce windowed (inp, out) samples."""
 
     ### Partie loading et mise au bon format du trial en cours de processing
     # read inputs (jcp) and gt (markers)
@@ -251,7 +250,7 @@ def trial_to_windows(
 
         ### recentrage input et ground_truth autour de leurs midhip respectifs
         din_hpe = kbuf_hpe - ref_hpe[:, None, :]
-        dout = ybuf - ref[:, None, :]
+        dout = ybuf - ref_hpe[:, None, :]
 
         ### Normalisation de input et gt par la taille du sujet
         din_hpe = din_hpe * inv_h
@@ -331,7 +330,7 @@ def make_dataset(trials, seq_len, batch, shuffle_windows=True, rotation_scheme="
 
     ds = tf.data.Dataset.from_generator(gen, output_signature=output_signature)
     if shuffle_windows:
-        ds = ds.shuffle(buffer_size=max(8192, 2048 * 2), reshuffle_each_iteration=True)
+        ds = ds.shuffle(buffer_size=max(8192, 2048 * 2), reshuffle_each_iteration=True) ### buffer_size = gestion de RAM
 
     ds = ds.batch(batch, drop_remainder=False).prefetch(tf.data.AUTOTUNE)
     return ds
