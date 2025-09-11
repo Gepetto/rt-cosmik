@@ -679,7 +679,7 @@ def udp_csv_to_dataframe(csv_path, marker_names):
         lines = f.readlines()
 
     # 2. Skip the header
-    lines = lines[:]
+    lines = lines[1:]
 
     # 3. Prepare all rows
     all_rows = []
@@ -690,7 +690,7 @@ def udp_csv_to_dataframe(csv_path, marker_names):
             continue  # skip empty lines
         parts = line.split(",")
         timestamp = parts[0]
-        udp_values = [float(val) for val in parts[2:]]
+        udp_values = [float(val) for val in parts[1:]]
         all_rows.append(udp_values)
 
     # 4. Now create a dataframe

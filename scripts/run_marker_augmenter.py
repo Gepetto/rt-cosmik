@@ -16,8 +16,8 @@ base_path = "/root/workspace/ros_ws/src/rt-cosmik"
 no_trial = "4279"
 task = "robot_welding"
 # path_to_3d_kpt = f"/root/workspace/ros_ws/src/rt-cosmik/output/{no_trial}/mocap/{task}/joint_center_positions.csv"
-path_to_3d_kpt = os.path.join(base_path, f"output/{no_trial}/cosmik_2cams/{task}/3d_keypoints_4cams.csv")
-output_csv_path = os.path.join(base_path, f"output/{no_trial}/cosmik_2cams/{task}/augmented_markers_4cams.csv")
+path_to_3d_kpt = os.path.join(base_path, f"output/{no_trial}/cosmik_2cams/{task}/3D_keypoints_fused_OKK.csv")
+output_csv_path = os.path.join(base_path, f"output/{no_trial}/cosmik_2cams/{task}/augmented_markers_fused_OKK.csv")
 
 subject_mass =73.0
 subject_height = 1.87

@@ -36,7 +36,7 @@ def quadprog_solve_qp(P: np.ndarray, q: np.ndarray, G: np.ndarray=None, h: np.nd
 class RT_IK:
     """_Class to manage multi body IK problem using qp solver quadprog_
     """
-    def __init__(self,model: pin.Model, dict_m: Dict, q0: np.ndarray, keys_to_track_list: List, dt: float, dict_dof_to_keypoints=None, with_freeflyer=True) -> None:
+    def __init__(self,model: pin.Model, dict_m: Dict, q0: np.ndarray, keys_to_track_list: List, dt: float, omega: Dict, dict_dof_to_keypoints=None, with_freeflyer=True) -> None:
         """_Init of the class _
 
         Args:
@@ -132,9 +132,9 @@ class RT_IK:
         self._c = 0.5 # Backtracking line search factor 
         self._beta = 0.8 # Reduction factor 
 
-        #TODO: Change the mapping and adapt it to the model
-        self._mapping_joint_angle = dict(zip(['FF_TX','FF_TY','FF_TZ','FF_Rquat0','FF_Rquat1','FF_Rquat2','FF_Rquat3','L5S1_FE','L5S1_RIE','RShoulder_FE','RShoulder_AA','RShoulder_RIE','RElbow_FE','RElbow_PS','RHip_FE','RHip_AA','RHip_RIE','RKnee_FE','RAnkle_FE'],np.arange(0,self._nq,1)))
-
+        # #TODO: Change the mapping and adapt it to the model
+        # self._mapping_joint_angle = dict(zip(['FF_TX','FF_TY','FF_TZ','FF_Rquat0','FF_Rquat1','FF_Rquat2','FF_Rquat3','L5S1_FE','L5S1_RIE','RShoulder_FE','RShoulder_AA','RShoulder_RIE','RElbow_FE','RElbow_PS','RHip_FE','RHip_AA','RHip_RIE','RKnee_FE','RAnkle_FE'],np.arange(0,self._nq,1)))
+        self.omega = omega
 
     def calculate_RMSE_dicts(self, meas:Dict, est:Dict)->float:
         """_Calculate the RMSE between a dictionnary of markers measurements and markers estimations_
@@ -338,9 +338,8 @@ class RT_IK:
 
     #     return q
     def solve_ik_sample_casadi(self)->np.ndarray:
-        joint_to_regularize = [] #['RElbow_FE','RElbow_PS','RHip_RIE']
-        value_to_regul = 0.001
-
+        # joint_to_regularize = [] #['RElbow_FE','RElbow_PS','RHip_RIE']
+        # value_to_regul = 0.001
         # Casadi optimization class
         opti = casadi.Opti()
 
@@ -348,22 +347,23 @@ class RT_IK:
         DQ = opti.variable(self._nv)
         Q = self._integrate(self._q0,DQ)
 
-        omega = 1e-6*np.ones(self._nq)
+        # omega = 1e-6*np.ones(self._nq)
 
-        for name in joint_to_regularize :
-            if name in self._mapping_joint_angle:
-                omega[self._mapping_joint_angle[name]] = value_to_regul # Adapt the weight for given joints, for instance the hip Y
-            else :
-                raise ValueError("Joint to regulate not in the model")
+        # for name in joint_to_regularize :
+        #     if name in self._mapping_joint_angle:
+        #         omega[self._mapping_joint_angle[name]] = value_to_regul # Adapt the weight for given joints, for instance the hip Y
+        #     else :
+        #         raise ValueError("Joint to regulate not in the model")
 
         cost = 0
 
         if self._dict_dof_to_keypoints:
             for key in self._cfunction_dict.keys():
-                cost+=1*casadi.sumsqr(self._dict_m[self._dict_dof_to_keypoints[key]]-self._cfunction_dict[key](Q))
+                cost+=self.omega[key]*casadi.sumsqr(self._dict_m[self._dict_dof_to_keypoints[key]]-self._cfunction_dict[key](Q))
+
         else:
             for key in self._cfunction_dict.keys():
-                cost+=1*casadi.sumsqr(self._dict_m[key]-self._cfunction_dict[key](Q))
+                cost+=self.omega[key]*casadi.sumsqr(self._dict_m[key]-self._cfunction_dict[key](Q))
 
         # Set the constraint for the joint limits
         if self._with_freeflyer:

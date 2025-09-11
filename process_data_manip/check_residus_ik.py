@@ -89,15 +89,17 @@ def plot_ref_est_ft_concatenated(
         # res_ft  = np.linalg.norm(ft_j  - ref_j, axis=1)
 
         # Per-joint RMSE (scalar over all coords & frames)
-        rmse_est = np.sqrt(np.mean((est_j - ref_j)**2))
-        # rmse_ft  = np.sqrt(np.mean((ft_j  - ref_j)**2))
 
+        # Per-joint RMSE
+        rmse_est = np.sqrt(np.mean((est_j - ref_j) ** 2))
+
+        # Plot residual curve
         axes[3].plot(t, res_est, color="r", linewidth=0.6)
-        # axes[3].plot(t, res_ft,  color="g", linewidth=0.6, alpha=0.35)
 
+        # Annotate mean residual (RMSE) in the middle of the block
         center = offset + N/2
-        rmse_points_est.append((center, rmse_est, joint_names[j]))
-        # rmse_points_ft.append((center, rmse_ft,  joint_names[j]))
+        y_pos = np.max(res_est) * 1.05  # place text slightly above
+        axes[3].text(center, y_pos, f"{rmse_est:.5f}", ha="center", va="bottom", fontsize=8, rotation=90, color="blue")
 
         offset += N
         boundaries.append(offset)
@@ -134,7 +136,7 @@ mks_to_skip = [
 ]
 
 ref_csv = "/root/workspace/ros_ws/src/rt-cosmik/output/4279/mocap/robot_welding/mocap_downsampled_to_40hz.csv"     # CSV without Frame
-est_csv = "/root/workspace/ros_ws/src/rt-cosmik/output/4279/mocap/robot_welding/mks_model_mocap_downsampled.csv"     # CSV with Frame
+est_csv = "/root/workspace/ros_ws/src/rt-cosmik/output/4279/mocap/robot_welding/mks_model_test1.csv"     # CSV with Frame
 
 ref, joint_names = load_csv_to_array(ref_csv,mks_to_skip)
 est, _ = load_csv_to_array(est_csv,mks_to_skip)

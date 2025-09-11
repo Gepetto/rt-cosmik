@@ -960,10 +960,10 @@ def get_segments_mks_dict(mks_positions)->Dict:
     }
     else : #with mocap set
         sgts_mks_dict = {
-            "head": ['BHD','RHD','LHD','FHD'],
-            "thorax": ['C7_study','TV8','TV12','SJN','STRN'],
-            "right_clavicle" : ['r_shoulder_study'],
-            "left_clavicle" : ['L_shoulder_study'],
+            "head": ['r_shoulder_study','L_shoulder_study','C7_study','BHD','RHD','LHD','FHD'],
+            "thorax": ['TV8','TV12','SJN','STRN'],
+            "right_clavicle" : [],
+            "left_clavicle" : [],
             "upperarmR": ['r_melbow_study', 'r_lelbow_study'],
             "lowerarmR": ['r_lwrist_study', 'r_mwrist_study'],
             "upperarmL" : ['L_melbow_study', 'L_lelbow_study'],
@@ -1146,7 +1146,7 @@ def get_segment_length(mks_positions: Dict):
     norms['lowerarmR'] = np.linalg.norm(local_segments_positions['lowerarmR'])
     norms['upperarmL'] = np.linalg.norm(local_segments_positions['upperarmL'])
     norms['lowerarmL'] = np.linalg.norm(local_segments_positions['lowerarmL'])
-    print(norms)
+    return norms
 
 
 

@@ -130,122 +130,47 @@ keys_to_track_list = [
         'L_knee_study', 'L_mknee_study'
     ]
 
-### IK calculations
-omega = {}
-for key in keys_to_track_list:
-    if key == "L_lwrist_study" or "L_mwrist_study"or "r_lwrist_study" or "r_mwrist_study":
-        omega[key] = 1e-3
-    elif key == "L_shoulder_study" or "C7_study"or "r_shoulder_study":
-        omega[key] = 1000
-    else : 
-        omega[key] = 1
-ik_class = RT_IK(human_model, start_sample_dict, q, keys_to_track_list, dt,omega)
-q = ik_class.solve_ik_sample_casadi() #warm start with ipopt for qp 
-viz.display(q)
-ik_class._q0=q
-input('first sample')
 
 rmse_per_marker = {}
 q_list = []
 M_model_list = []
 
+import matplotlib.pyplot as plt
+
+all_norms = {
+    'upperlegR': [],
+    'lowerlegR': [],
+    'upperlegL': [],
+    'lowerlegL': [],
+    'upperarmR': [],
+    'lowerarmR': [],
+    'upperarmL': [],
+    'lowerarmL': []
+}
+
+frames = []
+
 for ii in range(start_sample,len(result_markers)): 
+    norms_init = get_segment_length(result_markers[0])
+    norms = get_segment_length(result_markers[ii])
+    for key in all_norms.keys():
+        all_norms[key].append(norms[key])
+    frames.append(ii)
 
-    mks_dict = result_markers[ii]
-    ik_class._dict_m= mks_dict
-    q = ik_class.solve_ik_sample_casadi() 
+# --- Plot en subplots ---
+# --- Plot avec un subplot par segment ---
+fig, axes = plt.subplots(4, 2, figsize=(14, 10), sharex=True)
+axes = axes.flatten()
 
-    pin.forwardKinematics(human_model, human_data, q)
-    pin.updateFramePlacements(human_model, human_data)
-    
-    M_model_frame = {}
+for i, (key, values) in enumerate(all_norms.items()):
+    axes[i].plot(frames, values, label="Current length")
+    axes[i].axhline(norms_init[key], color='r', linestyle='--', label="Initial length")
+    axes[i].set_title(key)
+    axes[i].set_ylabel("Length (mm)")
+    axes[i].grid(True)
+    axes[i].legend()
 
-    for marker in result_markers[ii].keys():
-        # print(marker)
-        if marker in mks_to_skip: 
-            continue  #skip
-        pos_gt = np.array(result_markers[ii][marker])
+axes[-1].set_xlabel("Frames")
 
-        M = pin.SE3(pin.SE3(Rquat(1, 0, 0, 0), np.matrix([result_markers[ii][marker][0],result_markers[ii][marker][1],result_markers[ii][marker][2]]).T))
-        M_model = human_data.oMf[human_model.getFrameId(marker)]
-        pos_model = np.array(M_model.translation).flatten()
-
-
-        # Add marker_model position to the frame's data
-        M_model_frame[f"{marker}_x"] = M_model.translation[0]
-        M_model_frame[f"{marker}_y"] = M_model.translation[1]
-        M_model_frame[f"{marker}_z"] = M_model.translation[2]
-        
-        place(viz,'world/'+marker,M)
-        place(viz,'world/'+marker+"_m",M_model)
-
-
-        # RMSE calculation
-        sq_error = np.sum((pos_gt - pos_model) ** 2)
-
-        if marker not in rmse_per_marker:
-            rmse_per_marker[marker] = []
-        rmse_per_marker[marker].append(sq_error)
-
-    M_model_list.append(M_model_frame)
-    
-    # Display frames from measurements
-    # seg_frames = construct_segments_frames(mks_dict)
-    # for seg_name, M in seg_frames.items():
-        
-    #     frame_name = f'world/{seg_name+"_meas"}'
-    #     frame_se3 = pin.SE3(M[:3,:3], np.matrix([M[0,3],M[1,3],M[2,3]]).T)
-    #     place(viz, frame_name, frame_se3)
-    
-    # #  Display frames from human_model
-    # for joint_id in range(1, human_model.njoints):  # Skip 0 (universe)
-    #     frame_name = f'world/{human_model.names[joint_id]+"_model"}'
-    #     frame_se3= human_data.oMf[human_model.getFrameId(human_model.names[joint_id])]
-    #     place(viz, frame_name, frame_se3)
-
-    #display q
-    viz.display(q)
-    # input("Press Enter to continue...")
-    ik_class._q0 = q 
-
-    q_list.append(q)
-
-# #save mks est
-df = pd.DataFrame(M_model_list)
-csv_file = os.path.join(rt_cosmik_path,f"/root/workspace/ros_ws/src/rt-cosmik/output/{no_trial}/mocap/{task}/mks_model_test2.csv") 
-df.to_csv(csv_file, index=False)
-
-#save angles
-joint_angles_names = ['FF_X', 'FF_Y', 'FF_Z', 'FF_quatx','FF_quaty',
-                          'FF_quatz', 'FF_quatw', 'Lhip_flex_ext', 'Lhip_abd_add','Lhip_int_ext_rot','Lknee_flex_ext','Lankle_flex_ext','Lankle_abd_add',
-                          'Lumbar_flex_ext', 'Lumbar_lateral_flex',
-                          'Lcalvicule_x',
-                          'Lshoulder_flex_ext','Lshoulder_abd_add', 'Lshoulder_int_ext_rot','Lelbow_flex_ext','Lelbow_pron_supi',
-                          'Cervical_flex_ext', 'Cervical_lat_bend', 'Cervical_int_ext_rot',
-                          'rcalvicule_x',
-                          'Rshoulder_flex_ext', 'Rshoulder_abd_add', 'Rshoulder_int_ext_rot','Relbow_flex_ext', 'Relbow_pron_supi',
-                          'Rhip_flex_ext','Rhip_abd_add','Rhip_int_ext_rot',
-                          'Rknee_flex_ext','Rankle_flex_ext', 'Rankle_abd_add']
-num_values = len(q_list[0])
-if len(joint_angles_names) != num_values:
-    raise ValueError(f"joint_angles_names has {len(joint_angles_names)} entries but q has {num_values} DOFs.")
-
-df = pd.DataFrame(q_list, columns=joint_angles_names)
-csv_file = os.path.join(rt_cosmik_path, f"output/{no_trial}/mocap/{task}/q_mocap_test2.csv")
-df.to_csv(csv_file, index=False)
-
-
-
-rmse_global = 0
-nb_mks =0 
-# Final RMSE output
-print("\nPer-marker RMSE (in meters):")
-for marker, sq_errors in rmse_per_marker.items():
-    nb_mks +=1
-    rmse = np.sqrt(np.mean(sq_errors))
-    print(f"{marker}: {rmse:.4f} m")
-    rmse_global +=rmse
-
-rmse_global = rmse_global/nb_mks
-print(f" Global RMSE across all markers and frames: {rmse_global:.4f} m")
-
+plt.tight_layout()
+plt.show()
