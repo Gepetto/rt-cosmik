@@ -96,7 +96,6 @@ print("val_set :", val_subjects)
 def enumerate_trials(subject_list):
     """Yield dicts describing usable trials with paths & metadata."""
     for s in subject_list:
-        print("subject", s)
         sp = root/s
         h, w, _ = read_subject_info(sp/'info.txt')
         for trial in sorted([d.name for d in sp.iterdir() if d.is_dir()]):
