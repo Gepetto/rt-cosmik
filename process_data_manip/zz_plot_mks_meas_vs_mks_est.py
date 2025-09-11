@@ -8,15 +8,14 @@ from src.rtcosmik.utils.read_write_utils import read_mks_data, marker_data_to_da
 
 no_trial = "4279"
 task = "robot_welding"
-csv_file1 = f"/root/workspace/ros_ws/src/rt-cosmik/output/{no_trial}/cosmik_2cams/{task}/3d_keypoints_46.csv"
+csv_file1 = f"/root/workspace/ros_ws/src/rt-cosmik/output/{no_trial}/cosmik_2cams/{task}/3d_keypoints_fused_all.csv"
 csv_file2 = f"/root/workspace/ros_ws/src/rt-cosmik/output/{no_trial}/mocap/{task}/joint_center_positions.csv"
 
 
 markers_to_plot =  [
-        "Nose", "LEye", "REye", "LEar", "REar", 
         "LShoulder", "RShoulder", "LElbow", "RElbow", 
         "LWrist", "RWrist", "LHip", "RHip", 
-        "LKnee", "RKnee", "LAnkle", "RAnkle", "Head",
+        "LKnee", "RKnee", "LAnkle", "RAnkle",
         "Neck", "midHip", "LBigToe", "RBigToe", "LSmallToe", "RSmallToe", "LHeel", "RHeel"
     ]
 
@@ -65,12 +64,18 @@ def plot_selected_markers(marker_data_1, marker_data_2, markers_to_plot=None):
         y_vals_2 = [frame.get(marker, [np.nan, np.nan, np.nan])[1] for frame in marker_data_2]
         z_vals_2 = [frame.get(marker, [np.nan, np.nan, np.nan])[2] for frame in marker_data_2]
 
+        pos_1 = np.array([frame.get(marker, [np.nan, np.nan, np.nan]) for frame in marker_data_1])
+        pos_2 = np.array([frame.get(marker, [np.nan, np.nan, np.nan]) for frame in marker_data_2])
+
+
         rmse_x = calculate_rmse_component(x_vals_1, x_vals_2)
         rmse_y = calculate_rmse_component(y_vals_1, y_vals_2)
         rmse_z = calculate_rmse_component(z_vals_1, z_vals_2)
 
         # Store mean RMSE for this marker
-        rmse_list.append(np.nanmean([rmse_x, rmse_y, rmse_z]))
+        rmse_3d = np.linalg.norm([rmse_x, rmse_y, rmse_z]) #3d distance
+        rmse_list.append(rmse_3d)
+        print(rmse_3d)
 
         frames = np.arange(len(marker_data_1))
 
