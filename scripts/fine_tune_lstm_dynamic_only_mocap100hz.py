@@ -203,8 +203,8 @@ def trial_to_windows(
     df_in = pd.DataFrame(arr_in, columns=cols_in)
     df_gt = pd.DataFrame(arr_gt, columns=cols_gt)
 
-    k_list, _ = read_mks_data(df_in, converter=1)        # includes 'midHip'
-    m_list, _ = read_mks_data(df_gt, converter=1)
+    k_list, _ = read_mks_data(df_in, converter=1000)        # includes 'midHip'
+    m_list, _ = read_mks_data(df_gt, converter=1000)
 
     # Build arrays
     kpts_arr = listdicts_to_array(k_list, kpts_input_lstm)         # [T, Pin, 3]
