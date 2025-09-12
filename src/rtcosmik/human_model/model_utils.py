@@ -525,7 +525,10 @@ def get_virtual_pelvis_pose(mks_positions):
 
     center_PSIS = (mks_positions['r.PSIS_study'] + mks_positions['L.PSIS_study']).reshape(3,1)/2.0
     center_ASIS = (mks_positions['r.ASIS_study'] + mks_positions['L.ASIS_study']).reshape(3,1)/2.0
-
+    center = (mks_positions['r.ASIS_study'] +
+                mks_positions['L.ASIS_study'] +
+                mks_positions['r.PSIS_study'] +
+                mks_positions['L.PSIS_study'] )/4.0
     X = center_ASIS - center_PSIS
     X = X/np.linalg.norm(X)
     Z = mks_positions['r.ASIS_study'] - mks_positions['L.ASIS_study']
@@ -1134,7 +1137,6 @@ def get_local_segments_positions(sgts_poses: Dict, with_hand=True)->Dict:
 def get_segment_length(mks_positions: Dict):
     sgts_poses = construct_segments_frames(mks_positions)
     local_segments_positions = get_local_segments_positions(sgts_poses)
-    # print('local_segments_positions', local_segments_positions)
     # Calculate norms to get length of segments
     norms = {}
     norms['upperlegR'] = np.linalg.norm(local_segments_positions['shankR'])

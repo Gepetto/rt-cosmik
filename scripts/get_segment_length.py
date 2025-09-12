@@ -18,6 +18,7 @@ from src.rtcosmik.viewer.gv_viewer import place, gv_init, Rquat, add_marker, add
 from src.rtcosmik.config_loader import settings
 from src.rtcosmik.human_model.model_utils import get_segment_length
 from src.rtcosmik.ik.ik import RT_IK
+import matplotlib.pyplot as plt
 
 
 mks_to_skip = ['LForearm','LUArm', 'RUArm', 'RHJC_study','LHJC_study','r_pelvis','l_pelvis','LHL2','LHM5','RHL2','RHM5',
@@ -26,7 +27,7 @@ mks_to_skip = ['LForearm','LUArm', 'RUArm', 'RHJC_study','LHJC_study','r_pelvis'
 no_trial = "4279"
 task = "robot_welding" #hitting sat probleme
 path_to_csv = f"/root/workspace/ros_ws/src/rt-cosmik/output/{no_trial}/mocap/{task}/mocap_downsampled_to_40hz.csv"
-
+path_to_csv_jcp =  f"/root/workspace/ros_ws/src/rt-cosmik/output/{no_trial}/mocap/{task}/joint_center_positions_test.csv"
 subject_mass = 72.0
 subject_height = 1.80
 gender='male'
@@ -41,101 +42,77 @@ mks_names = ['r.ASIS_study','L.ASIS_study','r.PSIS_study','L.PSIS_study',
              'r_thigh1_study','r_knee_study','r_mknee_study','r_sh1_study',
              'r_ankle_study','r_mankle_study','r_calc_study','r_5meta_study','r_toe_study',
              'r_pelvis', 'l_pelvis']
-# df_raw = pd.read_data_to_dataframe(df_raw, mks_names) #marker data are string 
 df_wide = pd.read_csv(path_to_csv)
-# mks_data = udp_csv_to_dataframe(path_to_csv, mks_names) #float
-result_markers, start_sample_dict = read_mks_data(df_wide, start_sample=start_sample,converter = 1000.0) #check the function of read 
-# print(result_markers)
-# input()
-#load urdf
-human = Robot('/root/workspace/ros_ws/src/rt-cosmik/urdf/human.urdf',rt_cosmik_path,isFext=True) 
-human_model = human.model
-human_data = human.data
-human_collision_model = human.collision_model
-human_visual_model = human.visual_model
+result_markers, start_sample_dict = read_mks_data(df_wide, start_sample=start_sample,converter = 10.0) #check the function of read 
 
-#scale the model to data
-human_model = scale_human_model(human_model, start_sample_dict,with_hand=True,gender=gender,subject_height=subject_height)
-human_model= mks_registration(human_model,start_sample_dict, with_hand=True)
-human_data = pin.Data(human_model)
-print(human_model.nq)
+df_jcp = pd.read_csv(path_to_csv_jcp)
+result_jcp, start_sample_jcp = read_mks_data(df_jcp, start_sample=start_sample,converter = 10.0) #check the function of read 
 
-################################################################################LOCK JOINTS
-all_joint_ids = set(range(1, human_model.njoints))
-joints_to_lock = ["middle_thoracic_X", "middle_thoracic_Y", "middle_thoracic_Z", "left_wrist_X", "left_wrist_Z", "right_wrist_X","right_wrist_Z"]
-joint_ids_to_lock = []
-for jn in joints_to_lock:
-    if human_model.existJointName(jn):
-        joint_ids_to_lock.append(human_model.getJointId(jn))
-    else:
-        print('Warning: joint ' + str(jn) + ' does not belong to the model!')
-
-q0 = pin.neutral(human_model)
-# Build reduced model
-human_model, human_visual_model = pin.buildReducedModel(
-    human_model, human_visual_model, joint_ids_to_lock, q0)
-
-print(human_model.nq)
-human_data = pin.Data(human_model)
-###############################################################################################################
-# VISUALIZATION
-viz = gv_init(human_model,human_collision_model,human_visual_model,start_sample_dict)
-pin.forwardKinematics(human_model,human_data, pin.neutral(human_model))
-pin.updateFramePlacements(human_model,human_data)
-
-# display urdf frames
-for frame in human_model.frames.tolist():
-    viz.viewer.gui.addXYZaxis('world/'+frame.name,[1,0,0,1],0.01,0.1)
-    place(viz,'world/'+frame.name,human_data.oMf[human_model.getFrameId(frame.name)])
-    
-q =pin.neutral(human_model)
-viz.display(q)
-input("model scaled, you can launch ik")
-
-#measured frames
-seg_frames = construct_segments_frames(result_markers[start_sample])
-add_frames(viz,seg_frames,"meas", 0.008, 0.08)
-
-#model markers spheres 
-add_marker(viz,result_markers[1].keys(),'_m', 0, 1,0)
-#model frames
-for joint_id in range(1, human_model.njoints):  # Skip 0 (universe)
-    frame_name = f'world/{human_model.names[joint_id]+"_model"}'
-    viz.viewer.gui.addXYZaxis(frame_name, [255, 0., 0, 1.], 0.012, 0.05)
+def compute_lengths_jcp(result_jcp, start_sample):
+    """Compute arm segment lengths from joint center positions."""
+    Rupper, Lupper, Rlower, Llower = [], [], [], []
+    for j in range(start_sample, len(result_jcp)):
+        Rupper.append(np.linalg.norm(result_jcp[j]["RElbow"] - result_jcp[j]["RShoulder"]))
+        Lupper.append(np.linalg.norm(result_jcp[j]["LElbow"] - result_jcp[j]["LShoulder"]))
+        Rlower.append(np.linalg.norm(result_jcp[j]["RWrist"] - result_jcp[j]["RElbow"]))
+        Llower.append(np.linalg.norm(result_jcp[j]["LWrist"] - result_jcp[j]["LElbow"]))
+    return Rupper, Lupper, Rlower, Llower
 
 
+def compute_lengths_markers(result_markers, start_sample):
+    """Compute arm segment lengths from marker positions (averaging left/right markers)."""
+    Rupper, Lupper, Rlower, Llower = [], [], [], []
+    for ii in range(start_sample, len(result_markers)):
+        relbow_center = (result_markers[ii]['r_melbow_study'] + result_markers[ii]['r_lelbow_study'])/2.0
+        lelbow_center = (result_markers[ii]['L_melbow_study'] + result_markers[ii]['L_lelbow_study'])/2.0
+        rwrist_center = (result_markers[ii]['r_mwrist_study'] + result_markers[ii]['r_lwrist_study'])/2.0
+        lwrist_center = (result_markers[ii]['L_mwrist_study'] + result_markers[ii]['L_lwrist_study'])/2.0
 
-### IK init 
-q = pin.neutral(human_model) # init pos
-human_data = pin.Data(human_model)
+        Rupper.append(np.linalg.norm(relbow_center - result_markers[ii]['r_shoulder_study']))
+        Lupper.append(np.linalg.norm(lelbow_center - result_markers[ii]['L_shoulder_study']))
+        # Rlower.append(np.linalg.norm(result_markers[ii]['SJN'] - result_markers[ii]['C7_study']))
 
-dt = 1/40 #dt for qp
-#track only real markers (without technical markers)
-keys_to_track_list = [
-        'BHD','RHD','LHD','FHD',
-        'C7_study',
-        'r.ASIS_study', 'L.ASIS_study', 
-        'r.PSIS_study', 'L.PSIS_study', 
-        'r_shoulder_study',
-        'r_lelbow_study', 'r_melbow_study',
-        'r_lwrist_study', 'r_mwrist_study',
-        'r_ankle_study', 'r_mankle_study',
-        'r_toe_study','r_5meta_study', 'r_calc_study',
-        'r_knee_study', 'r_mknee_study',
-        'L_shoulder_study', 
-        'L_lelbow_study', 'L_melbow_study',
-        'L_lwrist_study','L_mwrist_study',
-        'L_ankle_study', 'L_mankle_study', 
-        'L_toe_study','L_5meta_study', 'L_calc_study',
-        'L_knee_study', 'L_mknee_study'
-    ]
+        Rlower.append(np.linalg.norm(rwrist_center -relbow_center ))
+        Llower.append(np.linalg.norm(lwrist_center-lelbow_center))
+    return Rupper, Lupper, Rlower, Llower
+
+def plot_lengths(time, Rupper, Lupper, Rlower, Llower, title_prefix=""):
+    """Plot lengths in 4 subplots for comparison."""
+    fig, axs = plt.subplots(2, 2, figsize=(12, 8), sharex=True)
+
+    axs[0, 0].plot(time, Rupper, label="Right Upper Arm", color="r")
+    axs[0, 0].set_title(f"{title_prefix} Right Upper Arm"); axs[0, 0].legend()
+
+    axs[0, 1].plot(time, Lupper, label="Left Upper Arm", color="b")
+    axs[0, 1].set_title(f"{title_prefix} Left Upper Arm"); axs[0, 1].legend()
+
+    axs[1, 0].plot(time, Rlower, label="Right Lower Arm", color="g")
+    axs[1, 0].set_title(f"{title_prefix} Right Lower Arm"); axs[1, 0].legend()
+
+    axs[1, 1].plot(time, Llower, label="Left Lower Arm", color="m")
+    axs[1, 1].set_title(f"{title_prefix} Left Lower Arm"); axs[1, 1].legend()
+
+    for ax in axs.flat:
+        ax.set_ylabel("Length")  # or meters if scaled
+        ax.grid(True)
+
+    axs[1, 0].set_xlabel("Time (s)")
+    axs[1, 1].set_xlabel("Time (s)")
+
+    plt.tight_layout()
+    plt.show()
 
 
-rmse_per_marker = {}
-q_list = []
-M_model_list = []
+# === Example usage ===
+time = np.arange(start_sample, len(result_markers))
 
-import matplotlib.pyplot as plt
+# From joint centers
+Rupper_jcp, Lupper_jcp, Rlower_jcp, Llower_jcp = compute_lengths_jcp(result_jcp, start_sample)
+plot_lengths(time, Rupper_jcp, Lupper_jcp, Rlower_jcp, Llower_jcp, title_prefix="JCP")
+
+# From markers
+Rupper_mks, Lupper_mks, Rlower_mks, Llower_mks = compute_lengths_markers(result_markers, start_sample)
+plot_lengths(time, Rupper_mks, Lupper_mks, Rlower_mks, Llower_mks, title_prefix="Markers")
 
 all_norms = {
     'upperlegR': [],
