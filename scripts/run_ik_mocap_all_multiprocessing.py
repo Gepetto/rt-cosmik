@@ -45,7 +45,7 @@ def run_ik(task, no_trial, start_sample=0, visualize=False):
     path_to_csv = f"/root/workspace/ros_ws/src/rt-cosmik/COSMIK_dataset/{no_trial}/{task}/{task}_trajectories.csv"
     df_wide = pd.read_csv(path_to_csv)
 
-    mks_to_skip = ['LForearm','LUArm', 'RUArm', 'RHJC_study','LHJC_study','r_pelvis','l_pelvis','LHL2','LHM5','RHL2','RHM5',
+    mks_to_skip = ['LForearm','LUArm', 'RUArm', 'RHJC_study','LHJC_study','r_pelvis','l_pelvis',
                    'LHand', 'RForearm','RHand', 'L_sh1_study', 'L_thigh1_study','r_sh1_study', 'r_thigh1_study']
 
     mks_names = ['r.ASIS_study','L.ASIS_study','r.PSIS_study','L.PSIS_study',
@@ -113,7 +113,7 @@ def run_ik(task, no_trial, start_sample=0, visualize=False):
 
     keys_to_track_list = [
         'BHD','RHD','LHD','FHD',
-        'C7_study','TV8','TV12','SJN','STRN'
+        'C7_study','TV8','TV12','SJN','STRN',
         'r.ASIS_study', 'L.ASIS_study',
         'r.PSIS_study', 'L.PSIS_study',
         'r_shoulder_study',
@@ -130,7 +130,7 @@ def run_ik(task, no_trial, start_sample=0, visualize=False):
         'L_knee_study', 'L_mknee_study'
     ]
 
-    ik_class = RT_IK(human_model, start_sample_dict, q, keys_to_track_list, dt=1/40)
+    ik_class = RT_IK(human_model, start_sample_dict, q, keys_to_track_list, dt=1/100)
     q = ik_class.solve_ik_sample_casadi()
     if visualize:
         viz.display(q)

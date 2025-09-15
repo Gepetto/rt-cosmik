@@ -20,7 +20,7 @@ from src.rtcosmik.human_model.model_utils import get_segment_length
 from src.rtcosmik.ik.ik import RT_IK
 
 
-mks_to_skip = ['LForearm','LUArm', 'RUArm', 'RHJC_study','LHJC_study','r_pelvis','l_pelvis','LHL2','LHM5','RHL2','RHM5',
+mks_to_skip = ['LForearm','LUArm', 'RUArm', 'RHJC_study','LHJC_study','r_pelvis','l_pelvis',
                'LHand', 'RForearm','RHand', 'L_sh1_study', 'L_thigh1_study','r_sh1_study', 'r_thigh1_study']
 #read mks data
 no_trial = "4279"
@@ -61,22 +61,22 @@ human_data = pin.Data(human_model)
 print(human_model.nq)
 
 ################################################################################LOCK JOINTS
-all_joint_ids = set(range(1, human_model.njoints))
-joints_to_lock = ["middle_thoracic_X", "middle_thoracic_Y", "middle_thoracic_Z", "left_wrist_X", "left_wrist_Z", "right_wrist_X","right_wrist_Z"]
-joint_ids_to_lock = []
-for jn in joints_to_lock:
-    if human_model.existJointName(jn):
-        joint_ids_to_lock.append(human_model.getJointId(jn))
-    else:
-        print('Warning: joint ' + str(jn) + ' does not belong to the model!')
+# all_joint_ids = set(range(1, human_model.njoints))
+# joints_to_lock = ["middle_thoracic_X", "middle_thoracic_Y", "middle_thoracic_Z", "left_wrist_X", "left_wrist_Z", "right_wrist_X","right_wrist_Z"]
+# joint_ids_to_lock = []
+# for jn in joints_to_lock:
+#     if human_model.existJointName(jn):
+#         joint_ids_to_lock.append(human_model.getJointId(jn))
+#     else:
+#         print('Warning: joint ' + str(jn) + ' does not belong to the model!')
 
-q0 = pin.neutral(human_model)
+# q0 = pin.neutral(human_model)
 # Build reduced model
-human_model, human_visual_model = pin.buildReducedModel(
-    human_model, human_visual_model, joint_ids_to_lock, q0)
+# human_model, human_visual_model = pin.buildReducedModel(
+#     human_model, human_visual_model, joint_ids_to_lock, q0)
 
-print(human_model.nq)
-human_data = pin.Data(human_model)
+# print(human_model.nq)
+# human_data = pin.Data(human_model)
 ###############################################################################################################
 # VISUALIZATION
 viz = gv_init(human_model,human_collision_model,human_visual_model,start_sample_dict)
@@ -113,19 +113,19 @@ dt = 1/40 #dt for qp
 #track only real markers (without technical markers)
 keys_to_track_list = [
         'BHD','RHD','LHD','FHD',
-        'C7_study',
-        'r.ASIS_study', 'L.ASIS_study', 
-        'r.PSIS_study', 'L.PSIS_study', 
+        'C7_study','TV8','TV12','SJN','STRN',
+        'r.ASIS_study', 'L.ASIS_study',
+        'r.PSIS_study', 'L.PSIS_study',
         'r_shoulder_study',
         'r_lelbow_study', 'r_melbow_study',
-        'r_lwrist_study', 'r_mwrist_study',
+        'r_lwrist_study', 'r_mwrist_study', 'RHL2','RHM5',
         'r_ankle_study', 'r_mankle_study',
         'r_toe_study','r_5meta_study', 'r_calc_study',
         'r_knee_study', 'r_mknee_study',
-        'L_shoulder_study', 
+        'L_shoulder_study',
         'L_lelbow_study', 'L_melbow_study',
-        'L_lwrist_study','L_mwrist_study',
-        'L_ankle_study', 'L_mankle_study', 
+        'L_lwrist_study','L_mwrist_study','LHL2','LHM5',
+        'L_ankle_study', 'L_mankle_study',
         'L_toe_study','L_5meta_study', 'L_calc_study',
         'L_knee_study', 'L_mknee_study'
     ]
@@ -212,8 +212,8 @@ for ii in range(start_sample,len(result_markers)):
 
 # #save mks est
 df = pd.DataFrame(M_model_list)
-csv_file = os.path.join(rt_cosmik_path,f"/root/workspace/ros_ws/src/rt-cosmik/output/{no_trial}/mocap/{task}/mks_model_test2.csv") 
-df.to_csv(csv_file, index=False)
+# csv_file = os.path.join(rt_cosmik_path,f"/root/workspace/ros_ws/src/rt-cosmik/output/{no_trial}/mocap/{task}/mks_model_test2.csv") 
+# df.to_csv(csv_file, index=False)
 
 #save angles
 joint_angles_names = ['FF_X', 'FF_Y', 'FF_Z', 'FF_quatx','FF_quaty',
@@ -231,8 +231,8 @@ if len(joint_angles_names) != num_values:
     raise ValueError(f"joint_angles_names has {len(joint_angles_names)} entries but q has {num_values} DOFs.")
 
 df = pd.DataFrame(q_list, columns=joint_angles_names)
-csv_file = os.path.join(rt_cosmik_path, f"output/{no_trial}/mocap/{task}/q_mocap_test2.csv")
-df.to_csv(csv_file, index=False)
+# csv_file = os.path.join(rt_cosmik_path, f"output/{no_trial}/mocap/{task}/q_mocap_test2.csv")
+# df.to_csv(csv_file, index=False)
 
 
 
