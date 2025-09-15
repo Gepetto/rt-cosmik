@@ -6,10 +6,13 @@ from viz_utils import place
 import matplotlib.pyplot as plt
 
 # === Setup
-no_trial = "4279"
+no_trial = "alessandro"
 task = "robot_welding"
-csv_1_path = f"/root/workspace/ros_ws/src/rt-cosmik/output/{no_trial}/mocap/{task}/mocap_downsampled_to_40hz.csv"
-csv_2_path = f"/root/workspace/ros_ws/src/rt-cosmik/output/{no_trial}/mocap/{task}/joint_center_positions.csv"
+base_path = f"/root/workspace/ros_ws/src/rt-cosmik/output"
+
+csv_1_path = f"{base_path}/mocap/mocap_{no_trial}/{task}/mocap_downsampled_to_40hz.csv"
+path = f"{base_path}/mocap_jcp/{no_trial}"
+csv_2_path = f"{path}/{task}_joint_center_positions.csv"
 
 mks_names_1 = ['r.PSIS_study','L.PSIS_study',
                'r.ASIS_study','L.ASIS_study',

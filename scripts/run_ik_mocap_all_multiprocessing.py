@@ -76,17 +76,17 @@ def run_ik(task, no_trial, start_sample=0, visualize=False):
     human_data = pin.Data(human_model)
 
     # --- LOCK JOINTS ---
-    joints_to_lock = ["middle_thoracic_X", "middle_thoracic_Y", "middle_thoracic_Z", "left_wrist_X", "left_wrist_Z", "right_wrist_X","right_wrist_Z"]
-    joint_ids_to_lock = []
-    for jn in joints_to_lock:
-        if human_model.existJointName(jn):
-            joint_ids_to_lock.append(human_model.getJointId(jn))
-        else:
-            print('Warning: joint ' + str(jn) + ' does not belong to the model!')
+    # joints_to_lock = ["middle_thoracic_X", "middle_thoracic_Y", "middle_thoracic_Z", "left_wrist_X", "left_wrist_Z", "right_wrist_X","right_wrist_Z"]
+    # joint_ids_to_lock = []
+    # for jn in joints_to_lock:
+    #     if human_model.existJointName(jn):
+    #         joint_ids_to_lock.append(human_model.getJointId(jn))
+    #     else:
+    #         print('Warning: joint ' + str(jn) + ' does not belong to the model!')
 
-    q0 = pin.neutral(human_model)
-    human_model, human_visual_model = pin.buildReducedModel(human_model, human_visual_model, joint_ids_to_lock, q0)
-    human_data = pin.Data(human_model)
+    # q0 = pin.neutral(human_model)
+    # human_model, human_visual_model = pin.buildReducedModel(human_model, human_visual_model, joint_ids_to_lock, q0)
+    # human_data = pin.Data(human_model)
 
     # --- Visualization (optional) ---
     if visualize:
@@ -113,18 +113,18 @@ def run_ik(task, no_trial, start_sample=0, visualize=False):
 
     keys_to_track_list = [
         'BHD','RHD','LHD','FHD',
-        'C7_study',
+        'C7_study','TV8','TV12','SJN','STRN'
         'r.ASIS_study', 'L.ASIS_study',
         'r.PSIS_study', 'L.PSIS_study',
         'r_shoulder_study',
         'r_lelbow_study', 'r_melbow_study',
-        'r_lwrist_study', 'r_mwrist_study',
+        'r_lwrist_study', 'r_mwrist_study', 'RHL2','RHM5',
         'r_ankle_study', 'r_mankle_study',
         'r_toe_study','r_5meta_study', 'r_calc_study',
         'r_knee_study', 'r_mknee_study',
         'L_shoulder_study',
         'L_lelbow_study', 'L_melbow_study',
-        'L_lwrist_study','L_mwrist_study',
+        'L_lwrist_study','L_mwrist_study','LHL2','LHM5',
         'L_ankle_study', 'L_mankle_study',
         'L_toe_study','L_5meta_study', 'L_calc_study',
         'L_knee_study', 'L_mknee_study'
@@ -177,18 +177,19 @@ def run_ik(task, no_trial, start_sample=0, visualize=False):
     # save mks est (model markers)
     df = pd.DataFrame(M_model_list)
     # FIX: os.path.join with an absolute path argument discards the prefix; use the absolute path directly.
-    csv_file = f"/root/workspace/ros_ws/src/rt-cosmik/COSMIK_dataset/{no_trial}/{task}/joint_angles.csv"
+    csv_file = f"/root/workspace/ros_ws/src/rt-cosmik/output/mocap/{no_trial}/{task}/joint_angles.csv"
     os.makedirs(os.path.dirname(csv_file), exist_ok=True)
     df.to_csv(csv_file, index=False)
 
     joint_angles_names = ['FF_X', 'FF_Y', 'FF_Z', 'FF_quatx','FF_quaty',
                           'FF_quatz', 'FF_quatw', 'Lhip_flex_ext', 'Lhip_abd_add','Lhip_int_ext_rot','Lknee_flex_ext','Lankle_flex_ext','Lankle_abd_add',
                           'Lumbar_flex_ext', 'Lumbar_lateral_flex',
+                          'Thoracic_flex_ext','Thoracic_lateral_flex','Thoracic_rot_int_ext',
                           'Lcalvicule_x',
-                          'Lshoulder_flex_ext','Lshoulder_abd_add', 'Lshoulder_int_ext_rot','Lelbow_flex_ext','Lelbow_pron_supi',
+                          'Lshoulder_flex_ext','Lshoulder_abd_add', 'Lshoulder_int_ext_rot','Lelbow_flex_ext','Lelbow_pron_supi','Lwrist_flex_ext','Lwrist_x',
                           'Cervical_flex_ext', 'Cervical_lat_bend', 'Cervical_int_ext_rot',
                           'rcalvicule_x',
-                          'Rshoulder_flex_ext', 'Rshoulder_abd_add', 'Rshoulder_int_ext_rot','Relbow_flex_ext', 'Relbow_pron_supi',
+                          'Rshoulder_flex_ext', 'Rshoulder_abd_add', 'Rshoulder_int_ext_rot','Relbow_flex_ext', 'Relbow_pron_supi','Rwrist_flex_ext','Rwrist_x',
                           'Rhip_flex_ext','Rhip_abd_add','Rhip_int_ext_rot',
                           'Rknee_flex_ext','Rankle_flex_ext', 'Rankle_abd_add']
 

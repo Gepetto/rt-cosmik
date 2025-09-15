@@ -944,10 +944,10 @@ def get_segments_mks_dict(mks_positions)->Dict:
     # Constructing the dictionary to store segment poses
     if 'Head' in mks_positions: #with cosmik set
         sgts_mks_dict = {
-        "head": ['Head', 'Nose', 'REar', 'LEar', 'REye', 'LEye'],
-        "thorax": ['C7_study'],
-        "right_clavicle" : ['r_shoulder_study'],
-        "left_clavicle" : ['L_shoulder_study'],
+        "head": ['C7_study','r_shoulder_study','L_shoulder_study','Head', 'Nose', 'REar', 'LEar', 'REye', 'LEye'],
+        "thorax": [],
+        "right_clavicle" : [],
+        "left_clavicle" : [],
         
         "upperarmR": ['r_melbow_study', 'r_lelbow_study'],
         "lowerarmR": ['r_lwrist_study', 'r_mwrist_study'],

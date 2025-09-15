@@ -7,7 +7,11 @@ import os
 import matplotlib.pyplot as plt
 
 
-subjects = [ "4279"
+# subjects = [ "1012","1118","1602","1847","2112","2198","2307","3361","4162","4216","4279","4509","4612","4665","4687","4827"]
+
+subjects = ["alessandro", "anais","anastasia","batiste","bilal","claire_","clement","flavie",
+            "guilhem","kahina","marie","mathis",
+     "maxime","mohamed","nicolas", "zoe", "herbert","emmanuelle"
 ]
 tasks = ["robot_welding"]
 gender = 'male'
@@ -248,8 +252,8 @@ def compute_joint_centers_from_mks(markers, *, units="mm"):
 all_segment_lengths = []
 for no_trial in subjects:
     for task in tasks:
-        base_path = f"/root/workspace/ros_ws/src/rt-cosmik/output/{no_trial}"
-        path_to_csv =f"{base_path}/mocap/{task}/mocap_downsampled_to_40hz.csv"
+        base_path = f"/root/workspace/ros_ws/src/rt-cosmik/output"
+        path_to_csv =f"{base_path}/mocap/mocap_{no_trial}/{task}/mocap_downsampled_to_40hz.csv"
          # Skip if file doesn't exist
         if not os.path.exists(path_to_csv):
             print(f"Skipping missing task: {no_trial} / {task}")
@@ -298,10 +302,10 @@ for no_trial in subjects:
             jcp_rows.append(flat_jcp)
 
         jcp_df = pd.DataFrame(jcp_rows)
-        path = f"{base_path}/mocap_jcp/{task}"
+        path = f"{base_path}/mocap_jcp/{no_trial}"
         os.makedirs(path, exist_ok=True)
 
-        output_csv_path = f"{path}/{no_trial}joint_center_positions.csv"
+        output_csv_path = f"{path}/{task}_joint_center_positions.csv"
 
         jcp_df.to_csv(output_csv_path, index=False)
 
@@ -346,4 +350,4 @@ for no_trial in subjects:
         axes[3].grid(True)
 
         plt.tight_layout()
-        plt.show()
+        # plt.show()

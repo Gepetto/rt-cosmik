@@ -24,10 +24,13 @@ import matplotlib.pyplot as plt
 mks_to_skip = ['LForearm','LUArm', 'RUArm', 'RHJC_study','LHJC_study','r_pelvis','l_pelvis','LHL2','LHM5','RHL2','RHM5',
                'LHand', 'RForearm','RHand', 'L_sh1_study', 'L_thigh1_study','r_sh1_study', 'r_thigh1_study']
 #read mks data
-no_trial = "4279"
-task = "robot_welding" #hitting sat probleme
-path_to_csv = f"/root/workspace/ros_ws/src/rt-cosmik/output/{no_trial}/mocap/{task}/mocap_downsampled_to_40hz.csv"
-path_to_csv_jcp =  f"/root/workspace/ros_ws/src/rt-cosmik/output/{no_trial}/mocap_jcp/{task}/{no_trial}joint_center_positions.csv"
+no_trial = "alessandro"
+task = "robot_welding" 
+base_path = f"/root/workspace/ros_ws/src/rt-cosmik/output"
+path = f"{base_path}/mocap_jcp/{no_trial}"
+path_to_csv_jcp = f"{path}/{task}_joint_center_positions.csv"
+
+path_to_csv = f"/root/workspace/ros_ws/src/rt-cosmik/output/mocap/mocap_{no_trial}/{task}/mocap_downsampled_to_40hz.csv"
 subject_mass = 72.0
 subject_height = 1.80
 gender='male'
@@ -126,7 +129,7 @@ def plot_lengths(result_markers, quid,start_sample=0):
         axes[i].plot(frames, values, label="Current length")
         axes[i].axhline(norms_init[key], color='r', linestyle='--', label="Initial length")
         axes[i].set_title(key)
-        axes[i].set_ylabel("Length (mm)")
+        axes[i].set_ylabel("Length")
         axes[i].grid(True)
         axes[i].legend()
 
