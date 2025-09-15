@@ -27,7 +27,7 @@ mks_to_skip = ['LForearm','LUArm', 'RUArm', 'RHJC_study','LHJC_study','r_pelvis'
 no_trial = "4279"
 task = "robot_welding" #hitting sat probleme
 path_to_csv = f"/root/workspace/ros_ws/src/rt-cosmik/output/{no_trial}/mocap/{task}/mocap_downsampled_to_40hz.csv"
-path_to_csv_jcp =  f"/root/workspace/ros_ws/src/rt-cosmik/output/{no_trial}/mocap/{task}/joint_center_positions_test.csv"
+path_to_csv_jcp =  f"/root/workspace/ros_ws/src/rt-cosmik/output/{no_trial}/mocap_jcp/{task}/{no_trial}joint_center_positions.csv"
 subject_mass = 72.0
 subject_height = 1.80
 gender='male'
@@ -43,78 +43,58 @@ mks_names = ['r.ASIS_study','L.ASIS_study','r.PSIS_study','L.PSIS_study',
              'r_ankle_study','r_mankle_study','r_calc_study','r_5meta_study','r_toe_study',
              'r_pelvis', 'l_pelvis']
 df_wide = pd.read_csv(path_to_csv)
-result_markers, start_sample_dict = read_mks_data(df_wide, start_sample=start_sample,converter = 10.0) #check the function of read 
+result_markers, start_sample_dict = read_mks_data(df_wide, start_sample=start_sample,converter = 1000.0) #check the function of read 
 
 df_jcp = pd.read_csv(path_to_csv_jcp)
-result_jcp, start_sample_jcp = read_mks_data(df_jcp, start_sample=start_sample,converter = 10.0) #check the function of read 
+result_jcp, start_sample_jcp = read_mks_data(df_jcp, start_sample=start_sample,converter = 1000.0) #check the function of read 
 
 def compute_lengths_jcp(result_jcp, start_sample):
     """Compute arm segment lengths from joint center positions."""
-    Rupper, Lupper, Rlower, Llower = [], [], [], []
-    for j in range(start_sample, len(result_jcp)):
-        Rupper.append(np.linalg.norm(result_jcp[j]["RElbow"] - result_jcp[j]["RShoulder"]))
-        Lupper.append(np.linalg.norm(result_jcp[j]["LElbow"] - result_jcp[j]["LShoulder"]))
-        Rlower.append(np.linalg.norm(result_jcp[j]["RWrist"] - result_jcp[j]["RElbow"]))
-        Llower.append(np.linalg.norm(result_jcp[j]["LWrist"] - result_jcp[j]["LElbow"]))
-    return Rupper, Lupper, Rlower, Llower
+    norms = {}
+    norms['upperarmR'] =np.linalg.norm(result_jcp["RElbow"] - result_jcp["RShoulder"])
+    norms['upperarmL'] =np.linalg.norm(result_jcp["LElbow"] - result_jcp["LShoulder"])
+    norms['lowerarmR']= np.linalg.norm(result_jcp["RWrist"] - result_jcp["RElbow"])
+    norms['lowerarmL']=np.linalg.norm(result_jcp["LWrist"] - result_jcp["LElbow"])
+
+    norms['upperlegR']= np.linalg.norm(result_jcp["RKnee"] - result_jcp["RHip"])
+    norms['upperlegL']=np.linalg.norm(result_jcp["LKnee"] - result_jcp["LHip"])
+    norms['lowerlegR'] = np.linalg.norm(result_jcp["RAnkle"] - result_jcp["RKnee"])
+    norms['lowerlegL'] =np.linalg.norm(result_jcp["LAnkle"] - result_jcp["LKnee"])
+
+    return norms
 
 
 def compute_lengths_markers(result_markers, start_sample):
     """Compute arm segment lengths from marker positions (averaging left/right markers)."""
-    Rupper, Lupper, Rlower, Llower = [], [], [], []
-    for ii in range(start_sample, len(result_markers)):
-        relbow_center = (result_markers[ii]['r_melbow_study'] + result_markers[ii]['r_lelbow_study'])/2.0
-        lelbow_center = (result_markers[ii]['L_melbow_study'] + result_markers[ii]['L_lelbow_study'])/2.0
-        rwrist_center = (result_markers[ii]['r_mwrist_study'] + result_markers[ii]['r_lwrist_study'])/2.0
-        lwrist_center = (result_markers[ii]['L_mwrist_study'] + result_markers[ii]['L_lwrist_study'])/2.0
+    norms = {}
+    relbow_center = (result_markers['r_melbow_study'] + result_markers['r_lelbow_study'])/2.0
+    lelbow_center = (result_markers['L_melbow_study'] + result_markers['L_lelbow_study'])/2.0
+    rwrist_center = (result_markers['r_mwrist_study'] + result_markers['r_lwrist_study'])/2.0
+    lwrist_center = (result_markers['L_mwrist_study'] + result_markers['L_lwrist_study'])/2.0
 
-        Rupper.append(np.linalg.norm(relbow_center - result_markers[ii]['r_shoulder_study']))
-        Lupper.append(np.linalg.norm(lelbow_center - result_markers[ii]['L_shoulder_study']))
-        # Rlower.append(np.linalg.norm(result_markers[ii]['SJN'] - result_markers[ii]['C7_study']))
+    rhip_center = (result_markers['r.PSIS_study'] + result_markers['r.ASIS_study'])/2.0
+    lhip_center = (result_markers['L.PSIS_study'] + result_markers['L.ASIS_study'])/2.0
 
-        Rlower.append(np.linalg.norm(rwrist_center -relbow_center ))
-        Llower.append(np.linalg.norm(lwrist_center-lelbow_center))
-    return Rupper, Lupper, Rlower, Llower
+    rknee_center = (result_markers['r_mknee_study'] + result_markers['r_knee_study'])/2.0
+    lknee_center = (result_markers['L_mknee_study'] + result_markers['L_knee_study'])/2.0
+    rankle_center = (result_markers['r_mankle_study'] + result_markers['r_ankle_study'])/2.0
+    lankle_center = (result_markers['L_mankle_study'] + result_markers['L_ankle_study'])/2.0
 
-def plot_lengths(time, Rupper, Lupper, Rlower, Llower, title_prefix=""):
-    """Plot lengths in 4 subplots for comparison."""
-    fig, axs = plt.subplots(2, 2, figsize=(12, 8), sharex=True)
+    norms['upperarmR'] =np.linalg.norm(relbow_center - result_markers['r_shoulder_study'])
+    norms['upperarmL'] =np.linalg.norm(lelbow_center - result_markers['L_shoulder_study'])
+    norms['lowerarmR']= np.linalg.norm(rwrist_center - relbow_center)
+    norms['lowerarmL']=np.linalg.norm(lwrist_center - lelbow_center)
 
-    axs[0, 0].plot(time, Rupper, label="Right Upper Arm", color="r")
-    axs[0, 0].set_title(f"{title_prefix} Right Upper Arm"); axs[0, 0].legend()
+    norms['upperlegR']= np.linalg.norm(rknee_center - rhip_center)
+    norms['upperlegL']=np.linalg.norm(lknee_center - lhip_center)
+    norms['lowerlegR'] = np.linalg.norm(rankle_center - rknee_center)
+    norms['lowerlegL'] =np.linalg.norm(lankle_center - lknee_center)
 
-    axs[0, 1].plot(time, Lupper, label="Left Upper Arm", color="b")
-    axs[0, 1].set_title(f"{title_prefix} Left Upper Arm"); axs[0, 1].legend()
+    
+    return norms
 
-    axs[1, 0].plot(time, Rlower, label="Right Lower Arm", color="g")
-    axs[1, 0].set_title(f"{title_prefix} Right Lower Arm"); axs[1, 0].legend()
-
-    axs[1, 1].plot(time, Llower, label="Left Lower Arm", color="m")
-    axs[1, 1].set_title(f"{title_prefix} Left Lower Arm"); axs[1, 1].legend()
-
-    for ax in axs.flat:
-        ax.set_ylabel("Length")  # or meters if scaled
-        ax.grid(True)
-
-    axs[1, 0].set_xlabel("Time (s)")
-    axs[1, 1].set_xlabel("Time (s)")
-
-    plt.tight_layout()
-    plt.show()
-
-
-# === Example usage ===
-time = np.arange(start_sample, len(result_markers))
-
-# From joint centers
-Rupper_jcp, Lupper_jcp, Rlower_jcp, Llower_jcp = compute_lengths_jcp(result_jcp, start_sample)
-plot_lengths(time, Rupper_jcp, Lupper_jcp, Rlower_jcp, Llower_jcp, title_prefix="JCP")
-
-# From markers
-Rupper_mks, Lupper_mks, Rlower_mks, Llower_mks = compute_lengths_markers(result_markers, start_sample)
-plot_lengths(time, Rupper_mks, Lupper_mks, Rlower_mks, Llower_mks, title_prefix="Markers")
-
-all_norms = {
+def plot_lengths(result_markers, quid,start_sample=0):
+    all_norms = {
     'upperlegR': [],
     'lowerlegR': [],
     'upperlegL': [],
@@ -123,31 +103,80 @@ all_norms = {
     'lowerarmR': [],
     'upperarmL': [],
     'lowerarmL': []
-}
+    }
+    frames = []
+    for ii in range(start_sample,len(result_markers)): 
+        if quid == 'jcp':
+            norms_init = compute_lengths_jcp(result_markers[0],start_sample)
+            norms = compute_lengths_jcp(result_markers[ii],start_sample)
+        else : 
+            norms_init = compute_lengths_markers(result_markers[0],start_sample)
+            norms = compute_lengths_markers(result_markers[ii],start_sample)
 
-frames = []
+        for key in all_norms.keys():
+            all_norms[key].append(norms[key])
+        frames.append(ii)
 
-for ii in range(start_sample,len(result_markers)): 
-    norms_init = get_segment_length(result_markers[0])
-    norms = get_segment_length(result_markers[ii])
-    for key in all_norms.keys():
-        all_norms[key].append(norms[key])
-    frames.append(ii)
+    # --- Plot en subplots ---
+    # --- Plot avec un subplot par segment ---
+    fig, axes = plt.subplots(4, 2, figsize=(14, 10), sharex=True)
+    axes = axes.flatten()
 
-# --- Plot en subplots ---
-# --- Plot avec un subplot par segment ---
-fig, axes = plt.subplots(4, 2, figsize=(14, 10), sharex=True)
-axes = axes.flatten()
+    for i, (key, values) in enumerate(all_norms.items()):
+        axes[i].plot(frames, values, label="Current length")
+        axes[i].axhline(norms_init[key], color='r', linestyle='--', label="Initial length")
+        axes[i].set_title(key)
+        axes[i].set_ylabel("Length (mm)")
+        axes[i].grid(True)
+        axes[i].legend()
 
-for i, (key, values) in enumerate(all_norms.items()):
-    axes[i].plot(frames, values, label="Current length")
-    axes[i].axhline(norms_init[key], color='r', linestyle='--', label="Initial length")
-    axes[i].set_title(key)
-    axes[i].set_ylabel("Length (mm)")
-    axes[i].grid(True)
-    axes[i].legend()
+    axes[-1].set_xlabel("Frames")
 
-axes[-1].set_xlabel("Frames")
+    plt.tight_layout()
+    plt.show()
+    
+# From joint centers
+plot_lengths(result_jcp,'jcp')
+plot_lengths(result_markers, 'mks')
 
-plt.tight_layout()
-plt.show()
+# From markers
+# Rupper_mks, Lupper_mks, Rlower_mks, Llower_mks = compute_lengths_markers(result_markers, start_sample)
+# plot_lengths(time, Rupper_mks, Lupper_mks, Rlower_mks, Llower_mks, title_prefix="Markers")
+
+# all_norms = {
+#     'upperlegR': [],
+#     'lowerlegR': [],
+#     'upperlegL': [],
+#     'lowerlegL': [],
+#     'upperarmR': [],
+#     'lowerarmR': [],
+#     'upperarmL': [],
+#     'lowerarmL': []
+# }
+
+# frames = []
+
+# for ii in range(start_sample,len(result_markers)): 
+#     norms_init = get_segment_length(result_markers[0])
+#     norms = get_segment_length(result_markers[ii])
+#     for key in all_norms.keys():
+#         all_norms[key].append(norms[key])
+#     frames.append(ii)
+
+# # --- Plot en subplots ---
+# # --- Plot avec un subplot par segment ---
+# fig, axes = plt.subplots(4, 2, figsize=(14, 10), sharex=True)
+# axes = axes.flatten()
+
+# for i, (key, values) in enumerate(all_norms.items()):
+#     axes[i].plot(frames, values, label="Current length")
+#     axes[i].axhline(norms_init[key], color='r', linestyle='--', label="Initial length")
+#     axes[i].set_title(key)
+#     axes[i].set_ylabel("Length (mm)")
+#     axes[i].grid(True)
+#     axes[i].legend()
+
+# axes[-1].set_xlabel("Frames")
+
+# plt.tight_layout()
+# plt.show()

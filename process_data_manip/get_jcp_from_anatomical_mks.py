@@ -7,8 +7,7 @@ import os
 import matplotlib.pyplot as plt
 
 
-subjects = [
-    "2307","1602","1118","3361","4827","4687","4801","1847","4279","2112","4216","1012","4162","4665","1508","4509","4612","2198"
+subjects = [ "4279"
 ]
 tasks = ["robot_welding"]
 gender = 'male'
@@ -77,20 +76,13 @@ def compute_uptrunk(C7, CLAV):
 
 def compute_shoulder(SHO, C7, CLAV):
     return np.array([
-        SHO[0] ,#+ np.cos(11 * np.pi / 180) * 0.43  * np.linalg.norm(CLAV - C7),
+        SHO[0] + np.cos(11 * np.pi / 180) * 0.43  * np.linalg.norm(CLAV - C7),
         SHO[1] - np.sin(11 * np.pi / 180) * 0.43 * np.linalg.norm(CLAV - C7),
         SHO[2]
     ])
 
 def col_vector_3D(a, b, c):
     return np.array([[float(a)], [float(b)], [float(c)]], dtype=np.float64)
-
-# def compute_shoulder_(RSHO,LSHO, torso_pose):
-#     bi_acromial_dist = np.linalg.norm(LSHO - RSHO)
-    
-#     rshoulder_center = RSHO.reshape(3,1) + 
-#     lshoulder_center = LSHO.reshape(3,1) + 
-#     return rshoulder_center, lshoulder_center
 
 def compute_joint_centers_from_mks(markers, *, units="mm"):
     """
@@ -121,6 +113,7 @@ def compute_joint_centers_from_mks(markers, *, units="mm"):
     mm_to_m = 0.001 if units == "mm" else 1.0
 
     jcp = {}
+    jcp_g = {}
     norms = {"RElbow": [], "LElbow": []}
 
     # Pelvis pose (global)
@@ -128,11 +121,8 @@ def compute_joint_centers_from_mks(markers, *, units="mm"):
     pelvis_position = as_col(pelvis_pose[:3, 3])
     pelvis_rotation = pelvis_pose[:3, :3]
 
-    bi_acromial_dist = bi_acromial_dist = np.linalg.norm(markers['L_shoulder_study'] - markers['r_shoulder_study'])
+    bi_acromial_dist = np.linalg.norm(markers['L_shoulder_study'] - markers['r_shoulder_study'])
     torso_pose = get_torso_pose(markers)
-    trans_global = (torso_pose[:3, :3].reshape(3,3)) @ col_vector_3D(0.0, -0.17*bi_acromial_dist, 0.0)
-
-    trans_local = transform_to_local_frame(trans_global,pelvis_position,pelvis_rotation)
 
     # ---- Transform all markers into pelvis (local) frame (do NOT mutate input) ----
     markers_local = {}
@@ -142,15 +132,11 @@ def compute_joint_centers_from_mks(markers, *, units="mm"):
 
     # ---- Shoulders & Neck ----
     try:
-        # jcp["RShoulder"] = compute_shoulder(markers_local["r_shoulder_study"],
-        #                                     markers_local["C7_study"],
-        #                                     markers_local["SJN"])
-        # jcp["LShoulder"] = compute_shoulder(markers_local["L_shoulder_study"],
-        #                                     markers_local["C7_study"],
-        #                                     markers_local["SJN"])
+        jcp_g["RShoulder"]= markers['r_shoulder_study'].reshape(3,1) + (torso_pose[:3, :3].reshape(3,3)) @ col_vector_3D(0.0, -0.17*bi_acromial_dist, 0.0)
+        jcp_g["LShoulder"] = markers['L_shoulder_study'].reshape(3,1) + (torso_pose[:3, :3].reshape(3,3)) @ col_vector_3D(0.0, -0.17*bi_acromial_dist, 0.0)
 
-        jcp["RShoulder"]= markers_local["r_shoulder_study"] 
-        jcp["LShoulder"] = markers_local["L_shoulder_study"]
+        jcp["RShoulder"] = transform_to_local_frame(jcp_g["RShoulder"], pelvis_position, pelvis_rotation)
+        jcp["LShoulder"] = transform_to_local_frame(jcp_g["LShoulder"], pelvis_position, pelvis_rotation)
         jcp["Neck"] = compute_uptrunk(markers_local["C7_study"], markers_local["SJN"])
     except KeyError as e:
         # Missing any of these markers → skip shoulders/neck
@@ -312,52 +298,52 @@ for no_trial in subjects:
             jcp_rows.append(flat_jcp)
 
         jcp_df = pd.DataFrame(jcp_rows)
-        path = f"{base_path}/mocap/{task}"
+        path = f"{base_path}/mocap_jcp/{task}"
         os.makedirs(path, exist_ok=True)
 
-        output_csv_path = f"{path}/joint_center_positions_test.csv"
+        output_csv_path = f"{path}/{no_trial}joint_center_positions.csv"
 
         jcp_df.to_csv(output_csv_path, index=False)
 
-        fig, axes = plt.subplots(2, 1, figsize=(10,6), sharex=True)
+        # fig, axes = plt.subplots(2, 1, figsize=(10,6), sharex=True)
 
-        axes[0].plot(all_norms_R, label="Right Elbow", color="blue")
-        axes[0].set_ylabel("Norm (m)")
-        axes[0].legend()
-        axes[0].grid(True)
-
-        axes[1].plot(all_norms_L, label="Left Elbow", color="red")
-        axes[1].set_ylabel("Norm (m)")
-        axes[1].set_xlabel("Frame")
-        axes[1].legend()
-        axes[1].grid(True)
-
-        plt.tight_layout()
-        plt.show()
-
-        # fig, axes = plt.subplots(4, 1, figsize=(12, 10), sharex=True)
-
-        # # Right upper arm
-        # axes[0].plot(seg_df["Frame"], seg_df["RUpperArm"], color="blue")
-        # axes[0].set_ylabel("R Upper Arm (m)")
+        # axes[0].plot(all_norms_R, label="Right Elbow", color="blue")
+        # axes[0].set_ylabel("Norm (m)")
+        # axes[0].legend()
         # axes[0].grid(True)
-        # axes[0].set_title(f"{no_trial} - {task} : Segment Lengths")
 
-        # # Right lower arm
-        # axes[1].plot(seg_df["Frame"], seg_df["RLowerArm"], color="cyan")
-        # axes[1].set_ylabel("R Lower Arm (m)")
+        # axes[1].plot(all_norms_L, label="Left Elbow", color="red")
+        # axes[1].set_ylabel("Norm (m)")
+        # axes[1].set_xlabel("Frame")
+        # axes[1].legend()
         # axes[1].grid(True)
-
-        # # Left upper arm
-        # axes[2].plot(seg_df["Frame"], seg_df["LUpperArm"], color="red")
-        # axes[2].set_ylabel("L Upper Arm (m)")
-        # axes[2].grid(True)
-
-        # # Left lower arm
-        # axes[3].plot(seg_df["Frame"], seg_df["LLowerArm"], color="orange")
-        # axes[3].set_ylabel("L Lower Arm (m)")
-        # axes[3].set_xlabel("Frame")
-        # axes[3].grid(True)
 
         # plt.tight_layout()
         # plt.show()
+
+        fig, axes = plt.subplots(4, 1, figsize=(12, 10), sharex=True)
+
+        # Right upper arm
+        axes[0].plot(seg_df["Frame"], seg_df["RUpperArm"], color="blue")
+        axes[0].set_ylabel("R Upper Arm (m)")
+        axes[0].grid(True)
+        axes[0].set_title(f"{no_trial} - {task} : Segment Lengths")
+
+        # Right lower arm
+        axes[1].plot(seg_df["Frame"], seg_df["RLowerArm"], color="cyan")
+        axes[1].set_ylabel("R Lower Arm (m)")
+        axes[1].grid(True)
+
+        # Left upper arm
+        axes[2].plot(seg_df["Frame"], seg_df["LUpperArm"], color="red")
+        axes[2].set_ylabel("L Upper Arm (m)")
+        axes[2].grid(True)
+
+        # Left lower arm
+        axes[3].plot(seg_df["Frame"], seg_df["LLowerArm"], color="orange")
+        axes[3].set_ylabel("L Lower Arm (m)")
+        axes[3].set_xlabel("Frame")
+        axes[3].grid(True)
+
+        plt.tight_layout()
+        plt.show()
