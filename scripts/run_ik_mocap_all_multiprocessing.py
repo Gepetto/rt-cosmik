@@ -42,7 +42,7 @@ def run_ik(task, no_trial, start_sample=0, visualize=False):
     subject_height,subject_mass, gender = read_subject_info(info_path)
 
     rt_cosmik_path = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-    path_to_csv = f"/root/workspace/ros_ws/src/rt-cosmik/COSMIK_dataset/{no_trial}/{task}/{task}_trajectories.csv"
+    path_to_csv = f"/root/workspace/ros_ws/src/rt-cosmik/output/{no_trial}/mocap/{task}/mocap_downsampled_to_40hz.csv"
     df_wide = pd.read_csv(path_to_csv)
 
     mks_to_skip = ['LForearm','LUArm', 'RUArm', 'RHJC_study','LHJC_study','r_pelvis','l_pelvis',
@@ -60,6 +60,7 @@ def run_ik(task, no_trial, start_sample=0, visualize=False):
 
     # Load UDP CSV (wide format)
     if not os.path.exists(path_to_csv):
+
         raise FileNotFoundError(f"Missing CSV: {path_to_csv}")
     # df_wide = udp_csv_to_dataframe(path_to_csv, mks_names)
     result_markers, start_sample_dict = read_mks_data(df_wide, start_sample=start_sample, converter = 1000.0)
