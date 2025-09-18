@@ -23,17 +23,18 @@ nbr_cams= 2
 mks_to_skip = ['LForearm','LUArm', 'RUArm', 'RHJC_study','LHJC_study','r_pelvis','l_pelvis',
                'LHand','LHL2','LHM5', 'RForearm','RHand','RHL2','RHM5', 'L_sh1_study', 'L_thigh1_study','r_sh1_study', 'r_thigh1_study']
 #read mks data
-no_trial = "4279"
+no_trial = "4162"
 task = "robot_welding"
-gender = 'male'
-path_to_csv = f"/root/workspace/ros_ws/src/rt-cosmik/output/{no_trial}/cosmik_2cams/{task}/augmented_markers_fused_OKK.csv"
+gender = 'female'
+path_to_csv = f"/root/workspace/ros_ws/src/rt-cosmik/output/{no_trial}/cosmik_2cams/{task}/augmented_markers_mocap_finetuned.csv"
 ###########################################################################################for cosmik data 
-path_to_kpt = f"/root/workspace/ros_ws/src/rt-cosmik/output/{no_trial}/cosmik_2cams/{task}/3D_keypoints_fused_OKK.csv"
+# path_to_kpt = f"/root/workspace/ros_ws/src/rt-cosmik/output/cosmik_jcp/Zoe/output_zoe_tete.csv"
+path_to_kpt = f"/root/workspace/ros_ws/src/rt-cosmik/output/mocap/mocap_zoe/robot_welding/mocap_downsampled_to_40hz.csv"
 
-keys_to_add = ['Nose', 'Head', 'REar', 'LEar', 'REye', 'LEye']
+keys_to_add = ['FHD', 'LHD', 'RHD'] #with jcp fused + ML, we changed head mks
 
 data_markers_lstm = pd.read_csv(path_to_csv) 
-keypoints = pd.read_csv(path_to_kpt) 
+keypoints = pd.read_csv(path_to_kpt)/1000 ##check keypoint unit
 
 columns_to_add = [col for col in keypoints.columns if any(key + '_' in col for key in keys_to_add)]
 
@@ -111,7 +112,7 @@ q = pin.neutral(human_model) # init pos
 human_data = pin.Data(human_model)
 
 dt = 1/40 #dt for qp
-keys_to_track_list = ['Nose', 'Head', 'REye', 'LEye',
+keys_to_track_list = ['FHD', 'LHD', 'RHD',  
         'C7_study', 
         'r.ASIS_study', 'L.ASIS_study', 
         'r.PSIS_study', 'L.PSIS_study', 
@@ -228,7 +229,7 @@ if len(joint_angles_names) != num_values:
     raise ValueError(f"joint_angles_names has {len(joint_angles_names)} entries but q has {num_values} DOFs.")
 
 df = pd.DataFrame(q_list, columns=joint_angles_names)
-csv_file = os.path.join(rt_cosmik_path, f"output/{no_trial}/cosmik_2cams/{task}/q_cosmik_fused_OKK.csv")
+csv_file = os.path.join(rt_cosmik_path, f"output/{no_trial}/cosmik_2cams/{task}/q_cosmik_mocap_tete_finetuned.csv")
 df.to_csv(csv_file, index=False)
 
 

@@ -4,8 +4,8 @@ from tensorflow.keras.models import model_from_json
 import tf2onnx
 
 # Paths to your files
-json_path = "/root/workspace/ros_ws/src/rt-cosmik/src/rtcosmik/augmenter/augmentation_model/LSTM/v0.3_lower/model_finetuned_lower_ftF_alT_mT_nF_wF.json"
-weights_path = "/root/workspace/ros_ws/src/rt-cosmik/src/rtcosmik/augmenter/augmentation_model/LSTM/v0.3_lower/weights_finetuned_lower_ftF_alT_mT_nF_wF.h5"
+json_path = "/root/workspace/ros_ws/src/rt-cosmik/src/rtcosmik/augmenter/augmentation_model/LSTM_finetuned/v0.3_upper/model_finetuned_032.json"
+weights_path = "/root/workspace/ros_ws/src/rt-cosmik/src/rtcosmik/augmenter/augmentation_model/LSTM_finetuned/v0.3_upper/best_finetuned_weights_032.h5"
 
 # Load the model architecture
 with open(json_path, 'r') as json_file:
@@ -35,6 +35,6 @@ spec = (tf.TensorSpec(model.input_shape, tf.float32, name="input"),)
 onnx_model, _ = tf2onnx.convert.from_keras(model, input_signature=spec, opset=13)
 
 # Save to file
-with open("/root/workspace/ros_ws/src/rt-cosmik/src/rtcosmik/augmenter/augmentation_model/LSTM/v0.3_lower/model_finetuned_2.onnx", "wb") as f:
+with open("/root/workspace/ros_ws/src/rt-cosmik/src/rtcosmik/augmenter/augmentation_model/LSTM_finetuned/v0.3_upper/model_finetuned.onnx", "wb") as f:
     f.write(onnx_model.SerializeToString())
     

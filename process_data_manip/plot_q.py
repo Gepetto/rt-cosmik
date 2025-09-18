@@ -9,10 +9,11 @@ from scipy.signal import correlation_lags
 from scipy.signal import correlate
 
 
-no_trial = "4279"
+no_trial = "4162"
 task = "robot_welding"
-path_mocap= f"/root/workspace/ros_ws/src/rt-cosmik/output/{no_trial}/mocap/{task}/q_mocap.csv"
-path_cosmik= f"/root/workspace/ros_ws/src/rt-cosmik/output/{no_trial}/cosmik_2cams/{task}/q_cosmik_fused_all.csv"
+path_mocap= f"//root/workspace/ros_ws/src/rt-cosmik/output/mocap/mocap_zoe/robot_welding/q_mocap.csv"
+# path_mocap= f"/root/workspace/ros_ws/src/rt-cosmik/output/{no_trial}/mocap/{task}/q_mocap.csv"
+path_cosmik= f"/root/workspace/ros_ws/src/rt-cosmik/output/{no_trial}/cosmik_2cams/{task}/q_cosmik_mocap.csv"
 
 dofs  =  ['Lhip_flex_ext', 'Lhip_abd_add','Lhip_int_ext_rot','Lknee_flex_ext','Lankle_flex_ext','Lankle_abd_add',
                           'Lumbar_flex_ext', 'Lumbar_lateral_flex',

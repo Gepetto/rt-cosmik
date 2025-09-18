@@ -74,12 +74,25 @@ def get_head_pose(mks_positions):
         
         X = np.cross(Y, Z, axis=0)
         Z = np.cross(X, Y, axis=0)
-    else: 
+    elif 'BHD' in mks_positions: 
         head_center = (mks_positions['r_shoulder_study'] + mks_positions['L_shoulder_study'])/2.0 
         top_head = (mks_positions['FHD'] +
                 mks_positions['BHD'] +
                 mks_positions['LHD'] +
                 mks_positions['RHD'] )/4.0
+        Y = (top_head - head_center).reshape(3,1)
+        Y = Y/np.linalg.norm(Y)
+
+        Z = mks_positions['RHD'] - mks_positions['LHD']
+        Z = Z/np.linalg.norm(Z)
+
+        X = np.cross(Y, Z, axis=0)
+        Z = np.cross(X, Y, axis=0)
+    else: 
+        head_center = (mks_positions['r_shoulder_study'] + mks_positions['L_shoulder_study'])/2.0 
+        top_head = (mks_positions['FHD'] +
+                mks_positions['LHD'] +
+                mks_positions['RHD'] )/3.0
         Y = (top_head - head_center).reshape(3,1)
         Y = Y/np.linalg.norm(Y)
 
@@ -961,7 +974,7 @@ def get_segments_mks_dict(mks_positions)->Dict:
         "footR": ['r_calc_study' ,'r_5meta_study','r_toe_study'],
         "footL": ['L_calc_study', 'L_5meta_study', 'L_toe_study']
     }
-    else : #with mocap set
+    elif 'BHD' in mks_positions : #with mocap set
         sgts_mks_dict = {
             "head": ['r_shoulder_study','L_shoulder_study','C7_study','BHD','RHD','LHD','FHD'],
             "thorax": ['TV8','TV12','SJN','STRN'],
@@ -982,6 +995,25 @@ def get_segments_mks_dict(mks_positions)->Dict:
             "handR": ["RHL2", "RHM5"],
             "handL": ["LHL2", "LHM5"]
         }
+    else: #with cosmik set but diff head
+        sgts_mks_dict = {
+        "head": ['FHD', 'LHD', 'RHD'],
+        "thorax": ['C7_study'],
+        "right_clavicle" : ['r_shoulder_study'],
+        "left_clavicle" : ['L_shoulder_study'],
+        
+        "upperarmR": ['r_melbow_study', 'r_lelbow_study'],
+        "lowerarmR": ['r_lwrist_study', 'r_mwrist_study'],
+        "upperarmL" : ['L_melbow_study', 'L_lelbow_study'],
+        "lowerarmL": ['L_lwrist_study', 'L_mwrist_study'],
+        "pelvis": ['r.PSIS_study', 'L.PSIS_study', 'r.ASIS_study', 'L.ASIS_study'],
+        "thighR": ['r_knee_study', 'r_mknee_study','r_thigh2_study', 'r_thigh3_study', 'r_thigh1_study'],
+        "thighL": ['L_knee_study', 'L_mknee_study','L_thigh2_study', 'L_thigh3_study', 'L_thigh1_study'],
+        "shankR": ['r_ankle_study', 'r_mankle_study','r_sh3_study', 'r_sh2_study', 'r_sh1_study'],
+        "shankL": ['L_ankle_study', 'L_mankle_study','L_sh3_study', 'L_sh2_study', 'L_sh1_study'],
+        "footR": ['r_calc_study' ,'r_5meta_study','r_toe_study'],
+        "footL": ['L_calc_study', 'L_5meta_study', 'L_toe_study']
+    }
     return sgts_mks_dict
 
 def get_segments_mks_dict_hybrik(mks_positions)->Dict:

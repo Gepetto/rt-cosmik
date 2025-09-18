@@ -13,23 +13,24 @@ from src.rtcosmik.utils.read_write_utils import read_mmpose_file, save_to_csv
 from src.rtcosmik.utils.linear_algebra_utils import butterworth_filter
 base_path = "/root/workspace/ros_ws/src/rt-cosmik"
 
-no_trial = "4279"
+no_trial = "Zoe"
+s = "zoe"
+id = "4162"
 task = "robot_welding"
-# path_to_3d_kpt = f"/root/workspace/ros_ws/src/rt-cosmik/output/{no_trial}/mocap/{task}/joint_center_positions.csv"
-path_to_3d_kpt = os.path.join(base_path, f"output/{no_trial}/cosmik_2cams/{task}/3D_keypoints_fused_OKK.csv")
-output_csv_path = os.path.join(base_path, f"output/{no_trial}/cosmik_2cams/{task}/augmented_markers_fused_OKK.csv")
+path_to_3d_kpt = f"/root/workspace/ros_ws/src/rt-cosmik/output/mocap_jcp/{s}/{task}_joint_center_positions.csv"
+# path_to_3d_kpt= os.path.join(base_path, f"output/cosmik_jcp/{no_trial}/output_{s}_tete.csv")
+# path_to_3d_kpt = os.path.join(base_path, f"output/{no_trial}/cosmik_2cams/{task}/3D_keypoints_fused_OKK.csv")
+output_csv_path = os.path.join(base_path, f"output/{id}/cosmik_2cams/{task}/augmented_markers_mocap_finetuned.csv")
 
-subject_mass =73.0
-subject_height = 1.87
+subject_mass =55.0
+subject_height = 1.65
 augmenter_path = '/root/workspace/ros_ws/src/rt-cosmik/src/rtcosmik/augmenter/augmentation_model'
 markers = [
            'r.ASIS_study','L.ASIS_study','r.PSIS_study','L.PSIS_study','r_knee_study',
            'r_mknee_study','r_ankle_study','r_mankle_study','r_toe_study','r_5meta_study',
            'r_calc_study','L_knee_study','L_mknee_study','L_ankle_study','L_mankle_study',
            'L_toe_study','L_calc_study','L_5meta_study','r_shoulder_study','L_shoulder_study',
-           'C7_study','r_thigh1_study','r_thigh2_study','r_thigh3_study','L_thigh1_study',
-           'L_thigh2_study','L_thigh3_study','r_sh1_study','r_sh2_study','r_sh3_study',
-           'L_sh1_study','L_sh2_study','L_sh3_study','RHJC_study','LHJC_study','r_lelbow_study',
+           'C7_study','r_lelbow_study',
            'r_melbow_study','r_lwrist_study','r_mwrist_study','L_lelbow_study','L_melbow_study',
            'L_lwrist_study','L_mwrist_study']
 header = []
@@ -42,10 +43,11 @@ def main():
     augmented_markers_list = []
     first_frame = True
     #load lstm model
-    warmed_models= loadModel(augmenterDir=augmenter_path, augmenterModelName="LSTM",augmenter_model='v0.3')
+    warmed_models= loadModel(augmenterDir=augmenter_path, augmenterModelName="LSTM_finetuned",augmenter_model='v0.3')
 
     #load 3d keypoints
-    data = pd.read_csv(path_to_3d_kpt).values
+    data = pd.read_csv(path_to_3d_kpt)/1000
+    data= data.values
     num_columns = data.shape[1]
 
     if num_columns % 3 != 0:
