@@ -98,7 +98,7 @@ for subject in test_subjects:
             continue
         trial_path = os.path.join(subject_path, trial)
         if args.test_over_mocap == "T":
-            path_to_csv_mocap = os.path.join(trial_path, f"{trial}_trajectories.csv")
+            path_to_csv_mocap = os.path.join(trial_path, f"{trial}_mks_rt.csv")
             path_to_csv_lstm = os.path.join(base_path, f"rt-cosmik/output/{subject}/{trial}/{trial}_augmented_markers_mocap_{args.upper_model_id}-{args.lower_model_id}.csv")
             path_to_csv_lstm_OpenCap = os.path.join(base_path, f"rt-cosmik/output/{subject}/{trial}/{trial}_augmented_markers_mocap_OpenCap.csv")
             path_to_kpt = os.path.join(trial_path, f"{trial}_jcp_mocap.csv")
@@ -116,7 +116,7 @@ for subject in test_subjects:
         # df_wide = marker_data_to_dataframe(df_raw,mks_names)
         if args.test_over_mocap == "T":
             df_wide = pd.read_csv(path_to_csv_mocap)
-            result_markers, start_sample_mks = read_mks_data(df_wide, converter = 1000.0)
+            result_markers, start_sample_mks = read_mks_data(df_wide, converter = 1.0)
         elif args.test_over_mocap == "F":
             df_wide = pd.read_csv(path_to_csv_mocap)
             result_markers, start_sample_mks = read_mks_data(df_wide, converter = 1.0)
