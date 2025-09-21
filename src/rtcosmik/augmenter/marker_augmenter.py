@@ -59,7 +59,7 @@ def loadModel(augmenterDir, augmenterModelName="LSTM",augmenter_model='v0.3'):
     for idx_augm, augmenterModelType in enumerate(augmenterModelType_all):
         augmenterModelDir = os.path.join(augmenterDir, augmenterModelName, 
                                          augmenterModelType)
-        session = ort.InferenceSession(f"{augmenterModelDir}/model.onnx")
+        session = ort.InferenceSession(f"{augmenterModelDir}/model_finetuned.onnx")
 
         models[augmenterModelType] = session
 
@@ -98,11 +98,11 @@ def augmentTRC(keypoints_buffer, subject_mass, subject_height,
     featureWeight = True
     
     outputs_all = {}
-    marker_indices_lower = [18, 6, 5, 12, 11, 14, 13, 16, 15, 25, 24, 23, 22, 21, 20] #['Neck', 'RShoulder', 'LShoulder', 'RHip', 'LHip', 'RKnee', 'LKnee', 'RAnkle', 'LAnkle', 'RHeel', 'LHeel', 'RSmallToe', 'LSmallToe', 'RBigToe', 'LBigToe']
-    marker_indices_upper = [18, 6, 5, 8, 7, 10, 9] #['Neck', 'RShoulder', 'LShoulder', 'RElbow', 'LElbow', 'RWrist', 'LWrist']
+    # marker_indices_lower = [18, 6, 5, 12, 11, 14, 13, 16, 15, 25, 24, 23, 22, 21, 20] #['Neck', 'RShoulder', 'LShoulder', 'RHip', 'LHip', 'RKnee', 'LKnee', 'RAnkle', 'LAnkle', 'RHeel', 'LHeel', 'RSmallToe', 'LSmallToe', 'RBigToe', 'LBigToe']
+    # marker_indices_upper = [18, 6, 5, 8, 7, 10, 9] #['Neck', 'RShoulder', 'LShoulder', 'RElbow', 'LElbow', 'RWrist', 'LWrist']
 
-    # marker_indices_lower = [2, 0, 1, 7, 8, 10, 11, 12, 13, 14, 15, 18, 19, 16, 17] #['Neck', 'RShoulder', 'LShoulder', 'RHip', 'LHip', 'RKnee', 'LKnee', 'RAnkle', 'LAnkle', 'RHeel', 'LHeel', 'RSmallToe', 'LSmallToe', 'RBigToe', 'LBigToe']
-    # marker_indices_upper = [2, 0, 1, 3, 4, 5, 6] #['Neck', 'RShoulder', 'LShoulder', 'RElbow', 'LElbow', 'RWrist', 'LWrist']
+    marker_indices_lower = [2, 0, 1, 7, 8, 10, 11, 12, 13, 14, 15, 18, 19, 16, 17] #['Neck', 'RShoulder', 'LShoulder', 'RHip', 'LHip', 'RKnee', 'LKnee', 'RAnkle', 'LAnkle', 'RHeel', 'LHeel', 'RSmallToe', 'LSmallToe', 'RBigToe', 'LBigToe']
+    marker_indices_upper = [2, 0, 1, 3, 4, 5, 6] #['Neck', 'RShoulder', 'LShoulder', 'RElbow', 'LElbow', 'RWrist', 'LWrist']
 
 
     # Loop over augmenter types to handle separate augmenters for lower and
@@ -121,7 +121,7 @@ def augmentTRC(keypoints_buffer, subject_mass, subject_height,
         augmenterModelDir = os.path.join(augmenterDir, augmenterModelName, 
                                          augmenterModelType)
         # Process the keypoints buffer
-        referenceMarker_data = marker(keypoints_buffer, 19)  # midihip
+        referenceMarker_data = marker(keypoints_buffer, 9)  # midihip
         norm_buffer = np.zeros_like(keypoints_buffer)
 
         # Normalize based on the reference marker
@@ -142,9 +142,8 @@ def augmentTRC(keypoints_buffer, subject_mass, subject_height,
 
         # Load mean and std for normalization
         #print(augmenterModelDir)
-        pathMean = os.path.join(augmenterModelDir, "mean.npy")
-        pathSTD = os.path.join(augmenterModelDir, "std.npy")
-        #print(pathMean)
+        pathMean = os.path.join(augmenterModelDir, f"stats_streaming/mean_train_032.npy")
+        pathSTD = os.path.join(augmenterModelDir, f"stats_streaming/std_train_032.npy")
 
         if os.path.isfile(pathMean):
             trainFeatures_mean = np.load(pathMean, allow_pickle=True)

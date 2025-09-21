@@ -1,0 +1,22 @@
+{
+  "feature_dim": 47,
+  "seq_len": 100,
+  "kpts_input_lstm": [
+    "Neck",
+    "RShoulder",
+    "LShoulder",
+    "RHip",
+    "LHip",
+    "RKnee",
+    "LKnee",
+    "RAnkle",
+    "LAnkle",
+    "RHeel",
+    "LHeel",
+    "RSmallToe",
+    "LSmallToe",
+    "RBigToe",
+    "LBigToe"
+  ],
+  "body_part": "lower"
+}
