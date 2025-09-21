@@ -21,6 +21,7 @@ p.add_argument('--upper-model-id', type=str, required=True)
 p.add_argument('--lower-model-id', type=str, required=True)
 p.add_argument("--excluded-trials", type=str, default="robweld", help="Exclude trials from the dataset")
 p.add_argument('--test-subjects', type=str, default="Batiste")
+p.add_argument('--procrustes', type=str, default="T")
 
 args = p.parse_args()
 
@@ -66,7 +67,7 @@ else:
 
 test_subjects = args.test_subjects.split(",")
 
-procrustes = (args.test_over_mocap == "F")
+procrustes = (args.procrustes == "T")
 
 def kabsch_global(P_cam_seq, P_mocap_seq, weights=None):
     """
@@ -151,7 +152,7 @@ def main():
                 continue
             trial_path = os.path.join(subject_path, trial)
             if args.test_over_mocap == "T":
-                converter = 1000.0
+                converter = 1.0
                 path_to_3d_kpt = os.path.join(trial_path, f"{trial}_jcp_mocap.csv")
                 output_csv_path = os.path.join(base_path, f"rt-cosmik/output/{subject}/{trial}/{trial}_augmented_markers_mocap_{args.upper_model_id}-{args.lower_model_id}.csv")
                 output_csv_path_OpenCap = os.path.join(base_path, f"rt-cosmik/output/{subject}/{trial}/{trial}_augmented_markers_mocap_OpenCap.csv")

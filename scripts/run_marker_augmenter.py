@@ -58,7 +58,7 @@ if args.use_mocap == "T":
     output_csv_path_OpenCap = os.path.join(base_path, f"rt-cosmik/output/{args.subject}/{args.trial}/{args.trial}_augmented_markers_mocap_OpenCap.csv")
 elif args.use_mocap == "F":
     converter = 1.0
-    path_to_3d_kpt = os.path.join(trial_path, f"{args.trial}_jcp_hpe.csv")
+    path_to_3d_kpt = os.path.join(trial_path, f"3D_keypoints_fused_begin.csv")
     output_csv_path = os.path.join(base_path, f"rt-cosmik/output/{args.subject}/{args.trial}/{args.trial}_augmented_markers_hpe_ft{args.fine_tune}_al{args.add_layer}_m{args.use_mocap}_n{args.add_noise}_w{args.use_weights}_prot{args.rot_prob}_maxrot{args.rot_max_deg}_rotscheme{args.rotation_scheme}_up{args.up_axis}_nrot{args.n_rotations}.csv")
     output_csv_path_OpenCap = os.path.join(base_path, f"rt-cosmik/output/{args.subject}/{args.trial}/{args.trial}_augmented_markers_hpe_OpenCap.csv")
 else :
