@@ -495,7 +495,7 @@ model.summary()
 
 ### On sauvegarde le modele qui correspond au config de finetune
 # Save model definition that matches finetune config
-model_json_path = pretrained_dir / f"model_finetuned_{args.id}.json"
+model_json_path = pretrained_dir / f"model_finetuned_newjcp_{args.id}.json"
 with open(model_json_path, "w") as f:
     f.write(model.to_json())
 
@@ -615,10 +615,10 @@ class PredictionLogger(tf.keras.callbacks.Callback):
                 rows[f"GT.{name}.{ax}"]   = y_last[:, j, a]
                 rows[f"Pred.{name}.{ax}"] = p_last[:, j, a]
 
-        df = pd.DataFrame(rows)
-        out = self.save_dir / f"pred_epoch{epoch+1}_laststep_{self.n_samples}.csv"
-        df.to_csv(out, index=False)
-        print(f"[INFO] Saved {out}")
+        # df = pd.DataFrame(rows)
+        # out = self.save_dir / f"pred_epoch{epoch+1}_laststep_{self.n_samples}.csv"
+        # df.to_csv(out, index=False)
+        # print(f"[INFO] Saved {out}")
 
 ### Cette classe permet de print le lr à chaque epoch, c'est utile pour voir si le learning évolue bien quand on met un scheduler
 class LRLogger(tf.keras.callbacks.Callback):
@@ -645,7 +645,7 @@ class LRLogger(tf.keras.callbacks.Callback):
             print(f"[WARNING] Could not retrieve learning rate at epoch {epoch+1}: {e}")
 
 ### Définition des paths où save et des callbacks comme le Earlystopping, le checkpoint, le predictionLogger et le LRLogger
-ckpt_path = pretrained_dir / f"best_finetuned_weights_{args.id}.h5"
+ckpt_path = pretrained_dir / f"best_finetuned_weights_newjcp_{args.id}.h5"
 callbacks = [
     EarlyStopping(monitor='val_loss', patience=args.patience, restore_best_weights=True, verbose=1),
     ModelCheckpoint(str(ckpt_path), monitor='val_loss', save_best_only=True, save_weights_only=True, verbose=1),
@@ -679,7 +679,7 @@ history = model.fit(train_ds, validation_data=val_ds, epochs=args.epochs, callba
 
 # ─────────────── Save weights ───────────────
 ### A la fin on sauvegarde les weights et un norm_meta.json qui contient les infos de la config de finetune
-final_w = pretrained_dir / f"weights_finetuned_final_{args.id}.h5"
+final_w = pretrained_dir / f"weights_finetuned_final_newjcp_{args.id}.h5"
 model.save_weights(str(final_w))
 with open(stats_dir / f"norm_meta_{args.id}.json", "w") as f:
     json.dump({
