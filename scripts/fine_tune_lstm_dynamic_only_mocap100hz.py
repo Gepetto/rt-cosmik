@@ -105,7 +105,7 @@ def enumerate_trials(subject_list):
             if trial in excluded_trials:
                 continue
             trial_dir = sp/trial
-            jcp_name  = f"{trial}_jcp_mocap.npz"
+            jcp_name  = f"{trial}_joint_center_positions.npz"
             mocap_name= f"{trial}_trajectories.npz"
             if not (trial_dir/mocap_name).exists() or not (trial_dir/jcp_name).exists():
                 raise FileNotFoundError(f"Some files are missing in {s} : {trial}")
