@@ -1,3 +1,4 @@
+#allows to check mks mocap vs mks lstm and jcp mks
 import sys
 import os
 import pinocchio as pin 
@@ -11,21 +12,20 @@ import pandas as pd
 from src.rtcosmik.utils.read_write_utils import parse_marker_csv,udp_csv_to_dataframe,read_mks_data,load_transformation,plot_marker_comparison
 from collections import defaultdict
 
-nbr_cam = 2
-no_trial = "Claire_"
-task = "sanding"
+id = "2198"
+no_trial = "Batiste"
+task = "robot_welding"
 
-path_to_csv_mocap = f"/root/workspace/ros_ws/src/rt-cosmik/output/{no_trial}/mocap/{task}/mks_data_gapfilled.csv"
-# path_to_csv = f"/root/workspace/ros_ws/src/rt-cosmik/output/{no_trial}/mouv/{task}/mocap_downsampled_to_40hz.csv"
-# df_wide = pd.read_csv(path_to_csv)
+# path_to_csv_mocap = f"/root/workspace/ros_ws/src/rt-cosmik/output/{id}/mocap/{task}/mocap_downsampled_to_40hz.csv"
+path_to_csv_mocap = f"/root/workspace/ros_ws/src/rt-cosmik/output/mocap/mocap_{no_trial}/{task}/mocap_downsampled_to_40hz.csv"
+df_wide = pd.read_csv(path_to_csv_mocap)
 # df_wide.columns = [col.replace(f"{no_trial}:", "") for col in df_wide.columns]
 # frames = df_wide["Frame"] if "Frame" in df_wide.columns else range(len(df_wide))
 # mks_names = sorted(set(col.rsplit("_", 1)[0] for col in df_wide.columns if "_x" in col))
-
-path_to_csv_lstm = f"/root/workspace/ros_ws/src/rt-cosmik/output/{no_trial}/cosmik_2cams/{task}/augmented_markers_test.csv"
-path_to_csv_lstm2 = f"/root/workspace/ros_ws/src/rt-cosmik/output/{no_trial}/cosmik_2cams/{task}/augmented_markers_{nbr_cam}.csv"
-path_to_kpt = f"/root/workspace/ros_ws/src/rt-cosmik/output/{no_trial}/cosmik_2cams/{task}/3d_keypoints_filtered_{nbr_cam}.csv"
-# path_to_kpt = f"/root/workspace/ros_ws/src/rt-cosmik/output/{no_trial}/mocap/{task}/joint_center_positions.csv"
+path_to_csv_lstm = f"/root/workspace/ros_ws/src/rt-cosmik/output/{id}/cosmik_2cams/{task}/augmented_markers_mocap_opencap_pontonnier.csv"
+path_to_csv_lstm2 = f"/root/workspace/ros_ws/src/rt-cosmik/output/{id}/cosmik_2cams/{task}/augmented_markers_mocap_opencap.csv"
+# path_to_kpt = f"/root/workspace/ros_ws/src/rt-cosmik/output/{no_trial}/cosmik_2cams/{task}/3d_keypoints_filtered_{nbr_cam}.csv"
+path_to_kpt = f"/root/workspace/ros_ws/src/rt-cosmik/output/mocap_jcp/Alessandro/robot_welding/robot_welding_joint_center_positions.csv"
 
 marker_mocap_names = ['r.ASIS_study','L.ASIS_study','r.PSIS_study','L.PSIS_study',
              'TV8','TV12','SJN','STRN','C7_study','r_shoulder_study','L_shoulder_study',
@@ -38,14 +38,13 @@ marker_mocap_names = ['r.ASIS_study','L.ASIS_study','r.PSIS_study','L.PSIS_study
              'r_pelvis', 'l_pelvis'] #mocap data
 mks_names = marker_mocap_names
 # df_wide = marker_data_to_dataframe(df_raw,mks_names)
-df_wide = udp_csv_to_dataframe(path_to_csv_mocap, mks_names)
-result_markers, start_sample_mks = read_mks_data(df_wide, converter = 1.0)
+# df_wide = udp_csv_to_dataframe(path_to_csv_mocap, mks_names)
+result_markers, start_sample_mks = read_mks_data(df_wide, converter = 1000.0)
 
 hpe_kpt = [
-    "Nose", "LEye", "REye", "LEar", "REar", 
     "LShoulder", "RShoulder", "LElbow", "RElbow", 
     "LWrist", "RWrist", "LHip", "RHip", 
-    "LKnee", "RKnee", "LAnkle", "RAnkle", "Head",
+    "LKnee", "RKnee", "LAnkle", "RAnkle",
     "Neck", "midHip", "LBigToe", "RBigToe", "LSmallToe", "RSmallToe", "LHeel", "RHeel"
 ]
 lstm_mks_names = ['r.ASIS_study','L.ASIS_study','r.PSIS_study','L.PSIS_study','r_knee_study',
@@ -73,16 +72,24 @@ data_markers_lstm2 = pd.read_csv(path_to_csv_lstm2)
 keypoints = pd.read_csv(path_to_kpt) 
 keys_to_add = hpe_kpt
 
-columns_to_add = [col for col in keypoints.columns if any(key + '_' in col for key in keys_to_add)]
+# columns_to_sadd = [col for col in keypoints.columns if any(key + '_' in col for key in keys_to_add)]
 # if len(data_markers_lstm) != len(keypoints):
 #     raise ValueError("Row count mismatch between data_markers_lstm and keypoints")
 
-data_markers_lstm = pd.concat([data_markers_lstm, keypoints[columns_to_add].reset_index(drop=True)], axis=1)
+# data_markers_lstm = pd.concat([data_markers_lstm, keypoints[columns_to_add].reset_index(drop=True)], axis=1)
 
 result_markers_lstm, start_sample_lstm = read_mks_data(data_markers_lstm, converter = 1.0)
 result_markers_lstm2, start_sample_lstm2 = read_mks_data(data_markers_lstm2, converter = 1.0)
 
-# plot_marker_comparison(result_markers, result_markers_lstm, markers_to_plot=markers_to_display)
+rmse_results, rmse_mean_per_dataset = plot_marker_comparison(
+    datasets=[result_markers, result_markers_lstm,result_markers_lstm2],
+    labels=["mocap", "opencap_pont", "opencap_nous"],
+    markers_to_plot=markers_to_display,
+    ref_idx=0,
+    colors=["red", "green","blue"],
+    show_barplot=True  
+)
+print(rmse_mean_per_dataset)
 # === Initialiser le visualiseur Gepetto ===
 viz = GepettoVisualizer()
 try:
@@ -121,7 +128,6 @@ all_squared_errors = []
 
 squared_errors2 = defaultdict(list)
 all_squared_errors2 = [] 
-
 for i in range(len(result_markers)):
     for mks in markers_to_display:
         pos_mocap = result_markers[i][mks].reshape(3,)  # shape (3,)
@@ -146,7 +152,8 @@ for i in range(len(result_markers)):
     #     place(viz, f'world/tri_{mks}', pin.SE3(np.eye(3), pos_hpe))
 
     
-    time.sleep(0.03)
+    time.sleep(0.05)
+    input()
 
 # Compute RMSE per marker
 rmse_per_marker = {}

@@ -59,7 +59,7 @@ def loadModel(augmenterDir, augmenterModelName="LSTM",augmenter_model='v0.3'):
     for idx_augm, augmenterModelType in enumerate(augmenterModelType_all):
         augmenterModelDir = os.path.join(augmenterDir, augmenterModelName, 
                                          augmenterModelType)
-        session = ort.InferenceSession(f"{augmenterModelDir}/model_finetuned.onnx")
+        session = ort.InferenceSession(f"{augmenterModelDir}/model.onnx")
 
         models[augmenterModelType] = session
 
@@ -142,8 +142,8 @@ def augmentTRC(keypoints_buffer, subject_mass, subject_height,
 
         # Load mean and std for normalization
         #print(augmenterModelDir)
-        pathMean = os.path.join(augmenterModelDir, f"stats_streaming/mean_train_032.npy")
-        pathSTD = os.path.join(augmenterModelDir, f"stats_streaming/std_train_032.npy")
+        pathMean = os.path.join(augmenterModelDir, f"mean.npy")
+        pathSTD = os.path.join(augmenterModelDir, f"std.npy")
 
         if os.path.isfile(pathMean):
             trainFeatures_mean = np.load(pathMean, allow_pickle=True)

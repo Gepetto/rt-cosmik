@@ -9,9 +9,7 @@ import matplotlib.pyplot as plt
 
 # subjects = [ "1012","1118","1602","1847","2112","2198","2307","3361","4162","4216","4279","4509","4612","4665","4687","4827"]
 
-subjects = ["alessandro", "anais","anastasia","batiste","bilal","claire_","clement","flavie",
-            "guilhem","kahina","marie","mathis",
-     "maxime","mohamed","nicolas", "zoe", "herbert","emmanuelle"
+subjects = ["Alessandro"
 ]
 tasks = ["robot_welding"]
 gender = 'male'
@@ -141,6 +139,12 @@ def compute_joint_centers_from_mks(markers, *, units="mm"):
 
         jcp["RShoulder"] = transform_to_local_frame(jcp_g["RShoulder"], pelvis_position, pelvis_rotation)
         jcp["LShoulder"] = transform_to_local_frame(jcp_g["LShoulder"], pelvis_position, pelvis_rotation)
+
+        ###pontonnier
+        # jcp['RShoulder'] = compute_shoulder(markers_local['r_shoulder_study'], markers_local['C7_study'], markers_local['SJN'])
+        # jcp['LShoulder'] = compute_shoulder(markers_local['L_shoulder_study'], markers_local['C7_study'], markers_local['SJN'])
+
+
         jcp["Neck"] = compute_uptrunk(markers_local["C7_study"], markers_local["SJN"])
     except KeyError as e:
         # Missing any of these markers → skip shoulders/neck
@@ -302,10 +306,10 @@ for no_trial in subjects:
             jcp_rows.append(flat_jcp)
 
         jcp_df = pd.DataFrame(jcp_rows)
-        path = f"{base_path}/mocap_jcp/{no_trial}"
+        path = f"{base_path}/mocap_jcp/{no_trial}/{task}"
         os.makedirs(path, exist_ok=True)
 
-        output_csv_path = f"{path}/{task}_joint_center_positions.csv"
+        output_csv_path = f"{path}/{task}_joint_center_positions_pontonnier.csv"
 
         jcp_df.to_csv(output_csv_path, index=False)
 
@@ -350,4 +354,4 @@ for no_trial in subjects:
         axes[3].grid(True)
 
         plt.tight_layout()
-        # plt.show()
+        plt.show()

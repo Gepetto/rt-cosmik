@@ -11,28 +11,31 @@ import pandas as pd
 from src.rtcosmik.config_loader import settings
 from src.rtcosmik.utils.read_write_utils import load_transformation
 
-subject = "zoe"
+
 task = "robot_welding"
 base_path = "/root/workspace/ros_ws/src/rt-cosmik"
+id = "4162"
+subject = "Zoe"
+path_to_csv = f"/root/workspace/ros_ws/src/rt-cosmik/output/{id}/cosmik_2cams/{task}/augmented_markers_mocap_openap.csv"
+mks_names =  [
+           'r.ASIS_study','L.ASIS_study','r.PSIS_study','L.PSIS_study','r_knee_study',
+           'r_mknee_study','r_ankle_study','r_mankle_study','r_toe_study','r_5meta_study',
+           'r_calc_study','L_knee_study','L_mknee_study','L_ankle_study','L_mankle_study',
+           'L_toe_study','L_calc_study','L_5meta_study','r_shoulder_study','L_shoulder_study',
+           'C7_study','r_thigh1_study','r_thigh2_study','r_thigh3_study','L_thigh1_study',
+           'L_thigh2_study','L_thigh3_study','r_sh1_study','r_sh2_study','r_sh3_study',
+           'L_sh1_study','L_sh2_study','L_sh3_study','RHJC_study','LHJC_study','r_lelbow_study',
+           'r_melbow_study','r_lwrist_study','r_mwrist_study','L_lelbow_study','L_melbow_study',
+           'L_lwrist_study','L_mwrist_study']
 
-# path_to_csv = f"/root/workspace/ros_ws/src/rt-cosmik/output/4162/cosmik_2cams/{task}/augmented_markers_mocap_finetuned.csv"
+# output_path = os.path.join(base_path, f"output/mocap_jcp/{subject}") 
+# path_to_csv = f"{output_path}/{task}/{task}_joint_center_positions_2.csv"
 # mks_names = [
-#            'r.ASIS_study','L.ASIS_study','r.PSIS_study','L.PSIS_study','r_knee_study',
-#            'r_mknee_study','r_ankle_study','r_mankle_study','r_toe_study','r_5meta_study',
-#            'r_calc_study','L_knee_study','L_mknee_study','L_ankle_study','L_mankle_study',
-#            'L_toe_study','L_calc_study','L_5meta_study','r_shoulder_study','L_shoulder_study',
-#            'C7_study','r_lelbow_study',
-#            'r_melbow_study','r_lwrist_study','r_mwrist_study','L_lelbow_study','L_melbow_study',
-#            'L_lwrist_study','L_mwrist_study']
-
-output_path = os.path.join(base_path, f"output/mocap_jcp/{subject}") 
-path_to_csv = f"{output_path}/{task}_joint_center_positions.csv"
-mks_names = [
-    "RShoulder", "LShoulder", "Neck",  "RElbow", "LElbow", 
-    "RWrist", "LWrist", "RHip", "LHip", "midHip",
-    "RKnee", "LKnee", "RAnkle", "LAnkle","RHeel", "LHeel",
-    "RBigToe", "LBigToe", "RSmallToe", "LSmallToe"
-]
+#     "RShoulder", "LShoulder", "Neck",  "RElbow", "LElbow", 
+#     "RWrist", "LWrist", "RHip", "LHip", "midHip",
+#     "RKnee", "LKnee", "RAnkle", "LAnkle","RHeel", "LHeel",
+#     "RBigToe", "LBigToe", "RSmallToe", "LSmallToe", 'FHD','LHD','RHD'
+# ]
 
 # data = pd.read_csv(path_to_csv,skiprows=1).iloc[:,2:] #read mocap data skip first row cause header and 2 columns cause no frame
 data = pd.read_csv(path_to_csv,skiprows=1)
@@ -115,7 +118,7 @@ for name in mks_names:
 for i in range(len(mks_dict)):
     for name in mks_names:
         sphere_name = f'world/{name}'
-        position_mks= mks_dict[i][name].reshape(3,).T/1000
+        position_mks= mks_dict[i][name].reshape(3,).T
         place(viz, sphere_name, pin.SE3(np.eye(3), position_mks.reshape(3,)))
     time.sleep(0.03)
  

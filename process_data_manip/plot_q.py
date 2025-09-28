@@ -9,11 +9,12 @@ from scipy.signal import correlation_lags
 from scipy.signal import correlate
 
 
-no_trial = "4162"
 task = "robot_welding"
+id = "4162"
 path_mocap= f"//root/workspace/ros_ws/src/rt-cosmik/output/mocap/mocap_zoe/robot_welding/q_mocap.csv"
 # path_mocap= f"/root/workspace/ros_ws/src/rt-cosmik/output/{no_trial}/mocap/{task}/q_mocap.csv"
-path_cosmik= f"/root/workspace/ros_ws/src/rt-cosmik/output/{no_trial}/cosmik_2cams/{task}/q_cosmik_mocap.csv"
+path_cosmik= f"/root/workspace/ros_ws/src/rt-cosmik/output/{id}/cosmik_2cams/{task}/q_cosmik_mocap_finetunednew.csv"
+path_cosmik_opencap= f"/root/workspace/ros_ws/src/rt-cosmik/output/{id}/cosmik_2cams/{task}/q_cosmik_mocap_opencap.csv"
 
 dofs  =  ['Lhip_flex_ext', 'Lhip_abd_add','Lhip_int_ext_rot','Lknee_flex_ext','Lankle_flex_ext','Lankle_abd_add',
                           'Lumbar_flex_ext', 'Lumbar_lateral_flex',
@@ -75,7 +76,7 @@ def synchronize_signals(sig1, sig2):
 
 df_cosmik = pd.read_csv(path_cosmik).iloc[:, 7:]
 df_mocap  = pd.read_csv(path_mocap).iloc[:, 7:]
-# df_mocap = df_mocap.iloc[280::2]
+df_cosmik_openap = pd.read_csv(path_cosmik_opencap).iloc[:, 7:]
 
 if df_cosmik.shape[0] > df_mocap.shape[0]:
             df_cosmik = df_cosmik.iloc[:-1, :]
@@ -100,6 +101,7 @@ r_mocap = R.from_quat(quaternion_mocap)
 euler_angles_rad_mocap = r_mocap.as_euler('xyz', degrees=False)
 
 q_cosmik= read_specific_joint(path_cosmik,dof, start_sample)
+q_cosmik_opencap= read_specific_joint(path_cosmik_opencap,dof, start_sample)
 q_mocap = read_specific_joint(path_mocap,dof, start_sample)
 # q_mocap = q_mocap[280::2]
 # q_cosmik = q_cosmik[280::2]
@@ -114,7 +116,7 @@ joint_indices = [i for i in range(start_dof, len(dof)) if dof[i] not in excluded
 n_per_fig = 6  # Number of subplots per figure
 
 if lag > 0:
-    q_cosmik = q_cosmik[lag:]
+    q_cosmik = q_cosmik[0:]
     q_mocap = q_mocap[:len(q_cosmik)]  # truncate Cosmik accordingly
 
 
@@ -142,6 +144,7 @@ for j, i in enumerate(joint_indices):
     
     ax = axs[j % n_per_fig]
     ax.plot(q_cosmik[:, i], label="Cosmik", linewidth=2, color='green')
+    ax.plot(q_cosmik_opencap[:, i], label="Cosmik_opencap", linewidth=2, color='blue')
     ax.plot(q_mocap[:, i], label="Mocap", linewidth=2, color='red')
     ax.set_title(f"{name} RMSE: {rmse:.4f}deg, {rmse_rad:.4f}rad, MAE: {mae:.2f}° ,Corr: {corr_coef:.2f})")
     ax.set_xlabel("Samples")

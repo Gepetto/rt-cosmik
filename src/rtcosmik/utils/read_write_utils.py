@@ -707,6 +707,7 @@ def udp_csv_to_dataframe(csv_path, marker_names):
     udp_df.columns = new_columns
 
     return udp_df
+
 #plot markers trajectories
 def plot_marker_trajectories(udp_df, marker_names):
     """
@@ -733,92 +734,155 @@ def plot_marker_trajectories(udp_df, marker_names):
         plt.show()
 
 #plot mks trajectories to compare and get rmse.
-def plot_marker_comparison(gt_data, pred_data, markers_to_plot=None, labels=['mocap', 'cosmik'], save_fig=False):
+def plot_marker_comparison(
+    datasets,
+    labels,
+    markers_to_plot=None,
+    save_fig=False,
+    ref_idx=0,
+    colors=None,
+    show_barplot=False
+):
     """
-    Plot and compare X, Y, Z trajectories over time for selected markers from two datasets.
-
-    Parameters:
-        gt_data (list of dict): Ground truth data [{marker_name: np.array([x, y, z])}, ...]
-        pred_data (list of dict): Predicted data (same format as gt_data)
-        markers_to_plot (list of str): Markers to plot. If None, plots all markers found in gt_data.
-        labels (tuple): Labels for legend, e.g. ('Ground Truth', 'Prediction')
-        save_fig (bool): If True, saves the figure instead of displaying.
+    Plot trajectories of markers across multiple datasets and compute RMSE.
+    Optionally show compact barplots: one subplot per marker with RMSE on X/Y/Z.
     """
-    if not gt_data or not pred_data:
-        print("Error: One or both datasets are empty.")
+    if not datasets or len(datasets) < 2:
+        print("Error: Need at least 2 datasets (reference + prediction).")
         return
 
-    # Determine which markers to plot
+    ref_data = datasets[ref_idx]
+
+    # Déterminer les couleurs
+    if colors is None:
+        default_cycle = plt.rcParams['axes.prop_cycle'].by_key()['color']
+        colors = {lbl: default_cycle[i % len(default_cycle)] for i, lbl in enumerate(labels)}
+        colors[labels[ref_idx]] = "red"
+    elif isinstance(colors, list):
+        colors = {lbl: col for lbl, col in zip(labels, colors)}
+
+    # Markers à tracer
     all_markers = set()
-    for frame in gt_data:
+    for frame in ref_data:
         all_markers.update(frame.keys())
     if markers_to_plot is None:
         markers_to_plot = sorted(all_markers)
 
-    rmse_results = {}
+    # Stocker les RMSE
+    rmse_results = {lbl: {} for lbl in labels if lbl != labels[ref_idx]}
+
     for marker in markers_to_plot:
-        gt_x, gt_y, gt_z = [], [], []
-        pred_x, pred_y, pred_z = [], [], []
+        frames = np.arange(len(ref_data))
+        coords = {lbl: ([], [], []) for lbl in labels}
 
-        for gt_frame, pred_frame in zip(gt_data, pred_data):
-            # Ground truth values
-            if marker in gt_frame:
-                gx, gy, gz = gt_frame[marker]
-            else:
-                gx, gy, gz = np.nan, np.nan, np.nan
-            gt_x.append(gx)
-            gt_y.append(gy)
-            gt_z.append(gz)
+        for frame_set in zip(*datasets):
+            for lbl, frame in zip(labels, frame_set):
+                if marker in frame:
+                    x, y, z = frame[marker]
+                else:
+                    x, y, z = np.nan, np.nan, np.nan
+                coords[lbl][0].append(x)
+                coords[lbl][1].append(y)
+                coords[lbl][2].append(z)
 
-            # Predicted values
-            if marker in pred_frame:
-                px, py, pz = pred_frame[marker]
-            else:
-                px, py, pz = np.nan, np.nan, np.nan
-            pred_x.append(px)
-            pred_y.append(py)
-            pred_z.append(pz)
+        for lbl in coords:
+            coords[lbl] = tuple(map(np.array, coords[lbl]))
 
-        # Convert to arrays
-        gt_x, gt_y, gt_z = map(np.array, (gt_x, gt_y, gt_z))
-        pred_x, pred_y, pred_z = map(np.array, (pred_x, pred_y, pred_z))
+        # Compute RMSE
+        ref_x, ref_y, ref_z = coords[labels[ref_idx]]
+        for lbl in labels:
+            if lbl == labels[ref_idx]:
+                continue
+            x, y, z = coords[lbl]
+            rmse_x = np.sqrt(np.nanmean((ref_x - x) ** 2))
+            rmse_y = np.sqrt(np.nanmean((ref_y - y) ** 2))
+            rmse_z = np.sqrt(np.nanmean((ref_z - z) ** 2))
+            rmse_results[lbl][marker] = {'x': rmse_x, 'y': rmse_y, 'z': rmse_z}
 
-        # Compute RMSE (ignoring NaNs)
-        rmse_x = np.sqrt(np.nanmean((gt_x - pred_x) ** 2))
-        rmse_y = np.sqrt(np.nanmean((gt_y - pred_y) ** 2))
-        rmse_z = np.sqrt(np.nanmean((gt_z - pred_z) ** 2))
-        rmse_results[marker] = {'x': rmse_x, 'y': rmse_y, 'z': rmse_z}
-
-        frames = np.arange(len(gt_data))
         fig, axs = plt.subplots(3, 1, figsize=(10, 10), sharex=True)
+        for i, axis in enumerate(["X", "Y", "Z"]):
+            for lbl in labels:
+                axs[i].plot(frames, coords[lbl][i], label=lbl, color=colors[lbl])
 
-        axs[0].plot(frames, gt_x, 'r-', label="mocap")
-        axs[0].plot(frames, pred_x, 'g--', label="Cosmik")
-        axs[0].set_title(f"X (RMSE: {rmse_x:.4f})")
+            rmse_texts = []
+            for lbl in labels:
+                if lbl == labels[ref_idx]:
+                    continue
+                r = rmse_results[lbl][marker]
+                rmse_texts.append(f"{lbl}: {r[axis.lower()]:.4f}")
+            axs[i].set_title(f"{axis} (RMSE: {', '.join(rmse_texts)})")
 
-        axs[1].plot(frames, gt_y, 'r-', label=labels[0])
-        axs[1].plot(frames, pred_y, 'g--', label=labels[1])
-        axs[1].set_title(f"Y (RMSE: {rmse_y:.4f})")
+            axs[i].grid(True)
+            axs[i].legend()
 
-        axs[2].plot(frames, gt_z, 'r-', label=labels[0])
-        axs[2].plot(frames, pred_z, 'g--', label=labels[1])
-        axs[2].set_title(f"Z (RMSE: {rmse_z:.4f})")
         axs[2].set_xlabel("Frame")
-
-        fig.suptitle(
-            f"{marker}",
-            fontsize=14
-        )
-        for ax in axs:
-            ax.grid(True)
-
+        fig.suptitle(f"{marker}", fontsize=14)
         plt.tight_layout(rect=[0, 0.03, 1, 0.95])
 
-        if save_fig:
-            plt.savefig(f"{marker}_comparison.png")
-            plt.close()
-        else:
-            plt.show()
+        # if save_fig:
+        #     plt.savefig(f"{marker}_comparison.png")
+        #     plt.close()
+        # else:
+        #     plt.show()
+
+    if show_barplot:
+        n_markers = len(markers_to_plot)
+        n_cols = 3
+        n_rows = int(np.ceil(n_markers / n_cols))
+
+        fig, axs = plt.subplots(n_rows, n_cols, figsize=(4*n_cols, 4*n_rows), gridspec_kw={'hspace': 0.5, 'wspace': 0.3}) 
+        axs = axs.flatten()
+
+        for idx, marker in enumerate(markers_to_plot):
+            ax = axs[idx]
+            axes = ["x", "y", "z"]
+            x_ticks = np.arange(len(axes))
+            bar_width = 0.4 / (len(labels) - 1)
+
+            for i, lbl in enumerate(labels):
+                if lbl == labels[ref_idx]:
+                    continue
+                values = [rmse_results[lbl][marker][axis] for axis in axes]
+                bars = ax.bar(
+                    x_ticks + (i-1)*bar_width,
+                    values,
+                    width=bar_width,
+                    label=lbl,
+                    color=colors[lbl]
+                )
+
+                for bar, val in zip(bars, values):
+                    ax.text(
+                        bar.get_x() + bar.get_width()/2,
+                        bar.get_height(),
+                        f"{val:.4f}",  
+                        ha="center", va="bottom", fontsize=8, rotation=0
+                    )
+
+            ax.set_xticks(x_ticks)
+            ax.set_xticklabels(["X", "Y", "Z"],fontsize=5)
+            ax.set_ylabel(marker, fontsize=7)
+            ax.grid(True, axis="y", linestyle="--", alpha=0.6)
+
+
+        for j in range(idx+1, len(axs)):
+            fig.delaxes(axs[j])
+
+        handles, legends = axs[0].get_legend_handles_labels()
+        fig.legend(handles, legends, loc="upper center", ncol=len(labels)-1)
+        fig.suptitle("RMSE per marker and axis", fontsize=16)
+        plt.tight_layout(rect=[0, 0.05, 1, 0.95])
+        plt.show()
+
+        rmse_mean_per_dataset = {}
+    for lbl in rmse_results:
+        all_vals = []
+        for marker in rmse_results[lbl]:
+            all_vals.extend(rmse_results[lbl][marker].values())
+        rmse_mean_per_dataset[lbl] = np.mean(all_vals)
+
+    return rmse_results, rmse_mean_per_dataset
+
 
 
 def load_transformation(file_path):

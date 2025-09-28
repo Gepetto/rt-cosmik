@@ -1,0 +1,14 @@
+{
+  "feature_dim": 23,
+  "seq_len": 100,
+  "kpts_input_lstm": [
+    "Neck",
+    "RShoulder",
+    "LShoulder",
+    "RElbow",
+    "LElbow",
+    "RWrist",
+    "LWrist"
+  ],
+  "body_part": "upper"
+}

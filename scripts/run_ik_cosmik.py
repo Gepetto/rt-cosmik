@@ -17,36 +17,41 @@ from src.rtcosmik.viewer.gv_viewer import place, gv_init, Rquat, add_marker, add
 from src.rtcosmik.config_loader import settings
 from src.rtcosmik.human_model.model_utils import get_segment_length
 from src.rtcosmik.ik.ik import RT_IK
-subject_height = 1.80
+
 
 nbr_cams= 2
 mks_to_skip = ['LForearm','LUArm', 'RUArm', 'RHJC_study','LHJC_study','r_pelvis','l_pelvis',
-               'LHand','LHL2','LHM5', 'RForearm','RHand','RHL2','RHM5', 'L_sh1_study', 'L_thigh1_study','r_sh1_study', 'r_thigh1_study']
+               'LHand','LHL2','LHM5', 'RForearm','RHand','RHL2','RHM5', 'L_sh1_study', 'L_thigh1_study','r_sh1_study', 'r_thigh1_study',
+               'r_thigh2_study', 'L_sh2_study', 'L_thigh2_study','r_sh2_study', 
+               'L_sh3_study', 'L_thigh3_study','r_sh3_study', 'r_thigh3_study']
 #read mks data
-no_trial = "4162"
+id = "4162"
+s = "Zoe"
 task = "robot_welding"
 gender = 'female'
-path_to_csv = f"/root/workspace/ros_ws/src/rt-cosmik/output/{no_trial}/cosmik_2cams/{task}/augmented_markers_mocap_finetuned.csv"
-###########################################################################################for cosmik data 
-# path_to_kpt = f"/root/workspace/ros_ws/src/rt-cosmik/output/cosmik_jcp/Zoe/output_zoe_tete.csv"
-path_to_kpt = f"/root/workspace/ros_ws/src/rt-cosmik/output/mocap/mocap_zoe/robot_welding/mocap_downsampled_to_40hz.csv"
+subject_height = 1.65
 
+path_to_csv = f"/root/workspace/ros_ws/src/rt-cosmik/output/{id}/cosmik_2cams/{task}/augmented_markers_mocap_finetunednew.csv"
+###########################################################################################for cosmik data 
+# path_to_kpt= f"/root/workspace/ros_ws/src/rt-cosmik/output/cosmik_jcp/{s}/{task}_jcp_hpe_filtered_2.csv"
+path_to_kpt = f"/root/workspace/ros_ws/src/rt-cosmik/output/mocap_jcp/{s}/{task}/robot_welding_joint_center_positions_2.csv"
+# path_to_kpt = f"/root/workspace/ros_ws/src/rt-cosmik/output/mocap/mocap_{s}/{task}/mocap_downsampled_to_40hz.csv"
 keys_to_add = ['FHD', 'LHD', 'RHD'] #with jcp fused + ML, we changed head mks
 
 data_markers_lstm = pd.read_csv(path_to_csv) 
-keypoints = pd.read_csv(path_to_kpt)/1000 ##check keypoint unit
+keypoints = pd.read_csv(path_to_kpt)/1000##check keypoint unit
 
 columns_to_add = [col for col in keypoints.columns if any(key + '_' in col for key in keys_to_add)]
 
-if len(data_markers_lstm) != len(keypoints):
-    raise ValueError("Row count mismatch between data_markers_lstm and keypoints")
+# if len(data_markers_lstm) != len(keypoints):
+#     raise ValueError("Row count mismatch between data_markers_lstm and keypoints")
 
 mks_data = pd.concat([data_markers_lstm, keypoints[columns_to_add].reset_index(drop=True)], axis=1)
 
 ###################################################################""""
 start_sample=0
 result_markers, start_sample_dict = read_mks_data(mks_data, start_sample=start_sample) #check the function of read 
-
+print(start_sample_dict)
 #load urdf
 human = Robot('/root/workspace/ros_ws/src/rt-cosmik/urdf/human.urdf',rt_cosmik_path,isFext=True) 
 human_model = human.model
@@ -229,7 +234,7 @@ if len(joint_angles_names) != num_values:
     raise ValueError(f"joint_angles_names has {len(joint_angles_names)} entries but q has {num_values} DOFs.")
 
 df = pd.DataFrame(q_list, columns=joint_angles_names)
-csv_file = os.path.join(rt_cosmik_path, f"output/{no_trial}/cosmik_2cams/{task}/q_cosmik_mocap_tete_finetuned.csv")
+csv_file = os.path.join(rt_cosmik_path, f"output/{id}/cosmik_2cams/{task}/q_cosmik_mocap_finetunednew.csv")
 df.to_csv(csv_file, index=False)
 
 

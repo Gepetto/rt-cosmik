@@ -11,13 +11,14 @@ from src.rtcosmik.utils.read_write_utils import parse_marker_csv
 from src.rtcosmik.config_loader import settings
 from  src.rtcosmik.utils.read_write_utils  import read_mks_data
 
-no_trial = "Mathis"
-task = "bolting"
-path_to_csv = f"/root/workspace/ros_ws/src/rt-cosmik/output/{no_trial}/{task}/{task}_trajectories.csv"
-df = pd.read_csv(path_to_csv)
-df.columns = [col.replace(f"{no_trial}:", "") for col in df.columns]
-frames = df["Frame"] if "Frame" in df.columns else range(len(df))
-mks_names = sorted(set(col.rsplit("_", 1)[0] for col in df.columns if "_x" in col))
+# no_trial = "Mathis"
+# task = "bolting"
+# path_to_csv = f"/root/workspace/ros_ws/src/rt-cosmik/output/{no_trial}/{task}/{task}_trajectories.csv"
+# df = pd.read_csv(path_to_csv)
+# df.columns = [col.replace(f"{no_trial}:", "") for col in df.columns]
+# frames = df["Frame"] if "Frame" in df.columns else range(len(df))
+# mks_names = sorted(set(col.rsplit("_", 1)[0] for col in df.columns if "_x" in col))
+path_to_csv_mocap = f"/root/workspace/ros_ws/src/rt-cosmik/output/4279/mocap/robot_welding/mocap_downsampled_to_40hz.csv"
 
 mks_dict, start_sample_dict = read_mks_data(df, start_sample=0) #convert to m if needed 
 
