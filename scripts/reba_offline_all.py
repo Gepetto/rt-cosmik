@@ -10,12 +10,12 @@ sys.path.insert(0, os.path.join(cosmik_path, "src")) # src dir
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '../../../src')))
 from src.rtcosmik.ergonomics.reba_offline import RebaScore
 
-SUBJECTS = ["Alessandro","Anastasia","Batiste","Bilal","Claire_","Clement"]
+# SUBJECTS = ["Alessandro","Anastasia","Batiste","Bilal","Claire_","Clement"]
 
-# SUBJECTS = [
-#      "Alessandro", "Anais","Anastasia","Batiste","Bilal","Claire_","Clement","Flavie","Guilhem","Kahina","Marie_M","Mathis",
-#      "Maxime_","Mohamed","Nicolas", "Zoe", "Herbert","Emmanuelle"
-# ]
+SUBJECTS = [
+     "Alessandro", "Anais","Anastasia","Batiste","Bilal","Claire_","Clement","Flavie","Guilhem","Kahina","Marie_M","Mathis",
+     "Maxime_","Mohamed","Nicolas", "Zoe", "Herbert","Emmanuelle"
+]
 
 TASKS = ["lifting","overhead","crouch_object","robot_sanding", "robot_welding"]
 

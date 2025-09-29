@@ -981,6 +981,52 @@ def get_segments_mks_dict(mks_positions)->Dict:
         }
     return sgts_mks_dict
 
+def get_segments_mks_dict_hybrik(mks_positions)->Dict:
+    #This fuction returns a dictionnary containing the segments names, and the corresponding list of lstm
+    # mks names attached to the segment
+    # Constructing the dictionary to store segment poses
+    if 'Head' in mks_positions: #with cosmik set
+        sgts_mks_dict = {
+        "head": ['Head', 'Nose', 'REar', 'LEar', 'REye', 'LEye'],
+        "thorax": ['C7_study'],
+        "right_clavicle" : ['r_shoulder_study'],
+        "left_clavicle" : ['L_shoulder_study'],
+        
+        "upperarmR": ['r_melbow_study', 'r_lelbow_study'],
+        "lowerarmR": ['r_lwrist_study', 'r_mwrist_study'],
+        "upperarmL" : ['L_melbow_study', 'L_lelbow_study'],
+        "lowerarmL": ['L_lwrist_study', 'L_mwrist_study'],
+        "pelvis": ['r.PSIS_study', 'L.PSIS_study', 'r.ASIS_study', 'L.ASIS_study'],
+        "thighR": ['r_knee_study', 'r_mknee_study'],
+        "thighL": ['L_knee_study', 'L_mknee_study'],
+        "shankR": ['r_ankle_study', 'r_mankle_study'],
+        "shankL": ['L_ankle_study', 'L_mankle_study'],
+        "footR": ['r_calc_study' ,'r_5meta_study','r_toe_study'],
+        "footL": ['L_calc_study', 'L_5meta_study', 'L_toe_study']
+    }
+    else : #with mocap set
+        sgts_mks_dict = {
+            "head": ['BHD','RHD','LHD','FHD'],
+            "thorax": ['C7_study','TV8','TV12','SJN','STRN'],
+            "right_clavicle" : ['r_shoulder_study'],
+            "left_clavicle" : ['L_shoulder_study'],
+            "upperarmR": ['r_melbow_study', 'r_lelbow_study'],
+            "lowerarmR": ['r_lwrist_study', 'r_mwrist_study'],
+            "upperarmL" : ['L_melbow_study', 'L_lelbow_study'],
+            "lowerarmL": ['L_lwrist_study', 'L_mwrist_study'],
+            "pelvis": ['r.PSIS_study', 'L.PSIS_study', 'r.ASIS_study', 'L.ASIS_study'],
+            "thighR": ['r_knee_study', 'r_mknee_study'],
+            "thighL": ['L_knee_study', 'L_mknee_study'],
+            "shankR": ['r_ankle_study', 'r_mankle_study'],
+            "shankL": ['L_ankle_study', 'L_mankle_study'],
+            "footR": ['r_calc_study' ,'r_5meta_study','r_toe_study'],
+            "footL": ['L_calc_study', 'L_5meta_study', 'L_toe_study'],
+
+            "handR": ["RHL2", "RHM5"],
+            "handL": ["LHL2", "LHM5"]
+        }
+    return sgts_mks_dict
+
 def get_subset_mks_names()->List:
     """_This function returns the subset of markers used to track the right body side kinematics with pinocchio_
 

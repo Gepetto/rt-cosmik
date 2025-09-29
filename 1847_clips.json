@@ -1,0 +1,218 @@
+{
+  "bolting": {
+    "subject": "1847",
+    "task": "bolting",
+    "camera": "camera_0.mp4",
+    "input": "/home/msabbah/pinocchio-3x/src/rt-cosmik/output/1847/bolting/camera_0.mp4",
+    "start": 6.0,
+    "end": 20.0,
+    "poster_offset": 0.3
+  },
+  "bolting_sat": {
+    "subject": "1847",
+    "task": "bolting_sat",
+    "camera": "camera_0.mp4",
+    "input": "/home/msabbah/pinocchio-3x/src/rt-cosmik/output/1847/bolting_sat/camera_0.mp4",
+    "start": 12.0,
+    "end": 20.0,
+    "poster_offset": 0.3
+  },
+  "crouch": {
+    "subject": "1847",
+    "task": "crouch",
+    "camera": "camera_0.mp4",
+    "input": "/home/msabbah/pinocchio-3x/src/rt-cosmik/output/1847/crouch/camera_0.mp4",
+    "start": 10.0,
+    "end": 15.0,
+    "poster_offset": 0.3
+  },
+  "crouch_object": {
+    "subject": "1847",
+    "task": "crouch_object",
+    "camera": "camera_0.mp4",
+    "input": "/home/msabbah/pinocchio-3x/src/rt-cosmik/output/1847/crouch_object/camera_0.mp4",
+    "start": 25.0,
+    "end": 31.0,
+    "poster_offset": 0.3
+  },
+  "hitting": {
+    "subject": "1847",
+    "task": "hitting",
+    "camera": "camera_0.mp4",
+    "input": "/home/msabbah/pinocchio-3x/src/rt-cosmik/output/1847/hitting/camera_0.mp4",
+    "start": 19.0,
+    "end": 26.0,
+    "poster_offset": 0.3
+  },
+  "hitting_sat": {
+    "subject": "1847",
+    "task": "hitting_sat",
+    "camera": "camera_0.mp4",
+    "input": "/home/msabbah/pinocchio-3x/src/rt-cosmik/output/1847/hitting_sat/camera_0.mp4",
+    "start": 20.0,
+    "end": 27.0,
+    "poster_offset": 0.3
+  },
+  "jump": {
+    "subject": "1847",
+    "task": "jump",
+    "camera": "camera_0.mp4",
+    "input": "/home/msabbah/pinocchio-3x/src/rt-cosmik/output/1847/jump/camera_0.mp4",
+    "start": 1.0,
+    "end": 6.0,
+    "poster_offset": 0.3
+  },
+  "lifting": {
+    "subject": "1847",
+    "task": "lifting",
+    "camera": "camera_0.mp4",
+    "input": "/home/msabbah/pinocchio-3x/src/rt-cosmik/output/1847/lifting/camera_0.mp4",
+    "start": 3.0,
+    "end": 10.0,
+    "poster_offset": 0.3
+  },
+  "lifting_fast": {
+    "subject": "1847",
+    "task": "lifting_fast",
+    "camera": "camera_0.mp4",
+    "input": "/home/msabbah/pinocchio-3x/src/rt-cosmik/output/1847/lifting_fast/camera_0.mp4",
+    "start": 2.0,
+    "end": 7.0,
+    "poster_offset": 0.3
+  },
+  "lower": {
+    "subject": "1847",
+    "task": "lower",
+    "camera": "camera_0.mp4",
+    "input": "/home/msabbah/pinocchio-3x/src/rt-cosmik/output/1847/lower/camera_0.mp4",
+    "start": 2.0,
+    "end": 12.0,
+    "poster_offset": 0.3
+  },
+  "overhead": {
+    "subject": "1847",
+    "task": "overhead",
+    "camera": "camera_0.mp4",
+    "input": "/home/msabbah/pinocchio-3x/src/rt-cosmik/output/1847/overhead/camera_0.mp4",
+    "start": 18.0,
+    "end": 27.0,
+    "poster_offset": 0.3
+  },
+  "overhead_front": {
+    "subject": "1847",
+    "task": "overhead_front",
+    "camera": "camera_0.mp4",
+    "input": "/home/msabbah/pinocchio-3x/src/rt-cosmik/output/1847/overhead_front/camera_0.mp4",
+    "start": null,
+    "end": null,
+    "poster_offset": 0.3
+  },
+  "robot_sanding": {
+    "subject": "1847",
+    "task": "robot_sanding",
+    "camera": "camera_0.mp4",
+    "input": "/home/msabbah/pinocchio-3x/src/rt-cosmik/output/1847/robot_sanding/camera_0.mp4",
+    "start": 12.0,
+    "end": 25.0,
+    "poster_offset": 0.3
+  },
+  "robot_welding": {
+    "subject": "1847",
+    "task": "robot_welding",
+    "camera": "camera_0.mp4",
+    "input": "/home/msabbah/pinocchio-3x/src/rt-cosmik/output/1847/robot_welding/camera_0.mp4",
+    "start": 14.0,
+    "end": 31.0,
+    "poster_offset": 0.3
+  },
+  "sanding": {
+    "subject": "1847",
+    "task": "sanding",
+    "camera": "camera_0.mp4",
+    "input": "/home/msabbah/pinocchio-3x/src/rt-cosmik/output/1847/sanding/camera_0.mp4",
+    "start": 5.0,
+    "end": 10.0,
+    "poster_offset": 0.3
+  },
+  "sanding_sat": {
+    "subject": "1847",
+    "task": "sanding_sat",
+    "camera": "camera_0.mp4",
+    "input": "/home/msabbah/pinocchio-3x/src/rt-cosmik/output/1847/sanding_sat/camera_0.mp4",
+    "start": 10.0,
+    "end": 15.0,
+    "poster_offset": 0.3
+  },
+  "sit_to_stand": {
+    "subject": "1847",
+    "task": "sit_to_stand",
+    "camera": "camera_0.mp4",
+    "input": "/home/msabbah/pinocchio-3x/src/rt-cosmik/output/1847/sit_to_stand/camera_0.mp4",
+    "start": 5.0,
+    "end": 11.0,
+    "poster_offset": 0.3
+  },
+  "squat": {
+    "subject": "1847",
+    "task": "squat",
+    "camera": "camera_0.mp4",
+    "input": "/home/msabbah/pinocchio-3x/src/rt-cosmik/output/1847/squat/camera_0.mp4",
+    "start": 3.0,
+    "end": 9.0,
+    "poster_offset": 0.3
+  },
+  "static": {
+    "subject": "1847",
+    "task": "static",
+    "camera": "camera_0.mp4",
+    "input": "/home/msabbah/pinocchio-3x/src/rt-cosmik/output/1847/static/camera_0.mp4",
+    "start": 0.0,
+    "end": 1.0,
+    "poster_offset": 0.3
+  },
+  "upper": {
+    "subject": "1847",
+    "task": "upper",
+    "camera": "camera_0.mp4",
+    "input": "/home/msabbah/pinocchio-3x/src/rt-cosmik/output/1847/upper/camera_0.mp4",
+    "start": 1.0,
+    "end": 11.0,
+    "poster_offset": 0.3
+  },
+  "walk": {
+    "subject": "1847",
+    "task": "walk",
+    "camera": "camera_0.mp4",
+    "input": "/home/msabbah/pinocchio-3x/src/rt-cosmik/output/1847/walk/camera_0.mp4",
+    "start": 2.0,
+    "end": 10.0,
+    "poster_offset": 0.3
+  },
+  "walk_front": {
+    "subject": "1847",
+    "task": "walk_front",
+    "camera": "camera_0.mp4",
+    "input": "/home/msabbah/pinocchio-3x/src/rt-cosmik/output/1847/walk_front/camera_0.mp4",
+    "start": 1.5,
+    "end": 6.0,
+    "poster_offset": 0.3
+  },
+  "welding": {
+    "subject": "1847",
+    "task": "welding",
+    "camera": "camera_0.mp4",
+    "input": "/home/msabbah/pinocchio-3x/src/rt-cosmik/output/1847/welding/camera_0.mp4",
+    "start": 3.0,
+    "end": 12.0,
+    "poster_offset": 0.3
+  },
+  "welding_sat": {
+    "subject": "1847",
+    "task": "welding_sat",
+    "camera": "camera_0.mp4",
+    "input": "/home/msabbah/pinocchio-3x/src/rt-cosmik/output/1847/welding_sat/camera_0.mp4",
+    "start": 10.0,
+    "end": 20.0,
+    "poster_offset": 0.3
+  }
+}

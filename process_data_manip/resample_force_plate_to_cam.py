@@ -19,6 +19,7 @@ import argparse
 import sys
 import pandas as pd
 import numpy as np
+import os
 
 def read_camera_timestamps(path: str) -> pd.DataFrame:
     """
@@ -162,12 +163,43 @@ def sync_forces_to_camera(force_csv: str, camera_csv: str, out_csv: str, force_f
     print(out['timestamp'].head().to_string(index=False))
 
 def main():
-    force_csv = '/home/msabbah/pinocchio-3x/src/rt-cosmik/output/Alessandro/mocap/squat/squat_devices.csv'
-    camera_csv = '/home/msabbah/pinocchio-3x/src/rt-cosmik/output/Alessandro/mouv/squat/camera_0_timestamps.csv'
-    out_csv = '/home/msabbah/pinocchio-3x/src/rt-cosmik/output/Alessandro/mocap/squat/force_resampled_40Hz.csv'
-    force_fs = 1000
+    SUBJECT_IDS = ["Mathis"]
+    DS_TASKS = ["bolting","bolting_sat","crouch","crouch_object","hitting","hitting_sat","jump","lifting",
+    "lifting_fast","lower","robot_sanding","robot_welding",
+    "sanding","sanding_sat","sit_to_stand","squat","static","upper",
+    "welding","welding_sat"]
 
-    sync_forces_to_camera(force_csv, camera_csv, out_csv, force_fs)
+    # MAPPING SUBJECT ID TO NAME 
+    subject_ids = {
+    "Nicolas": 2307,
+    "Mohamed": 1602,
+    "Clement": 1118,
+    "Mathis": 3361,
+    "Claire_": 4827,
+    "Anais": 4687,
+    "Emmanuelle": 4801,
+    "Maxime_": 1847,
+    "Alessandro": 4279,
+    "Marie_M": 2112,
+    "Anastasia": 4216,
+    "Flavie": 1012,
+    "Zoe": 4162,
+    "Kahina": 4665,
+    "Herbert": 1508,
+    "Guilhem": 4509,
+    "Bilal": 4612,
+    "Batiste": 2198
+    }
+
+    for subject in SUBJECT_IDS:
+        for task in DS_TASKS:
+            force_csv = f'/home/msabbah/pinocchio-3x/src/rt-cosmik/output/forces/raw/{subject_ids[subject]}/{task}/{task}_devices.csv'
+            camera_csv = f'/home/msabbah/pinocchio-3x/src/rt-cosmik/output/{subject}/mouv/{task}/camera_4_timestamps.csv'
+            os.makedirs(f'/home/msabbah/pinocchio-3x/src/rt-cosmik/output/forces/aligned/{subject_ids[subject]}/{task}', exist_ok=True)
+            out_csv = f'/home/msabbah/pinocchio-3x/src/rt-cosmik/output/forces/aligned/{subject_ids[subject]}/{task}/{task}_devices.csv'
+            force_fs = 1000
+
+            sync_forces_to_camera(force_csv, camera_csv, out_csv, force_fs)
 
 if __name__ == "__main__":
     main()

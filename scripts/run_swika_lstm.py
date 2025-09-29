@@ -26,8 +26,8 @@ no_trial = "Mohamed"
 subject_height = 1.80
 task = "bolting"
 gender = 'male'
-path_to_csv = f"/root/workspace/ros_ws/src/rt-cosmik/output/{no_trial}/cosmik_2cams/{task}/augmented_markers_2.csv"
-path_to_kpt = f"/root/workspace/ros_ws/src/rt-cosmik/output/{no_trial}/cosmik_2cams/{task}/3d_keypoints_filtered_2.csv"
+path_to_csv = f"/home/msabbah/pinocchio-3x/src/rt-cosmik/output/{no_trial}/cosmik_2cams/{task}/augmented_markers.csv"
+path_to_kpt = f"/home/msabbah/pinocchio-3x/src/rt-cosmik/output/{no_trial}/cosmik_2cams/{task}/3d_keypoints_filtered.csv"
 
 keys_to_add = ['Nose', 'Head', 'REar', 'LEar', 'REye', 'LEye']
 
@@ -46,7 +46,7 @@ start_sample=0
 result_markers, start_sample_dict = read_mks_data(data_markers_lstm, start_sample=start_sample) #check the function of read 
 
 #load urdf
-human = Robot('/root/workspace/ros_ws/src/rt-cosmik/urdf/human.urdf',rt_cosmik_path,isFext=True) 
+human = Robot('/home/msabbah/pinocchio-3x/src/rt-cosmik/urdf/human.urdf',rt_cosmik_path,isFext=True) 
 human_model = human.model
 human_data = human.data
 human_collision_model = human.collision_model
@@ -87,7 +87,7 @@ human_data = pin.Data(human_model)
 viz.display(q)
 
 dt = 40
-N = 10
+N = 3
 ik_code = settings.ik_code
 cost_weights = settings.cost_weights
 keys_to_track_list = ['Nose', 'Head', 'REye', 'LEye',
@@ -136,6 +136,7 @@ for ii in range(len(result_markers)):
         for d in deque_lstm_dict]).T
     # print(x_array)
     x_array, u_array = ik_class.solve(x_array, u_array, array_data, x_array[:, -1], cost_weights, dt)
+    input()
 
     q = pin.neutral(human_model)
     q[:] = np.array(x_array[:human_model.nq, -1]).flatten()
