@@ -26,7 +26,7 @@ if str(SRC_DIR) not in sys.path:
 from src.rtcosmik.augmenter.marker_augmenter import augmentTRC, loadModel
 from src.rtcosmik.utils.read_write_utils import read_mks_data, save_to_csv
 from src.rtcosmik.utils.linear_algebra_utils import transform_to_local_frame, transform_to_global_frame
-from src.rtcosmik.human_model.model_utils import get_torso_pose, get_virtual_pelvis_pose
+from src.rtcosmik.human_model.model_utils import construct_segments_frames, get_torso_pose, get_virtual_pelvis_pose
 
 # (Optional) minimal viz like your style; safe to keep
 try:
@@ -66,8 +66,7 @@ MOCAP_MARKERS = [
     'r_mknee_study','r_ankle_study','r_mankle_study','r_toe_study','r_5meta_study',
     'r_calc_study','L_knee_study','L_mknee_study','L_ankle_study','L_mankle_study',
     'L_toe_study','L_calc_study','L_5meta_study','r_shoulder_study','L_shoulder_study',
-    'C7_study','r_thigh1_study','L_thigh1_study','r_sh1_study',
-    'L_sh1_study','r_lelbow_study',
+    'C7_study', 'r_lelbow_study',
     'r_melbow_study','r_lwrist_study','r_mwrist_study','L_lelbow_study','L_melbow_study',
     'L_lwrist_study','L_mwrist_study'
 ]
@@ -77,8 +76,8 @@ MOCAP_HEADER = [f"{m}_{axis}" for m in MOCAP_MARKERS for axis in ("x","y","z")]
 
 
 TO_DROP = {
-    'r_thigh2_study','r_thigh3_study','L_thigh2_study','L_thigh3_study',
-    'r_sh2_study','r_sh3_study','L_sh2_study','L_sh3_study', 'RHJC_study', 'LHJC_study'
+    'r_thigh1_study','r_thigh2_study','r_thigh3_study','L_thigh1_study','L_thigh2_study','L_thigh3_study',
+    'r_sh1_study','r_sh2_study','r_sh3_study','L_sh1_study','L_sh2_study','L_sh3_study', 'RHJC_study', 'LHJC_study'
 }
 
 DROP_IDX = [i for i, n in enumerate(AUGMENTED_MARKERS) if n in TO_DROP]  # row indices in (43,3)
@@ -306,19 +305,36 @@ def compute_joint_centers_from_mks(markers, *, units="mm"):
     return jcp_global, segment_lengths, norms
                        # meters
 
+def load_offsets_json(path, jcp_names=JCP_NAMES):
+    """
+    Returns:
+      offs: dict[name] -> [x,y,z] (meters)
+      off_mat: np.ndarray (20,3) in the order of jcp_names
+      theta: np.ndarray (60,) flattened per-JCP offsets
+    """
+    with open(path, "r") as f:
+        data = json.load(f)
+
+    offs = data["offsets_per_jcp_m"]  # meters
+    # build matrix in the exact order expected by your code
+    off_mat = np.stack([np.asarray(offs.get(name, [0.0, 0.0, 0.0]), dtype=float)
+                        for name in jcp_names], axis=0)  # (20,3)
+    theta = off_mat.reshape(-1)  # (60,)
+    return offs, off_mat, theta
 
 # ----------------- visualization (optional; minimal) -----------------
 def _place(viz, node, p3):
     se3 = pin.SE3(np.eye(3), np.asarray(p3, float).reshape(3,1))
     viz.viewer.gui.applyConfiguration(node, pin.SE3ToXYZQUAT(se3).tolist())
 
-def visualize_simple(preds_full, meas_m_full, jcp_m_full, jcp_off_full, sleep_dt=0.02):
+def visualize_simple(preds_full, meas_m_full, aug_markers_base, jcp_m_full, jcp_off_full, sleep_dt=0.02):
     if not HAVE_VIZ:
         print("[viz] Pinocchio/Gepetto not available.")
         return
     T = preds_full.shape[0]; J = len(JCP_NAMES); M = len(MOCAP_MARKERS)
     aug_vis  = preds_full.reshape(T,M,3)           # (T, M_have, 3)
     meas_vis = meas_m_full.reshape(T,M,3)                       # (T, M_have, 3)
+    aug_markers_base_vis = aug_markers_base.reshape(T,M,3)       
 
     jcp0 = jcp_m_full.reshape(T, J, 3)
     jcp1 = jcp_off_full.reshape(T, J, 3)
@@ -334,6 +350,7 @@ def visualize_simple(preds_full, meas_m_full, jcp_m_full, jcp_off_full, sleep_dt
     for name in MOCAP_MARKERS:
         viz.viewer.gui.addSphere(f'world/mocap_{name}', 0.015, [255, 0, 0, 1.])
         viz.viewer.gui.addSphere(f'world/aug_{name}',   0.015, [0, 0, 255, 1.])
+        viz.viewer.gui.addSphere(f'world/aug_base_{name}',   0.015, [0, 0, 0, 1.])
     for jname in JCP_NAMES:
         viz.viewer.gui.addSphere(f'world/jcp0_{jname}', 0.012, [0, 255, 0, 1.])
         viz.viewer.gui.addSphere(f'world/jcp1_{jname}', 0.012, [255, 255, 0, 1.])
@@ -342,6 +359,7 @@ def visualize_simple(preds_full, meas_m_full, jcp_m_full, jcp_off_full, sleep_dt
         for m_i, name in enumerate(MOCAP_MARKERS):
             _place(viz, f'world/mocap_{name}', meas_vis[t, m_i])
             _place(viz, f'world/aug_{name}',   aug_vis[t,  m_i])
+            _place(viz, f'world/aug_base_{name}',   aug_markers_base_vis[t,  m_i])
         for j_i, jname in enumerate(JCP_NAMES):
             _place(viz, f'world/jcp0_{jname}', jcp0[t, j_i])
             _place(viz, f'world/jcp1_{jname}', jcp1[t, j_i])
@@ -366,7 +384,7 @@ def parse_args():
                    default="/home/msabbah/pinocchio-3x/src/rt-cosmik/src/rtcosmik/augmenter/augmentation_model")
     p.add_argument("--augmenter-model", default="v0.3")
     # Optimization (per-JCP only)
-    p.add_argument("--lambda-reg", type=float, default=1e-3, help="L2 regularization on offsets (m^2).")
+    p.add_argument("--lambda-reg", type=float, default=1e-1, help="L2 regularization on offsets (m^2).")
     p.add_argument("--stride", type=int, default=1, help="Use every k-th frame during fitting (1 = whole dataset).")
     p.add_argument("--method", choices=["Powell","Nelder-Mead"], default="Powell")
     p.add_argument("--maxiter", type=int, default=200)
@@ -391,6 +409,9 @@ mks_dict, start_sample_dict = read_mks_data(df, start_sample=0)
 jcp_per_frame = []
 meas_m = []
 
+# Models
+warmed = loadModel(augmenterDir=args.augmenter_dir, augmenterModelName="LSTM", augmenter_model=args.augmenter_model)
+
 for frame_id in range(len(mks_dict)):
     markers_frame = mks_dict[frame_id]
     jcp, seg_lengths,norms = compute_joint_centers_from_mks(markers_frame)
@@ -399,24 +420,137 @@ for frame_id in range(len(mks_dict)):
     for name in JCP_NAMES
 ], axis=0) 
     jcp_per_frame.append(jcp_row.reshape(-1)/1000)       # (T, 60)
-    meas_m.append( np.array([markers_frame[m] for m in AUGMENTED_MARKERS if m in markers_frame])/1000 )  
+    meas_m.append( np.array([markers_frame[m] for m in MOCAP_MARKERS if m in markers_frame])/1000 )  
 
 jcp_m_full = np.array(jcp_per_frame)
-meas_m = np.array(meas_m)
 
-# Models
-warmed = loadModel(augmenterDir=args.augmenter_dir, augmenterModelName="LSTM", augmenter_model=args.augmenter_model)
+# Calculating augmented markers from base jcps
+augmented_markers_list=[]
+keypoints_buffer.clear()  # important: reset buffer for each eval
+
+for ii in range(jcp_m_full.shape[0]):
+    frame_data = jcp_m_full[ii,:].reshape(20, 3)
+    if ii==0:
+        for _ in range(30):
+            keypoints_buffer.append(np.array(frame_data))
+    else:
+        keypoints_buffer.append(np.array(frame_data))
+    
+    if len(keypoints_buffer) == 30:
+        keypoints_buffer_array = np.array(keypoints_buffer)
+        augmented_markers = augmentTRC(keypoints_buffer_array, subject_mass=args.mass, subject_height=args.height, models = warmed,
+                            augmenterDir=args.augmenter_dir, augmenter_model='v0.3')
+
+        # ====== FILTER UNWANTED MARKERS HERE ======
+        # augmented_markers is flat (129 = 43*3). Remove rows for thigh2/3 & sh2/3.
+        aug = np.asarray(augmented_markers, dtype=float).reshape(43, 3)
+        if DROP_IDX:  # delete those marker rows
+            aug = np.delete(aug, DROP_IDX, axis=0)  # shape -> (43 - len(DROP_IDX), 3)
+        augmented_markers = aug.reshape(-1)  # back to flat
+        # ==========================================
+        
+        augmented_markers_list.append(augmented_markers)
+
+augmented_array_base = np.vstack(augmented_markers_list)
+
+meas_m = np.array(meas_m)
 
 # Initial theta
 theta0 = np.zeros((len(JCP_NAMES),3), dtype=float).ravel()
 
-def apply_per_jcp_offsets(jcp_m_in, theta):
-    off = theta.reshape(len(JCP_NAMES),3)           # (20,3), meters
-    return (jcp_m_in.reshape(-1,len(JCP_NAMES),3) + off[None,:,:]).reshape(jcp_m_in.shape)
+def apply_per_jcp_local_offsets(jcp_m_in, segments_frames_list, theta):
+    """
+    Apply per-JCP local offsets by rotating each local offset into world
+    and adding it to the global JCP (no world->local->world needed).
+
+    Args:
+        jcp_m_in: (T_all, 60) global JCPs in meters.
+        segments_frames_list: list of dicts, len = T_used. Each dict maps
+            segment name -> 4x4 world_T_segment.
+        theta: (60,) local offsets concatenated as (20*3,).
+
+    Returns:
+        (T_used, 60) global JCPs after applying offsets.
+    """
+    # Align to the frames we actually have segment poses for
+    off = np.asarray(theta, dtype=float).reshape(len(JCP_NAMES), 3)
+
+    def pick_seg(name, segs):
+        mapping = {
+            'RShoulder': 'torso',
+            'LShoulder': 'torso',
+            'Neck'     : 'torso',
+            'RElbow'   : 'upperarmR',
+            'LElbow'   : 'upperarmL',
+            'RWrist'   : 'lowerarmR',
+            'LWrist'   : 'lowerarmL',
+            'RHip'     : 'pelvis', 
+            'LHip'     : 'pelvis', 
+            'midHip'   : 'pelvis', 
+            'RKnee'    : 'thighR',
+            'LKnee'    : 'thighL',
+            'RAnkle'   : 'shankR',
+            'LAnkle'   : 'shankL',
+            'RHeel'    : 'footR',
+            'LHeel'    : 'footL',
+            'RBigToe'  : 'footR',
+            'LBigToe'  : 'footL',
+            'RSmallToe': 'footR',
+            'LSmallToe': 'footL',
+        }
+        chosen = mapping.get(name)
+        return chosen
+
+    out = np.empty_like(jcp_m_in)
+    for t, segs in enumerate(segments_frames_list):
+        row = []
+        for j_idx, jname in enumerate(JCP_NAMES):
+            p = jcp_m_in[t, 3*j_idx:3*j_idx+3]
+            if not np.all(np.isfinite(p)):
+                row.append(p); continue
+            seg = pick_seg(jname, segs)
+            R_ws = segs[seg][:3, :3]
+            d_world = R_ws @ off[j_idx]          # rotate local offset into world
+            row.append(p + d_world)              # add directly to global JCP
+        out[t, :] = np.concatenate(row)
+    return out
+
 
 # ---- Objective over WHOLE dataset (flattened vectors) ----
 def objective(theta):
-    jcp_off = apply_per_jcp_offsets(jcp_m_full, theta)   # (T, 60)
+    markers_lstm=[]
+    keypoints_buffer.clear()  # important: reset buffer for each eval
+
+    for ii in range(jcp_m_full.shape[0]):
+        frame_data = jcp_m_full[ii,:].reshape(20, 3)
+        if ii==0:
+            for _ in range(30):
+                keypoints_buffer.append(np.array(frame_data))
+        else:
+            keypoints_buffer.append(np.array(frame_data))
+        
+        if len(keypoints_buffer) == 30:
+            keypoints_buffer_array = np.array(keypoints_buffer)
+            augmented_markers = augmentTRC(keypoints_buffer_array, subject_mass=args.mass, subject_height=args.height, models = warmed,
+                                augmenterDir=args.augmenter_dir, augmenter_model='v0.3')
+            
+            # ====== FILTER UNWANTED MARKERS HERE ======
+            # augmented_markers is flat (129 = 43*3). Remove rows for thigh2/3 & sh2/3.
+            aug = np.asarray(augmented_markers, dtype=float).reshape(43, 3)
+            if DROP_IDX:  # delete those marker rows
+                aug = np.delete(aug, DROP_IDX, axis=0)  # shape -> (43 - len(DROP_IDX), 3)
+            augmented_markers = aug.reshape(-1)  # back to flat
+            # ==========================================
+
+            markers_lstm.append(dict(zip(MOCAP_MARKERS, np.reshape(augmented_markers, (-1, 3)))))
+
+    segments_frames_list = []
+    for jj in range(len(markers_lstm)):
+        segments_frames = construct_segments_frames(markers_lstm[jj], with_hand=True, with_head=False)
+        segments_frames_list.append(segments_frames)
+
+    jcp_off = apply_per_jcp_local_offsets(jcp_m_full, segments_frames_list, theta)   # (T, 60)
+
     augmented_markers_list=[]
     keypoints_buffer.clear()  # important: reset buffer for each eval
 
@@ -456,7 +590,41 @@ res = minimize(objective, theta0, method=args.method, options=dict(maxiter=args.
 
 # Full-resolution re-run with best theta (no stride)
 best_theta = res.x
-jcp_off_full = apply_per_jcp_offsets(jcp_m_full, best_theta)
+# best_theta, _ ,_  = load_offsets_json("/home/msabbah/pinocchio-3x/src/rt-cosmik/output/Alessandro/mocap/static/optimized_offset.json")
+
+markers_lstm=[]
+keypoints_buffer.clear()  # important: reset buffer for each eval
+
+for ii in range(jcp_m_full.shape[0]):
+    frame_data = jcp_m_full[ii,:].reshape(20, 3)
+    if ii==0:
+        for _ in range(30):
+            keypoints_buffer.append(np.array(frame_data))
+    else:
+        keypoints_buffer.append(np.array(frame_data))
+    
+    if len(keypoints_buffer) == 30:
+        keypoints_buffer_array = np.array(keypoints_buffer)
+        augmented_markers = augmentTRC(keypoints_buffer_array, subject_mass=args.mass, subject_height=args.height, models = warmed,
+                            augmenterDir=args.augmenter_dir, augmenter_model='v0.3')
+        
+        # ====== FILTER UNWANTED MARKERS HERE ======
+        # augmented_markers is flat (129 = 43*3). Remove rows for thigh2/3 & sh2/3.
+        aug = np.asarray(augmented_markers, dtype=float).reshape(43, 3)
+        if DROP_IDX:  # delete those marker rows
+            aug = np.delete(aug, DROP_IDX, axis=0)  # shape -> (43 - len(DROP_IDX), 3)
+        augmented_markers = aug.reshape(-1)  # back to flat
+        # ==========================================
+
+        markers_lstm.append(dict(zip(MOCAP_MARKERS, np.reshape(augmented_markers, (-1, 3)))))
+
+segments_frames_list = []
+for jj in range(len(markers_lstm)):
+    segments_frames = construct_segments_frames(markers_lstm[jj], with_hand=True, with_head=False)
+    segments_frames_list.append(segments_frames)
+
+jcp_off_full = apply_per_jcp_local_offsets(jcp_m_full, segments_frames_list, best_theta)
+# jcp_off_full = apply_per_jcp_local_offsets(jcp_m_full, segments_frames_list, np.array(list(best_theta.values())))
                                                     # (T, M_all, 3)
 
 augmented_markers_list=[]
@@ -488,9 +656,11 @@ for ii in range(jcp_off_full.shape[0]):
 augmented_array = np.vstack(augmented_markers_list)
 
 rmse = np.sqrt(np.mean((meas_m.reshape(augmented_array.shape)-augmented_array)**2))
+rmse_base = np.sqrt(np.mean((meas_m.reshape(augmented_array.shape)-augmented_array_base)**2))
 
 print(f"[Per-JCP] Best global RMSE with scipy f={res.fun:.6f} m")
 print(f"[Per-JCP] Best global RMSE with rmse f={rmse} m")
+print(f"[Per-JCP] RMSE with rmse_base f={rmse_base} m")
 
 # Save CSV (meters)
 out_csv = Path(args.out) if args.out else (base / f"output/{args.subject_id}/cosmik_2cams/{args.task}/augmented_markers_perjcp_optimized.csv")
@@ -512,6 +682,7 @@ if args.viz:
     visualize_simple(
         preds_full=augmented_array,
         meas_m_full=meas_m.reshape(augmented_array.shape),
+        aug_markers_base=augmented_array_base,
         jcp_m_full=jcp_m_full,
         jcp_off_full=jcp_off_full,
         sleep_dt=args.viz_sleep
