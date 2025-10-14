@@ -13,15 +13,15 @@ from src.rtcosmik.utils.read_write_utils import read_mmpose_file, save_to_csv
 from src.rtcosmik.utils.linear_algebra_utils import butterworth_filter
 base_path = "/root/workspace/ros_ws/src/rt-cosmik"
 
-no_trial = "Batiste"
-subject_mass =77.0
-subject_height = 1.82
-id = "2198"
+no_trial = "Zoe"
+subject_mass =55.0
+subject_height = 1.65
+id = "4162"
 task = "robot_welding"
-path_to_3d_kpt = f"/root/workspace/ros_ws/src/rt-cosmik/output/mocap_jcp/{no_trial}/{task}/{task}_joint_center_positions_pontonnier.csv"
+path_to_3d_kpt = f"/root/workspace/ros_ws/src/rt-cosmik/output/{id}/cosmik_2cams/{task}/corrected_jcp_19704271.csv"
 # path_to_3d_kpt= os.path.join(base_path, f"output/cosmik_jcp/{no_trial}/{task}_jcp_hpe_filtered.csv")
 # path_to_3d_kpt = os.path.join(base_path, f"output/{no_trial}/cosmik_2cams/{task}/3D_keypoints_fused_OKK.csv")
-output_csv_path = os.path.join(base_path, f"output/{id}/cosmik_2cams/{task}/augmented_markers_mocap_opencap_pontonnier.csv")
+output_csv_path = os.path.join(base_path, f"output/{id}/cosmik_2cams/{task}/augmented_markers_19704271.csv")
 
 augmenter_path = '/root/workspace/ros_ws/src/rt-cosmik/src/rtcosmik/augmenter/augmentation_model'
 markers = [
@@ -48,7 +48,7 @@ def main():
 
     #load 3d keypoints
     data = pd.read_csv(path_to_3d_kpt)
-    data= data.values/1000
+    data= data.values
     num_columns = data.shape[1]
 
     if num_columns % 3 != 0:
