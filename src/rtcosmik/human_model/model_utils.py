@@ -865,7 +865,7 @@ def get_footL_pose(mks_positions):
 #Construct challenge segments frames from mocap mks
 # - mks_positions is a dictionnary of mocap mks names and 3x1 global positions
 # - returns sgts_poses which correspond to a dictionnary to segments poses and names, constructed from mks global positions
-def construct_segments_frames(mks_positions, with_hand=True, gender='male',subject_height=1.8): 
+def construct_segments_frames(mks_positions, with_hand=True, with_head=True, gender='male',subject_height=1.8): 
     """
     Constructs a dictionary of segment poses from motion capture marker positions.
     Args:
@@ -873,7 +873,7 @@ def construct_segments_frames(mks_positions, with_hand=True, gender='male',subje
     Returns:
         dict: A dictionary where keys are segment names (e.g., 'torso', 'upperarmR') and values are the corresponding poses.
     """
-    head_pose = get_head_pose(mks_positions)
+
     torso_pose = get_torso_pose(mks_positions)
     right_clavicle_pose =get_torso_pose(mks_positions)
     left_clavicle_pose =get_torso_pose(mks_positions)
@@ -892,7 +892,7 @@ def construct_segments_frames(mks_positions, with_hand=True, gender='male',subje
     
     # Constructing the dictionary to store segment poses
     sgts_poses = {
-        "head": head_pose,
+        # "head": head_pose,
         "torso": torso_pose,
         "right_clavicle" : right_clavicle_pose,
         "left_clavicle" : left_clavicle_pose,
@@ -909,6 +909,10 @@ def construct_segments_frames(mks_positions, with_hand=True, gender='male',subje
         "shankL": shankL_pose,
         "footL": footL_pose
     }
+    if with_head :
+        head_pose = get_head_pose(mks_positions)
+        sgts_poses["head"] = head_pose
+    
     if with_hand : 
         handR_pose = get_handR_pose(mks_positions)
         handL_pose = get_handL_pose(mks_positions)
