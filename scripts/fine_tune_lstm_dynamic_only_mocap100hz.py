@@ -105,7 +105,7 @@ def enumerate_trials(subject_list):
             if trial in excluded_trials:
                 continue
             trial_dir = sp/trial
-            jcp_name  = f"{trial}_joint_center_positions.npz"
+            jcp_name  = f"{trial}_joint_center_positions_with_offsets.npz"
             mocap_name= f"{trial}_trajectories.npz"
             if not (trial_dir/mocap_name).exists() or not (trial_dir/jcp_name).exists():
                 raise FileNotFoundError(f"Some files are missing in {s} : {trial}")
@@ -495,7 +495,7 @@ model.summary()
 
 ### On sauvegarde le modele qui correspond au config de finetune
 # Save model definition that matches finetune config
-model_json_path = pretrained_dir / f"model_finetuned_newjcp_{args.id}.json"
+model_json_path = pretrained_dir / f"model_finetuned_offset_{args.id}.json"
 with open(model_json_path, "w") as f:
     f.write(model.to_json())
 
@@ -645,7 +645,7 @@ class LRLogger(tf.keras.callbacks.Callback):
             print(f"[WARNING] Could not retrieve learning rate at epoch {epoch+1}: {e}")
 
 ### Définition des paths où save et des callbacks comme le Earlystopping, le checkpoint, le predictionLogger et le LRLogger
-ckpt_path = pretrained_dir / f"best_finetuned_weights_newjcp_{args.id}.h5"
+ckpt_path = pretrained_dir / f"best_finetuned_weights_offset_{args.id}.h5"
 callbacks = [
     EarlyStopping(monitor='val_loss', patience=args.patience, restore_best_weights=True, verbose=1),
     ModelCheckpoint(str(ckpt_path), monitor='val_loss', save_best_only=True, save_weights_only=True, verbose=1),
@@ -679,7 +679,7 @@ history = model.fit(train_ds, validation_data=val_ds, epochs=args.epochs, callba
 
 # ─────────────── Save weights ───────────────
 ### A la fin on sauvegarde les weights et un norm_meta.json qui contient les infos de la config de finetune
-final_w = pretrained_dir / f"weights_finetuned_final_newjcp_{args.id}.h5"
+final_w = pretrained_dir / f"weights_finetuned_final_offset_{args.id}.h5"
 model.save_weights(str(final_w))
 with open(stats_dir / f"norm_meta_{args.id}.json", "w") as f:
     json.dump({
