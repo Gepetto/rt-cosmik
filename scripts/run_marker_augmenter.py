@@ -13,15 +13,14 @@ from src.rtcosmik.utils.read_write_utils import read_mmpose_file, save_to_csv
 from src.rtcosmik.utils.linear_algebra_utils import butterworth_filter
 base_path = "/root/workspace/ros_ws/src/rt-cosmik"
 
-no_trial = "Zoe"
-subject_mass =55.0
-subject_height = 1.65
-id = "4162"
+no_trial = "Maxime"
+subject_mass =74.0
+subject_height = 1.81
+id = "1847"
 task = "robot_welding"
-path_to_3d_kpt = f"/root/workspace/ros_ws/src/rt-cosmik/output/{id}/cosmik_2cams/{task}/corrected_jcp_19704271.csv"
-# path_to_3d_kpt= os.path.join(base_path, f"output/cosmik_jcp/{no_trial}/{task}_jcp_hpe_filtered.csv")
-# path_to_3d_kpt = os.path.join(base_path, f"output/{no_trial}/cosmik_2cams/{task}/3D_keypoints_fused_OKK.csv")
-output_csv_path = os.path.join(base_path, f"output/{id}/cosmik_2cams/{task}/augmented_markers_19704271.csv")
+# path_to_3d_kpt = f"/root/workspace/ros_ws/src/rt-cosmik/output/{id}/cosmik_2cams/{task}/corrected_jcp_19704271.csv"
+path_to_3d_kpt =f"/root/workspace/ros_ws/src/rt-cosmik/output/mocap_jcp_100hz/{no_trial}/{task}/joint_center_positions.csv"
+output_csv_path = os.path.join(base_path, f"output/{id}/cosmik_2cams/{task}/augmented_markers_mocap_finetuned.csv")
 
 augmenter_path = '/root/workspace/ros_ws/src/rt-cosmik/src/rtcosmik/augmenter/augmentation_model'
 markers = [
@@ -38,7 +37,7 @@ header = []
 for marker in markers:
     header.extend([f"{marker}_x", f"{marker}_y", f"{marker}_z"])
 
-keypoints_buffer = deque(maxlen=30)
+keypoints_buffer = deque(maxlen=100)
 
 def main():
     augmented_markers_list = []
@@ -63,13 +62,13 @@ def main():
         frame_data = data[i].reshape(num_keypoints, coordinates_per_keypoint)
 
         if first_frame:
-            for _ in range(30):
+            for _ in range(100):
                 keypoints_buffer.append(np.array(frame_data))
             first_frame = False 
         else:
             keypoints_buffer.append(np.array(frame_data))
 
-        if len(keypoints_buffer) == 30:
+        if len(keypoints_buffer) == 100:
 
             keypoints_buffer_array = np.array(keypoints_buffer)
             augmented_markers = augmentTRC(keypoints_buffer_array, subject_mass=subject_mass, subject_height=subject_height, models = warmed_models,

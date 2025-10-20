@@ -12,17 +12,16 @@ import pandas as pd
 from src.rtcosmik.utils.read_write_utils import parse_marker_csv,udp_csv_to_dataframe,read_mks_data,load_transformation,plot_marker_comparison
 from collections import defaultdict
 
-id = "4162"
-no_trial = "Zoe"
+id = "1847"
+no_trial = "Maxime"
 task = "robot_welding"
-
-path_to_csv_mocap = f"/root/workspace/ros_ws/src/rt-cosmik/output/mocap/mocap_{no_trial}/{task}/mocap_downsampled_to_40hz.csv"
+path_to_csv_mocap = f"/root/workspace/ros_ws/src/rt-cosmik/output/mocap_100hz/{no_trial}/{task}/markers_trajectories.csv"
 df_wide = pd.read_csv(path_to_csv_mocap)
-path_to_csv_lstm = f"/root/workspace/ros_ws/src/rt-cosmik/output/{id}/cosmik_2cams/{task}/augmented_markers_mocap_opencap.csv"
-path_to_csv_lstm2 = f"/root/workspace/ros_ws/src/rt-cosmik/output/{id}/cosmik_2cams/{task}/augmented_markers_19704271.csv"
+path_to_csv_lstm = f"/root/workspace/ros_ws/src/rt-cosmik/output/{id}/cosmik_2cams/{task}/augmented_markers_mocap_offset_opencap.csv"
+path_to_csv_lstm2 = f"/root/workspace/ros_ws/src/rt-cosmik/output/{id}/cosmik_2cams/{task}/augmented_markers_mocap_offset_finetuned.csv"
 
-path_to_kpt_mocap = f"/root/workspace/ros_ws/src/rt-cosmik/output/mocap_jcp/{no_trial}/{task}/robot_welding_joint_center_positions.csv"
-path_to_kpt = f"/root/workspace/ros_ws/src/rt-cosmik/output/{id}/cosmik_2cams/{task}/corrected_jcp_19704271.csv"
+path_to_kpt_mocap = f"/root/workspace/ros_ws/src/rt-cosmik/output/mocap_jcp_100hz/{no_trial}/{task}/joint_center_positions_with_offsets.csv"
+path_to_kpt = f"/root/workspace/ros_ws/src/rt-cosmik/output/mocap_jcp_100hz/{no_trial}/{task}/joint_center_positions.csv"
 
 marker_mocap_names = ['r.ASIS_study','L.ASIS_study','r.PSIS_study','L.PSIS_study',
              'TV8','TV12','SJN','STRN','C7_study','r_shoulder_study','L_shoulder_study',
@@ -48,9 +47,7 @@ lstm_mks_names = ['r.ASIS_study','L.ASIS_study','r.PSIS_study','L.PSIS_study','r
            'r_mknee_study','r_ankle_study','r_mankle_study','r_toe_study','r_5meta_study',
            'r_calc_study','L_knee_study','L_mknee_study','L_ankle_study','L_mankle_study',
            'L_toe_study','L_calc_study','L_5meta_study','r_shoulder_study','L_shoulder_study',
-           'C7_study','r_thigh1_study','r_thigh2_study','r_thigh3_study','L_thigh1_study',
-           'L_thigh2_study','L_thigh3_study','r_sh1_study','r_sh2_study','r_sh3_study',
-           'L_sh1_study','L_sh2_study','L_sh3_study','RHJC_study','LHJC_study','r_lelbow_study',
+           'C7_study','r_lelbow_study',
            'r_melbow_study','r_lwrist_study','r_mwrist_study','L_lelbow_study','L_melbow_study',
            'L_lwrist_study','L_mwrist_study']
 
@@ -69,8 +66,8 @@ data_markers_lstm2 = pd.read_csv(path_to_csv_lstm2)
 data_markers_hpe_kpt = pd.read_csv(path_to_kpt) 
 data_markers_hpe_kpt_mocap = pd.read_csv(path_to_kpt_mocap) 
 
-result_markers_hpe_kpt, start_sample_hpe_kpt = read_mks_data(data_markers_hpe_kpt, converter = 1.0)
-result_markers_hpe_kpt_mocap, start_sample_hpe_kpt_mocap = read_mks_data(data_markers_hpe_kpt_mocap, converter = 1000.0)
+result_markers_hpe_kpt, start_sample_hpe_kpt = read_mks_data(data_markers_hpe_kpt, converter = 1000.0)
+result_markers_hpe_kpt_mocap, start_sample_hpe_kpt_mocap = read_mks_data(data_markers_hpe_kpt_mocap, converter = 1.0)
 # columns_to_sadd = [col for col in keypoints.columns if any(key + '_' in col for key in keys_to_add)]
 # if len(data_markers_lstm) != len(keypoints):
 #     raise ValueError("Row count mismatch between data_markers_lstm and keypoints")
@@ -80,15 +77,15 @@ result_markers_hpe_kpt_mocap, start_sample_hpe_kpt_mocap = read_mks_data(data_ma
 result_markers_lstm, start_sample_lstm = read_mks_data(data_markers_lstm, converter = 1.0)
 result_markers_lstm2, start_sample_lstm2 = read_mks_data(data_markers_lstm2, converter = 1.0)
 
-rmse_results, rmse_mean_per_dataset = plot_marker_comparison(
-    datasets=[result_markers, result_markers_lstm,result_markers_lstm2],
-    labels=["mocap", "opencap", "corrected"],
-    markers_to_plot=markers_to_display,
-    ref_idx=0,
-    colors=["red", "green","blue"],
-    show_barplot=True  
-)
-print(rmse_mean_per_dataset)
+# rmse_results, rmse_mean_per_dataset = plot_marker_comparison(
+#     datasets=[result_markers, result_markers_lstm,result_markers_lstm2],
+#     labels=["mocap", "offset", "out_offset"],
+#     markers_to_plot=markers_to_display,
+#     ref_idx=0,
+#     colors=["red", "green","blue"],
+#     show_barplot=True  
+# )
+# print(rmse_mean_per_dataset)
 # === Initialiser le visualiseur Gepetto ===
 viz = GepettoVisualizer()
 try:
@@ -110,12 +107,12 @@ for name in hpe_kpt:
     sphere_name = f"world/tri_{name}"
     viz.viewer.gui.addSphere(sphere_name, 0.01, [255, 255, 0, 1])
 
-for name in hpe_kpt:
-    sphere_name = f"world/tri_{name}_mocap"
+for name in start_sample_hpe_kpt_mocap.keys():
+    sphere_name = f"world/tri_{name}_offset"
     viz.viewer.gui.addSphere(sphere_name, 0.01, [255, 255, 255, 1])
 
 for name in start_sample_lstm2.keys():
-    sphere_n = f'world/lstm_{name}'
+    sphere_n = f'world/lstm_finetuned_{name}'
     viz.viewer.gui.addSphere(sphere_n, 0.015, [0, 0, 255, 1.])
 
 for name in start_sample_lstm.keys():
@@ -139,7 +136,7 @@ for i in range(len(result_markers)):
 
         place(viz, f'world/mocap_{mks}', pin.SE3(np.eye(3), pos_mocap))
         place(viz, f'world/lstm_nominal_{mks}', pin.SE3(np.eye(3), pos_mks))
-        place(viz, f'world/lstm_{mks}', pin.SE3(np.eye(3), pos_mks2))
+        place(viz, f'world/lstm_finetuned_{mks}', pin.SE3(np.eye(3), pos_mks2))
 
         error = np.linalg.norm(pos_mocap - pos_mks)  # Euclidean distance
         squared_errors[mks].append(error**2)
@@ -155,7 +152,7 @@ for i in range(len(result_markers)):
         place(viz, f'world/tri_{mks}', pin.SE3(np.eye(3), pos_hpe))
 
         pos_hpe_mocap = result_markers_hpe_kpt_mocap[i][mks].reshape(3,)
-        place(viz, f'world/tri_{mks}_mocap', pin.SE3(np.eye(3), pos_hpe_mocap))
+        place(viz, f'world/tri_{mks}_offset', pin.SE3(np.eye(3), pos_hpe_mocap))
 
     
     time.sleep(0.05)
