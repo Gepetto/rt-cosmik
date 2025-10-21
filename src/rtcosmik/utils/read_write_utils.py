@@ -874,12 +874,13 @@ def plot_marker_comparison(
         plt.tight_layout(rect=[0, 0.05, 1, 0.95])
         plt.show()
 
-        rmse_mean_per_dataset = {}
+    rmse_mean_per_dataset = {}
     for lbl in rmse_results:
         all_vals = []
         for marker in rmse_results[lbl]:
             all_vals.extend(rmse_results[lbl][marker].values())
-        rmse_mean_per_dataset[lbl] = np.mean(all_vals)
+        # rmse_mean_per_dataset[lbl] = np.mean(all_vals)
+        rmse_mean_per_dataset[lbl] = np.sqrt(np.mean(np.square(all_vals)))
 
     return rmse_results, rmse_mean_per_dataset
 
