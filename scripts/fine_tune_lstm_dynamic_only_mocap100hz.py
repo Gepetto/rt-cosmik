@@ -709,12 +709,16 @@ np.save(stats_dir / f"mean_train_{args.id}.npy", mean_train)
 np.save(stats_dir / f"std_train_{args.id}.npy",  std_train)
 ### La ligne qui lance le learning avec training sur train_ds et validation sur val_ds
 print("Before fine-tuning:")
-model.evaluate("train set", train_ds)
-model.evaluate("val set", val_ds)
+print("train set")
+model.evaluate( train_ds)
+print("val set")
+model.evaluate(val_ds)
 history = model.fit(train_ds, validation_data=val_ds, epochs=args.epochs, callbacks=callbacks)
 print("After fine-tuning:")
-model.evaluate("train set", train_ds)
-model.evaluate("val set", val_ds)
+print("train set")
+model.evaluate(train_ds)
+print("val set")
+model.evaluate(val_ds)
 # ─────────────── Save weights ───────────────
 ### A la fin on sauvegarde les weights et un norm_meta.json qui contient les infos de la config de finetune
 final_w = pretrained_dir / f"weights_finetuned_final_offset_{args.id}.h5"
