@@ -30,7 +30,7 @@ p.add_argument('--seq-len', type=int, default=100)
 p.add_argument('--batch-size', type=int, default=64)
 p.add_argument('--epochs', type=int, default=300)
 p.add_argument('--patience', type=int, default=10)
-p.add_argument('--lr', type=float, default=6e-6)
+p.add_argument('--lr', type=float, default=5e-6)
 p.add_argument('--test-size', type=int, default=2, help="# of subjects reserved for val (last N alphabetical)")
 p.add_argument("--excluded-trials", type=str, default="none", help="Exclude trials from the dataset")
 p.add_argument("--id", type=str, default="0", help="Experiment ID")
@@ -285,11 +285,11 @@ def trial_to_windows(
                     R = np.eye(3) #no rot
                 ### les 2 random
                 elif i == 6 or i == 7:
-                    R = random_small_rotation_matrix(seed=None) #yaw ±60 + roll/pitch ±2
+                    R = random_rotation_matrix(seed=None) 
                 ### les 6 autour de z
                 else:
                     ### theta = angle random de rotation autour de z entre -60 et 60 degres (toutes les rot possibles)
-                    theta = np.deg2rad(np.random.uniform(-60.0, 60.0))
+                    theta = np.deg2rad(np.random.uniform(-180.0, 180.0))
                     ### Génération de la matrice de rotation
                     R = _yaw_rotation_matrix(theta).T
                 ### On applique la rotation sur les inputs et ground_truth
@@ -369,7 +369,9 @@ def make_dataset(trials, seq_len, batch, shuffle_windows=True, rotation_scheme="
 ### ca peut aller jusqu'à une heure si on prend toute la data 
 train_raw = make_dataset(
     train_trials, args.seq_len, batch=256,
-    shuffle_windows=False
+    shuffle_windows=False,
+    rotation_scheme="off",
+    add_noise=args.add_noise
 )
 
 # ### Fonction qui calcule les mean et std de chaque feature de l'input recentré / normalisé par la taille du sujet (pas utilisée ici)
@@ -426,7 +428,7 @@ def normalize_xy(x, y):
 train_ds = make_dataset(
     train_trials, args.seq_len, batch=args.batch_size,
     shuffle_windows=True,
-    rotation_scheme="max",
+    rotation_scheme="off",
     add_noise=args.add_noise
 ).map(normalize_xy, num_parallel_calls=tf.data.AUTOTUNE)
 
@@ -707,10 +709,12 @@ np.save(stats_dir / f"mean_train_{args.id}.npy", mean_train)
 np.save(stats_dir / f"std_train_{args.id}.npy",  std_train)
 ### La ligne qui lance le learning avec training sur train_ds et validation sur val_ds
 print("Before fine-tuning:")
-model.evaluate(val_ds)
+model.evaluate("train set", train_ds)
+model.evaluate("val set", val_ds)
 history = model.fit(train_ds, validation_data=val_ds, epochs=args.epochs, callbacks=callbacks)
 print("After fine-tuning:")
-model.evaluate(val_ds)
+model.evaluate("train set", train_ds)
+model.evaluate("val set", val_ds)
 # ─────────────── Save weights ───────────────
 ### A la fin on sauvegarde les weights et un norm_meta.json qui contient les infos de la config de finetune
 final_w = pretrained_dir / f"weights_finetuned_final_offset_{args.id}.h5"
