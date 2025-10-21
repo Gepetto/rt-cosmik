@@ -36,7 +36,7 @@ p.add_argument("--excluded-trials", type=str, default="none", help="Exclude tria
 p.add_argument("--id", type=str, default="0", help="Experiment ID")
 
 args = p.parse_args()
-
+rotation_scheme = "max"
 # ─────────────── Config derived from body part ───────────────
 ### Cette partie permet simplement de définir les inputs et outputs en fonction du body part
 if args.body_part == "upper":
@@ -182,27 +182,41 @@ def random_rotation_matrix(seed=None):
     
     return (Rz @ Ry @ Rx).astype(np.float32)
 
-def random_small_rotation_matrix():
-    """Random rotation: yaw ∈ [-60°, 60°], roll/pitch ∈ [-2°, 2°]."""
-    yaw   = np.deg2rad(np.random.uniform(-60.0, 60.0))  # Z
-    pitch = np.deg2rad(np.random.uniform(-2.0,  2.0))   # Y
-    roll  = np.deg2rad(np.random.uniform(-2.0,  2.0))   # X
+def small_xy_rotation_matrix(max_deg=2.0, seed=None):
+    """
+    Generate a small random rotation around X and Y axes only.
+    The Z axis is unchanged (no yaw rotation).
 
-    # Rotation matrices
-    Rx = np.array([[1, 0, 0],
-                   [0, np.cos(roll), -np.sin(roll)],
-                   [0, np.sin(roll),  np.cos(roll)]], dtype=np.float32)
+    Args:
+        max_deg (float): maximum absolute rotation in degrees for X and Y.
+        seed (int, optional): random seed for reproducibility.
 
-    Ry = np.array([[ np.cos(pitch), 0, np.sin(pitch)],
-                   [ 0,             1, 0],
-                   [-np.sin(pitch), 0, np.cos(pitch)]], dtype=np.float32)
+    Returns:
+        np.ndarray: 3x3 rotation matrix (float32).
+    """
+    if seed is not None:
+        np.random.seed(seed)
 
-    Rz = np.array([[np.cos(yaw), -np.sin(yaw), 0],
-                   [np.sin(yaw),  np.cos(yaw), 0],
-                   [0, 0, 1]], dtype=np.float32)
+    # sample small random angles in radians
+    roll  = np.deg2rad(np.random.uniform(-max_deg, max_deg))  # rotation around X
+    pitch = np.deg2rad(np.random.uniform(-max_deg, max_deg))  # rotation around Y
 
-    # Combine — use ZYX order (yaw–pitch–roll)
-    R = Rz @ Ry @ Rx
+    # rotation around X
+    Rx = np.array([
+        [1, 0, 0],
+        [0, np.cos(roll), -np.sin(roll)],
+        [0, np.sin(roll),  np.cos(roll)]
+    ])
+
+    # rotation around Y
+    Ry = np.array([
+        [ np.cos(pitch), 0, np.sin(pitch)],
+        [0, 1, 0],
+        [-np.sin(pitch), 0, np.cos(pitch)]
+    ])
+
+    # combine: R = Ry * Rx  (Y then X)
+    R = Ry @ Rx
     return R.astype(np.float32)
 
 
@@ -285,33 +299,51 @@ def trial_to_windows(
                     R = np.eye(3) #no rot
                 ### les 2 random
                 elif i == 6 or i == 7:
-                    R = random_rotation_matrix(seed=None) 
+                    R = small_xy_rotation_matrix() 
                 ### les 6 autour de z
                 else:
                     ### theta = angle random de rotation autour de z entre -60 et 60 degres (toutes les rot possibles)
-                    theta = np.deg2rad(np.random.uniform(-180.0, 180.0))
+                    theta = np.deg2rad(np.random.uniform(-60.0, 60.0))
                     ### Génération de la matrice de rotation
                     R = _yaw_rotation_matrix(theta).T
                 ### On applique la rotation sur les inputs et ground_truth
                 din_r = (din.reshape(-1,3)  @ R).reshape(seq_len, -1, 3)
                 dout_r = (dout.reshape(-1,3) @ R).reshape(seq_len, -1, 3)
 
-                ### Ici comme il s'agit des données HPE en input, je ne rajoute pas de noise
-                din_noisy = din_r
-                if add_noise:
-                    din_noisy = din_noisy + np.random.normal(0.0, 0.018, din_noisy.shape).astype(np.float32)
+                # din_noisy = din_r
+                # if add_noise:
+                #     din_noisy = din_noisy + np.random.normal(0.0, 0.018, din_noisy.shape).astype(np.float32)
 
-                ### reshaping et ajout de height et weight au bout des samples
-                inp = din_noisy.reshape(seq_len, -1)
-                hw  = np.concatenate([
+                # ### reshaping et ajout de height et weight au bout des samples
+                # inp = din_noisy.reshape(seq_len, -1)
+                # hw  = np.concatenate([
+                #         np.full((seq_len,1), h, dtype=np.float32),
+                #         np.full((seq_len,1), w, dtype=np.float32)
+                #     ], axis=1)
+                # inp = np.concatenate([inp, hw], axis=1)  # [L, Pin*3 + 2]
+                # out = dout_r.reshape(seq_len, -1)        # [L, Pout*3]
+                # ### yield les fenêtres d'input et ground_truth pour génération on the fly, la normalisation par mean et std est faite
+                # ### au moment de la génération de la data
+                # yield inp.astype(np.float32), out.astype(np.float32)
+
+                # 1) build CLEAN (no-noise) tensors with consistent shapes
+                inp_clean = din_r.reshape(seq_len, -1)  # [L, Pin*3]
+                hw = np.concatenate([
                         np.full((seq_len,1), h, dtype=np.float32),
                         np.full((seq_len,1), w, dtype=np.float32)
-                    ], axis=1)
-                inp = np.concatenate([inp, hw], axis=1)  # [L, Pin*3 + 2]
-                out = dout_r.reshape(seq_len, -1)        # [L, Pout*3]
-                ### yield les fenêtres d'input et ground_truth pour génération on the fly, la normalisation par mean et std est faite
-                ### au moment de la génération de la data
-                yield inp.astype(np.float32), out.astype(np.float32)
+                    ], axis=1)                          # [L, 2]
+                inp_clean = np.concatenate([inp_clean, hw], axis=1).astype(np.float32)  # [L, Pin*3 + 2]
+                out_flat  = dout_r.reshape(seq_len, -1).astype(np.float32)              # [L, Pout*3]
+
+                # yield CLEAN sample (always)
+                yield inp_clean, out_flat
+
+                # 2) optionally yield a NOISY version (same shapes)
+                if add_noise:
+                    din_noisy = (din_r + np.random.normal(0.0, 0.018, din_r.shape).astype(np.float32))
+                    inp_noisy = din_noisy.reshape(seq_len, -1)
+                    inp_noisy = np.concatenate([inp_noisy, hw], axis=1).astype(np.float32)
+                    yield inp_noisy, out_flat  # out stays noise-free
 
         ### Partie sans data augmentation pour le set de validation
         else:
@@ -370,7 +402,7 @@ def make_dataset(trials, seq_len, batch, shuffle_windows=True, rotation_scheme="
 train_raw = make_dataset(
     train_trials, args.seq_len, batch=256,
     shuffle_windows=False,
-    rotation_scheme="off",
+    rotation_scheme=rotation_scheme,
     add_noise=args.add_noise
 )
 
@@ -428,7 +460,7 @@ def normalize_xy(x, y):
 train_ds = make_dataset(
     train_trials, args.seq_len, batch=args.batch_size,
     shuffle_windows=True,
-    rotation_scheme="off",
+    rotation_scheme=rotation_scheme,
     add_noise=args.add_noise
 ).map(normalize_xy, num_parallel_calls=tf.data.AUTOTUNE)
 
