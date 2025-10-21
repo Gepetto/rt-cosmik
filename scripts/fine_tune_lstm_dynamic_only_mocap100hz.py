@@ -30,7 +30,7 @@ p.add_argument('--seq-len', type=int, default=100)
 p.add_argument('--batch-size', type=int, default=64)
 p.add_argument('--epochs', type=int, default=300)
 p.add_argument('--patience', type=int, default=10)
-p.add_argument('--lr', type=float, default=1e-6)
+p.add_argument('--lr', type=float, default=1e-5)
 p.add_argument('--test-size', type=int, default=2, help="# of subjects reserved for val (last N alphabetical)")
 p.add_argument("--excluded-trials", type=str, default="none", help="Exclude trials from the dataset")
 p.add_argument("--id", type=str, default="0", help="Experiment ID")
@@ -83,13 +83,14 @@ else:
 ### Ici on définit les sujets à mettre dans le train et val set de manière random avec le random.shuffle qui shuffle les noms des sujets
 root = Path(args.data_path)
 subjects = [d.name for d in root.iterdir() if d.is_dir()]
-random.shuffle(subjects)
+#random.shuffle(subjects)
 if len(subjects) < args.test_size + 1:
     raise RuntimeError("Not enough subjects to split.")
-
+print("subjetcs",subjects)
 train_subjects = subjects[:-args.test_size]
-val_subjects   = subjects[-args.test_size:]
+val_subjects   =subjects[-args.test_size:]
 print("val_set :", val_subjects)
+print("train_subjects :", train_subjects)
 
 ### Cette fonction retourne les path des fichiers .npz qui vont être utilisés lors du learning
 ### yield permet de retourner les éléments un par un à chaque demande de la part de la fonction finale (ici .fit), 
@@ -97,7 +98,8 @@ print("val_set :", val_subjects)
 def enumerate_trials(subject_list):
     """Yield dicts describing usable trials with paths & metadata."""
     for s in subject_list:
-        if s == "Alessandro":
+        print(s)
+        if s == "koko":
             continue  # skip this subject
         sp = root/s
         h, w, _ = read_subject_info(sp/'info.txt')
@@ -251,7 +253,9 @@ def trial_to_windows(
         ### Data augmentation si rotation_scheme == "max" (en gros pour le train set actuellement)
         if rotation_scheme == "max":
             ### Je fais 8 rotations, 6 autour de z et 2 random
-            for i in range(8):
+            for i in range(9):
+                if i == 0:
+                    R = np.eye(3)
                 ### les 2 random
                 if i == 6 or i == 7:
                     R = random_rotation_matrix(seed=None)
@@ -675,8 +679,11 @@ stats_dir.mkdir(parents=True, exist_ok=True)
 np.save(stats_dir / f"mean_train_{args.id}.npy", mean_train)
 np.save(stats_dir / f"std_train_{args.id}.npy",  std_train)
 ### La ligne qui lance le learning avec training sur train_ds et validation sur val_ds
+print("Before fine-tuning:")
+model.evaluate(val_ds)
 history = model.fit(train_ds, validation_data=val_ds, epochs=args.epochs, callbacks=callbacks)
-
+print("After fine-tuning:")
+model.evaluate(val_ds)
 # ─────────────── Save weights ───────────────
 ### A la fin on sauvegarde les weights et un norm_meta.json qui contient les infos de la config de finetune
 final_w = pretrained_dir / f"weights_finetuned_final_offset_{args.id}.h5"
