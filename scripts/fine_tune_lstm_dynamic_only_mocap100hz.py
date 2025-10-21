@@ -30,7 +30,7 @@ p.add_argument('--seq-len', type=int, default=100)
 p.add_argument('--batch-size', type=int, default=64)
 p.add_argument('--epochs', type=int, default=300)
 p.add_argument('--patience', type=int, default=10)
-p.add_argument('--lr', type=float, default=1e-5)
+p.add_argument('--lr', type=float, default=6e-6)
 p.add_argument('--test-size', type=int, default=2, help="# of subjects reserved for val (last N alphabetical)")
 p.add_argument("--excluded-trials", type=str, default="none", help="Exclude trials from the dataset")
 p.add_argument("--id", type=str, default="0", help="Experiment ID")
@@ -87,8 +87,12 @@ subjects = [d.name for d in root.iterdir() if d.is_dir()]
 if len(subjects) < args.test_size + 1:
     raise RuntimeError("Not enough subjects to split.")
 print("subjetcs",subjects)
-train_subjects = subjects[:-args.test_size]
-val_subjects   =subjects[-args.test_size:]
+# train_subjects = subjects[:-args.test_size]
+# val_subjects   =subjects[-args.test_size:]
+
+train_subjects = ["Maxime"]
+val_subjects   = ["Maxime"]
+
 print("val_set :", val_subjects)
 print("train_subjects :", train_subjects)
 
@@ -178,6 +182,29 @@ def random_rotation_matrix(seed=None):
     
     return (Rz @ Ry @ Rx).astype(np.float32)
 
+def random_small_rotation_matrix():
+    """Random rotation: yaw ∈ [-60°, 60°], roll/pitch ∈ [-2°, 2°]."""
+    yaw   = np.deg2rad(np.random.uniform(-60.0, 60.0))  # Z
+    pitch = np.deg2rad(np.random.uniform(-2.0,  2.0))   # Y
+    roll  = np.deg2rad(np.random.uniform(-2.0,  2.0))   # X
+
+    # Rotation matrices
+    Rx = np.array([[1, 0, 0],
+                   [0, np.cos(roll), -np.sin(roll)],
+                   [0, np.sin(roll),  np.cos(roll)]], dtype=np.float32)
+
+    Ry = np.array([[ np.cos(pitch), 0, np.sin(pitch)],
+                   [ 0,             1, 0],
+                   [-np.sin(pitch), 0, np.cos(pitch)]], dtype=np.float32)
+
+    Rz = np.array([[np.cos(yaw), -np.sin(yaw), 0],
+                   [np.sin(yaw),  np.cos(yaw), 0],
+                   [0, 0, 1]], dtype=np.float32)
+
+    # Combine — use ZYX order (yaw–pitch–roll)
+    R = Rz @ Ry @ Rx
+    return R.astype(np.float32)
+
 
 ### Cette fonction est le coeur de la gestion de la data, c'est ici que les modifs du learning et les ajouts doivent être fait
 ### Il s'agit du data_generator qui vient sélectionner les fenêtres de samples et applique les transformations souhaitées (normalisation, noise,
@@ -255,14 +282,14 @@ def trial_to_windows(
             ### Je fais 8 rotations, 6 autour de z et 2 random
             for i in range(9):
                 if i == 0:
-                    R = np.eye(3)
+                    R = np.eye(3) #no rot
                 ### les 2 random
-                if i == 6 or i == 7:
-                    R = random_rotation_matrix(seed=None)
+                elif i == 6 or i == 7:
+                    R = random_small_rotation_matrix(seed=None) #yaw ±60 + roll/pitch ±2
                 ### les 6 autour de z
                 else:
-                    ### theta = angle random de rotation autour de z entre -180 et 180 degres (toutes les rot possibles)
-                    theta = np.deg2rad(np.random.uniform(-180.0, 180.0))
+                    ### theta = angle random de rotation autour de z entre -60 et 60 degres (toutes les rot possibles)
+                    theta = np.deg2rad(np.random.uniform(-60.0, 60.0))
                     ### Génération de la matrice de rotation
                     R = _yaw_rotation_matrix(theta).T
                 ### On applique la rotation sur les inputs et ground_truth
