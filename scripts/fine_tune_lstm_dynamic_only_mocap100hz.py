@@ -494,9 +494,6 @@ with open(pretrained_dir/"model.json", "r") as f:
     base_for_eval = model_from_json(f.read())
 base_for_eval.load_weights(str(pretrained_dir/"weights.h5"))
 
-if args.body_part == "lower":
-    y21 = tf.keras.layers.Lambda(lambda x: x[..., :21*3])(base_for_eval.output)
-    model_lower_21 = Model(inputs=base_for_eval.input, outputs=y21)
 
 ### Ajout de la layer supplémentaire initialisée comme Pontonnier
 weight_decay = 0.01
@@ -551,12 +548,22 @@ model.compile(optimizer=optimizer, loss=weighted_l2(W_loss),metrics=[rmse])
 
 model.summary()
 
-base_for_eval.compile(optimizer=optimizer, loss=weighted_l2(W_loss),metrics=[rmse])
-print("=== Baseline (pretrained base-only) BEFORE fine-tuning ===")
-print("train set")
-base_for_eval.evaluate(train_ds, verbose=1)
-print("val set")
-base_for_eval.evaluate(val_ds, verbose=1)
+if args.body_part == "lower":
+    y21 = tf.keras.layers.Lambda(lambda x: x[..., :21*3])(base_for_eval.output)
+    model_lower_21 = Model(inputs=base_for_eval.input, outputs=y21)
+    model_lower_21.compile(optimizer=optimizer, loss=weighted_l2(W_loss),metrics=[rmse])
+    print("=== Baseline (pretrained base-only) BEFORE fine-tuning ===")
+    print("train set")
+    model_lower_21.evaluate(train_ds, verbose=1)
+    print("val set")
+    model_lower_21.evaluate(val_ds, verbose=1)
+else : 
+    base_for_eval.compile(optimizer=optimizer, loss=weighted_l2(W_loss),metrics=[rmse])
+    print("=== Baseline (pretrained base-only) BEFORE fine-tuning ===")
+    print("train set")
+    base_for_eval.evaluate(train_ds, verbose=1)
+    print("val set")
+    base_for_eval.evaluate(val_ds, verbose=1)
 
 ### On sauvegarde le modele qui correspond au config de finetune
 # Save model definition that matches finetune config
