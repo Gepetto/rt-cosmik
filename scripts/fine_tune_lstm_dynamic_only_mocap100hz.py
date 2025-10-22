@@ -90,8 +90,8 @@ print("subjetcs",subjects)
 # train_subjects = subjects[:-args.test_size]
 # val_subjects   =subjects[-args.test_size:]
 
-train_subjects = ["Maxime"]
-val_subjects   = ["Maxime"]
+train_subjects = ["Maxime","Zoe"]
+val_subjects   = ["Maxime","Zoe"]
 
 print("val_set :", val_subjects)
 print("train_subjects :", train_subjects)
@@ -293,6 +293,7 @@ def trial_to_windows(
 
         ### Data augmentation si rotation_scheme == "max" (en gros pour le train set actuellement)
         if rotation_scheme == "max":
+            #print("rooooooooooooooooooooooot")
             ### Je fais 8 rotations, 6 autour de z et 2 random
             for i in range(9):
                 if i == 0:
@@ -340,6 +341,7 @@ def trial_to_windows(
 
                 # 2) optionally yield a NOISY version (same shapes)
                 if add_noise:
+                    #print("noiiiiiiiiiiiiiiiiiiiiiiiiise train set")
                     din_noisy = (din_r + np.random.normal(0.0, 0.018, din_r.shape).astype(np.float32))
                     inp_noisy = din_noisy.reshape(seq_len, -1)
                     inp_noisy = np.concatenate([inp_noisy, hw], axis=1).astype(np.float32)
@@ -354,6 +356,7 @@ def trial_to_windows(
             # optional Gaussian noise on features only (XYZ)
             din_noisy = din_r
             if add_noise:
+                #print("noiiiiiiiiiiiiiiiiiiiiiise val set")
                 din_noisy = din_noisy + np.random.normal(0.0, 0.018, din_noisy.shape).astype(np.float32)
 
             # flatten & append height/weight (not rotated)
