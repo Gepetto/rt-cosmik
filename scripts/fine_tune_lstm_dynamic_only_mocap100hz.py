@@ -90,8 +90,8 @@ print("subjetcs",subjects)
 # train_subjects = subjects[:-args.test_size]
 # val_subjects   =subjects[-args.test_size:]
 
-train_subjects = ["Maxime","Zoe"]
-val_subjects   = ["Maxime","Zoe"]
+train_subjects = ["Maxime","Zoe","Kahina"]
+val_subjects   = ["Maxime","Zoe","Kahina"]
 
 print("val_set :", val_subjects)
 print("train_subjects :", train_subjects)
@@ -490,6 +490,14 @@ with open(pretrained_dir/"model.json", 'r') as f:
     base = model_from_json(f.read())
 base.load_weights(str(pretrained_dir/"weights.h5"))
 
+with open(pretrained_dir/"model.json", "r") as f:
+    base_for_eval = model_from_json(f.read())
+base_for_eval.load_weights(str(pretrained_dir/"weights.h5"))
+
+if args.body_part == "lower":
+    y21 = tf.keras.layers.Lambda(lambda x: x[..., :21*3])(base_for_eval.output)
+    model_lower_21 = Model(inputs=base_for_eval.input, outputs=y21)
+
 ### Ajout de la layer supplémentaire initialisée comme Pontonnier
 weight_decay = 0.01
 initializer = RandomNormal(mean=0.0, stddev=0.022)
@@ -533,39 +541,29 @@ def weighted_l2(weights):
     return loss
 
 
-### Cette partie permettait de définir l'exponential scheduler (remplaçable facilement par cosine scheduler) 
-### Comme le nombre de steps est difficile à estimer car notre quantité de data varie, je l'ai commenté ici car sinon le lr descend extrêmement vite
-### Pour l'utiliser il faudrait estimer le nombre de steps. J'ai préféré mettre un tout petit lr constant sur robot welding pour être sur de bien apprendre
-### Et comme il n'y a pas beaucoup de data le learning tourne quand même vite
-# initial_lr = args.lr
-# final_lr   = 1e-6
 
-# steps_per_epoch = max(1, len(train_trials) * 3680 // args.batch_size)
-# epochs = 20
-# T = steps_per_epoch * epochs   # nombre total de steps
-
-# # Ici on choisit decay_steps = T (donc la formule devient simple)
-# decay_steps = T
-# decay_rate = final_lr / initial_lr  # car (final/initial)^(decay_steps/T) = final/initial
-
-# exp_scheduler = tf.keras.optimizers.schedules.ExponentialDecay(
-#     initial_learning_rate=initial_lr,
-#     decay_steps=decay_steps,
-#     decay_rate=decay_rate,
-#     staircase=False  # décroissance lisse, pas par paliers
-# )
+def rmse(y_true, y_pred):
+    return tf.sqrt(tf.reduce_mean(tf.square(y_pred - y_true)))
 
 optimizer=Adam(args.lr)
 
-model.compile(optimizer=optimizer, loss=weighted_l2(W_loss))
+model.compile(optimizer=optimizer, loss=weighted_l2(W_loss),metrics=[rmse])
 
 model.summary()
+
+base_for_eval.compile(optimizer=optimizer, loss=weighted_l2(W_loss),metrics=[rmse])
+print("=== Baseline (pretrained base-only) BEFORE fine-tuning ===")
+print("train set")
+base_for_eval.evaluate(train_ds, verbose=1)
+print("val set")
+base_for_eval.evaluate(val_ds, verbose=1)
 
 ### On sauvegarde le modele qui correspond au config de finetune
 # Save model definition that matches finetune config
 model_json_path = pretrained_dir / f"model_finetuned_offset_{args.id}.json"
 with open(model_json_path, "w") as f:
     f.write(model.to_json())
+
 
 # ─────────────── Callbacks ───────────────
 ### Cette longue classe permet de save predictions vs gt, attention cela peut générer beaucoup de fichiers il vaut mieux l'enlever si pas utile
@@ -743,17 +741,17 @@ stats_dir.mkdir(parents=True, exist_ok=True)
 np.save(stats_dir / f"mean_train_{args.id}.npy", mean_train)
 np.save(stats_dir / f"std_train_{args.id}.npy",  std_train)
 ### La ligne qui lance le learning avec training sur train_ds et validation sur val_ds
-print("Before fine-tuning:")
+print("=== Extended model (base + layer_added) BEFORE fine-tuning:")
 print("train set")
-model.evaluate( train_ds)
+model.evaluate(train_ds,verbose=1)
 print("val set")
-model.evaluate(val_ds)
+model.evaluate(val_ds,verbose=1)
 history = model.fit(train_ds, validation_data=val_ds, epochs=args.epochs, callbacks=callbacks)
-print("After fine-tuning:")
+print("=== Extended model AFTER fine-tuning:")
 print("train set")
-model.evaluate(train_ds)
+model.evaluate(train_ds,verbose=1)
 print("val set")
-model.evaluate(val_ds)
+model.evaluate(val_ds,verbose=1)
 # ─────────────── Save weights ───────────────
 ### A la fin on sauvegarde les weights et un norm_meta.json qui contient les infos de la config de finetune
 final_w = pretrained_dir / f"weights_finetuned_final_offset_{args.id}.h5"
