@@ -20,7 +20,7 @@ id = "1847"
 task = "robot_welding"
 # path_to_3d_kpt = f"/root/workspace/ros_ws/src/rt-cosmik/output/{id}/cosmik_2cams/{task}/corrected_jcp_19704271.csv"
 path_to_3d_kpt =f"/root/workspace/ros_ws/src/rt-cosmik/output/mocap_jcp_100hz/{no_trial}/{task}/joint_center_positions_with_offsets.csv"
-output_csv_path = os.path.join(base_path, f"output/{id}/cosmik_2cams/{task}/augmented_markers_mocap_offset_finetuned105.csv")
+output_csv_path = os.path.join(base_path, f"output/{id}/cosmik_2cams/{task}/augmented_markers_mocap_offset_finetuned002.csv")
 
 augmenter_path = '/root/workspace/ros_ws/src/rt-cosmik/src/rtcosmik/augmenter/augmentation_model'
 markers = [
