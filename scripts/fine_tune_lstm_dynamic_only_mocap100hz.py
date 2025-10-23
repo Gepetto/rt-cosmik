@@ -516,6 +516,40 @@ val_ds = make_dataset(
     add_noise=False
 ).map(normalize_xy, num_parallel_calls=tf.data.AUTOTUNE)
 
+
+##############################" loss ################################"""
+# Optional weighted loss for lower body
+response_mks_lower = mks_of_interest
+### définition des poids des markers pour la loss
+marker_weights = {"r_toe_study":2,"r_5meta_study":2,"r_calc_study":2,"L_toe_study":2,"L_5meta_study":2,"L_calc_study":2}
+
+### Fonction qui construit le vecteur des poids des markers pour la loss
+def build_weights_vector():
+    ### Pas de poids sur upper donc on skip même si True sur upper
+    if args.body_part != "lower" or args.use_weights != "T":
+        return None
+    w = np.ones(len(response_mks_lower)*3, dtype=np.float32)
+    ### Boucle qui met les poids sur les bons indices en fonction des mks names
+    for i, m in enumerate(response_mks_lower):
+        if m in marker_weights:
+            w[i*3:(i+1)*3] = marker_weights[m]
+    return tf.constant(w, dtype=tf.float32)
+
+W_loss = build_weights_vector()
+### On définit la loss qui prend en compte les poids s'il y en a, il s'agit de la mse weighted
+def weighted_l2(weights):
+    def loss(y_true, y_pred):
+        if weights is None:
+            return tf.reduce_mean(tf.square(y_true - y_pred), axis=-1)
+        sq = tf.square(y_true - y_pred)
+        sq = sq * weights  # broadcast on last dim
+        # sq = sq + tf.reduce_mean(tf.square(y_pred))*1e-3
+        return tf.reduce_mean(sq, axis=-1)
+    return loss
+
+def rmse(y_true, y_pred):
+    return tf.sqrt(tf.reduce_mean(tf.square(y_pred - y_true)))
+
 # ─────────────── Model (reuse your pretrained JSON/weights; adjust last layer when needed) ───────────────
 #load pretrained model for evaluation
 with open(pretrained_dir/"model.json", "r") as f:
@@ -523,7 +557,6 @@ with open(pretrained_dir/"model.json", "r") as f:
 base_for_eval.load_weights(str(pretrained_dir/"weights.h5"))
 
 ### Loading des weights de OpenCap
-pretrained_dir = Path(args.pretrained_path) / f"v0.3_{args.body_part}"
 with open(pretrained_dir/"model.json", 'r') as f:
     base = model_from_json(f.read())
 base.load_weights(str(pretrained_dir/"weights.h5"))
@@ -575,51 +608,12 @@ else:
 # proj = TimeDistributed(Dense(out_dim, kernel_initializer=initializer, bias_initializer='zeros', kernel_regularizer=l2(weight_decay)), name="layer_added")(base.output)
 # model = Model(inputs=base.input, outputs=proj)
 
-# Optional weighted loss for lower body
-response_mks_lower = [
-    'r.ASIS_study','L.ASIS_study','r.PSIS_study','L.PSIS_study',
-    'r_knee_study','r_mknee_study','r_ankle_study','r_mankle_study',
-    'r_toe_study','r_5meta_study','r_calc_study',
-    'L_knee_study','L_mknee_study','L_ankle_study','L_mankle_study',
-    'L_toe_study','L_calc_study','L_5meta_study',
-    'r_shoulder_study','L_shoulder_study','C7_study'
-]
-### définition des poids des markers pour la loss
-marker_weights = {"r_toe_study":2,"r_5meta_study":2,"r_calc_study":2,"L_toe_study":2,"L_5meta_study":2,"L_calc_study":2}
-
-### Fonction qui construit le vecteur des poids des markers pour la loss
-def build_weights_vector():
-    ### Pas de poids sur upper donc on skip même si True sur upper
-    if args.body_part != "lower" or args.use_weights != "T":
-        return None
-    w = np.ones(len(response_mks_lower)*3, dtype=np.float32)
-    ### Boucle qui met les poids sur les bons indices en fonction des mks names
-    for i, m in enumerate(response_mks_lower):
-        if m in marker_weights:
-            w[i*3:(i+1)*3] = marker_weights[m]
-    return tf.constant(w, dtype=tf.float32)
-
-W_loss = build_weights_vector()
-### On définit la loss qui prend en compte les poids s'il y en a, il s'agit de la mse weighted
-def weighted_l2(weights):
-    def loss(y_true, y_pred):
-        if weights is None:
-            return tf.reduce_mean(tf.square(y_true - y_pred), axis=-1)
-        sq = tf.square(y_true - y_pred)
-        sq = sq * weights  # broadcast on last dim
-        # sq = sq + tf.reduce_mean(tf.square(y_pred))*1e-3
-        return tf.reduce_mean(sq, axis=-1)
-    return loss
-
-def rmse(y_true, y_pred):
-    return tf.sqrt(tf.reduce_mean(tf.square(y_pred - y_true)))
-
 optimizer=Adam(args.lr)
-
 model.compile(optimizer=optimizer, loss=weighted_l2(W_loss),metrics=[rmse])
-
 model.summary()
+optimizer_eval=Adam(args.lr)
 
+#base_for_eval
 if args.body_part == "lower":
     # y21 = tf.keras.layers.Lambda(lambda x: x[..., :21*3])(base_for_eval.output)
     # model_lower_21 = Model(inputs=base_for_eval.input, outputs=y21)
@@ -635,14 +629,15 @@ if args.body_part == "lower":
                                 name="lower_body_eval")(base_for_eval.output)
     model_lower_21 = tf.keras.Model(inputs=base_for_eval.input, outputs=y21)
     ####
-    model_lower_21.compile(optimizer=optimizer, loss=weighted_l2(W_loss),metrics=[rmse])
+    model_lower_21.compile(optimizer=optimizer_eval, loss=weighted_l2(W_loss),metrics=[rmse])
     print("=== Baseline (pretrained base-only) BEFORE fine-tuning ===")
     print("train set")
     model_lower_21.evaluate(train_ds)
     print("val set")
     model_lower_21.evaluate(val_ds)
 else : 
-    base_for_eval.compile(optimizer=optimizer, loss=weighted_l2(W_loss),metrics=[rmse])
+    base_for_eval.compile(optimizer=optimizer_eval, loss=weighted_l2(W_loss),metrics=[rmse])
+    base_for_eval.summary()
     print("=== Baseline (pretrained base-only) BEFORE fine-tuning ===")
     print("train set")
     base_for_eval.evaluate(train_ds)
@@ -701,7 +696,7 @@ print("train set")
 model.evaluate(train_ds)
 print("val set")
 model.evaluate(val_ds)
-history = model.fit(train_ds, validation_data=val_ds, epochs=args.epochs, callbacks=callbacks)
+history = model.fit(train_ds, validation_data=val_ds, epochs=args.epochs, callbacks=callbacks,verbose=2)
 print("=== Extended model AFTER fine-tuning:")
 print("train set")
 model.evaluate(train_ds)
