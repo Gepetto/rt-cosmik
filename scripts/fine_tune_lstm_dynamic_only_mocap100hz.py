@@ -402,12 +402,12 @@ def make_dataset(trials, seq_len, batch, shuffle_windows=True, rotation_scheme="
 # Pass 1: compute mean/std over TRAIN only
 ### On fait une premère passe sur le train set pour calculer les mean et std, ce qui prend du temps au début du learning
 ### ca peut aller jusqu'à une heure si on prend toute la data 
-train_raw = make_dataset(
-    train_trials, args.seq_len, batch=256,
-    shuffle_windows=False,
-    rotation_scheme=rotation_scheme,
-    add_noise=args.add_noise
-)
+# train_raw = make_dataset(
+#     train_trials, args.seq_len, batch=256,
+#     shuffle_windows=False,
+#     rotation_scheme=rotation_scheme,
+#     add_noise=args.add_noise
+# )
 
 # ### Fonction qui calcule les mean et std de chaque feature de l'input recentré / normalisé par la taille du sujet (pas utilisée ici)
 # @tf.function
@@ -418,37 +418,63 @@ train_raw = make_dataset(
 #     return mu, tf.sqrt(var + 1e-8)
 
 ### Initialisation des mean et std et des conteurs de batches 
-n_batches = 0
-mu_acc = tf.zeros([feature_dim], tf.float32)
-m2_acc = tf.zeros([feature_dim], tf.float32)
-count  = 0.0
+# n_batches = 0
+# mu_acc = tf.zeros([feature_dim], tf.float32)
+# m2_acc = tf.zeros([feature_dim], tf.float32)
+# count  = 0.0
 
 ### Boucle qui calcule les mean et std de chaque batch de l'input et aggrège les stats pour obtenir mean et std final à la fin de la boucle
 ### (10+20)/2=15 et si je rajoute 17 je peux maj la moyenne en faisant 15+(17-15)*(1/3)=17.6667 nouvelle moyenne
 ### ici count = 2, tot = 3, b = 1, delta = 17-15, mu_acc = 15. Ensuite même type de formule pour la variance (je n'ai pas vérifié si ça marche c'est ChatGpt)
-for x_batch, _ in train_raw:
-    b = tf.cast(tf.shape(x_batch)[0]*tf.shape(x_batch)[1], tf.float32)  # batch * seq_len
-    xb = tf.reshape(x_batch, [-1, feature_dim])                          # collapse time
-    mu_b = tf.reduce_mean(xb, axis=0)
-    var_b= tf.math.reduce_variance(xb, axis=0)
-    # online update (Chan)
-    delta = mu_b - mu_acc
-    tot   = count + b
-    mu_acc = mu_acc + delta * (b/tot)
-    m2_acc = m2_acc + var_b*b + (delta**2)*count*b/tot
-    count  = tot
-    n_batches += 1
+# for x_batch, _ in train_raw:
+#     b = tf.cast(tf.shape(x_batch)[0]*tf.shape(x_batch)[1], tf.float32)  # batch * seq_len
+#     xb = tf.reshape(x_batch, [-1, feature_dim])                          # collapse time
+#     mu_b = tf.reduce_mean(xb, axis=0)
+#     var_b= tf.math.reduce_variance(xb, axis=0)
+#     # online update (Chan)
+#     delta = mu_b - mu_acc
+#     tot   = count + b
+#     mu_acc = mu_acc + delta * (b/tot)
+#     m2_acc = m2_acc + var_b*b + (delta**2)*count*b/tot
+#     count  = tot
+#     n_batches += 1
 
 ### On récupère les mean et std finales
-mean_train = mu_acc.numpy()
-std_train  = np.sqrt((m2_acc.numpy() / max(count,1.0)) + 1e-8)
+# mean_train = mu_acc.numpy()
+# std_train  = np.sqrt((m2_acc.numpy() / max(count,1.0)) + 1e-8)
 ### recupération de la taille moyenne et de la std de la taille (printable pour vérif, si diff 
 ### ça peut venir du float32 au lieu de float64 pour la précision numérique, ça m'a déjà fait des très gros écarts)
 ### A noter qu'il s'agit de mean et std calculés à partir du nombre de fois où la height apparaît dans les samples et comme les nombres de samples
 ### diffèrent entre les sujets il ne s'agit pas de simplement la moyenne des heights donc vérif difficile
+# mean_train_height = float(mean_train[-2])
+# std_train_height  = float(std_train[-2])
+
+pretrained_dir = Path(args.pretrained_path) / f"v0.3_{args.body_part}"
+pathMean = os.path.join(pretrained_dir, "mean.npy")
+pathSTD  = os.path.join(pretrained_dir, "std.npy")
+
+# --- Initialisation (même types que dans ton code original) ---
+# feature_dim = inputs.shape[-1]  # supposé connu
+mu_acc = tf.zeros([feature_dim], tf.float32)
+m2_acc = tf.zeros([feature_dim], tf.float32)
+count  = 0.0
+n_batches = 0
+
+# --- Remplacement par loading ---
+if os.path.isfile(pathMean):
+    mean_train = np.load(pathMean, allow_pickle=True)
+    mu_acc = tf.convert_to_tensor(mean_train, dtype=tf.float32)
+
+if os.path.isfile(pathSTD):
+    std_train = np.load(pathSTD, allow_pickle=True)
+    m2_acc = tf.convert_to_tensor(std_train, dtype=tf.float32)
+
+# --- Pour compatibilité avec le reste du code ---
+mean_train = mu_acc.numpy()
+std_train  = m2_acc.numpy()
+
 mean_train_height = float(mean_train[-2])
 std_train_height  = float(std_train[-2])
-
 # map normalization using captured constants
 ### Format Tensorflow
 mt = tf.constant(mean_train, dtype=tf.float32)
