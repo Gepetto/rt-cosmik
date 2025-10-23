@@ -16,6 +16,9 @@ from tensorflow.keras.callbacks import EarlyStopping, ModelCheckpoint
 from tensorflow.keras.layers import Layer, Rescaling, Multiply
 from tensorflow.keras.callbacks import LearningRateScheduler
 from tensorflow.keras.optimizers.schedules import CosineDecay
+from tensorflow.keras.layers import Lambda
+from tensorflow import keras
+
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 from src.rtcosmik.utils.read_write_utils import read_mks_data, default_mocap_mks_names, read_subject_info
 
@@ -36,7 +39,7 @@ p.add_argument("--excluded-trials", type=str, default="none", help="Exclude tria
 p.add_argument("--id", type=str, default="0", help="Experiment ID")
 
 args = p.parse_args()
-rotation_scheme = "off"
+rotation_scheme = "max"
 # ─────────────── Config derived from body part ───────────────
 ### Cette partie permet simplement de définir les inputs et outputs en fonction du body part
 if args.body_part == "upper":
@@ -58,6 +61,20 @@ elif args.body_part == "lower":
         'L_toe_study','L_calc_study','L_5meta_study',
         'r_shoulder_study','L_shoulder_study','C7_study'
     ]
+    response_markers_lower = [
+    'r.ASIS_study','L.ASIS_study','r.PSIS_study','L.PSIS_study',
+    'r_knee_study','r_mknee_study','r_ankle_study','r_mankle_study',
+    'r_toe_study','r_5meta_study','r_calc_study',
+    'L_knee_study','L_mknee_study','L_ankle_study','L_mankle_study',
+    'L_toe_study','L_calc_study','L_5meta_study',
+    'r_shoulder_study','L_shoulder_study','C7_study',
+    'r_thigh1_study','r_thigh2_study','r_thigh3_study',
+    'L_thigh1_study','L_thigh2_study','L_thigh3_study',
+    'r_sh1_study','r_sh2_study','r_sh3_study',
+    'L_sh1_study','L_sh2_study','L_sh3_study',
+    'RHJC_study','LHJC_study'
+    ]
+
     out_dim = len(mks_of_interest)*3
 else:
     raise ValueError("Unsupported body_part")
@@ -473,8 +490,6 @@ if os.path.isfile(pathSTD):
 mean_train = mu_acc.numpy()
 std_train  = m2_acc.numpy()
 
-mean_train_height = float(mean_train[-2])
-std_train_height  = float(std_train[-2])
 # map normalization using captured constants
 ### Format Tensorflow
 mt = tf.constant(mean_train, dtype=tf.float32)
@@ -501,31 +516,64 @@ val_ds = make_dataset(
     add_noise=False
 ).map(normalize_xy, num_parallel_calls=tf.data.AUTOTUNE)
 
-### génération du val set de monitoring qui permet ensuite de print pred vs gt (optionnel, à enlever si on utilise pas PreddictionLogger)
-val_ds_monitor = make_dataset(
-    val_trials, args.seq_len, batch=args.batch_size,
-    shuffle_windows=True,
-    rotation_scheme='off',
-    add_noise=False
-).map(normalize_xy, num_parallel_calls=tf.data.AUTOTUNE)
-
 # ─────────────── Model (reuse your pretrained JSON/weights; adjust last layer when needed) ───────────────
+#load pretrained model for evaluation
+with open(pretrained_dir/"model.json", "r") as f:
+    base_for_eval = model_from_json(f.read())
+base_for_eval.load_weights(str(pretrained_dir/"weights.h5"))
+
 ### Loading des weights de OpenCap
 pretrained_dir = Path(args.pretrained_path) / f"v0.3_{args.body_part}"
 with open(pretrained_dir/"model.json", 'r') as f:
     base = model_from_json(f.read())
 base.load_weights(str(pretrained_dir/"weights.h5"))
 
-with open(pretrained_dir/"model.json", "r") as f:
-    base_for_eval = model_from_json(f.read())
-base_for_eval.load_weights(str(pretrained_dir/"weights.h5"))
 
+# ====== Get the indices of the markers of interest in the LSTM full output ====== #
+# --- Build flat component indices for your 21 markers (x,y,z per marker) ---
+# for l in base.layers:
+#     l.trainable = False
+# for l in base.layers[-3:]:  # last 3 layers or blocks
+#     l.trainable = True
+
+if args.body_part == "lower":
+    # Build flat component indices for your 21 markers (x,y,z)
+    marker_idx = {m: i for i, m in enumerate(response_markers_lower)}
+    # sanity checks
+    missing = [m for m in mks_of_interest if m not in marker_idx]
+    assert not missing, f"Missing marker names: {missing}"
+
+    feat_indices = []
+    for m in mks_of_interest:
+        i = marker_idx[m]
+        feat_indices += [i*3 + d for d in (0,1,2)]
+
+    @keras.utils.register_keras_serializable(package="pose")
+    class SelectFeatures(keras.layers.Layer):
+        def __init__(self, indices, **kwargs):
+            super().__init__(**kwargs)
+            self._indices_list = list(indices)
+            self.indices = tf.constant(self._indices_list, dtype=tf.int32)
+        def call(self, x):
+            return tf.gather(x, self.indices, axis=-1)  # [B,F] or [B,T,F] -> select last axis
+        def get_config(self):
+            cfg = super().get_config()
+            cfg.update({"indices": self._indices_list})
+            return cfg
+
+    out = SelectFeatures(feat_indices, name="lower_body")(base.output)
+    model = keras.Model(inputs=base.input, outputs=out, name="lower_model_select")
+
+else:
+    # UPPER: no extra layer at all
+    model = base
+    
 
 ### Ajout de la layer supplémentaire initialisée comme Pontonnier
-weight_decay = 0.01
-initializer = RandomNormal(mean=0.0, stddev=0.022)
-proj = TimeDistributed(Dense(out_dim, kernel_initializer=initializer, bias_initializer='zeros', kernel_regularizer=l2(weight_decay)), name="layer_added")(base.output)
-model = Model(inputs=base.input, outputs=proj)
+# weight_decay = 0.01
+# initializer = RandomNormal(mean=0.0, stddev=0.022)
+# proj = TimeDistributed(Dense(out_dim, kernel_initializer=initializer, bias_initializer='zeros', kernel_regularizer=l2(weight_decay)), name="layer_added")(base.output)
+# model = Model(inputs=base.input, outputs=proj)
 
 # Optional weighted loss for lower body
 response_mks_lower = [
@@ -563,8 +611,6 @@ def weighted_l2(weights):
         return tf.reduce_mean(sq, axis=-1)
     return loss
 
-
-
 def rmse(y_true, y_pred):
     return tf.sqrt(tf.reduce_mean(tf.square(y_pred - y_true)))
 
@@ -591,133 +637,11 @@ else :
     print("val set")
     base_for_eval.evaluate(val_ds)
 
-### On sauvegarde le modele qui correspond au config de finetune
 # Save model definition that matches finetune config
 model_json_path = pretrained_dir / f"model_finetuned_offset_{args.id}.json"
 with open(model_json_path, "w") as f:
     f.write(model.to_json())
 
-
-# ─────────────── Callbacks ───────────────
-### Cette longue classe permet de save predictions vs gt, attention cela peut générer beaucoup de fichiers il vaut mieux l'enlever si pas utile
-class PredictionLogger(tf.keras.callbacks.Callback):
-    def __init__(self, ds, save_dir, mks_names,
-                 every_n_epochs=3, seq_len=30, seed=42,
-                 n_samples=50, include_height=True,
-                 mean_height=None, std_height=None,
-                 preds_are_div_by_height=True):
-        """
-        - ds: tf.data.Dataset (x,y) normalisé comme en training
-        - mks_names: liste des markers (P)
-        - mean_height/std_height: floats pour dénormaliser la height si elle est z-scalée.
-          Si None, on considère que la height est déjà en mètres dans x.
-        - preds_are_div_by_height: True si vos y/pred sont encore en '/height'
-          (cas sans wrapper to_meters) → on re-multiplie par la height pour logger en mètres.
-        """
-        super().__init__()
-        self.ds = ds
-        self.save_dir = Path(save_dir); self.save_dir.mkdir(parents=True, exist_ok=True)
-        self.every = every_n_epochs
-        self.seq_len = seq_len
-        self.P = len(mks_names)
-        self.mks_names = list(mks_names)
-        self.rng = np.random.default_rng(seed)
-        self.n_samples = n_samples
-        self.include_height = include_height
-        self.mean_h = mean_height
-        self.std_h  = std_height
-        self.preds_are_div_by_height = preds_are_div_by_height
-
-    def _collect_random_samples(self):
-        """
-        Balaye quelques batches de ds et prélève au total n_samples séquences aléatoires.
-        Retourne x_sel, y_sel : [N, L, F], [N, L, out_dim]
-        """
-        X_sel, Y_sel = [], []
-        remaining = self.n_samples
-
-        # on balaye un nombre raisonnable de batches jusqu'à remplir notre quota
-        # (évite de matérialiser tout le dataset)
-        for x_b, y_b in self.ds.take(100):
-            x_b = x_b.numpy()
-            y_b = y_b.numpy()
-            B = x_b.shape[0]
-            if B == 0:
-                continue
-            k = min(remaining, B)
-            idxs = self.rng.choice(B, size=k, replace=False)
-            X_sel.append(x_b[idxs])
-            Y_sel.append(y_b[idxs])
-            remaining -= k
-            if remaining <= 0:
-                break
-
-        if not X_sel:
-            return None, None
-        x_sel = np.concatenate(X_sel, axis=0)
-        y_sel = np.concatenate(Y_sel, axis=0)
-        # au cas où on a dépassé (peu probable)
-        if x_sel.shape[0] > self.n_samples:
-            x_sel = x_sel[:self.n_samples]
-            y_sel = y_sel[:self.n_samples]
-        return x_sel, y_sel
-
-    def on_epoch_end(self, epoch, logs=None):
-        if (epoch + 1) % self.every != 0:
-            return
-
-        x_sel, y_sel = self._collect_random_samples()
-        if x_sel is None:
-            print("[PredictionLogger] no samples collected; skipping")
-            return
-
-        # prédictions par batch (une seule passe)
-        preds = self.model.predict(x_sel, verbose=0)  # [N, L, out_dim]
-
-        # dernière frame seulement
-        t_last = self.seq_len - 1
-        x_last = x_sel[:, t_last, :]     # [N, F]
-        y_last = y_sel[:, t_last, :]     # [N, out_dim]
-        p_last = preds[:, t_last, :]     # [N, out_dim]
-
-        # reshape en [N, P, 3]
-        try:
-            y_last = y_last.reshape(-1, self.P, 3)
-            p_last = p_last.reshape(-1, self.P, 3)
-        except ValueError:
-            print("[PredictionLogger] reshape failed; check out_dim vs P*3")
-            return
-
-        # height réelle (m)
-        # - si mean/std fournis → on dénormalise: h = z*std + mean
-        # - sinon on suppose déjà en mètres dans x
-        h_norm = x_last[:, -2]  # [N], feature 'height' (z-scalée ou non)
-        if (self.mean_h is not None) and (self.std_h is not None):
-            h_real = h_norm * self.std_h + self.mean_h
-        else:
-            h_real = h_norm
-        h_real = h_real.astype(np.float32)  # [N]
-
-        # si vos sorties sont en '/height' (pas de wrapper to_meters), loggez en mètres :
-        if self.preds_are_div_by_height:
-            y_last = y_last * h_real[:, None, None]
-            p_last = p_last * h_real[:, None, None]
-
-        # construire le DataFrame (une ligne par séquence)
-        rows = {}
-        rows["Seq"] = np.arange(y_last.shape[0])
-        if self.include_height:
-            rows["height"] = h_real
-
-        for j, name in enumerate(self.mks_names):
-            for a, ax in enumerate(["x", "y", "z"]):
-                rows[f"GT.{name}.{ax}"]   = y_last[:, j, a]
-                rows[f"Pred.{name}.{ax}"] = p_last[:, j, a]
-
-        # df = pd.DataFrame(rows)
-        # out = self.save_dir / f"pred_epoch{epoch+1}_laststep_{self.n_samples}.csv"
-        # df.to_csv(out, index=False)
-        # print(f"[INFO] Saved {out}")
 
 ### Cette classe permet de print le lr à chaque epoch, c'est utile pour voir si le learning évolue bien quand on met un scheduler
 class LRLogger(tf.keras.callbacks.Callback):
@@ -749,21 +673,7 @@ callbacks = [
     EarlyStopping(monitor='val_loss', patience=args.patience, restore_best_weights=True, verbose=1),
     ModelCheckpoint(str(ckpt_path), monitor='val_loss', save_best_only=True, save_weights_only=True, verbose=1),
 ]
-callbacks.append(
-    PredictionLogger(
-        ds=val_ds_monitor,
-        save_dir=pretrained_dir,             # ou un sous-dossier 'pred_logs'
-        mks_names=mks_of_interest,
-        every_n_epochs=3,
-        seq_len=args.seq_len,
-        seed=42,
-        n_samples=50,
-        include_height=True,
-        mean_height=mean_train_height,       # passe None si height déjà en mètres
-        std_height=std_train_height,
-        preds_are_div_by_height=True         # False si ton modèle sort déjà des mètres
-    )
-)
+
 callbacks.append(LRLogger())
 
 # ─────────────── Save stats + Train ───────────────
