@@ -555,7 +555,7 @@ if args.body_part == "lower":
             self._indices_list = list(indices)
             self.indices = tf.constant(self._indices_list, dtype=tf.int32)
         def call(self, x):
-            return tf.gather(x, self.indices, axis=-1)  # [B,F] or [B,T,F] -> select last axis
+            return tf.gather(x, self.indices, axis=-1)  
         def get_config(self):
             cfg = super().get_config()
             cfg.update({"indices": self._indices_list})
@@ -621,8 +621,20 @@ model.compile(optimizer=optimizer, loss=weighted_l2(W_loss),metrics=[rmse])
 model.summary()
 
 if args.body_part == "lower":
-    y21 = tf.keras.layers.Lambda(lambda x: x[..., :21*3])(base_for_eval.output)
-    model_lower_21 = Model(inputs=base_for_eval.input, outputs=y21)
+    # y21 = tf.keras.layers.Lambda(lambda x: x[..., :21*3])(base_for_eval.output)
+    # model_lower_21 = Model(inputs=base_for_eval.input, outputs=y21)
+    ####
+    marker_idx = {m: i for i, m in enumerate(response_markers_lower)}  # 33 names -> idx
+    feat_indices = []
+    for m in mks_of_interest:            # your 21 marker names
+        i = marker_idx[m]
+        feat_indices += [i*3 + d for d in (0,1,2)]   # expand to x,y,z
+
+    idx_tf = tf.constant(feat_indices, dtype=tf.int32)
+    y21 = tf.keras.layers.Lambda(lambda x: tf.gather(x, idx_tf, axis=-1),
+                                name="lower_body_eval")(base_for_eval.output)
+    model_lower_21 = tf.keras.Model(inputs=base_for_eval.input, outputs=y21)
+    ####
     model_lower_21.compile(optimizer=optimizer, loss=weighted_l2(W_loss),metrics=[rmse])
     print("=== Baseline (pretrained base-only) BEFORE fine-tuning ===")
     print("train set")
