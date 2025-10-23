@@ -90,8 +90,8 @@ print("subjetcs",subjects)
 # train_subjects = subjects[:-args.test_size]
 # val_subjects   =subjects[-args.test_size:]
 
-train_subjects = ["Maxime"]
-val_subjects   = ["Maxime"]
+train_subjects = ["Maxime","Zoe"]
+val_subjects   = ["Maxime","Zoe"]
 
 print("val_set :", val_subjects)
 print("train_subjects :", train_subjects)
