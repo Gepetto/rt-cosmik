@@ -36,7 +36,7 @@ p.add_argument("--excluded-trials", type=str, default="none", help="Exclude tria
 p.add_argument("--id", type=str, default="0", help="Experiment ID")
 
 args = p.parse_args()
-rotation_scheme = "max"
+rotation_scheme = "off"
 # ─────────────── Config derived from body part ───────────────
 ### Cette partie permet simplement de définir les inputs et outputs en fonction du body part
 if args.body_part == "upper":
@@ -90,8 +90,8 @@ print("subjetcs",subjects)
 # train_subjects = subjects[:-args.test_size]
 # val_subjects   =subjects[-args.test_size:]
 
-train_subjects = ["Maxime","Zoe","Kahina"]
-val_subjects   = ["Maxime","Zoe","Kahina"]
+train_subjects = ["Maxime"]
+val_subjects   = ["Maxime"]
 
 print("val_set :", val_subjects)
 print("train_subjects :", train_subjects)
@@ -554,16 +554,16 @@ if args.body_part == "lower":
     model_lower_21.compile(optimizer=optimizer, loss=weighted_l2(W_loss),metrics=[rmse])
     print("=== Baseline (pretrained base-only) BEFORE fine-tuning ===")
     print("train set")
-    model_lower_21.evaluate(train_ds, verbose=1)
+    model_lower_21.evaluate(train_ds)
     print("val set")
-    model_lower_21.evaluate(val_ds, verbose=1)
+    model_lower_21.evaluate(val_ds)
 else : 
     base_for_eval.compile(optimizer=optimizer, loss=weighted_l2(W_loss),metrics=[rmse])
     print("=== Baseline (pretrained base-only) BEFORE fine-tuning ===")
     print("train set")
-    base_for_eval.evaluate(train_ds, verbose=1)
+    base_for_eval.evaluate(train_ds)
     print("val set")
-    base_for_eval.evaluate(val_ds, verbose=1)
+    base_for_eval.evaluate(val_ds)
 
 ### On sauvegarde le modele qui correspond au config de finetune
 # Save model definition that matches finetune config
@@ -750,15 +750,15 @@ np.save(stats_dir / f"std_train_{args.id}.npy",  std_train)
 ### La ligne qui lance le learning avec training sur train_ds et validation sur val_ds
 print("=== Extended model (base + layer_added) BEFORE fine-tuning:")
 print("train set")
-model.evaluate(train_ds,verbose=1)
+model.evaluate(train_ds)
 print("val set")
-model.evaluate(val_ds,verbose=1)
+model.evaluate(val_ds)
 history = model.fit(train_ds, validation_data=val_ds, epochs=args.epochs, callbacks=callbacks)
 print("=== Extended model AFTER fine-tuning:")
 print("train set")
-model.evaluate(train_ds,verbose=1)
+model.evaluate(train_ds)
 print("val set")
-model.evaluate(val_ds,verbose=1)
+model.evaluate(val_ds)
 # ─────────────── Save weights ───────────────
 ### A la fin on sauvegarde les weights et un norm_meta.json qui contient les infos de la config de finetune
 final_w = pretrained_dir / f"weights_finetuned_final_offset_{args.id}.h5"
