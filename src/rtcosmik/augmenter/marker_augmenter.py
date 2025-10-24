@@ -59,7 +59,7 @@ def loadModel(augmenterDir, augmenterModelName="LSTM",augmenter_model='v0.3'):
     for idx_augm, augmenterModelType in enumerate(augmenterModelType_all):
         augmenterModelDir = os.path.join(augmenterDir, augmenterModelName, 
                                          augmenterModelType)
-        session = ort.InferenceSession(f"{augmenterModelDir}/model_finetuned002_offset.onnx")
+        session = ort.InferenceSession(f"{augmenterModelDir}/model_finetuned555_offset.onnx")
 
         models[augmenterModelType] = session
 
@@ -143,16 +143,14 @@ def augmentTRC(keypoints_buffer, subject_mass, subject_height,
         # Load mean and std for normalization
         #print(augmenterModelDir)
         # /root/workspace/ros_ws/src/rt-cosmik/src/rtcosmik/augmenter/augmentation_model/LSTM/v0.3_upper/stats_streaming/mean_train_000.npy
-        pathMean = os.path.join(augmenterModelDir, f"stats_streaming/mean_train_002.npy")
-        pathSTD = os.path.join(augmenterModelDir, f"stats_streaming/std_train_002.npy")
+        pathMean = os.path.join(augmenterModelDir, f"mean.npy")
+        pathSTD = os.path.join(augmenterModelDir, f"std.npy")
 
-        if os.path.isfile(pathMean):
-            trainFeatures_mean = np.load(pathMean, allow_pickle=True)
-            inputs -= trainFeatures_mean
+        trainFeatures_mean = np.load(pathMean, allow_pickle=True)
+        inputs -= trainFeatures_mean
 
-        if os.path.isfile(pathSTD):
-            trainFeatures_std = np.load(pathSTD, allow_pickle=True)
-            inputs /= trainFeatures_std
+        trainFeatures_std = np.load(pathSTD, allow_pickle=True)
+        inputs /= trainFeatures_std
 
         # Reshape inputs if necessary for LSTM model
         inputs = np.reshape(inputs, (1, inputs.shape[0], inputs.shape[1]))

@@ -12,16 +12,16 @@ import pandas as pd
 from src.rtcosmik.utils.read_write_utils import parse_marker_csv,udp_csv_to_dataframe,read_mks_data,load_transformation,plot_marker_comparison
 from collections import defaultdict
 
-id = "1847"
-no_trial = "Maxime"
+id = "4665"
+no_trial = "Kahina"
 task = "robot_welding"
 path_to_csv_mocap = f"/root/workspace/ros_ws/src/rt-cosmik/output/mocap_100hz/{no_trial}/{task}/markers_trajectories.csv"
 df_wide = pd.read_csv(path_to_csv_mocap)
 path_to_csv_lstm = f"/root/workspace/ros_ws/src/rt-cosmik/output/{id}/cosmik_2cams/{task}/augmented_markers_mocap_offset_opencap.csv"
-path_to_csv_lstm2 = f"/root/workspace/ros_ws/src/rt-cosmik/output/{id}/cosmik_2cams/{task}/augmented_markers_mocap_offset_finetuned002.csv"
+path_to_csv_lstm2 = f"/root/workspace/ros_ws/src/rt-cosmik/output/{id}/cosmik_2cams/{task}/augmented_markers_mocap_offset_finetuned555.csv"
 
 path_to_kpt_mocap = f"/root/workspace/ros_ws/src/rt-cosmik/output/mocap_jcp_100hz/{no_trial}/{task}/joint_center_positions_with_offsets.csv"
-path_to_kpt = f"/root/workspace/ros_ws/src/rt-cosmik/output/mocap_jcp_100hz/{no_trial}/{task}/joint_center_positions.csv"
+path_to_kpt = f"/root/workspace/ros_ws/src/rt-cosmik/output/mocap_jcp_100hz/{no_trial}/{task}/joint_center_positions_with_offsets.csv"
 
 marker_mocap_names = ['r.ASIS_study','L.ASIS_study','r.PSIS_study','L.PSIS_study',
              'TV8','TV12','SJN','STRN','C7_study','r_shoulder_study','L_shoulder_study',
