@@ -1,23 +1,19 @@
 #!/usr/bin/env python3
 # train_lstm_end2end.py
-import os, sys, json, argparse, math, random
+import os, sys, json, argparse
 from pathlib import Path
 import numpy as np
 import pandas as pd
 import tensorflow as tf
 import csv
 import random
-from tensorflow.keras.models import model_from_json, Model
-from tensorflow.keras.layers import TimeDistributed, Dense
-from tensorflow.keras.initializers import RandomNormal
-from tensorflow.keras.regularizers import l2
+from tensorflow.keras.models import model_from_json
 from tensorflow.keras.optimizers import Adam
 from tensorflow.keras.callbacks import EarlyStopping, ModelCheckpoint
-from tensorflow.keras.layers import Layer, Rescaling, Multiply
-from tensorflow.keras.callbacks import LearningRateScheduler
-from tensorflow.keras.optimizers.schedules import CosineDecay
-from tensorflow.keras.layers import Lambda
 from tensorflow import keras
+from tensorflow.keras.layers import LSTM
+import optuna, gc
+from datetime import datetime
 
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 from src.rtcosmik.utils.read_write_utils import read_mks_data, default_mocap_mks_names, read_subject_info
@@ -37,8 +33,11 @@ p.add_argument('--lr', type=float, default=5e-6)
 p.add_argument('--test-size', type=int, default=2, help="# of subjects reserved for val (last N alphabetical)")
 p.add_argument("--excluded-trials", type=str, default="none", help="Exclude trials from the dataset")
 p.add_argument("--id", type=str, default="0", help="Experiment ID")
+p.add_argument('--optuna', type=int, default=0, help='Run Optuna HPO (1=yes)')
+p.add_argument('--n-trials', type=int, default=20, help='Optuna trials')
 
 args = p.parse_args()
+ADD_NOISE_TRAIN = (args.add_noise == 'T')
 rotation_scheme = "max"
 # ─────────────── Config derived from body part ───────────────
 ### Cette partie permet simplement de définir les inputs et outputs en fonction du body part
@@ -394,58 +393,6 @@ def make_dataset(trials, seq_len, batch, shuffle_windows=True, rotation_scheme="
     ds = ds.batch(batch, drop_remainder=False).prefetch(tf.data.AUTOTUNE)
     return ds
 
-
-# ─────────────── Two-pass normalization (streaming) ───────────────
-# Pass 1: compute mean/std over TRAIN only
-### On fait une premère passe sur le train set pour calculer les mean et std, ce qui prend du temps au début du learning
-### ca peut aller jusqu'à une heure si on prend toute la data 
-# train_raw = make_dataset(
-#     train_trials, args.seq_len, batch=256,
-#     shuffle_windows=False,
-#     rotation_scheme=rotation_scheme,
-#     add_noise=args.add_noise
-# )
-
-# ### Fonction qui calcule les mean et std de chaque feature de l'input recentré / normalisé par la taille du sujet (pas utilisée ici)
-# @tf.function
-# def batch_stats(x):
-#     # x: [B, L, F]; we compute per-feature mean/std over both axes
-#     mu  = tf.reduce_mean(x, axis=[0,1])
-#     var = tf.reduce_mean((x - mu)**2, axis=[0,1])
-#     return mu, tf.sqrt(var + 1e-8)
-
-### Initialisation des mean et std et des conteurs de batches 
-# n_batches = 0
-# mu_acc = tf.zeros([feature_dim], tf.float32)
-# m2_acc = tf.zeros([feature_dim], tf.float32)
-# count  = 0.0
-
-### Boucle qui calcule les mean et std de chaque batch de l'input et aggrège les stats pour obtenir mean et std final à la fin de la boucle
-### (10+20)/2=15 et si je rajoute 17 je peux maj la moyenne en faisant 15+(17-15)*(1/3)=17.6667 nouvelle moyenne
-### ici count = 2, tot = 3, b = 1, delta = 17-15, mu_acc = 15. Ensuite même type de formule pour la variance (je n'ai pas vérifié si ça marche c'est ChatGpt)
-# for x_batch, _ in train_raw:
-#     b = tf.cast(tf.shape(x_batch)[0]*tf.shape(x_batch)[1], tf.float32)  # batch * seq_len
-#     xb = tf.reshape(x_batch, [-1, feature_dim])                          # collapse time
-#     mu_b = tf.reduce_mean(xb, axis=0)
-#     var_b= tf.math.reduce_variance(xb, axis=0)
-#     # online update (Chan)
-#     delta = mu_b - mu_acc
-#     tot   = count + b
-#     mu_acc = mu_acc + delta * (b/tot)
-#     m2_acc = m2_acc + var_b*b + (delta**2)*count*b/tot
-#     count  = tot
-#     n_batches += 1
-
-### On récupère les mean et std finales
-# mean_train = mu_acc.numpy()
-# std_train  = np.sqrt((m2_acc.numpy() / max(count,1.0)) + 1e-8)
-### recupération de la taille moyenne et de la std de la taille (printable pour vérif, si diff 
-### ça peut venir du float32 au lieu de float64 pour la précision numérique, ça m'a déjà fait des très gros écarts)
-### A noter qu'il s'agit de mean et std calculés à partir du nombre de fois où la height apparaît dans les samples et comme les nombres de samples
-### diffèrent entre les sujets il ne s'agit pas de simplement la moyenne des heights donc vérif difficile
-# mean_train_height = float(mean_train[-2])
-# std_train_height  = float(std_train[-2])
-
 pretrained_dir = Path(args.pretrained_path) / f"v0.3_{args.body_part}"
 pathMean = os.path.join(pretrained_dir, "mean.npy")
 pathSTD  = os.path.join(pretrained_dir, "std.npy")
@@ -483,7 +430,7 @@ train_ds = make_dataset(
     train_trials, args.seq_len, batch=args.batch_size,
     shuffle_windows=True,
     rotation_scheme=rotation_scheme,
-    add_noise=args.add_noise
+    add_noise=ADD_NOISE_TRAIN
 ).map(normalize_xy, num_parallel_calls=tf.data.AUTOTUNE)
 
 ### génération du val set avec normalisation on the fly, pas de data augmentation pour le set de validation
@@ -528,74 +475,72 @@ def weighted_l2(weights):
 def rmse(y_true, y_pred):
     return tf.sqrt(tf.reduce_mean(tf.square(y_pred - y_true)))
 
-# ─────────────── Model (reuse your pretrained JSON/weights; adjust last layer when needed) ───────────────
-#load pretrained model for evaluation
-with open(pretrained_dir/"model.json", "r") as f:
-    base_for_eval = model_from_json(f.read())
-base_for_eval.load_weights(str(pretrained_dir/"weights.h5"))
+def _last_lstm_name(keras_model):
+    # find last LSTM layer name 
+    lstm_layers = [l.name for l in keras_model.layers if isinstance(l, LSTM)]
+    return lstm_layers[-1] if lstm_layers else None
 
-### Loading des weights de OpenCap
-with open(pretrained_dir/"model.json", 'r') as f:
-    base = model_from_json(f.read())
-base.load_weights(str(pretrained_dir/"weights.h5"))
+def apply_freeze_strategy(model, strategy, head_prefix='time_distributed'):
+    """Sets .trainable flags according to strategy: none | head | head+last"""
+    if strategy == "none":
+        for l in model.layers: l.trainable = True
+        return
 
+    # default: freeze everything
+    for l in model.layers: l.trainable = False
 
-# ====== Get the indices of the markers of interest in the LSTM full output ====== #
-# --- Build flat component indices for your 21 markers (x,y,z per marker) ---
-# for l in base.layers:
-#     l.trainable = False
-# for l in base.layers[-3:]:  # last 3 layers or blocks
-#     l.trainable = True
+    if strategy in ("head", "head+last"):
+        # unfreeze final time_distributed head(s)
+        for l in model.layers:
+            if l.name.startswith(head_prefix):
+                l.trainable = True
 
-if args.body_part == "lower":
-    # Build flat component indices for your 21 markers (x,y,z)
+    if strategy == "head+last":
+        # unfreeze the last LSTM block
+        lname = _last_lstm_name(model)
+        if lname is not None:
+            model.get_layer(lname).trainable = True
+
+# Build a fresh base (pretrained) from JSON/H5 (no SelectFeatures inside)
+def build_pretrained_base(pretrained_dir):
+    with open(pretrained_dir/"model.json", "r") as f:
+        base = model_from_json(f.read())
+    base.load_weights(str(pretrained_dir/"weights.h5"))
+    return base
+
+@keras.utils.register_keras_serializable(package="pose")
+class SelectFeatures(keras.layers.Layer):
+    def __init__(self, indices, **kwargs):
+        super().__init__(**kwargs)
+        self._indices_list = list(indices)
+        self.indices = tf.constant(self._indices_list, dtype=tf.int32)
+    def call(self, x):
+        return tf.gather(x, self.indices, axis=-1)
+    def get_config(self):
+        return {"indices": self._indices_list, **super().get_config()}
+
+def wrap_lower_with_selector(base, feat_indices):
+    out = SelectFeatures(feat_indices, name="lower_body")(base.output)
+    return keras.Model(inputs=base.input, outputs=out, name="lower_model_select")
+
+def build_feat_indices_lower():
     marker_idx = {m: i for i, m in enumerate(response_markers_lower)}
-    # sanity checks
     missing = [m for m in mks_of_interest if m not in marker_idx]
     assert not missing, f"Missing marker names: {missing}"
-
     feat_indices = []
     for m in mks_of_interest:
         i = marker_idx[m]
         feat_indices += [i*3 + d for d in (0,1,2)]
+    return feat_indices
 
-    @keras.utils.register_keras_serializable(package="pose")
-    class SelectFeatures(keras.layers.Layer):
-        def __init__(self, indices, **kwargs):
-            super().__init__(**kwargs)
-            self._indices_list = list(indices)
-            self.indices = tf.constant(self._indices_list, dtype=tf.int32)
-        def call(self, x):
-            return tf.gather(x, self.indices, axis=-1)  
-        def get_config(self):
-            cfg = super().get_config()
-            cfg.update({"indices": self._indices_list})
-            return cfg
 
-    out = SelectFeatures(feat_indices, name="lower_body")(base.output)
-    model = keras.Model(inputs=base.input, outputs=out, name="lower_model_select")
 
-else:
-    # UPPER: no extra layer at all
-    model = base
-    
-
-### Ajout de la layer supplémentaire initialisée comme Pontonnier
-# weight_decay = 0.01
-# initializer = RandomNormal(mean=0.0, stddev=0.022)
-# proj = TimeDistributed(Dense(out_dim, kernel_initializer=initializer, bias_initializer='zeros', kernel_regularizer=l2(weight_decay)), name="layer_added")(base.output)
-# model = Model(inputs=base.input, outputs=proj)
-
-optimizer=Adam(args.lr)
-model.compile(optimizer=optimizer, loss=weighted_l2(W_loss),metrics=[rmse])
-model.summary()
+###load pretrained model for evaluation to compare before and after finetuning
+base_for_eval = build_pretrained_base(pretrained_dir)
 optimizer_eval=Adam(args.lr)
 
 #base_for_eval
 if args.body_part == "lower":
-    # y21 = tf.keras.layers.Lambda(lambda x: x[..., :21*3])(base_for_eval.output)
-    # model_lower_21 = Model(inputs=base_for_eval.input, outputs=y21)
-    ####
     marker_idx = {m: i for i, m in enumerate(response_markers_lower)}  # 33 names -> idx
     feat_indices = []
     for m in mks_of_interest:            # your 21 marker names
@@ -622,11 +567,6 @@ else :
     print("val set")
     base_for_eval.evaluate(val_ds)
 
-# Save model definition that matches finetune config
-model_json_path = pretrained_dir / f"model_finetuned_offset_{args.id}.json"
-with open(model_json_path, "w") as f:
-    f.write(model.to_json())
-
 
 ### Cette classe permet de print le lr à chaque epoch, c'est utile pour voir si le learning évolue bien quand on met un scheduler
 class LRLogger(tf.keras.callbacks.Callback):
@@ -652,44 +592,147 @@ class LRLogger(tf.keras.callbacks.Callback):
         except Exception as e:
             print(f"[WARNING] Could not retrieve learning rate at epoch {epoch+1}: {e}")
 
-### Définition des paths où save et des callbacks comme le Earlystopping, le checkpoint, le predictionLogger et le LRLogger
-ckpt_path = pretrained_dir / f"best_finetuned_weights_offset_{args.id}.h5"
-callbacks = [
-    EarlyStopping(monitor='val_loss', patience=args.patience, restore_best_weights=True, verbose=1),
-    ModelCheckpoint(str(ckpt_path), monitor='val_loss', save_best_only=True, save_weights_only=True, verbose=1),
-]
+def objective(trial: optuna.Trial):
+    gc.collect(); tf.keras.backend.clear_session()
 
-callbacks.append(LRLogger())
+    # --- search space ---
+    lr = trial.suggest_loguniform("lr", 3e-6, 3e-4)
+    freeze = trial.suggest_categorical("freeze", ["none", "head", "head+last"])
 
-# ─────────────── Save stats + Train ───────────────
-### On sauvegarde les stats de mean et std pour pouvoir les utiliser à l'inférence (test)
-print(f"[Info] Feature mean/std from TRAIN: mean shape {mean_train.shape}, std shape {std_train.shape}")
-stats_dir = Path(args.pretrained_path) / f"v0.3_{args.body_part}" / "stats_streaming"
-stats_dir.mkdir(parents=True, exist_ok=True)
-np.save(stats_dir / f"mean_train_{args.id}.npy", mean_train)
-np.save(stats_dir / f"std_train_{args.id}.npy",  std_train)
-### La ligne qui lance le learning avec training sur train_ds et validation sur val_ds
-print("=== Extended model (base + layer_added) BEFORE fine-tuning:")
-print("train set")
-model.evaluate(train_ds)
-print("val set")
-model.evaluate(val_ds)
-history = model.fit(train_ds, validation_data=val_ds, epochs=args.epochs, callbacks=callbacks,verbose=2)
-print("=== Extended model AFTER fine-tuning:")
-print("train set")
-model.evaluate(train_ds)
-print("val set")
-model.evaluate(val_ds)
-# ─────────────── Save weights ───────────────
-### A la fin on sauvegarde les weights et un norm_meta.json qui contient les infos de la config de finetune
-final_w = pretrained_dir / f"weights_finetuned_final_offset_{args.id}.h5"
-model.save_weights(str(final_w))
-with open(stats_dir / f"norm_meta_{args.id}.json", "w") as f:
-    json.dump({
-        "feature_dim": int(feature_dim),
-        "seq_len": int(args.seq_len),
-        "kpts_input_lstm": kpts_input_lstm,
-        "body_part": args.body_part
-    }, f, indent=2)
+    # --- build fresh model from pretrained every trial ---
+    base = build_pretrained_base(pretrained_dir)
 
-print(f"[Done] Saved: {final_w}")
+    if args.body_part == "lower":
+        feat_indices = build_feat_indices_lower()
+        model_t = wrap_lower_with_selector(base, feat_indices)
+    else:
+        model_t = base  # upper: no selector
+
+    # apply freeze & compile
+    apply_freeze_strategy(model_t, freeze)
+    opt = Adam(learning_rate=lr)
+    model_t.compile(optimizer=opt, loss=weighted_l2(W_loss), metrics=[rmse])
+
+    # callbacks
+    ckpt_path = pretrained_dir / f"optuna_trial_{trial.number}_best.keras"
+    cbs = [
+        EarlyStopping(monitor='val_loss', patience=args.patience, restore_best_weights=True, verbose=0),
+        ModelCheckpoint(str(ckpt_path), monitor='val_loss', save_best_only=True, save_weights_only=False, verbose=0),
+        optuna.integration.TFKerasPruningCallback(trial, monitor="val_loss"),
+    ]
+    cbs.append(LRLogger())
+
+    ##evaluate modele before finetuning 
+    print("===BEFORE fine-tuning:")
+    print("train set")
+    model_t.evaluate(train_ds)
+    print("val set")
+    model_t.evaluate(val_ds)
+    # train
+    history = model_t.fit(
+        train_ds,
+        validation_data=val_ds,
+        epochs=args.epochs,
+        callbacks=cbs,
+        verbose=0
+    )
+
+    print("=== model AFTER fine-tuning:")
+    print("train set")
+    model_t.evaluate(train_ds)
+    print("val set")
+    model_t.evaluate(val_ds)
+
+    # evaluate
+    val_metrics = model_t.evaluate(val_ds, verbose=0)
+    val_loss = float(val_metrics[0])
+    trial.set_user_attr("val_rmse", float(val_metrics[1]) if len(val_metrics) > 1 else None)
+    trial.set_user_attr("ckpt_path", str(ckpt_path))
+    trial.set_user_attr("params_repr", f"lr={lr:.2e}, freeze={freeze}")
+
+    return val_loss
+
+if args.optuna:
+    study = optuna.create_study(
+        direction="minimize",
+        sampler=optuna.samplers.TPESampler(seed=42),
+        pruner=optuna.pruners.MedianPruner(n_warmup_steps=5),
+    )
+    study.optimize(objective, n_trials=args.n_trials)
+
+    print("\n=== Optuna finished ===")
+    print("Best val_loss:", study.best_value)
+    print("Best params  :", study.best_trial.params)
+    print("Attrs        :", study.best_trial.user_attrs)
+
+    # ─────────────── SAVE BEST HYPERPARAMETERS ───────────────
+    best_hparams = {
+        "timestamp": datetime.now().strftime("%Y-%m-%d_%H-%M-%S"),
+        "experiment_id": args.id,
+        "body_part": args.body_part,
+        "val_loss": study.best_value,
+        "best_params": study.best_trial.params,
+        "user_attrs": study.best_trial.user_attrs,
+        "n_trials": args.n_trials,
+    }
+
+    json_path = pretrained_dir / f"optuna_best_params_{args.id}.json"
+    with open(json_path, "w") as f:
+        json.dump(best_hparams, f, indent=4)
+    print(f"[Optuna] Saved best hyperparameters to {json_path}")
+
+    # ─────────────── RETRAIN BEST CONFIG (your existing code) ───────────────
+    best_lr = study.best_trial.params["lr"]
+    best_freeze = study.best_trial.params["freeze"]
+
+    base_best = build_pretrained_base(pretrained_dir)
+    if args.body_part == "lower":
+        feat_indices = build_feat_indices_lower()
+        model_best = wrap_lower_with_selector(base_best, feat_indices)
+    else:
+        model_best = base_best
+
+    apply_freeze_strategy(model_best, best_freeze)
+    model_best.compile(optimizer=Adam(best_lr), loss=weighted_l2(W_loss), metrics=[rmse])
+
+    ckpt_best = pretrained_dir / f"best_finetuned_weights_offset_{args.id}.h5"
+    callbacks_best = [
+        EarlyStopping(monitor='val_loss', patience=args.patience, restore_best_weights=True, verbose=1),
+        ModelCheckpoint(str(ckpt_best), monitor='val_loss', save_best_only=True, save_weights_only=True, verbose=1),
+    ]
+    print(f"[Optuna] Retraining best config: lr={best_lr:.2e}, freeze={best_freeze}")
+    model_best.fit(train_ds, validation_data=val_ds, epochs=args.epochs, callbacks=callbacks_best, verbose=2)
+
+    final_w = pretrained_dir / f"weights_finetuned_final_offset_{args.id}.h5"
+    model_best.save_weights(str(final_w))
+    print(f"[Done] Saved best weights: {final_w}")
+
+    sys.exit(0)
+
+if not args.optuna:
+    # build once from pretrained with user LR and no freezing
+    base = build_pretrained_base(pretrained_dir)
+    if args.body_part == "lower":
+        feat_indices = build_feat_indices_lower()
+        model = wrap_lower_with_selector(base, feat_indices)
+    else:
+        model = base
+
+    # no freezing by default
+    apply_freeze_strategy(model, "none")
+    model.compile(optimizer=Adam(args.lr), loss=weighted_l2(W_loss), metrics=[rmse])
+
+    ckpt_path = pretrained_dir / f"best_finetuned_weights_offset_{args.id}.h5"
+    callbacks = [
+        EarlyStopping(monitor='val_loss', patience=args.patience, restore_best_weights=True, verbose=1),
+        ModelCheckpoint(str(ckpt_path), monitor='val_loss', save_best_only=True, save_weights_only=True, verbose=1),
+        LRLogger(),
+    ]
+
+    print("=== Training (no Optuna) ===")
+    model.fit(train_ds, validation_data=val_ds, epochs=args.epochs, callbacks=callbacks, verbose=2)
+
+    final_w = pretrained_dir / f"weights_finetuned_final_offset_{args.id}.h5"
+    model.save_weights(str(final_w))
+    print(f"[Done] Saved: {final_w}")
+    sys.exit(0)
