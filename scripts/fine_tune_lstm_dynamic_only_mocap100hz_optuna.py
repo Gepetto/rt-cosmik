@@ -614,6 +614,7 @@ def objective(trial: optuna.Trial):
     opt = Adam(learning_rate=lr)
     model_t.compile(optimizer=opt, loss=weighted_l2(W_loss), metrics=[rmse])
 
+    # --- per-trial paths ---
     trial_prefix   = pretrained_dir / f"optuna_trial_{trial.number}"
     ckpt_weights   = trial_prefix.with_suffix(".best.weights.h5")     # best-on-val weights only
     arch_json_path = trial_prefix.with_suffix(".arch.json")         
@@ -626,7 +627,11 @@ def objective(trial: optuna.Trial):
     ckpt_path = pretrained_dir / f"optuna_trial_best.keras"
     cbs = [
         EarlyStopping(monitor='val_loss', patience=args.patience, restore_best_weights=True, verbose=0),
-        ModelCheckpoint(str(ckpt_path), monitor='val_loss', save_best_only=True, save_weights_only=False, verbose=0),
+        ModelCheckpoint(filepath=str(ckpt_weights),
+                        monitor="val_loss",
+                        save_best_only=True,
+                        save_weights_only=True,    # IMPORTANT
+                        verbose=1),
         optuna.integration.TFKerasPruningCallback(trial, monitor="val_loss"),
     ]
     cbs.append(LRLogger())
@@ -645,7 +650,12 @@ def objective(trial: optuna.Trial):
         callbacks=cbs,
         verbose=2
     )
-    model_t.load_weights(str(ckpt_weights))
+    if os.path.exists(ckpt_weights):
+        model_t.load_weights(str(ckpt_weights))
+    else:
+        print(f"[WARN] Missing {ckpt_weights}; using in-memory weights (restored by EarlyStopping).")
+
+    # also save a copy tagged with your experiment id + trial (optional)
     final_w = pretrained_dir / f"weights_finetuned_offset_{args.id}_{trial.number}.h5"
     model_t.save_weights(str(final_w))
 
@@ -660,13 +670,10 @@ def objective(trial: optuna.Trial):
     print("val set")
     model_t.evaluate(val_ds)
 
-    # evaluate
-    val_metrics = model_t.evaluate(val_ds, verbose=0)
-    val_loss = float(val_metrics[0])
-    trial.set_user_attr("val_rmse", float(val_metrics[1]) if len(val_metrics) > 1 else None)
-    trial.set_user_attr("ckpt_path", str(ckpt_path))
+    # objective value
+    val_loss = float(model_t.evaluate(val_ds, verbose=0)[0])
+    trial.set_user_attr("val_rmse", float(model_t.evaluate(val_ds, verbose=0)[1]))
     trial.set_user_attr("params_repr", f"lr={lr:.2e}, freeze={freeze}")
-
     return val_loss
 
 if args.optuna:
