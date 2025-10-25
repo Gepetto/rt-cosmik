@@ -614,8 +614,16 @@ def objective(trial: optuna.Trial):
     opt = Adam(learning_rate=lr)
     model_t.compile(optimizer=opt, loss=weighted_l2(W_loss), metrics=[rmse])
 
+    trial_prefix   = pretrained_dir / f"optuna_trial_{trial.number}"
+    ckpt_weights   = trial_prefix.with_suffix(".best.weights.h5")     # best-on-val weights only
+    arch_json_path = trial_prefix.with_suffix(".arch.json")         
+
+    # save architecture ONCE (before training)
+    with open(arch_json_path, "w") as f:
+        f.write(model_t.to_json())
+
     # callbacks
-    ckpt_path = pretrained_dir / f"optuna_trial_{trial.number}_best.keras"
+    ckpt_path = pretrained_dir / f"optuna_trial_best.keras"
     cbs = [
         EarlyStopping(monitor='val_loss', patience=args.patience, restore_best_weights=True, verbose=0),
         ModelCheckpoint(str(ckpt_path), monitor='val_loss', save_best_only=True, save_weights_only=False, verbose=0),
@@ -635,9 +643,17 @@ def objective(trial: optuna.Trial):
         validation_data=val_ds,
         epochs=args.epochs,
         callbacks=cbs,
-        verbose=0
+        verbose=2
     )
+    model_t.load_weights(str(ckpt_weights))
+    final_w = pretrained_dir / f"weights_finetuned_offset_{args.id}_{trial.number}.h5"
+    model_t.save_weights(str(final_w))
 
+    # record paths for convenience
+    trial.set_user_attr("ckpt_weights", str(ckpt_weights))
+    trial.set_user_attr("arch_json",    str(arch_json_path))
+
+    # evaluate
     print("=== ===OBJECTIVE FUNCTION ------ model AFTER fine-tuning:")
     print("train set")
     model_t.evaluate(train_ds)
