@@ -596,7 +596,8 @@ def objective(trial: optuna.Trial):
     gc.collect(); tf.keras.backend.clear_session()
 
     # --- search space ---
-    lr = trial.suggest_loguniform("lr", 3e-6, 3e-4)
+   # lr = trial.suggest_loguniform("lr", 3e-6, 3e-4)
+    lr = trial.suggest_float("lr", 3e-6, 3e-4, log=True)
     freeze = trial.suggest_categorical("freeze", ["none", "head", "head+last"])
 
     # --- build fresh model from pretrained every trial ---
@@ -623,7 +624,7 @@ def objective(trial: optuna.Trial):
     cbs.append(LRLogger())
 
     ##evaluate modele before finetuning 
-    print("===BEFORE fine-tuning:")
+    print("===OBJECTIVE FUNCTION ------BEFORE fine-tuning:")
     print("train set")
     model_t.evaluate(train_ds)
     print("val set")
@@ -637,7 +638,7 @@ def objective(trial: optuna.Trial):
         verbose=0
     )
 
-    print("=== model AFTER fine-tuning:")
+    print("=== ===OBJECTIVE FUNCTION ------ model AFTER fine-tuning:")
     print("train set")
     model_t.evaluate(train_ds)
     print("val set")
@@ -702,11 +703,20 @@ if args.optuna:
     ]
     print(f"[Optuna] Retraining best config: lr={best_lr:.2e}, freeze={best_freeze}")
     model_best.fit(train_ds, validation_data=val_ds, epochs=args.epochs, callbacks=callbacks_best, verbose=2)
+    print("=== ===AFTER TRAINING WITH BEST CONFIG ------ model AFTER fine-tuning:")
+    print("train set")
+    model_best.evaluate(train_ds)
+    print("val set")
+    model_best.evaluate(val_ds)
 
     final_w = pretrained_dir / f"weights_finetuned_final_offset_{args.id}.h5"
     model_best.save_weights(str(final_w))
     print(f"[Done] Saved best weights: {final_w}")
-
+    
+    model_json_path = pretrained_dir / f"model_finetuned_offset_{args.id}.json"
+    with open(model_json_path, "w") as f:
+        f.write(model_best.to_json())
+    model_best.save(pretrained_dir / f"model_finetuned_offset_{args.id}.keras")
     sys.exit(0)
 
 if not args.optuna:
