@@ -39,3 +39,5 @@ ocp.c
 /data/
 /models/
 /src/rtcosmik/smpl/
+out*
+*.keras
