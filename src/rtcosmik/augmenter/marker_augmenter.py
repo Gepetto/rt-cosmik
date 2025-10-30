@@ -59,7 +59,7 @@ def loadModel(augmenterDir, augmenterModelName="LSTM",augmenter_model='v0.3'):
     for idx_augm, augmenterModelType in enumerate(augmenterModelType_all):
         augmenterModelDir = os.path.join(augmenterDir, augmenterModelName, 
                                          augmenterModelType)
-        session = ort.InferenceSession(f"{augmenterModelDir}/model_finetuned555_offset.onnx")
+        session = ort.InferenceSession(f"{augmenterModelDir}/model.onnx")
 
         models[augmenterModelType] = session
 
