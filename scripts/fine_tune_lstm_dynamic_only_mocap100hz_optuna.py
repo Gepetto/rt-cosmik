@@ -746,13 +746,24 @@ if not args.optuna:
     # build once from pretrained with user LR and no freezing
     base = build_pretrained_base(pretrained_dir)
     if args.body_part == "lower":
+        base.summary()
         feat_indices = build_feat_indices_lower()
         model = wrap_lower_with_selector(base, feat_indices)
+        model.summary()
     else:
         model = base
+        model.summary()
 
     # no freezing by default
-    apply_freeze_strategy(model, "none")
+    apply_freeze_strategy(model, "head")
+    for l in model.layers:
+        print(f"{'[T]' if l.trainable else '[F]'} {l.name} ({type(l).__name__})")
+
+    print("Lr",args.lr)
+    model_json_path = pretrained_dir / f"model_finetuned_offset_{args.id}.json"
+    with open(model_json_path, "w") as f:
+        f.write(model.to_json())
+
     model.compile(optimizer=Adam(args.lr), loss=weighted_l2(W_loss), metrics=[rmse])
 
     ckpt_path = pretrained_dir / f"best_finetuned_weights_offset_{args.id}.h5"
@@ -761,9 +772,20 @@ if not args.optuna:
         ModelCheckpoint(str(ckpt_path), monitor='val_loss', save_best_only=True, save_weights_only=True, verbose=1),
         LRLogger(),
     ]
+    print("before le fit ------BEFORE fine-tuning:")
+    print("train set")
+    model.evaluate(train_ds)
+    print("val set")
+    model.evaluate(val_ds)
 
     print("=== Training (no Optuna) ===")
     model.fit(train_ds, validation_data=val_ds, epochs=args.epochs, callbacks=callbacks, verbose=2)
+    print("=== ===AFTER TRAINING  ------ model AFTER fine-tuning:")
+    print("train set")
+    model.evaluate(train_ds)
+    print("val set")
+    model.evaluate(val_ds)
+
 
     final_w = pretrained_dir / f"weights_finetuned_final_offset_{args.id}.h5"
     model.save_weights(str(final_w))
