@@ -21,9 +21,9 @@ class SelectFeatures(keras.layers.Layer):
         return {"indices": self._indices_list, **super().get_config()}
 
 # ---------- Paths ----------
-json_path    = "/root/workspace/ros_ws/src/rt-cosmik/src/rtcosmik/augmenter/augmentation_model/LSTM/v0.3_lower/model_finetuned_offset_555.json"
-weights_path = "/root/workspace/ros_ws/src/rt-cosmik/src/rtcosmik/augmenter/augmentation_model/LSTM/v0.3_lower/weights_finetuned_final_offset_555.h5"
-onnx_path    = "/root/workspace/ros_ws/src/rt-cosmik/src/rtcosmik/augmenter/augmentation_model/LSTM/v0.3_lower/model_finetuned555_offset.onnx"
+json_path    = "/root/workspace/ros_ws/src/rt-cosmik/src/rtcosmik/augmenter/augmentation_model/LSTM/v0.3_lower/model_finetuned_offset_111.json"
+weights_path = "/root/workspace/ros_ws/src/rt-cosmik/src/rtcosmik/augmenter/augmentation_model/LSTM/v0.3_lower/weights_finetuned_final_offset_111.h5"
+onnx_path    = "/root/workspace/ros_ws/src/rt-cosmik/src/rtcosmik/augmenter/augmentation_model/LSTM/v0.3_lower/model_finetuned111_offset.onnx"
 
 # ---------- Load architecture + weights ----------
 with open(json_path, "r") as f:

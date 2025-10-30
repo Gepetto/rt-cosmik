@@ -13,10 +13,10 @@ from src.rtcosmik.utils.read_write_utils import read_mmpose_file, save_to_csv
 from src.rtcosmik.utils.linear_algebra_utils import butterworth_filter
 base_path = "/root/workspace/ros_ws/src/rt-cosmik"
 
-no_trial = "Kahina"
-subject_mass =53.0
-subject_height = 1.64
-id = "4665"
+no_trial = "Alessandro"
+subject_mass =73.0
+subject_height = 1.87
+id = "4279"
 task = "robot_welding"
 # path_to_3d_kpt = f"/root/workspace/ros_ws/src/rt-cosmik/output/{id}/cosmik_2cams/{task}/corrected_jcp_19704271.csv"
 path_to_3d_kpt =f"/root/workspace/ros_ws/src/rt-cosmik/output/mocap_jcp_100hz/{no_trial}/{task}/joint_center_positions_with_offsets.csv"

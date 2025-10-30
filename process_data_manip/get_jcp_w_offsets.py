@@ -148,12 +148,11 @@ def main():
     ap.add_argument("--root", default="./mocap_100hz",
                     help="Folder containing {subject}/{task}/{task}_trajectories.npz")
     ap.add_argument("--subjects", nargs="*", default=[
-        "Alessandro","Anais","Anastasia","Batiste","Bilal","Claire_","Clement","Flavie",
-        "Guilhem","Kahina","Marie","Mathis","Maxime","Mohamed","Nicolas","Zoe","Herbert","Emmanuelle"
+        "Marie","Mathis","Maxime","Mohamed","Nicolas","Zoe","Herbert","Emmanuelle"
     ])
     ap.add_argument("--tasks", nargs="*", default=["robot_welding"])
     ap.add_argument("--npz-name", default="{task}_trajectories.npz")
-    ap.add_argument("--out-root", default="./mocap_jcp_csv_with_offsets")
+    ap.add_argument("--out-root", default="./mocap_jcp_40hz")
     # LSTM augmenter
     ap.add_argument("--augmenter-dir", default="src/rtcosmik/augmenter/augmentation_model")
     ap.add_argument("--augmenter-model", default="v0.3")
@@ -176,7 +175,7 @@ def main():
     mm_to_m = 0.001 if args.input_units == "mm" else 1.0
 
     for subject in args.subjects:
-        info_path =f"/root/workspace/ros_ws/src/rt-cosmik/output/mocap_100hz/{subject}/info.txt"
+        info_path =f"/root/workspace/ros_ws/src/rt-cosmik/output/mocap/mocap_{subject}/info.txt"
         height, mass, gender = read_subject_info(str(info_path))
         for task in args.tasks:
             base_dir = os.path.join(args.root, subject, task)
@@ -185,15 +184,16 @@ def main():
                 npz_path = os.path.join(base_dir, args.npz_name.format(task=task))
             else:
                 npz_path = os.path.join(base_dir, args.npz_name)
-
+            npz_path= f"/root/workspace/ros_ws/src/rt-cosmik/output/mocap/mocap_{subject}/robot_welding/mocap_downsampled_to_40hz.csv"
             print(f"\n[{subject}/{task}] Loading NPZ: {npz_path}")
             if not os.path.exists(npz_path):
                 print(f"  -> Skipping (not found)")
                 continue
 
-            df = load_df_from_npz(npz_path)
+            # df = load_df_from_npz(npz_path)
             # deprefix columns "Subject:"
-            df.columns = [c.replace(f"{subject}:", "") for c in df.columns]
+            # df.columns = [c.replace(f"{subject}:", "") for c in df.columns]
+            df = pd.read_csv(npz_path)
 
             # markers dict per frame (keep raw units; we convert JCP later)
             mks_dict, _ = read_mks_data(df, start_sample=0, converter=1000.0)
