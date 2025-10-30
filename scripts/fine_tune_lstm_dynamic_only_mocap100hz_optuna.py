@@ -754,40 +754,116 @@ if not args.optuna:
         model = base
         model.summary()
 
-    # no freezing by default
-    apply_freeze_strategy(model, "head")
-    for l in model.layers:
-        print(f"{'[T]' if l.trainable else '[F]'} {l.name} ({type(l).__name__})")
+    # === PHASE A: head-only warmup ===
+    apply_freeze_strategy(model, "head")  # only time_distributed trainable
+    lr_warm = args.lr  # from Optuna, e.g. 3.04e-06 for upper
+    opt_warm = tf.keras.optimizers.Adam(learning_rate=lr_warm, clipnorm=1.0)
+    model.compile(optimizer=opt_warm, loss=weighted_l2(W_loss), metrics=[rmse])
 
-    print("Lr",args.lr)
-    model_json_path = pretrained_dir / f"model_finetuned_offset_{args.id}.json"
-    with open(model_json_path, "w") as f:
-        f.write(model.to_json())
-
-    model.compile(optimizer=Adam(args.lr), loss=weighted_l2(W_loss), metrics=[rmse])
-
-    ckpt_path = pretrained_dir / f"best_finetuned_weights_offset_{args.id}.h5"
-    callbacks = [
-        EarlyStopping(monitor='val_loss', patience=args.patience, restore_best_weights=True, verbose=1),
-        ModelCheckpoint(str(ckpt_path), monitor='val_loss', save_best_only=True, save_weights_only=True, verbose=1),
+    callbacks_warm = [
+        tf.keras.callbacks.EarlyStopping(monitor="val_loss", patience=max(2, args.patience//3),
+                                        restore_best_weights=True, verbose=1),
+        tf.keras.callbacks.ModelCheckpoint(str(pretrained_dir / f"best_head_warm_{args.id}.h5"),
+                                        monitor="val_loss", save_best_only=True,
+                                        save_weights_only=True, verbose=1),
         LRLogger(),
     ]
-    print("before le fit ------BEFORE fine-tuning:")
+    print("[GradUnfreeze] Phase A: head-only @ lr =", lr_warm)
+
+    print("before le fit ------BEFORE phase A:")
     print("train set")
     model.evaluate(train_ds)
     print("val set")
     model.evaluate(val_ds)
 
-    print("=== Training (no Optuna) ===")
-    model.fit(train_ds, validation_data=val_ds, epochs=args.epochs, callbacks=callbacks, verbose=2)
-    print("=== ===AFTER TRAINING  ------ model AFTER fine-tuning:")
+    model.fit(train_ds, validation_data=val_ds, epochs=2, callbacks=callbacks_warm, verbose=2)
+
+    print("=== ===AFTER PHASE A:")
     print("train set")
     model.evaluate(train_ds)
     print("val set")
     model.evaluate(val_ds)
 
+    # === PHASE B: unfreeze last LSTM too, reduce LR ===
+    apply_freeze_strategy(model, "head+last")  # head + last LSTM trainable
+    lr_fine = max(lr_warm * 0.33, 5e-7)        # smaller LR; floor to be safe
+    opt_fine = tf.keras.optimizers.Adam(learning_rate=lr_fine, clipnorm=1.0)
+    model.compile(optimizer=opt_fine, loss=weighted_l2(W_loss), metrics=[rmse])
+
+    callbacks_fine = [
+        tf.keras.callbacks.EarlyStopping(monitor="val_loss", patience=args.patience,
+                                        restore_best_weights=True, verbose=1),
+        tf.keras.callbacks.ModelCheckpoint(str(pretrained_dir / f"best_headlast_{args.id}.h5"),
+                                        monitor="val_loss", save_best_only=True,
+                                        save_weights_only=True, verbose=1),
+        LRLogger(),
+    ]
+    print("[GradUnfreeze] Phase B: head+last @ lr =", lr_fine)
+    model.fit(train_ds, validation_data=val_ds, epochs=args.epochs, callbacks=callbacks_fine, verbose=2)
+
+    print("=== ===AFTER PHASE B:")
+    print("train set")
+    model.evaluate(train_ds)
+    print("val set")
+    model.evaluate(val_ds)
+
+    # Evaluate + save final
+    print("[GradUnfreeze] Final eval:")
+    model.evaluate(val_ds, verbose=2)
 
     final_w = pretrained_dir / f"weights_finetuned_final_offset_{args.id}.h5"
     model.save_weights(str(final_w))
-    print(f"[Done] Saved: {final_w}")
-    sys.exit(0)
+    with open(pretrained_dir / f"model_finetuned_offset_{args.id}.json", "w") as f:
+        f.write(model.to_json())
+    
+    print(f"[GradUnfreeze] Saved weights to {final_w}")
+
+# if not args.optuna:
+#     # build once from pretrained with user LR and no freezing
+#     base = build_pretrained_base(pretrained_dir)
+#     if args.body_part == "lower":
+#         base.summary()
+#         feat_indices = build_feat_indices_lower()
+#         model = wrap_lower_with_selector(base, feat_indices)
+#         model.summary()
+#     else:
+#         model = base
+#         model.summary()
+
+#     # no freezing by default
+#     apply_freeze_strategy(model, "head")
+#     for l in model.layers:
+#         print(f"{'[T]' if l.trainable else '[F]'} {l.name} ({type(l).__name__})")
+
+#     print("Lr",args.lr)
+#     model_json_path = pretrained_dir / f"model_finetuned_offset_{args.id}.json"
+#     with open(model_json_path, "w") as f:
+#         f.write(model.to_json())
+
+#     model.compile(optimizer=Adam(args.lr), loss=weighted_l2(W_loss), metrics=[rmse])
+
+#     ckpt_path = pretrained_dir / f"best_finetuned_weights_offset_{args.id}.h5"
+#     callbacks = [
+#         EarlyStopping(monitor='val_loss', patience=args.patience, restore_best_weights=True, verbose=1),
+#         ModelCheckpoint(str(ckpt_path), monitor='val_loss', save_best_only=True, save_weights_only=True, verbose=1),
+#         LRLogger(),
+#     ]
+#     print("before le fit ------BEFORE fine-tuning:")
+#     print("train set")
+#     model.evaluate(train_ds)
+#     print("val set")
+#     model.evaluate(val_ds)
+
+#     print("=== Training (no Optuna) ===")
+#     model.fit(train_ds, validation_data=val_ds, epochs=args.epochs, callbacks=callbacks, verbose=2)
+#     print("=== ===AFTER TRAINING  ------ model AFTER fine-tuning:")
+#     print("train set")
+#     model.evaluate(train_ds)
+#     print("val set")
+#     model.evaluate(val_ds)
+
+
+#     final_w = pretrained_dir / f"weights_finetuned_final_offset_{args.id}.h5"
+#     model.save_weights(str(final_w))
+#     print(f"[Done] Saved: {final_w}")
+#     sys.exit(0)
