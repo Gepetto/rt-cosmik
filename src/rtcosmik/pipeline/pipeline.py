@@ -349,7 +349,7 @@ class PipelineProcess(Process):
                 # print(timestamps)
 
                 results = self.tracker.estimate(frames)
-                # self.tracker.visualize(frames, results)
+                self.tracker.visualize(frames, results)
 
                 for res in results: 
                     keypoints, bboxes, _ = res
@@ -407,6 +407,19 @@ class PipelineProcess(Process):
                             #scale the model to data
                             self.human_model = scale_human_model(self.human_model, mks_dict,with_hand=True,gender='male',subject_height=1.70)
                             self.human_model= mks_registration(self.human_model,mks_dict, with_hand=False)
+                            joints_to_lock = ["middle_thoracic_X", "middle_thoracic_Y", "middle_thoracic_Z", "left_wrist_X", "left_wrist_Z", "right_wrist_X","right_wrist_Z"]
+                            joint_ids_to_lock = []
+                            for jn in joints_to_lock:
+                                if self.human_model.existJointName(jn):
+                                    joint_ids_to_lock.append(self.human_model.getJointId(jn))
+                                else:
+                                    print('Warning: joint ' + str(jn) + ' does not belong to the model!')
+
+                            q0 = pin.neutral(self.human_model)
+                            # Build reduced model
+                            self.human_model, self.human_visual_model = pin.buildReducedModel(
+                                self.human_model, self.human_visual_model, joint_ids_to_lock, q0)
+
                             self.human_data = pin.Data(self.human_model)
                             
                             if self.ik_type == 'sbs':

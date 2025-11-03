@@ -47,21 +47,21 @@ def main():
         for i in range(NUM_CAMERAS)
     ]
 
-    video_savers = []
-    if settings.SAVE_VID:
-        for i in range(NUM_CAMERAS):
-            vs = VideoSaverProcess(
-                camera_id=list(cameras.keys())[i],
-                shared_buffer=camera_buffers[i],
-                lock=camera_locks[i],
-                frame_counter=frame_counters[i],
-                frame_shape=FRAME_SHAPE,
-                save_dir=settings.SAVE_DIR,
-                fps=settings.fs,
-                stop_event=stop_event,
-                saving_flag=saving_enabled 
-            )
-            video_savers.append(vs)
+    # video_savers = []
+    # if settings.SAVE_VID:
+    #     for i in range(NUM_CAMERAS):
+    #         vs = VideoSaverProcess(
+    #             camera_id=list(cameras.keys())[i],
+    #             shared_buffer=camera_buffers[i],
+    #             lock=camera_locks[i],
+    #             frame_counter=frame_counters[i],
+    #             frame_shape=FRAME_SHAPE,
+    #             save_dir=settings.SAVE_DIR,
+    #             fps=settings.fs,
+    #             stop_event=stop_event,
+    #             saving_flag=saving_enabled 
+    #         )
+    #         video_savers.append(vs)
     
     # pipeline = PipelineProcess(settings,
     #                            camera_buffers,
@@ -95,20 +95,20 @@ def main():
                            freeflyer=True,
                            saving_flag=saving_enabled)
 
-    vicon = UDPReceiver(shared_values_udp,shared_ts_udp,lock_udp,
-                                 ip= "172.20.183.220",
-                                 port=44445, output_dir= settings.SAVE_DIR,
-                                 stop_event= stop_event, markers_names= settings.marker_mocap_names)
+    # vicon = UDPReceiver(shared_values_udp,shared_ts_udp,lock_udp,
+    #                              ip= "172.20.183.220",
+    #                              port=44445, output_dir= settings.SAVE_DIR,
+    #                              stop_event= stop_event, markers_names= settings.marker_mocap_names)
 
-    udp_data_saver_process = UDPDataSaver(saving_flag=saving_enabled, 
-                                          shared_ts_udp=shared_ts_udp,
-                                          shared_values_udp=shared_values_udp,
-                                          lock_udp=lock_udp,
-                                          cam_event=cam_event, 
-                                          save_dir=settings.SAVE_DIR, 
-                                          stop_event=stop_event)
+    # udp_data_saver_process = UDPDataSaver(saving_flag=saving_enabled, 
+    #                                       shared_ts_udp=shared_ts_udp,
+    #                                       shared_values_udp=shared_values_udp,
+    #                                       lock_udp=lock_udp,
+    #                                       cam_event=cam_event, 
+    #                                       save_dir=settings.SAVE_DIR, 
+    #                                       stop_event=stop_event)
 
-    processes = camera_processes  +video_savers+ [pipeline, viewer]
+    processes = camera_processes + [pipeline, viewer]
 
     # Start processes
     for p in processes:

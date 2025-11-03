@@ -73,6 +73,7 @@ class ViewerProcess(Process):
                  saving_flag=None):
         super().__init__()
         self.saving_flag = saving_flag
+        self.first_time=True
 
         self.robot_urdf = settings.urdf_path
         self.package_dir = settings.meshes_path
@@ -128,14 +129,6 @@ class ViewerProcess(Process):
                 self.markers_header,
                 self.joint_angles_header
             ) 
-
-        self.viewer = Viewer(self.model, 
-                             self.geom_model, 
-                             self.visual_model, 
-                             self.keypoints_names, 
-                             self.marker_names, 
-                             self.freeflyer)
-        
         
         def on_press(key):
             try:
@@ -162,10 +155,33 @@ class ViewerProcess(Process):
                 _, mks_dict = self.result_queues[1].get()
                 _, q = self.result_queues[2].get()
 
-                 #scale the model to data
-                self.model = scale_human_model(self.model, mks_dict,with_hand=True,gender='male',subject_height=1.70)
-                self.model= mks_registration(self.model,mks_dict, with_hand=False)
-                self.human_data = pin.Data(self.model)
+                if self.first_time:
+                    #scale the model to data
+                    self.model = scale_human_model(self.model, mks_dict,with_hand=True,gender='male',subject_height=1.70)
+                    self.model= mks_registration(self.model,mks_dict, with_hand=False)
+                    joints_to_lock = ["middle_thoracic_X", "middle_thoracic_Y", "middle_thoracic_Z", "left_wrist_X", "left_wrist_Z", "right_wrist_X","right_wrist_Z"]
+                    joint_ids_to_lock = []
+                    for jn in joints_to_lock:
+                        if self.model.existJointName(jn):
+                            joint_ids_to_lock.append(self.model.getJointId(jn))
+                        else:
+                            print('Warning: joint ' + str(jn) + ' does not belong to the model!')
+
+                    q0 = pin.neutral(self.model)
+                    # Build reduced model
+                    self.model, self.visual_model = pin.buildReducedModel(
+                        self.model, self.visual_model, joint_ids_to_lock, q0)
+
+                    self.human_data = pin.Data(self.model)
+
+                
+                    self.viewer = Viewer(self.model, 
+                                self.geom_model, 
+                                self.visual_model, 
+                                self.keypoints_names, 
+                                self.marker_names, 
+                                self.freeflyer)
+                    self.first_time=False
                 
                 # print("in viewer, counters are :", cam_counters)
                 self.viewer.display_keypoints(kpts_dict)
