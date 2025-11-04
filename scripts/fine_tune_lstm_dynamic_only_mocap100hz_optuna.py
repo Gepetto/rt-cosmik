@@ -92,6 +92,13 @@ elif args.excluded_trials == "robweld": ### Par exemple ici, on exclut tous les 
              "overhead_front", "sanding",
              "sanding_sat", "sit_to_stand", "squat", "upper", "walk", "walk_front", "welding", "welding_sat",
              "robot_sanding", "hitting", "bolting", "bolting_sat", "lifting", "overhead"]
+
+elif args.excluded_trials == "cosmik": #bolting, sanding,overhead, robot sanding, robot welding, lifting
+    excluded_trials = ["static", "crouch", "crouch_object", "hitting_sat", "jump", "lifting_fast", "lower",
+             "overhead_front",
+             "sanding_sat", "sit_to_stand", "squat", "upper", "walk", "walk_front", "welding", "welding_sat",
+              "hitting","bolting_sat"]
+    
 else:
     raise ValueError(f"Unknown value for --exclude-trials: {args.excluded_trials}")
 
@@ -607,14 +614,14 @@ def objective(trial: optuna.Trial):
     gc.collect(); tf.keras.backend.clear_session()
 
     # --- search space ---
-    lr = trial.suggest_float("lr", 3e-6, 6e-5, log=True)
+    lr = trial.suggest_float("lr", 3e-6, 3e-4, log=True)
     freeze = trial.suggest_categorical("freeze", ["none", "head", "head+last"])
-    scheduler = trial.suggest_categorical("scheduler", ["const", "cosine"])
-    clipnorm = trial.suggest_categorical("clipnorm", [0.0, 0.5, 1.0])
-    vel_lam  = trial.suggest_float("vel_lam", 0.0, 0.10)  # 0 disables temporal reg
+    # scheduler = trial.suggest_categorical("scheduler", ["const", "cosine"])
+    # clipnorm = trial.suggest_categorical("clipnorm", [0.0, 0.5, 1.0])
+    # vel_lam  = trial.suggest_float("vel_lam", 0.0, 0.10)  # 0 disables temporal reg
 
-    l1 = trial.suggest_float("l1", 1e-8, 1e-4, log=True)  # ~0 allowed via tiny values
-    l2 = trial.suggest_float("l2", 1e-8, 1e-4, log=True)
+    # l1 = trial.suggest_float("l1", 1e-8, 1e-4, log=True)  # ~0 allowed via tiny values
+    # l2 = trial.suggest_float("l2", 1e-8, 1e-4, log=True)
 
 
     # --- build fresh model from pretrained every trial ---
@@ -628,44 +635,44 @@ def objective(trial: optuna.Trial):
 
     # apply freeze & compile
     apply_freeze_strategy(model_t, freeze)
+    opt = Adam(learning_rate=lr)
 
-    # opt = Adam(learning_rate=lr)
     # --- optimizer with optional cosine decay ---
-    if scheduler == "cosine":
-        # approximate total steps for decay schedule
-        steps_per_epoch = int(tf.data.experimental.cardinality(train_ds).numpy())
-        decay_steps = max(steps_per_epoch * args.epochs, 1000)
-        lr_sched = tf.keras.optimizers.schedules.CosineDecay(
-            initial_learning_rate=lr, decay_steps=decay_steps, alpha=0.2
-        )
-        opt = tf.keras.optimizers.Adam(learning_rate=lr_sched, clipnorm=clipnorm or None)
-    else:
-        opt = tf.keras.optimizers.Adam(learning_rate=lr, clipnorm=clipnorm or None)
+    # if scheduler == "cosine":
+    #     # approximate total steps for decay schedule
+    #     steps_per_epoch = int(tf.data.experimental.cardinality(train_ds).numpy())
+    #     decay_steps = max(steps_per_epoch * args.epochs, 1000)
+    #     lr_sched = tf.keras.optimizers.schedules.CosineDecay(
+    #         initial_learning_rate=lr, decay_steps=decay_steps, alpha=0.2
+    #     )
+    #     opt = tf.keras.optimizers.Adam(learning_rate=lr_sched, clipnorm=clipnorm or None)
+    # else:
+    #     opt = tf.keras.optimizers.Adam(learning_rate=lr, clipnorm=clipnorm or None)
 
     # --- temporal (velocity) loss + position loss ---
-    def velocity_loss(y_true, y_pred):
-        # [B, T, F] -> finite differences along time
-        vt = y_true[:, 1:, :] - y_true[:, :-1, :]
-        vp = y_pred[:, 1:, :] - y_pred[:, :-1, :]
-        return tf.reduce_mean(tf.square(vt - vp))
+    # def velocity_loss(y_true, y_pred):
+    #     # [B, T, F] -> finite differences along time
+    #     vt = y_true[:, 1:, :] - y_true[:, :-1, :]
+    #     vp = y_pred[:, 1:, :] - y_pred[:, :-1, :]
+    #     return tf.reduce_mean(tf.square(vt - vp))
     
-    vars_to_reg = get_regularized_vars(model_t, freeze)
-    def elastic_net_term(variables):
-        if not variables:
-            return 0.0
-        l1_term = tf.add_n([tf.reduce_sum(tf.abs(v)) for v in variables]) if l1 > 0 else 0.0
-        l2_term = tf.add_n([tf.reduce_sum(tf.square(v)) for v in variables]) if l2 > 0 else 0.0
-        return l1 * l1_term + l2 * l2_term
+    # vars_to_reg = get_regularized_vars(model_t, freeze)
+    # def elastic_net_term(variables):
+    #     if not variables:
+    #         return 0.0
+    #     l1_term = tf.add_n([tf.reduce_sum(tf.abs(v)) for v in variables]) if l1 > 0 else 0.0
+    #     l2_term = tf.add_n([tf.reduce_sum(tf.square(v)) for v in variables]) if l2 > 0 else 0.0
+    #     return l1 * l1_term + l2 * l2_term
 
     base_pos_loss = weighted_l2(W_loss)
-    def combined_loss(y_true, y_pred):
-        loss = base_pos_loss(y_true, y_pred)
-        # If you also have velocity loss, include it here (set vel_lam=0 to disable)
-        # loss += vel_lam * velocity_loss(y_true, y_pred)
-        loss += elastic_net_term(vars_to_reg)
-        return loss
+    # def combined_loss(y_true, y_pred):
+    #     loss = base_pos_loss(y_true, y_pred)
+    #     # If you also have velocity loss, include it here (set vel_lam=0 to disable)
+    #     # loss += vel_lam * velocity_loss(y_true, y_pred)
+    #     loss += elastic_net_term(vars_to_reg)
+    #     return loss
 
-    model_t.compile(optimizer=opt, loss=combined_loss, metrics=[rmse])
+    model_t.compile(optimizer=opt, loss=base_pos_loss, metrics=[rmse])
 
     # --- per-trial paths ---
     trial_prefix   = pretrained_dir / f"optuna_trial_{trial.number}"
@@ -724,29 +731,35 @@ def objective(trial: optuna.Trial):
     model_t.evaluate(val_ds)
 
     # objective value
-    # val_loss = float(model_t.evaluate(val_ds, verbose=0)[0])
-    # trial.set_user_attr("val_rmse", float(model_t.evaluate(val_ds, verbose=0)[1]))
-    # trial.set_user_attr("params_repr", f"lr={lr:.2e}, freeze={freeze}")
+    val_loss = float(model_t.evaluate(val_ds, verbose=0)[0])
+    trial.set_user_attr("val_rmse", float(model_t.evaluate(val_ds, verbose=0)[1]))
+    trial.set_user_attr("params_repr", f"lr={lr:.2e}, freeze={freeze}")
 
     val_loss = float(model_t.evaluate(val_ds, verbose=0)[0])
     val_rmse = float(model_t.evaluate(val_ds, verbose=0)[1])
 
+    # objective value
+    val_loss = float(model_t.evaluate(val_ds, verbose=0)[0])
+    trial.set_user_attr("val_rmse", float(model_t.evaluate(val_ds, verbose=0)[1]))
+    trial.set_user_attr("params_repr", f"lr={lr:.2e}, freeze={freeze}")
+
+
     # record in the trial object
-    trial.set_user_attr("val_rmse", val_rmse)
-    trial.set_user_attr("params_repr", f"lr={lr:.2e}, freeze={freeze}, sched={scheduler}, "
-                                    f"clipnorm={clipnorm}, vel_lam={vel_lam:.3f}, "
-                                    f"l1={l1:.1e}, l2={l2:.1e}")
+    # trial.set_user_attr("val_rmse", val_rmse)
+    # trial.set_user_attr("params_repr", f"lr={lr:.2e}, freeze={freeze}, sched={scheduler}, "
+    #                                 f"clipnorm={clipnorm}, vel_lam={vel_lam:.3f}, "
+    #                                 f"l1={l1:.1e}, l2={l2:.1e}")
 
     # ---- LOG SUMMARY ----
     print("\n==================== TRIAL SUMMARY ====================")
     print(f"Trial #{trial.number}")
     print(f"  freeze:    {freeze}")
-    print(f"  scheduler: {scheduler}")
-    print(f"  lr:        {lr:.2e}")
-    print(f"  clipnorm:  {clipnorm}")
-    print(f"  vel_lam:   {vel_lam:.4f}")
-    print(f"  l1:        {l1:.2e}")
-    print(f"  l2:        {l2:.2e}")
+    # print(f"  scheduler: {scheduler}")
+    # print(f"  lr:        {lr:.2e}")
+    # print(f"  clipnorm:  {clipnorm}")
+    # print(f"  vel_lam:   {vel_lam:.4f}")
+    # print(f"  l1:        {l1:.2e}")
+    # print(f"  l2:        {l2:.2e}")
     print(f"  val_loss:  {val_loss:.6f}")
     print(f"  val_rmse:  {val_rmse:.6f}")
     print("=======================================================\n")
@@ -803,6 +816,8 @@ if args.optuna:
     ]
     print(f"[Optuna] Retraining best config: lr={best_lr:.2e}, freeze={best_freeze}")
     model_best.fit(train_ds, validation_data=val_ds, epochs=args.epochs, callbacks=callbacks_best, verbose=2)
+
+    
     print("=== ===AFTER TRAINING WITH BEST CONFIG ------ model AFTER fine-tuning:")
     print("train set")
     model_best.evaluate(train_ds)
