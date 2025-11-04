@@ -5,6 +5,21 @@ import matplotlib.pyplot as plt
 import os
 import csv
 from pathlib import Path
+import yaml
+def read_subject_yaml(file_path):
+    """
+    Lit un fichier YAML et retourne directement id, height, weight et gender.
+    """
+    with open(file_path, 'r') as f:
+        data = yaml.safe_load(f)
+    
+    subject_id = data.get('id')
+    height = data.get('height')
+    weight = data.get('weight')
+    gender = data.get('gender')
+    
+    return subject_id, height, weight, gender
+
 def set_zero_data_df(df, x=None, y=None, z=None):
     # Isolate the right ankle coordinates for frame 1
     right_ankle_frame1 = df[(df['Frame'] == 1) & (df['Keypoint'] == 'Right Ankle')]
