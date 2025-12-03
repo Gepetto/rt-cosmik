@@ -13,8 +13,8 @@ from src.rtcosmik.utils.read_write_utils import read_mmpose_file, save_to_csv,re
 from src.rtcosmik.utils.linear_algebra_utils import butterworth_filter
 base_path = "/root/workspace/ros_ws/src/rt-cosmik"
 
-subjects = ['Alessandro','Anais','Anastasia','Batiste','Bilal','Claire_','Clement','Emmanuelle','Flavie','Guilhem','Herbert','Kahina',
-           'Marie_M','Mathis','Maxime_','Mohamed',
+subjects = [
+           'Marie','Mathis','Maxime','Mohamed',
            'Nicolas','Zoe']
 
 # no_trial = "Alessandro"
@@ -91,9 +91,17 @@ def main():
     
 
 if __name__ == "__main__":
+    tasks = ['bolting', 'sanding','overhead', 'robot_sanding', 'robot_welding', 'lifting']
     for subject in subjects :
+        for task in tasks : 
+            output_csv_path = f"/root/workspace/ros_ws/src/rt-cosmik/output/cosmik_jcp/{subject}/{task}/augmented_markers_jcp_corrected_finetuned.csv"
 
-        path_to_3d_kpt = f"/root/workspace/ros_ws/src/rt-cosmik/output/cosmik_jcp/{subject}/robot_welding_jcp_hpe_filtered_2_corrected.csv"
-        output_csv_path = f"/root/workspace/ros_ws/src/rt-cosmik/output/cosmik_jcp/{subject}/mks_augmented_corrected_finetuned.csv"
-        subject_id, subject_height, subject_mass, gender = read_subject_yaml(f"/root/workspace/ros_ws/src/rt-cosmik/output/metadata/{subject}.yaml") 
-        main()
+            # Extraire juste le dossier (sans le nom du fichier)
+            output_dir = os.path.dirname(output_csv_path)
+
+            # Créer les dossiers si nécessaires
+            os.makedirs(output_dir, exist_ok=True)
+
+            path_to_3d_kpt = f"/root/workspace/ros_ws/src/rt-cosmik/output/cosmik_jcp/{subject}/{task}/{task}_jcp_hpe_filtered_2_corrected.csv"
+            subject_id, subject_height, subject_mass, gender = read_subject_yaml(f"/root/workspace/ros_ws/src/rt-cosmik/output/metadata/{subject}.yaml")
+            main() 

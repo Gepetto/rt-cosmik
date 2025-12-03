@@ -23,9 +23,9 @@ from src.rtcosmik.ik.ik import RT_IK
 mks_to_skip = ['LForearm','LUArm', 'RUArm', 'RHJC_study','LHJC_study','r_pelvis','l_pelvis',
                'LHand', 'RForearm','RHand', 'L_sh1_study', 'L_thigh1_study','r_sh1_study', 'r_thigh1_study']
 #read mks data
-no_trial = "4279"
+no_trial = "Maxime"
 task = "robot_welding" #hitting sat probleme
-path_to_csv = f"/root/workspace/ros_ws/src/rt-cosmik/output/{no_trial}/mocap/{task}/mocap_downsampled_to_40hz.csv"
+path_to_csv = f"/root/workspace/ros_ws/src/rt-cosmik/output/mocap/mocap_{no_trial}/{task}/mocap_downsampled_to_40hz.csv"
 
 subject_mass = 72.0
 subject_height = 1.80
@@ -59,7 +59,16 @@ human_model = scale_human_model(human_model, start_sample_dict,with_hand=True,ge
 human_model= mks_registration(human_model,start_sample_dict, with_hand=True)
 human_data = pin.Data(human_model)
 print(human_model.nq)
+pin.forwardKinematics(human_model,human_data, pin.neutral(human_model))
+pin.updateFramePlacements(human_model,human_data)
 
+print( human_data.oMi[human_model.getJointId("root_joint")].translation )
+print( human_data.oMi[human_model.getJointId("middle_lumbar_X")].translation )
+print( human_data.oMi[human_model.getJointId("middle_thoracic_Z")].translation )
+print( human_data.oMi[human_model.getJointId("middle_cervical_Z")].translation )
+print( human_data.oMi[human_model.getJointId("right_clavicle_joint_X")].translation )
+
+input()
 ################################################################################LOCK JOINTS
 # all_joint_ids = set(range(1, human_model.njoints))
 # joints_to_lock = ["middle_thoracic_X", "middle_thoracic_Y", "middle_thoracic_Z", "left_wrist_X", "left_wrist_Z", "right_wrist_X","right_wrist_Z"]

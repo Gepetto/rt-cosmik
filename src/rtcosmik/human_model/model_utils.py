@@ -961,29 +961,32 @@ def get_segments_mks_dict(mks_positions)->Dict:
     # Constructing the dictionary to store segment poses
     if 'Head' in mks_positions: #with cosmik set
         sgts_mks_dict = {
-        "head": ['C7_study','r_shoulder_study','L_shoulder_study','Head', 'Nose', 'REar', 'LEar', 'REye', 'LEye'],
-        "thorax": [],
-        "right_clavicle" : [],
-        "left_clavicle" : [],
+        "head": ['Head', 'Nose', 'REar', 'LEar', 'REye', 'LEye'],
+        "thorax": ['C7_study'],
+        "right_clavicle" : ['r_shoulder_study'],
+        "left_clavicle" : ['L_shoulder_study'],
         
         "upperarmR": ['r_melbow_study', 'r_lelbow_study'],
         "lowerarmR": ['r_lwrist_study', 'r_mwrist_study'],
         "upperarmL" : ['L_melbow_study', 'L_lelbow_study'],
         "lowerarmL": ['L_lwrist_study', 'L_mwrist_study'],
         "pelvis": ['r.PSIS_study', 'L.PSIS_study', 'r.ASIS_study', 'L.ASIS_study'],
-        "thighR": ['r_knee_study', 'r_mknee_study','r_thigh2_study', 'r_thigh3_study', 'r_thigh1_study'],
-        "thighL": ['L_knee_study', 'L_mknee_study','L_thigh2_study', 'L_thigh3_study', 'L_thigh1_study'],
-        "shankR": ['r_ankle_study', 'r_mankle_study','r_sh3_study', 'r_sh2_study', 'r_sh1_study'],
-        "shankL": ['L_ankle_study', 'L_mankle_study','L_sh3_study', 'L_sh2_study', 'L_sh1_study'],
+        "thighR": ['r_knee_study', 'r_mknee_study'],
+        "thighL": ['L_knee_study', 'L_mknee_study'],
+        "shankR": ['r_ankle_study', 'r_mankle_study'],
+        "shankL": ['L_ankle_study', 'L_mankle_study'],
         "footR": ['r_calc_study' ,'r_5meta_study','r_toe_study'],
         "footL": ['L_calc_study', 'L_5meta_study', 'L_toe_study']
     }
+    
     elif 'BHD' in mks_positions : #with mocap set
+        print("BHD")
         sgts_mks_dict = {
-            "head": ['r_shoulder_study','L_shoulder_study','C7_study','BHD','RHD','LHD','FHD'],
-            "thorax": ['TV8','TV12','SJN','STRN'],
-            "right_clavicle" : [],
-            "left_clavicle" : [],
+            "head": ['BHD','RHD','LHD','FHD'],
+            "thorax": ['C7_study','SJN','STRN'],
+            "torso": ['TV8','TV12'],
+            "right_clavicle" : ['r_shoulder_study'],
+            "left_clavicle" : ['L_shoulder_study'],
             "upperarmR": ['r_melbow_study', 'r_lelbow_study'],
             "lowerarmR": ['r_lwrist_study', 'r_mwrist_study'],
             "upperarmL" : ['L_melbow_study', 'L_lelbow_study'],

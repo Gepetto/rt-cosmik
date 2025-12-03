@@ -145,16 +145,16 @@ def rmse(a, b):
 # =========
 def main():
     ap = argparse.ArgumentParser(description="NPZ → JCPs with per-JCP offsets (meters) + RMSE report.")
-    ap.add_argument("--root", default="./mocap_100hz",
-                    help="Folder containing {subject}/{task}/{task}_trajectories.npz")
-    ap.add_argument("--subjects", nargs="*", default=[
+    ap.add_argument("--root", default="/root/workspace/ros_ws/src/rt-cosmik/output/mocap",
+                    help="Folder containing mocap_{subject}/{task}/mocap_downsampled_to_40hz")
+    ap.add_argument("--subjects", nargs="*", default=["Anastasia","Batiste","Bilal","Claire_","Clement","Flavie","Guilhem","Kahina",
         "Marie","Mathis","Maxime","Mohamed","Nicolas","Zoe","Herbert","Emmanuelle"
     ])
-    ap.add_argument("--tasks", nargs="*", default=["robot_welding"])
+    ap.add_argument("--tasks", nargs="*", default=["robot_welding","robot_sanding","bolting","sanding","lifting","overhead"])
     ap.add_argument("--npz-name", default="{task}_trajectories.npz")
-    ap.add_argument("--out-root", default="./mocap_jcp_40hz")
+    ap.add_argument("--out-root", default="/root/workspace/ros_ws/src/rt-cosmik/output/mocap_jcp")
     # LSTM augmenter
-    ap.add_argument("--augmenter-dir", default="src/rtcosmik/augmenter/augmentation_model")
+    ap.add_argument("--augmenter-dir", default="/root/workspace/ros_ws/src/rt-cosmik/src/rtcosmik/augmenter/augmentation_model")
     ap.add_argument("--augmenter-model", default="v0.3")
 
     # Offsets
@@ -184,7 +184,7 @@ def main():
                 npz_path = os.path.join(base_dir, args.npz_name.format(task=task))
             else:
                 npz_path = os.path.join(base_dir, args.npz_name)
-            npz_path= f"/root/workspace/ros_ws/src/rt-cosmik/output/mocap/mocap_{subject}/robot_welding/mocap_downsampled_to_40hz.csv"
+            npz_path= f"/root/workspace/ros_ws/src/rt-cosmik/output/mocap/mocap_{subject}/{task}/mocap_downsampled_to_40hz.csv"
             print(f"\n[{subject}/{task}] Loading NPZ: {npz_path}")
             if not os.path.exists(npz_path):
                 print(f"  -> Skipping (not found)")

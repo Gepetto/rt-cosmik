@@ -622,6 +622,41 @@ def read_mks_data(data_markers, start_sample=0, converter = 1.0):
     
     return result_markers, start_sample_mks
 
+def read_mocap_data(data_markers, start_sample=0, converter=1.0):
+    # the mks are ordered in a csv like this : "time,r.ASIS_study_x,r.ASIS_study_y,r.ASIS_study_z...."
+    """
+    Parameters:
+        data_markers (pd.DataFrame): The input DataFrame containing marker data.
+        start_sample (int): The index of the sample to start processing from.
+        time_column (str): The name of the time column in the DataFrame.
+
+    Returns:
+        list: A list of dictionaries where each dictionary contains markers with 3D coordinates.
+        dict: A dictionary representing the markers and their 3D coordinates for the specified start_sample.
+    """
+    # Extract marker column names
+    marker_columns = [
+        col[:-6] for col in data_markers.columns if col.endswith("_X[mm]")
+    ]
+
+    # Initialize the result list
+    result_markers = []
+
+    # Iterate over each row in the DataFrame
+    for _, row in data_markers.iterrows():
+        frame_dict = {}
+        for marker in marker_columns:
+            x = row[f"{marker}_X[mm]"] / converter  # convert to m
+            y = row[f"{marker}_Y[mm]"] / converter
+            z = row[f"{marker}_Z[mm]"] / converter
+            frame_dict[marker] = np.array([x, y, z])  # Store as a NumPy array
+        result_markers.append(frame_dict)
+
+    # Get the data for the specified start_sample
+    start_sample_mks = result_markers[start_sample]
+
+    return result_markers, start_sample_mks
+
 def parse_marker_csv(path_to_csv, mks_names, column_name='marker_data', delimiter=';'):
     """
     Parses a CSV containing marker data stored as a single delimited string per row.
