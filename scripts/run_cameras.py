@@ -45,9 +45,10 @@ def camera_process(queue, barrier, idx_cam, stop_event, current_frame):
 
             np.frombuffer(current_frame.get_obj(), dtype=np.uint8)[:] = frame.flatten()
 
-            timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S.%f")
-            queue.put(frame)
-            timestamps.append(timestamp)
+            if start_event.is_set():
+                timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S.%f")
+                queue.put(frame)
+                timestamps.append(timestamp)
         
         except BrokenBarrierError:
             break
@@ -136,10 +137,6 @@ if __name__ == "__main__":
         cap = cv2.VideoCapture(idx)
         if not cap.isOpened():
             cap.release()
-            raise KeyError("Check if cameras indexes you typed are good.")
-
-    print(cameras)
-
     barrier = Barrier(len(cameras))
 
     global start_event
@@ -177,33 +174,25 @@ if __name__ == "__main__":
         for idx_cam in cameras.keys()
     ]
 
-    all_processes = cameras_processes + [display_process] + saver_processes
-
     listener = keyboard.Listener(on_press=on_press)
     listener.start()
+
+    for cam_proc in cameras_processes:
+        cam_proc.start()
+    display_process.start()
+
     
-    unrestarter = True
-    print("Waiting for 's' to be pressed to start trial...")
+    print("Waiting for 's' to be pressed to start saving...")
     while True:
+        if start_event.is_set() and not any(p.is_alive() for p in saver_processes):
+            print("saving...")
+            for saver_proc in saver_processes:
+                saver_proc.start()
 
-        if start_event.is_set() and unrestarter:
-                
-            print("\nStarting all processes...")
-            for process in all_processes:
-                process.start()
-
-            unrestarter = False
-
-            print("Press 'q' to stop recording.")
-
-        if stop_event.is_set():
-
-            barrier.abort()
-                
+            # Attendre que les sauvegardes finissent
             while any([saver_process.is_alive() for saver_process in saver_processes]):
-                print("Waiting for saver processes to finish writing ...")
-                time.sleep(2)
-                
+                print("Waiting for backups to finish...")
+    
             break
     
     print("All saving processes terminated.")
