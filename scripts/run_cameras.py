@@ -177,7 +177,7 @@ if __name__ == "__main__":
         for idx_cam in cameras.keys()
     ]
 
-    all_processes = cameras_processes + [display_process] + saver_processes
+    all_processes = cameras_processes + [display_process]
 
     listener = keyboard.Listener(on_press=on_press)
     listener.start()
