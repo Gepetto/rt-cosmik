@@ -9,6 +9,8 @@ from src.rtcosmik.pose_estimator.pose_estimator import PoseTrackerEstimator
 num_cam = sys.argv[1]
 subject = sys.argv[2]
 trial = sys.argv[3]
+start_frame = int(sys.argv[4])  # new argument
+end_frame = int(sys.argv[5])    # new argument
 
 DET_MODEL_PATH = '/root/workspace/mmdeploy/rtmpose-trt/rtmdet-nano'
 POSE_MODEL_PATH = '/root/workspace/mmdeploy/rtmpose-trt/rtmpose-m'
@@ -23,39 +25,43 @@ if not cap.isOpened():
     print("Erreur : Impossible d'ouvrir la vidéo.")
     exit()
 
-# Ouverture du fichier CSV en mode écriture (sans header)
+# Total number of frames in the video
+total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
+if end_frame > total_frames:
+    end_frame = total_frames
+
+# Set the starting frame
+cap.set(cv2.CAP_PROP_POS_FRAMES, start_frame)
+
 with open(CSV_OUTPUT, mode='w', newline='') as f:
     writer = csv.writer(f)
 
-    # Boucle de traitement frame par frame
-    while True:
+    current_frame = start_frame
+    while current_frame < end_frame:
         ret, frame = cap.read()
         if not ret:
-            break  # Fin de la vidéo
+            break
 
         results = pose_estimator.estimate(frame)
-
         pose_estimator.visualize(frame, results, 0)
 
         keypoints_scores, bboxes, _ = results
-        keypoints = (keypoints_scores[..., :2] ).astype(float)
-        scores = (keypoints_scores[..., 2:] ).astype(float)
+        keypoints = (keypoints_scores[..., :2]).astype(float)
+        scores = (keypoints_scores[..., 2:]).astype(float)
 
-        # Sauvegarde dans le CSV
         if keypoints is not None and scores is not None:
-            keypoints_flat = keypoints.flatten().tolist()  # x1, y1, x2, y2, ...
-            scores_flat = scores.flatten().tolist()        # s1, s:2, ...
+            keypoints_flat = keypoints.flatten().tolist()
+            scores_flat = scores.flatten().tolist()
             scores_mean = [np.mean(scores_flat)]
             writer.writerow(scores_mean + keypoints_flat)
 
-        # Quitter avec la touche 'q'
+        current_frame += 1
+
         if cv2.waitKey(1) & 0xFF == ord('q'):
             break
 
-# Nettoyage
 cap.release()
 cv2.destroyAllWindows()
-
 
 
 
