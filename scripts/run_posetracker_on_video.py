@@ -37,7 +37,7 @@ with open(CSV_OUTPUT, mode='w', newline='') as f:
 
         pose_estimator.visualize(frame, results, 0)
 
-        keypoints_scores, _, _ = results
+        keypoints_scores, bboxes, _ = results
         keypoints = (keypoints_scores[..., :2] ).astype(float)
         scores = (keypoints_scores[..., 2:] ).astype(float)
 
