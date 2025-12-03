@@ -20,6 +20,10 @@ from src.rtcosmik.utils.linear_algebra_utils import concat_frames
 subject = sys.argv[3]
 trial = sys.argv[4]
 
+global start_event
+global stop_event
+start_event = Event()
+stop_event = Event()
 
 def camera_process(queue, barrier, idx_cam, stop_event, current_frame):
 
@@ -44,6 +48,7 @@ def camera_process(queue, barrier, idx_cam, stop_event, current_frame):
                 raise Exception(f"Camera {idx_cam} has crashed, quitting the recording.")
 
             np.frombuffer(current_frame.get_obj(), dtype=np.uint8)[:] = frame.flatten()
+
 
             timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S.%f")
             queue.put(frame)
@@ -132,20 +137,12 @@ if __name__ == "__main__":
             raise Exception("Then change the name of the subject and/or the trial and retry.")
 
     cameras = {int(sys.argv[1]) : "Intel(R) RealSense(TM) Depth Camera 455  RGB", int(sys.argv[2]) : "Intel(R) RealSense(TM) Depth Camera 455  RGB"}
-    for idx in cameras.keys():
-        cap = cv2.VideoCapture(idx)
-        if not cap.isOpened():
-            cap.release()
-            raise KeyError("Check if cameras indexes you typed are good.")
+  
+    
 
-    print(cameras)
-
+    
     barrier = Barrier(len(cameras))
 
-    global start_event
-    global stop_event
-    start_event = Event()
-    stop_event = Event()
 
     frame_size = settings.width*settings.height*3
 
@@ -168,42 +165,12 @@ if __name__ == "__main__":
         name="Display process"
     )
 
-    saver_processes = [
-        Process(
-            target=saver_process, 
-            args=(globals()[f"cam{idx_cam}_queue"], idx_cam, stop_event),
-            name=f"Saver process {idx_cam}"
-        ) 
-        for idx_cam in cameras.keys()
-    ]
-
-    all_processes = cameras_processes + [display_process] + saver_processes
 
     listener = keyboard.Listener(on_press=on_press)
     listener.start()
-    
-    unrestarter = True
-    print("Waiting for 's' to be pressed to start trial...")
-    while True:
 
-        if start_event.is_set() and unrestarter:
-                
-            print("\nStarting all processes...")
-            for process in all_processes:
-                process.start()
+    for cam_proc in cameras_processes:
+        cam_proc.start()
+    display_process.start()
 
-            unrestarter = False
-
-            print("Press 'q' to stop recording.")
-
-        if stop_event.is_set():
-
-            barrier.abort()
-                
-            while any([saver_process.is_alive() for saver_process in saver_processes]):
-                print("Waiting for saver processes to finish writing ...")
-                time.sleep(2)
-                
-            break
-    
     print("All saving processes terminated.")
