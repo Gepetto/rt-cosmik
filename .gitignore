@@ -32,3 +32,6 @@ ocp.c
 cosmik_vizu
 meshcat_env
 COMFI/
+benchmark_mmpose_batched_all_results_2cams.csv
+benchmark_mmpose_batched_all_results_4cams.csv
+benchmark_full_pipeline_all_results.csv
