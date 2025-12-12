@@ -24,8 +24,8 @@ def gv_init(model, geom_model, visual_model, keypoint_names=None, marker_names=N
         sys.exit(0)
     
     #add world frame
-    viz.viewer.gui.addXYZaxis('world/base_frame', [255, 0., 0, 1.], 0.02, 0.15)
-    place(viz, 'world/base_frame', pin.SE3(np.eye(3), np.matrix([0, 0, 0]).T))
+    # viz.viewer.gui.addXYZaxis('world/base_frame', [255, 0., 0, 1.], 0.02, 0.15)
+    # place(viz, 'world/base_frame', pin.SE3(np.eye(3), np.matrix([0, 0, 0]).T))
 
     # Init objects to show 
     # Frame axis for frame in the pinocchio model 
@@ -52,9 +52,9 @@ def add_frames(viz,seg_frames,w,r,s):
 
 
 #add model markers
-def add_marker(viz,marker_names,suffix, r, g,b):
+def add_marker(viz,marker_names,suffix, r, g,b,taille):
     for marker in marker_names:
-        viz.viewer.gui.addSphere('world/'+marker+suffix,0.01,[r,g,b,1])
+        viz.viewer.gui.addSphere('world/'+marker+suffix,taille,[r,g,b,1])
 
 def Rquat(x, y, z, w):
     q = pin.Quaternion(x, y, z, w)

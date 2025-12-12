@@ -157,7 +157,10 @@ for name in start_sample_hpe_kpt.keys():
 # for name in start_sample_hpe_kpt_mocap.keys():
 #     sphere_name = f"world/tri_{name}_offset"
 #     viz.viewer.gui.addSphere(sphere_name, 0.01, [255, 255, 255, 1])
-
+import gepetto as gep
+viz.viewer.gui.setBackgroundColor1("python-pinocchio", gep.color.Color.white)
+viz.viewer.gui.setBackgroundColor2("python-pinocchio", gep.color.Color.white)
+viz.viewer.gui.addLight("light", "python-pinocchio", 360, gep.color.Color.white)
 for name in start_sample_lstm2.keys():
     sphere_n = f'world/lstm_finetuned_{name}'
     viz.viewer.gui.addSphere(sphere_n, 0.015, [0, 0, 255, 1.])
