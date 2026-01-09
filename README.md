@@ -32,14 +32,6 @@ For ros visualisation in rviz do the following command :
 roslaunch rt-cosmik start_viz.launch
 ```
 
-## Authors and acknowledgment
-
-- **Maxime Sabbah (LAAS-CNRS):** Main developer and maintainer of the project, real-time pipeline, inverse kinematics, and general implementation of the library.
-- **Kahina Chalabi (LAAS-CNRS):** Main developer and maintainer of the project, MMpose, and LSTM.
-- **Mohamed Adjel (LAAS-CNRS):** Main developer, human modeling, and camera feeds handling.
-- **Thomas Bousquet (LAAS-CNRS):** Features developer.
-- **Vincent Bonnet (LAAS-CNRS / IPAL):** Project instructor.
-
 
 ## Citing RT-COSMIK
 
@@ -72,6 +64,5 @@ OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 ## Project Status
-RT-COSMIK is currently under active development. Contributions and feedback are welcome. For any inquiries or support, feel free to contact the maintainer:  
-**Maxime Sabbah** - msabbah@laas.fr
+RT-COSMIK is currently under active development. Contributions and feedback are welcome. 
 
