@@ -5,36 +5,6 @@ RT-COSMIK is a cutting-edge open-source library for solving real-time constraine
 
 ---
 
-## Getting Started
-This repository is designed to work with a pre-configured Docker environment to ensure compatibility and ease of use. Please follow the installation instructions in the [Gepetto Dev Container repository](https://gitlab.laas.fr/msabbah/gepetto-dev-container/).
-
-### Clone the Repo Inside the Docker Container
-Once the Docker environment is set up, clone this repository into the appropriate directory:
-
-```bash
-cd workspace/ros_ws/src
-git clone https://gitlab.laas.fr/msabbah/rt-cosmik.git
-```
-
-### Build RT-COSMIK with catkin build
-
-```bash
-cd workspace/ros_ws/src
-catkin build rt-cosmik
-```
-
-## Test and Deploy
-All the usable code can be found in apps folder for running the pipelines and on cams_calibration for cameras calibration
-
-For ros visualisation in rviz do the following command : 
-
-``` bash 
-roslaunch rt-cosmik start_viz.launch
-```
-
-
-## Citing RT-COSMIK
-
 
 ## License
 BSD 2-Clause License
