@@ -19,7 +19,7 @@ class Settings:
     fourcc: str = "MJPG" # video codec
 
     # VIEWER PARAMS
-    viewer: str = "gv" # viewer type: gv or ros
+    viewer: str = "gv" # viewer type: gv, ros, or ros2
     urdf_path: str = field(init=False) # relative path to the robot urdf
     meshes_path: str = field(init=False) # relative path to the robot meshes
 
@@ -112,6 +112,11 @@ class Settings:
         'L_thigh1_study', 'L_thigh2_study', 'L_thigh3_study',
         'L_sh1_study', 'L_sh2_study', 'L_sh3_study'
     ])
+
+    # ROS 2 OUTPUTS
+    ros2_world_frame: str = "world"
+    ros2_pelvis_frame: str = "pelvis"
+    ros2_publish_segments: bool = True
 
 
     def __post_init__(self):

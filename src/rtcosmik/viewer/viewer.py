@@ -1,7 +1,9 @@
 from rtcosmik.config_loader import settings
 if settings.viewer == 'ros':
     from .ros_viewer import ros_init, publish_keypoints_as_marker_array, publish_augmented_markers, publish_kinematics
-else: # default to gepetto viewer
+elif settings.viewer == 'ros2':
+    from .ros2_viewer import ros2_init, publish_keypoints_as_marker_array, publish_augmented_markers, publish_kinematics
+else:  # default to gepetto viewer
     from .gv_viewer import gv_init, place_objects, place
 from multiprocessing import Process, Queue, Event
 import pinocchio as pin 
@@ -31,15 +33,36 @@ class Viewer:
         self.keypoints_pub = None
         self.q_pub = None
         self.br = None
+        self.ros2_node = None
         
         if self.viewer_type == 'ros':
             self.keypoints_pub, self.marker_pub, self.q_pub, self.br = ros_init(self.freeflyer)
+        elif self.viewer_type == 'ros2':
+            ros2_context = ros2_init(self.freeflyer)
+            self.keypoints_pub = ros2_context.keypoints_pub
+            self.marker_pub = ros2_context.markers_pub
+            self.q_pub = ros2_context.q_pub
+            self.br = ros2_context.br
+            self.ros2_node = ros2_context.node
         else :
             self.viz = gv_init(self.model, self.geom_model, self.visual_model, self.keypoint_names, self.marker_names)
     
     def display_q(self, q):
         if self.viewer_type == 'ros':
             publish_kinematics(q, self.q_pub, self.model.names, self.br)
+        elif self.viewer_type == 'ros2':
+            publish_kinematics(
+                q,
+                self.q_pub,
+                self.model.names,
+                self.ros2_node,
+                self.br,
+                model=self.model,
+                data=self.data,
+                publish_segments=settings.ros2_publish_segments,
+                world_frame=settings.ros2_world_frame,
+                pelvis_frame=settings.ros2_pelvis_frame,
+            )
         else:
             pin.framesForwardKinematics(self.model, self.data,q)
             for frame in self.model.frames.tolist():
@@ -49,13 +72,37 @@ class Viewer:
 
     def display_keypoints(self, pos_keypoints_dict):
         if self.viewer_type == 'ros':
-            publish_keypoints_as_marker_array(list(pos_keypoints_dict.values()), self.keypoints_pub, pos_keypoints_dict.keys())
+            publish_keypoints_as_marker_array(
+                list(pos_keypoints_dict.values()),
+                self.keypoints_pub,
+                pos_keypoints_dict.keys(),
+            )
+        elif self.viewer_type == 'ros2':
+            publish_keypoints_as_marker_array(
+                list(pos_keypoints_dict.values()),
+                self.keypoints_pub,
+                self.ros2_node,
+                pos_keypoints_dict.keys(),
+                frame_id=settings.ros2_world_frame,
+            )
         else:
             place_objects(self.viz, pos_keypoints_dict)
 
     def display_markers(self, pos_markers_dict):
         if self.viewer_type == 'ros':
-            publish_augmented_markers(list(pos_markers_dict.values()), self.marker_pub, pos_markers_dict.keys())
+            publish_augmented_markers(
+                list(pos_markers_dict.values()),
+                self.marker_pub,
+                pos_markers_dict.keys(),
+            )
+        elif self.viewer_type == 'ros2':
+            publish_augmented_markers(
+                list(pos_markers_dict.values()),
+                self.marker_pub,
+                self.ros2_node,
+                pos_markers_dict.keys(),
+                frame_id=settings.ros2_world_frame,
+            )
         else:
             place_objects(self.viz, pos_markers_dict)
 
