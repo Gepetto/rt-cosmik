@@ -8,6 +8,7 @@ import select
 import socket
 import csv 
 import time
+
 class Camera(Process):
     def __init__(self, 
                  cam_id: int,

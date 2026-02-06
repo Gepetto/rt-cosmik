@@ -14,11 +14,11 @@ from typing import List, Optional, Sequence, Tuple
 import cv2
 import numpy as np
 import torch
-from src.rtcosmik.nlf.nlf import NLFEstimator
+from src.rtcosmik.nlf.nlf import NLFEstimator, DisplayConsumerNLF
 from src.rtcosmik.config_loader import settings
 from src.rtcosmik.camera.cam_utils import list_cameras, load_camera_parameters
 from src.rtcosmik.camera.camera import Camera
-from src.rtcosmik.utils.mp_utils import create_camera_shared_ressources
+from src.rtcosmik.utils.mp_utils import create_udp_buffer, create_camera_shared_ressources
 
 from multiprocessing import set_start_method
 
@@ -29,7 +29,6 @@ logging.basicConfig(
     format="%(asctime)s | %(levelname)s | %(name)s | %(message)s",
     force=True
 )
-
 
 def list_videos(data_dir: Path) -> List[Path]:
     if not data_dir.exists():
@@ -67,83 +66,6 @@ class OfflineVideoSource:
         for cap in self.caps:
             cap.release()
 
-class OnlineCameraSource:
-    """Consumes frames from Camera processes writing into shared buffers."""
-
-    def __init__(self, cam_ids: List[int], frame_shape: Tuple[int, int, int], fps: int, fourcc: str):
-        import multiprocessing as mp
-
-        self.cam_ids = cam_ids
-        self.num_cams = len(cam_ids)
-        self.frame_shape = frame_shape
-        self.fps = float(fps)
-        self.frame_period = 1.0 / max(1e-6, self.fps)
-
-        self.camera_buffers, self.camera_timestamps, self.camera_locks, self.frame_counters, self.barrier, self.stop_event = (
-            create_camera_shared_ressources(self.num_cams, frame_shape)
-        )
-        self.cam_event = mp.Event()
-
-        # Create numpy views for shared buffers (no copy). We copy under lock at read time.
-        self._views = [np.frombuffer(buf, dtype=np.uint8).reshape(frame_shape) for buf in self.camera_buffers]
-        self._last_counters = [0] * self.num_cams
-
-        self.processes: List[Camera] = []
-        for i, cam_id in enumerate(cam_ids):
-            proc = Camera(
-                cam_id,
-                self.camera_buffers[i],
-                self.camera_timestamps[i],
-                self.camera_locks[i],
-                self.frame_counters[i],
-                self.barrier,
-                self.stop_event,
-                self.cam_event,
-                frame_shape=frame_shape,
-                cam_fps=fps,
-                cam_fourcc=fourcc,
-            )
-            self.processes.append(proc)
-
-    def start(self):
-        for p in self.processes:
-            p.start()
-
-    def read(self, timeout_s: float = 1.0) -> Optional[List[np.ndarray]]:
-        """Wait until every camera has produced a new frame since last read."""
-        t0 = time.perf_counter()
-        while not self.stop_event.is_set():
-            frames: List[np.ndarray] = []
-            new_counters: List[int] = []
-            ok_all = True
-            for i in range(self.num_cams):
-                with self.camera_locks[i]:
-                    c = int(self.frame_counters[i].value)
-                    if c <= self._last_counters[i]:
-                        ok_all = False
-                        break
-                    frame = self._views[i].copy()  # materialize under lock
-                frames.append(frame)
-                new_counters.append(c)
-
-            if ok_all and len(frames) == self.num_cams:
-                self._last_counters = new_counters
-                return frames
-
-            if (time.perf_counter() - t0) > timeout_s:
-                return None
-            time.sleep(0.001)
-
-        return None
-
-    def stop(self):
-        self.stop_event.set()
-        for p in self.processes:
-            try:
-                p.join(timeout=2)
-            except Exception:
-                pass
-
 def main(args):
     torch.backends.cudnn.benchmark = True
 
@@ -157,6 +79,8 @@ def main(args):
         NUM_CAMERAS = len(cameras)
         FRAME_SHAPE = (H, W, 3)
         camera_buffers, camera_timestamps, camera_locks, frame_counters, camera_barrier, stop_event = create_camera_shared_ressources(NUM_CAMERAS, FRAME_SHAPE)
+        shared_ts_udp,shared_values_udp,lock_udp,cam_event = create_udp_buffer(settings.marker_mocap_names)
+
         # Create camera processes
         camera_processes = [
             Camera(list(cameras.keys())[i], 
@@ -173,9 +97,25 @@ def main(args):
             for i in range(NUM_CAMERAS)
         ]
 
-        processes = camera_processes
+        # Create display consumer
+        display = DisplayConsumerNLF(frame_counters=frame_counters,
+            camera_buffers=camera_buffers,
+            camera_locks=camera_locks,
+            timestamp_buffers=camera_timestamps,
+            stop_event=stop_event,
+            frame_shape=FRAME_SHAPE,
+            num_cameras=NUM_CAMERAS,
+            yolo_path=settings.yolo_path,
+            nlf_path=settings.nlf_path,
+            cano_path=settings.cano_path,
+            mtxs=mtxs,
+            nlf_indices=settings.nlf_indices,
+            yolo_conf=settings.yolo_conf,
+            yolo_imgsz=settings.yolo_imgsz,
+            device=settings.device,
+        )
 
-        # Needs to add NLF logic to overlay on the camera images the results
+        processes = camera_processes + [display]
 
         # Start processes
         for p in processes:

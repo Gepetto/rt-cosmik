@@ -4,6 +4,7 @@ from ultralytics import YOLO
 import logging
 import time
 import cv2
+from multiprocessing import Process, Array, Value, Lock, Barrier, Event, Queue
 
 LOGGER = logging.getLogger(__name__)
 
@@ -299,3 +300,107 @@ class NLFEstimator:
             out_frames.append(img)
         return out_frames
 
+class DisplayConsumerNLF(Process):
+    def __init__(self, 
+                 frame_counters,
+                 camera_buffers, 
+                 camera_locks, 
+                 timestamp_buffers, 
+                 stop_event, 
+                 frame_shape, 
+                 num_cameras,
+                 yolo_path,
+                 nlf_path,
+                 cano_path,
+                 mtxs,
+                 nlf_indices,
+                 yolo_conf,
+                 yolo_imgsz,
+                 device,
+                 logger=None,
+                 ):
+        super().__init__()
+        self.camera_buffers = camera_buffers
+        self.camera_locks = camera_locks
+        self.timestamp_buffers = timestamp_buffers
+        self.frame_shape = frame_shape  # (height, width, channels)
+        self.num_cameras = num_cameras
+        self.stop_event = stop_event
+
+        self.last_frame_counters = [0] * self.num_cameras
+        self.frame_counters = frame_counters
+
+        self.yolo_path=yolo_path
+        self.nlf_path=nlf_path
+        self.cano_path=cano_path
+        self.mtxs=mtxs
+        self.nlf_indices=nlf_indices
+        self.yolo_conf=yolo_conf
+        self.yolo_imgsz=yolo_imgsz
+        self.device=device 
+
+        self.logger = logger or LOGGER
+
+
+    def run(self):
+
+        est = NLFEstimator(
+            yolo_path=self.yolo_path,
+            nlf_path=self.nlf_path,
+            cano_path=self.cano_path,
+            image_size=(self.frame_shape[1], self.frame_shape[0]),
+            cam_Ks=self.mtxs,
+            indices=self.nlf_indices,
+            conf=self.yolo_conf,
+            imgsz=self.yolo_imgsz,
+            device=self.device,
+        )
+
+        cv2.namedWindow("Visualization", cv2.WINDOW_NORMAL)
+
+        try: 
+            while not self.stop_event.is_set():
+                frames = []
+                new_counters = []
+                for i, (lock, buffer, cam_ts, frame_counter) in enumerate(zip(self.camera_locks, self.camera_buffers, self.timestamp_buffers, self.frame_counters)):
+                    with lock:
+                        #  Only accept data if this camera has produced a new frame
+                        if frame_counter.value > self.last_frame_counters[i]:
+                            # Read and copy shared data atomically
+                            arr = np.frombuffer(buffer, dtype=np.uint8)
+                            frame = arr.reshape(self.frame_shape).copy()
+                            # Get current timestamp
+                            timestamp = bytes(cam_ts[:]).decode().strip('\x00')
+
+                            if timestamp == '': # empty data
+                                continue
+                            else:
+                                frames.append(frame)
+                            new_counters.append(frame_counter.value)
+                
+                if len(frames)!=self.num_cameras:
+                    continue
+
+                self.last_frame_counters = new_counters.copy()
+            
+                print(new_counters)
+
+                nlf_out, infer_ms, yres, boxes = est.estimate_from_frames(frames)
+                vis_frames = est.visualize_frames(
+                    frames,
+                    nlf_out,
+                    boxes=boxes,
+                    draw_boxes=True,
+                    put_text=True,
+                    text_prefix="cam",
+                )
+                vis = np.hstack(vis_frames)
+
+                cv2.imshow("Visualization", vis)
+                    
+                # Break on 'q' key press
+                if cv2.waitKey(1) & 0xFF == ord('q'):
+                    break
+        finally:        
+            cv2.destroyAllWindows()
+            self.logger.info("[INFO] Display NLF Process terminated")
