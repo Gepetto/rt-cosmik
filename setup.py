@@ -3,7 +3,7 @@ import os
 from glob import glob
 
 setup(
-    name='rtcosmik',
+    name='RT-COSMIK',
     version='0.1.0',
     packages=find_packages(where='src'),
     package_dir={'': 'src'},
@@ -11,9 +11,9 @@ setup(
     
     # Include settings.py as package data
     data_files=[
-        ('share/rtcosmik', ['settings.py']),  # For installed version
-        (os.path.join('share', 'rtcosmik'), glob('config/*')),
-        (os.path.join('share', 'rtcosmik'), glob('launch/*')),
+        ('share/RT-COSMIK', ['settings.py']),  # For installed version
+        (os.path.join('share', 'RT-COSMIK'), glob('config/*')),
+        (os.path.join('share', 'RT-COSMIK'), glob('launch/*')),
     ],
     
     install_requires=[

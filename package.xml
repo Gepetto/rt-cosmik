@@ -1,6 +1,6 @@
 <?xml version="1.0"?>
 <package format="2">
-  <name>rt-cosmik</name>
+  <name>RT-COSMIK</name>
   <version>0.1.0</version>
   <description>Human Pose Kinematics estimator with minimal set of cameras</description>
 
