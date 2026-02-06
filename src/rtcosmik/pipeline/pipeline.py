@@ -2,7 +2,7 @@ import os
 import sys
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '../../../src')))
 script_directory = os.path.dirname(os.path.abspath(__file__))
-rt_cosmik_path ='/root/workspace/ros_ws/src/rt-cosmik/'
+rt_cosmik_path ='/root/workspace/ros_ws/src/RT-COSMIK/'
 from src.rtcosmik.triangulation.triangulation import triangulate_points
 from src.rtcosmik.augmenter.marker_augmenter import augmentTRC, loadModel
 from src.rtcosmik.pose_estimator.pose_estimator import BatchPoseTrackerEstimator
@@ -35,10 +35,8 @@ class PipelineProcess(Process):
                  ):
         super().__init__()
         # Settings related parameters
-        self.DET_MODEL_PATH = settings.det_model_path
-        self.POSE_MODEL_PATH = settings.pose_model_path
-        self.AUGMENTER_PATH = settings.augmenter_path
         self.CAM_CONFIG_PATH = settings.cam_calib_path
+        self.nlf_indices = settings.nlf_indices
         self.fs = settings.fs
         self.subject_mass=settings.human_mass
         self.subject_height=settings.human_height

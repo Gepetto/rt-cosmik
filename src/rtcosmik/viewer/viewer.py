@@ -11,7 +11,7 @@ from rtcosmik.saver.csv_saver import CSVSaver
 from typing import List
 import numpy as np
 from collections import OrderedDict
-rt_cosmik_path ='/root/workspace/ros_ws/src/rt-cosmik/'
+rt_cosmik_path ='/root/workspace/ros_ws/src/RT-COSMIK/'
 
 from pynput import keyboard
 import threading

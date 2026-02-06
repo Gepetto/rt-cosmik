@@ -39,6 +39,28 @@ class Settings:
     cutoff_freq: float = 7
     filter_type: str = "lowpass"
 
+    # NLF
+    device = "cuda:0"
+
+    cano_path: str = "/root/workspace/ros_ws/RT-COSMIK/weights/canonical_verts/smplx.npy"
+    nlf_path: str = "/root/workspace/ros_ws/RT-COSMIK/weights/nlf/nlf_s_multi_0.2.2.torchscript"
+    
+    nlf_indices = [
+        5484, 6629, 3878, 7040, 4302, 7105, 4369, 7584, 4848, 7457, 4721, #c7, rshoulder,lshoulder,r_lelbow,l_lelbow,r_melbow,l_melbow,r_lwrist, l_lwrist,r_mwrist, l_mwrist
+        8421, 5727, 8371, 5677, #r_asis,l_asis,r_psis,l_psis 
+        6401, 3640, 6407, 3646, 8576,5882,8680,8892, #r_knee,l_knee,r_mknee,l_mknee,r_ankle,l_ankle,r_mankle,l_mankle,
+        8596,5902,8589,5895,8482,5788,8846,8634, #r_5meta, l_5meta, r_toe, l_toe, r_big_toe, l_big_toe, l_calc, r_calc,
+        7978,4807,8004,5268,7483,4747,7664,4928,7776,5040,7887,5151,7420,4684,8078,5342, #7978,4807, r_tpinky, l_tpinky, r_bindex, l_bindex, r_tindex, l_tindex, r_tmiddle, l_tmiddle, r_tring,l_tring, r_bthumb, l_bthumb,r_tthumb, l_tthumb
+        9008,9002,1253,399,10049,9503 ,  #nose, head,right_ear,left_ear, right_eye, left_eye
+        5941,5489,5500 #L2, T11, T6
+    ]
+
+    # Yolo detector
+    yolo_path: str = "/root/workspace/ros_ws/RT-COSMIK/weights/yolo/yolov10n.engine"
+
+    yolo_conf = 0.2
+    yolo_imgsz = 640
+
     # IK AND DATA HANDLING
     # For whole body model :
 
