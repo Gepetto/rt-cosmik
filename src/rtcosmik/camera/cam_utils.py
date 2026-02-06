@@ -257,11 +257,8 @@ def load_camera_parameters(config_path):
 
 def load_world_transformation(config_path):
     """Load world transformation matrix."""
-    cam_R1_world, cam_T1_world = load_cam_pose(os.path.join(config_path, "camera0_pose.yaml"))
-    world_R1_cam = cam_R1_world.T
-    world_T1_cam = -world_R1_cam @ cam_T1_world
+    world_R1_cam, world_T1_cam = load_cam_pose(os.path.join(config_path, "camera0_pose.yaml"))
     return world_R1_cam, world_T1_cam.reshape((3,))
-
 
 def load_intrinsic_cams(config_path):
     """Load intrinsic and extrinsic camera parameters."""

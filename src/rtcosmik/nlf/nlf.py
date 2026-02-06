@@ -5,6 +5,7 @@ import logging
 import time
 import cv2
 from multiprocessing import Process, Array, Value, Lock, Barrier, Event, Queue
+from src.rtcosmik.triangulation.triangulation import triangulate_points
 
 LOGGER = logging.getLogger(__name__)
 
@@ -130,7 +131,7 @@ class NLFEstimator:
 
     def preprocess_batch(self, frames_bgr):
         arr = np.ascontiguousarray(np.stack(frames_bgr, axis=0))   # (C,H,W,3) uint8
-        x = torch.from_numpy(arr).to(self.device)  # single transfer
+        x = torch.from_numpy(arr).to(self.device)                  # single transfer
         x = x[..., [2, 1, 0]]                                       # BGR->RGB
         x = x.permute(0, 3, 1, 2).contiguous()                      # (C,3,H,W)
         x = x.to(torch.float16).mul_(1.0 / 255.0)                   # try fp16 for speed
@@ -169,7 +170,7 @@ class NLFEstimator:
                 continue
 
             img_i = imgs[i:i+1]      # (1,3,H,W) keeps batch dim
-            Kt_el = self.Kt[i]       # you stored (1,3,3)
+            Kt_el = self.Kt[i]      
             # Et is already (1,4,4)
 
             # Keep whatever NLF expects here; common pattern is list-of-boxes
@@ -184,7 +185,10 @@ class NLFEstimator:
             )
 
         t1 = time.perf_counter()
-        return out, (t1 - t0) * 1000.0, yres, b
+        elapsed = (t1 - t0) * 1000.0
+        # self.logger.info(f"[INFO] NLF estimation took {elapsed} ms")
+
+        return out, elapsed, yres, b
 
     @staticmethod
     def _extract_poses3d(nlf_out):
@@ -317,6 +321,7 @@ class DisplayConsumerNLF(Process):
                  yolo_conf,
                  yolo_imgsz,
                  device,
+                 with_triangul=False,
                  logger=None,
                  ):
         super().__init__()
@@ -339,6 +344,7 @@ class DisplayConsumerNLF(Process):
         self.yolo_imgsz=yolo_imgsz
         self.device=device 
 
+        self.with_triangul=with_triangul
         self.logger = logger or LOGGER
 
 
@@ -356,51 +362,54 @@ class DisplayConsumerNLF(Process):
             device=self.device,
         )
 
-        cv2.namedWindow("Visualization", cv2.WINDOW_NORMAL)
+        if self.with_triangul:
+            pass
+        else:
+            cv2.namedWindow("Visualization", cv2.WINDOW_NORMAL)
 
-        try: 
-            while not self.stop_event.is_set():
-                frames = []
-                new_counters = []
-                for i, (lock, buffer, cam_ts, frame_counter) in enumerate(zip(self.camera_locks, self.camera_buffers, self.timestamp_buffers, self.frame_counters)):
-                    with lock:
-                        #  Only accept data if this camera has produced a new frame
-                        if frame_counter.value > self.last_frame_counters[i]:
-                            # Read and copy shared data atomically
-                            arr = np.frombuffer(buffer, dtype=np.uint8)
-                            frame = arr.reshape(self.frame_shape).copy()
-                            # Get current timestamp
-                            timestamp = bytes(cam_ts[:]).decode().strip('\x00')
+            try: 
+                while not self.stop_event.is_set():
+                    frames = []
+                    new_counters = []
+                    for i, (lock, buffer, cam_ts, frame_counter) in enumerate(zip(self.camera_locks, self.camera_buffers, self.timestamp_buffers, self.frame_counters)):
+                        with lock:
+                            #  Only accept data if this camera has produced a new frame
+                            if frame_counter.value > self.last_frame_counters[i]:
+                                # Read and copy shared data atomically
+                                arr = np.frombuffer(buffer, dtype=np.uint8)
+                                frame = arr.reshape(self.frame_shape).copy()
+                                # Get current timestamp
+                                timestamp = bytes(cam_ts[:]).decode().strip('\x00')
 
-                            if timestamp == '': # empty data
-                                continue
-                            else:
-                                frames.append(frame)
-                            new_counters.append(frame_counter.value)
-                
-                if len(frames)!=self.num_cameras:
-                    continue
-
-                self.last_frame_counters = new_counters.copy()
-            
-                print(new_counters)
-
-                nlf_out, infer_ms, yres, boxes = est.estimate_from_frames(frames)
-                vis_frames = est.visualize_frames(
-                    frames,
-                    nlf_out,
-                    boxes=boxes,
-                    draw_boxes=True,
-                    put_text=True,
-                    text_prefix="cam",
-                )
-                vis = np.hstack(vis_frames)
-
-                cv2.imshow("Visualization", vis)
+                                if timestamp == '': # empty data
+                                    continue
+                                else:
+                                    frames.append(frame)
+                                new_counters.append(frame_counter.value)
                     
-                # Break on 'q' key press
-                if cv2.waitKey(1) & 0xFF == ord('q'):
-                    break
-        finally:        
-            cv2.destroyAllWindows()
-            self.logger.info("[INFO] Display NLF Process terminated")
+                    if len(frames)!=self.num_cameras:
+                        continue
+
+                    self.last_frame_counters = new_counters.copy()
+                
+                    print(new_counters)
+
+                    nlf_out, infer_ms, yres, boxes = est.estimate_from_frames(frames)
+                    vis_frames = est.visualize_frames(
+                        frames,
+                        nlf_out,
+                        boxes=boxes,
+                        draw_boxes=True,
+                        put_text=True,
+                        text_prefix="cam",
+                    )
+                    vis = np.hstack(vis_frames)
+
+                    cv2.imshow("Visualization", vis)
+                        
+                    # Break on 'q' key press
+                    if cv2.waitKey(1) & 0xFF == ord('q'):
+                        break
+            finally:        
+                cv2.destroyAllWindows()
+                self.logger.info("[INFO] Display NLF Process terminated")

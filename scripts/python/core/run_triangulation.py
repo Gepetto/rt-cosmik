@@ -1,83 +1,244 @@
-#Triangulate from 2 csv files of 2dkeypoints
-import os
+#!/usr/bin/env python3
 import sys
-sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '../../../src')))
+import os
 
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__)))) # Repo root
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "src")) # src dir
+import argparse
+
+import time
+from pathlib import Path
+from dataclasses import dataclass
+from typing import List, Optional, Sequence, Tuple
+
+import meshcat
+import meshcat.geometry as g
+import meshcat.transformations as tf
+
+import cv2
 import numpy as np
-import pandas as pd
-from src.rtcosmik.camera.cam_utils import load_camera_parameters,load_world_transformation,load_four_camera_parameters
-from src.rtcosmik.triangulation.triangulation import triangulate_offline,triangulate_points_adaptive
-from src.rtcosmik.utils.read_write_utils import read_mmpose_file, save_to_csv,load_transformation,transform_keypoints_list_cam0_to_mocap,read_mmpose_scores
-from src.rtcosmik.utils.linear_algebra_utils import butterworth_filter
-#check paths in load_camera_parameters and load_world_transformation
-# no_trial = "4279"
-tasks = ["robot_welding"]
-# subjects = ["Anais","Anastasia","Alessandro","Batiste","Bilal","Claire_","Clement","Flavie","Guilhem","Kahina","Marie_M",
-#      "Maxime_","Mohamed","Nicolas", "Zoe", "Herbert","Emmanuelle"]
-subjects = ["Mathis"]
+import torch
+from src.rtcosmik.nlf.nlf import NLFEstimator, DisplayConsumerNLF
+from src.rtcosmik.config_loader import settings
+from src.rtcosmik.camera.cam_utils import list_cameras, load_camera_parameters, load_world_transformation
+from src.rtcosmik.camera.camera import Camera
+from src.rtcosmik.utils.mp_utils import create_udp_buffer, create_camera_shared_ressources
+from src.rtcosmik.triangulation.triangulation import triangulate_points, project_points_cam_to_pixels
+
+from multiprocessing import set_start_method
+
+import logging
+
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s | %(levelname)s | %(name)s | %(message)s",
+    force=True
+)
+
+LOGGER = logging.getLogger(__name__)
+
+def list_videos(data_dir: Path) -> List[Path]:
+    if not data_dir.exists():
+        raise FileNotFoundError(f"data dir does not exist: {data_dir}")
+    vids = [p for p in sorted(data_dir.iterdir()) if p.suffix.lower() in [".mp4"]]
+    return vids
+
+@dataclass
+class OfflineVideoSource:
+    paths: List[Path]
+    size_wh: Tuple[int, int]
+
+    def __post_init__(self):
+        self.caps = [cv2.VideoCapture(str(p)) for p in self.paths]
+        for p, cap in zip(self.paths, self.caps):
+            if not cap.isOpened():
+                raise RuntimeError(f"Could not open video: {p}")
+
+    def read(self) -> Optional[List[np.ndarray]]:
+        frames: List[np.ndarray] = []
+        for cap in self.caps:
+            ok, frame = cap.read()
+            if not ok:
+                cap.set(cv2.CAP_PROP_POS_FRAMES, 0)
+                ok, frame = cap.read()
+                if not ok:
+                    return None
+            W, H = self.size_wh
+            if frame.shape[1] != W or frame.shape[0] != H:
+                frame = cv2.resize(frame, (W, H), interpolation=cv2.INTER_LINEAR)
+            frames.append(frame)
+        return frames
+
+    def release(self):
+        for cap in self.caps:
+            cap.release()
+
+def main(args):
+    torch.backends.cudnn.benchmark = True
+
+    # Determine size
+    W = settings.width
+    H =settings.height
+    mtxs, dists, projections, rotations, translations = load_camera_parameters(settings.cam_calib_path)
+    world_R1_cam, world_T1_cam = load_world_transformation(settings.cam_calib_path)
+
+    # --- 1. INITIALISATION MESHCAT ---
+    vis = meshcat.Visualizer()
+    LOGGER.info(f"[INFO] Meshcat visualizer disponible ici : {vis.url()}")
+
+    # Création d'un groupe pour les marqueurs 3D
+    vis_markers = vis["markers"]
+    vis_markers2 = vis["markers2"]
+
+    world_M_cam = np.eye(4, dtype=np.float64)
+    world_M_cam[:3, :3] = world_R1_cam
+    world_M_cam[:3, 3] = world_T1_cam
+    vis_markers.set_transform(world_M_cam)
+    vis_markers2.set_transform(world_M_cam)
 
 
-#Mathis
-num_keypoints=26 
-markers = [
-        "Nose", "LEye", "REye", "LEar", "REar", 
-        "LShoulder", "RShoulder", "LElbow", "RElbow", 
-        "LWrist", "RWrist", "LHip", "RHip", 
-        "LKnee", "RKnee", "LAnkle", "RAnkle", "Head",
-        "Neck", "midHip", "LBigToe", "RBigToe", "LSmallToe", "RSmallToe", "LHeel", "RHeel"
-    ]
-header = []
-for marker in markers:
-    header.extend([f"{marker}_x", f"{marker}_y", f"{marker}_z"])
+    if args.online:
+        cameras = list_cameras()
+        NUM_CAMERAS = len(cameras)
+        FRAME_SHAPE = (H, W, 3)
+        camera_buffers, camera_timestamps, camera_locks, frame_counters, camera_barrier, stop_event = create_camera_shared_ressources(NUM_CAMERAS, FRAME_SHAPE)
+        shared_ts_udp,shared_values_udp,lock_udp,cam_event = create_udp_buffer(settings.marker_mocap_names)
 
-def main(subject,task):
-    transformation_file = f"/root/workspace/ros_ws/src/rt-cosmik/config/cam_params/{subject}/calib_mocap_2_cam4/soder.txt"
-    R_trans, d_trans, s_trans, rms_error = load_transformation(transformation_file)
+        # Create camera processes
+        camera_processes = [
+            Camera(list(cameras.keys())[i], 
+                camera_buffers[i], 
+                camera_timestamps[i], 
+                camera_locks[i], 
+                frame_counters[i], 
+                camera_barrier, 
+                stop_event,
+                cam_event, 
+                FRAME_SHAPE, 
+                settings.fs, 
+                settings.fourcc,)
+            for i in range(NUM_CAMERAS)
+        ]
 
-    base_path = "/root/workspace/ros_ws/src/rt-cosmik"
-    config_path = os.path.join(base_path, f"config/cam_params/{subject}")
-    output_path = os.path.join(base_path, f"output/cosmik_jcp/{subject}")
-    os.makedirs(output_path, exist_ok=True)
+        # Create display consumer
+        display = DisplayConsumerNLF(frame_counters=frame_counters,
+            camera_buffers=camera_buffers,
+            camera_locks=camera_locks,
+            timestamp_buffers=camera_timestamps,
+            stop_event=stop_event,
+            frame_shape=FRAME_SHAPE,
+            num_cameras=NUM_CAMERAS,
+            yolo_path=settings.yolo_path,
+            nlf_path=settings.nlf_path,
+            cano_path=settings.cano_path,
+            mtxs=mtxs,
+            nlf_indices=settings.nlf_indices,
+            yolo_conf=settings.yolo_conf,
+            yolo_imgsz=settings.yolo_imgsz,
+            device=settings.device,
+            with_triangul=True,
+        )
 
-    output_csv_path = f"{output_path}/{task}_3d_keypoints.csv"
+        processes = camera_processes + [display]
 
-    file_paths = [
-        os.path.join(base_path, f"output/output_2d/{subject}/{task}/{task}_camera_4.csv"),
-        os.path.join(base_path, f"output/output_2d/{subject}/{task}/{task}_camera_6.csv")
-        # os.path.join(base_path, f"output/{subject}/output_2d/{task}/{task}_2d_keypoints_4.csv"),
-        # os.path.join(base_path, f"output/{subject}/output_2d/{task}/{task}_2d_keypoints_6.csv")
-    ]
-    
-    camera_data = [read_mmpose_file(file) for file in file_paths]
-    uvs = [
-        np.array([[line[2 * i], line[2 * i + 1]] for line in data for i in range(num_keypoints)])
-        .reshape(-1, num_keypoints, 2)
-        for data in camera_data
-    ]
+        # Start processes
+        for p in processes:
+            p.start()
 
-    mtxs, dists, projections, rotations, translations = load_camera_parameters(config_path)
-    # mtxs, dists, projections, rotations, translations = load_four_camera_parameters(config_path)
-    world_R1_cam, world_T1_cam = load_world_transformation(config_path)
-    
-    keypoints_in_cam0_list = triangulate_offline(uvs, mtxs, dists, projections, world_R1_cam, world_T1_cam)
-    # scores = read_mmpose_scores(file_paths)
-    # threshold = 0.5
-    # keypoints_in_cam0_list = triangulate_points_adaptive(uvs, mtxs, dists, projections, scores, threshold)
+        try:
+            while True:
+                time.sleep(0.1)
+        except KeyboardInterrupt:
+            stop_event.set()
+            # Stop processes
+            for process in processes:
+                process.stop() if hasattr(process, 'stop') else None
+                process.join(timeout=2)
 
-    keypoints_in_mocap = transform_keypoints_list_cam0_to_mocap(
-        keypoints_in_cam0_list,
-        R_trans,
-        d_trans
-    )
-    # filtered_data = butterworth_filter(
-    # data=keypoints_in_mocap,
-    # cutoff_frequency=10.0,  
-    # order=5,
-    # sampling_frequency=40
-    # )
-    save_to_csv(keypoints_in_mocap, output_csv_path, header=header)
+    else: # offline mode
+        if args.videos and len(args.videos) > 0:
+            paths = [Path(v) for v in args.videos]
+        else:
+            paths = list_videos(Path(args.data_dir))
+        if len(paths) == 0:
+            raise RuntimeError(f"No videos found in {args.data_dir}")
+
+        src = OfflineVideoSource(paths=paths, size_wh=(W, H))
+
+        est = NLFEstimator(
+            yolo_path=settings.yolo_path,
+            nlf_path=settings.nlf_path,
+            cano_path=settings.cano_path,
+            image_size=(W, H),
+            cam_Ks=mtxs,
+            indices=settings.nlf_indices,
+            conf=settings.yolo_conf,
+            imgsz=settings.yolo_imgsz,
+            device=settings.device,
+        )
+
+        while True:
+            frames = src.read()
+            if frames is None:
+                break
+
+            nlf_out, infer_ms, yres, boxes = est.estimate_from_frames(frames)
+
+            keypoints_list=[]
+            for ii in range(len(nlf_out)):
+                poses_3d = nlf_out[ii]['poses3d'][0] 
+                poses_3d = poses_3d/1000
+                keypoints_list.append(project_points_cam_to_pixels(poses_3d,  mtxs[ii]))
+
+
+            p3d = triangulate_points(
+                keypoints_list=keypoints_list,
+                mtxs=mtxs,
+                dists=dists,
+                projections=projections,
+            )
+
+            poses_triangul = torch.from_numpy(p3d).to(dtype=torch.float32)
+            poses_cam0=nlf_out[0]['poses3d'][0]/1000
+
+            if nlf_out[0]['poses3d'][0].shape[0] > 0:
+                points_all = poses_cam0.view(-1, 3).cpu().numpy().T
+                
+                colors = np.zeros_like(points_all)
+                colors[0, :] = 1.0  # R
+                colors[1, :] = 0.0  # G
+                colors[2, :] = 0.0  # B
+
+                vis_markers.set_object(
+                    g.PointCloud(position=points_all, color=colors, size=0.02)
+                )
+
+                points_all2 = poses_triangul.view(-1, 3).cpu().numpy().T
+                
+                colors2 = np.zeros_like(points_all2)
+                colors2[0, :] = 0.0  # R
+                colors2[1, :] = 0.0  # G
+                colors2[2, :] = 1.0  # B
+
+                vis_markers2.set_object(
+                    g.PointCloud(position=points_all2, color=colors2, size=0.02)
+                )
+
+            else:
+                # Si personne n'est détecté, on vide la scène (optionnel)
+                vis_markers.delete()
+                vis_markers2.delete()
+
+        src.release()
 
 if __name__ == "__main__":
-    for subject in subjects:    
-        for task in tasks:
-            main(subject,task)
+    p = argparse.ArgumentParser()
+    p.add_argument("--online", action="store_true")
+    p.add_argument("--data-dir", type=str, default="data", help="Folder containing input videos")
+    p.add_argument("--videos", nargs="*", default=None, help="Optional explicit list of input videos")
+    args = p.parse_args()
+
+    if args.online:
+        set_start_method('spawn')
+
+    main(args)

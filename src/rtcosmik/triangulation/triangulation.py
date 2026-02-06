@@ -1,6 +1,7 @@
 import numpy as np
 import cv2
 from scipy import linalg
+import torch
 
 # from scipy.spatial.transform import Rotation as R
 
@@ -60,7 +61,14 @@ def triangulate_points(keypoints_list, mtxs, dists, projections):
         points_undistorted = cv2.undistortPoints(np.array(points).reshape(-1, 1, 2), mtxs[ii], distCoeffs_mat)
         undistorted_points.append(points_undistorted)
 
-    for point_idx in range(26):
+    if len(undistorted_points) == 0:
+        return np.zeros((0, 3), dtype=np.float64)
+
+    # Remove hard-coded number of keypoints.
+    # Use the minimum number of points across cameras to avoid index errors.
+    num_points = min(up.shape[0] for up in undistorted_points)
+
+    for point_idx in range(num_points):
         points_per_point = [undistorted_points[i][point_idx] for i in range(len(undistorted_points))]
         _p3d = DLT(projections, points_per_point)
         p3ds_frame.append(_p3d)
@@ -152,4 +160,12 @@ def triangulate_points_adaptive(uvs, mtxs, dists, projections, scores: list, thr
         keypoints_in_cam0_list.append(np.array(p3ds_frame).flatten().tolist())
 
     return keypoints_in_cam0_list
+
+def project_points_cam_to_pixels(points_cam: torch.Tensor, K: np.ndarray) -> np.ndarray:
+    pts = points_cam.detach().float().cpu().numpy()   # (J,3)
+    x, y, z = pts[:, 0], pts[:, 1], pts[:, 2]
+    z = np.where(np.abs(z) < 1e-8, 1e-8, z)
+    u = (K[0, 0] * x / z) + K[0, 2]
+    v = (K[1, 1] * y / z) + K[1, 2]
+    return np.stack([u, v], axis=1)                   # (J,2)
 
