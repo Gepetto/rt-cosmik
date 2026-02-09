@@ -1,9 +1,6 @@
 import numpy as np
 import cv2
 from scipy import linalg
-import torch
-
-# from scipy.spatial.transform import Rotation as R
 
 def DLT(projections, points):
     """
@@ -40,7 +37,42 @@ def DLT(projections, points):
 
     return Vh[3,0:3]/Vh[3,3]
 
-def triangulate_points(keypoints_list, mtxs, dists, projections):
+# def triangulate_points(keypoints_list, mtxs, dists, projections):
+#     """
+#     Triangulates 3D points from multiple 2D keypoints using camera matrices and distortion coefficients.
+#     Args:
+#         keypoints_list (list of list of tuples): A list where each element is a list of 2D keypoints for a single frame.
+#         mtxs (list of numpy.ndarray): A list of camera matrices for each frame.
+#         dists (list of numpy.ndarray): A list of distortion coefficients for each frame.
+#         projections (list of numpy.ndarray): A list of projection matrices for each frame.
+#     Returns:
+#         numpy.ndarray: An array of 3D points triangulated from the input 2D keypoints.
+#     """
+
+#     p3ds_frame=[]
+#     undistorted_points = []
+
+#     for ii in range(len(keypoints_list)):
+#         points = keypoints_list[ii] 
+#         distCoeffs_mat = np.array([dists[ii]]).reshape(-1, 1)
+#         points_undistorted = cv2.undistortPoints(np.array(points).reshape(-1, 1, 2), mtxs[ii], distCoeffs_mat)
+#         undistorted_points.append(points_undistorted)
+
+#     if len(undistorted_points) == 0:
+#         return np.zeros((0, 3), dtype=np.float64)
+
+#     # Remove hard-coded number of keypoints.
+#     # Use the minimum number of points across cameras to avoid index errors.
+#     num_points = min(up.shape[0] for up in undistorted_points)
+
+#     for point_idx in range(num_points):
+#         points_per_point = [undistorted_points[i][point_idx] for i in range(len(undistorted_points))]
+#         _p3d = DLT(projections, points_per_point)
+#         p3ds_frame.append(_p3d)
+
+#     return np.array(p3ds_frame)
+
+def triangulate_points(keypoints_list, mtxs, dists, projections, backend: str = "numpy", device: str = "cpu"):
     """
     Triangulates 3D points from multiple 2D keypoints using camera matrices and distortion coefficients.
     Args:
@@ -52,7 +84,10 @@ def triangulate_points(keypoints_list, mtxs, dists, projections):
         numpy.ndarray: An array of 3D points triangulated from the input 2D keypoints.
     """
 
-    p3ds_frame=[]
+    backend = backend.lower()
+    if backend not in {"numpy", "torch"}:
+        raise ValueError(f"Unsupported backend '{backend}'. Use 'numpy' or 'torch'.")
+
     undistorted_points = []
 
     for ii in range(len(keypoints_list)):
@@ -64,16 +99,54 @@ def triangulate_points(keypoints_list, mtxs, dists, projections):
     if len(undistorted_points) == 0:
         return np.zeros((0, 3), dtype=np.float64)
 
-    # Remove hard-coded number of keypoints.
+    # Stack to (C, J, 2): C cameras, J joints.
     # Use the minimum number of points across cameras to avoid index errors.
     num_points = min(up.shape[0] for up in undistorted_points)
+    if num_points == 0:
+        return np.zeros((0, 3), dtype=np.float64)
 
-    for point_idx in range(num_points):
-        points_per_point = [undistorted_points[i][point_idx] for i in range(len(undistorted_points))]
-        _p3d = DLT(projections, points_per_point)
-        p3ds_frame.append(_p3d)
+    points_cj2 = np.stack([up[:num_points, 0, :] for up in undistorted_points], axis=0)
+    projections_arr = np.asarray(projections, dtype=np.float64)
+    if projections_arr.ndim != 3 or projections_arr.shape[1:] != (3, 4):
+        raise ValueError("projections must be an array-like of shape (C, 3, 4)")
 
-    return np.array(p3ds_frame)
+    num_cams = points_cj2.shape[0]
+    if projections_arr.shape[0] != num_cams:
+        raise ValueError("Number of projections must match number of camera observations")
+
+    # Build DLT system for all joints at once: A shape (J, 2C, 4).
+    # Row pairs per camera are:
+    #   y * P[2, :] - P[1, :]
+    #   P[0, :] - x * P[2, :]
+    x = points_cj2[:, :, 0]
+    y = points_cj2[:, :, 1]
+    p0 = projections_arr[:, 0, :]  # (C, 4)
+    p1 = projections_arr[:, 1, :]
+    p2 = projections_arr[:, 2, :]
+
+    a0 = y[:, :, None] * p2[:, None, :] - p1[:, None, :]  # (C, J, 4)
+    a1 = p0[:, None, :] - x[:, :, None] * p2[:, None, :]  # (C, J, 4)
+
+    a = np.empty((num_points, 2 * num_cams, 4), dtype=np.float64)
+    a[:, 0::2, :] = np.transpose(a0, (1, 0, 2))
+    a[:, 1::2, :] = np.transpose(a1, (1, 0, 2))
+
+    if backend == "torch": # GPU triangulation 
+        import torch
+
+        torch_device = torch.device(device)
+        a_t = torch.as_tensor(a, dtype=torch.float64, device=torch_device)
+        b_t = torch.matmul(a_t.transpose(-2, -1), a_t)
+        _, _, vh_t = torch.linalg.svd(b_t, full_matrices=False)
+        homog_t = vh_t[:, -1, :]
+        xyz_t = homog_t[:, :3] / homog_t[:, 3:4]
+        return xyz_t.detach().cpu().numpy()
+
+    b = np.matmul(np.transpose(a, (0, 2, 1)), a)
+    _, _, vh = np.linalg.svd(b, full_matrices=False)
+    homog = vh[:, -1, :]
+    return homog[:, :3] / homog[:, 3:4]
+
 
 def triangulate_offline(uvs, mtxs, dists, projections, R, T):
     """Triangulate and transform keypoints for all frames."""
@@ -161,7 +234,7 @@ def triangulate_points_adaptive(uvs, mtxs, dists, projections, scores: list, thr
 
     return keypoints_in_cam0_list
 
-def project_points_cam_to_pixels(points_cam: torch.Tensor, K: np.ndarray) -> np.ndarray:
+def project_points_cam_to_pixels(points_cam, K: np.ndarray) -> np.ndarray:
     pts = points_cam.detach().float().cpu().numpy()   # (J,3)
     x, y, z = pts[:, 0], pts[:, 1], pts[:, 2]
     z = np.where(np.abs(z) < 1e-8, 1e-8, z)

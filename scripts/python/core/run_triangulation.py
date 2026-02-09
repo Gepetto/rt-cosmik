@@ -23,7 +23,7 @@ from src.rtcosmik.config_loader import settings
 from src.rtcosmik.camera.cam_utils import list_cameras, load_camera_parameters, load_world_transformation
 from src.rtcosmik.camera.camera import Camera
 from src.rtcosmik.utils.mp_utils import create_udp_buffer, create_camera_shared_ressources
-from src.rtcosmik.triangulation.triangulation import triangulate_points, project_points_cam_to_pixels
+from src.rtcosmik.triangulation.triangulation import triangulate_points
 
 from multiprocessing import set_start_method
 
@@ -186,10 +186,8 @@ def main(args):
 
             keypoints_list=[]
             for ii in range(len(nlf_out)):
-                poses_3d = nlf_out[ii]['poses3d'][0] 
-                poses_3d = poses_3d/1000
-                keypoints_list.append(project_points_cam_to_pixels(poses_3d,  mtxs[ii]))
-
+                poses_2d = nlf_out[ii]['poses2d'][0]
+                keypoints_list.append(poses_2d.detach().float().cpu().numpy())
 
             p3d = triangulate_points(
                 keypoints_list=keypoints_list,
