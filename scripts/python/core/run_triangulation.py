@@ -78,24 +78,9 @@ def main(args):
 
     # Determine size
     W = settings.width
-    H =settings.height
+    H = settings.height
     mtxs, dists, projections, rotations, translations = load_camera_parameters(settings.cam_calib_path)
     world_R1_cam, world_T1_cam = load_world_transformation(settings.cam_calib_path)
-
-    # --- 1. INITIALISATION MESHCAT ---
-    vis = meshcat.Visualizer()
-    LOGGER.info(f"[INFO] Meshcat visualizer disponible ici : {vis.url()}")
-
-    # Création d'un groupe pour les marqueurs 3D
-    vis_markers = vis["markers"]
-    vis_markers2 = vis["markers2"]
-
-    world_M_cam = np.eye(4, dtype=np.float64)
-    world_M_cam[:3, :3] = world_R1_cam
-    world_M_cam[:3, 3] = world_T1_cam
-    vis_markers.set_transform(world_M_cam)
-    vis_markers2.set_transform(world_M_cam)
-
 
     if args.online:
         cameras = list_cameras()
@@ -121,7 +106,8 @@ def main(args):
         ]
 
         # Create display consumer
-        display = DisplayConsumerNLF(frame_counters=frame_counters,
+        display = DisplayConsumerNLF(
+            frame_counters=frame_counters,
             camera_buffers=camera_buffers,
             camera_locks=camera_locks,
             timestamp_buffers=camera_timestamps,
@@ -137,6 +123,10 @@ def main(args):
             yolo_imgsz=settings.yolo_imgsz,
             device=settings.device,
             with_triangul=True,
+            world_R1_cam=world_R1_cam,
+            world_T1_cam=world_T1_cam,
+            dists=dists,
+            projections=projections,
         )
 
         processes = camera_processes + [display]
@@ -156,6 +146,20 @@ def main(args):
                 process.join(timeout=2)
 
     else: # offline mode
+
+        # --- 1. INITIALISATION MESHCAT ---
+        vis = meshcat.Visualizer()
+        LOGGER.info(f"[INFO] Meshcat visualizer available here: {vis.url()}")
+
+        vis_markers = vis["markers"]
+        vis_markers2 = vis["markers2"]
+
+        world_M_cam = np.eye(4, dtype=np.float64)
+        world_M_cam[:3, :3] = world_R1_cam
+        world_M_cam[:3, 3] = world_T1_cam
+        vis_markers.set_transform(world_M_cam)
+        vis_markers2.set_transform(world_M_cam)
+
         if args.videos and len(args.videos) > 0:
             paths = [Path(v) for v in args.videos]
         else:
@@ -223,7 +227,6 @@ def main(args):
                 )
 
             else:
-                # Si personne n'est détecté, on vide la scène (optionnel)
                 vis_markers.delete()
                 vis_markers2.delete()
 

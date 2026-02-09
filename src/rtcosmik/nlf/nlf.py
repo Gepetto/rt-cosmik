@@ -4,6 +4,10 @@ from ultralytics import YOLO
 import logging
 import time
 import cv2
+import meshcat
+import meshcat.geometry as g
+import meshcat.transformations as tf
+
 from multiprocessing import Process, Array, Value, Lock, Barrier, Event, Queue
 from src.rtcosmik.triangulation.triangulation import triangulate_points
 
@@ -322,6 +326,10 @@ class DisplayConsumerNLF(Process):
                  yolo_imgsz,
                  device,
                  with_triangul=False,
+                 world_R1_cam=None,
+                 world_T1_cam=None,
+                 dists=None,
+                 projections=None,
                  logger=None,
                  ):
         super().__init__()
@@ -338,13 +346,19 @@ class DisplayConsumerNLF(Process):
         self.yolo_path=yolo_path
         self.nlf_path=nlf_path
         self.cano_path=cano_path
+
         self.mtxs=mtxs
+        self.dists=dists
+        self.projections=projections
+
         self.nlf_indices=nlf_indices
         self.yolo_conf=yolo_conf
         self.yolo_imgsz=yolo_imgsz
         self.device=device 
 
         self.with_triangul=with_triangul
+        self.world_R1_cam=world_R1_cam
+        self.world_T1_cam=world_T1_cam
         self.logger = logger or LOGGER
 
 
@@ -363,7 +377,129 @@ class DisplayConsumerNLF(Process):
         )
 
         if self.with_triangul:
-            pass
+            
+            # --- 1. INITIALISATION MESHCAT ---
+            vis = meshcat.Visualizer()
+            LOGGER.info(f"[INFO] Meshcat visualizer available here: {vis.url()}")
+
+            vis_markers = vis["markers"]
+
+            world_M_cam = np.eye(4, dtype=np.float64)
+            world_M_cam[:3, :3] = self.world_R1_cam
+            world_M_cam[:3, 3] = self.world_T1_cam
+            vis_markers.set_transform(world_M_cam)
+
+            if self.dists is None or self.projections is None:
+                raise TypeError("For triangulation, please provide dists and projections")
+
+            # Names aligned 1-to-1 with nlf_indices order
+            joint_names = [
+                "c7","r_shoulder","l_shoulder","r_lelbow","l_lelbow","r_melbow","l_melbow","r_lwrist","l_lwrist","r_mwrist","l_mwrist",
+                "r_asis","l_asis","r_psis","l_psis",
+                "r_knee","l_knee","r_mknee","l_mknee","r_ankle","l_ankle","r_mankle","l_mankle",
+                "r_5meta","l_5meta","r_toe","l_toe","r_big_toe","l_big_toe","l_calc","r_calc",
+                "r_tpinky","l_tpinky","r_bindex","l_bindex","r_tindex","l_tindex","r_tmiddle","l_tmiddle","r_tring","l_tring",
+                "r_bthumb","l_bthumb","r_tthumb","l_tthumb",
+                "nose","head","right_ear","left_ear","right_eye","left_eye",
+                "L2","T11","T6"
+            ]
+            J = len(joint_names)
+
+            right_joint_ids = [i for i, n in enumerate(joint_names) if n.startswith("r_") or n.startswith("right_")]
+            left_joint_ids  = [i for i, n in enumerate(joint_names) if n.startswith("l_") or n.startswith("left_")]
+
+            # Arm medial points only
+            right_arm_medial_ids = [joint_names.index("r_melbow"), joint_names.index("r_mwrist")]
+            left_arm_medial_ids  = [joint_names.index("l_melbow"), joint_names.index("l_mwrist")]
+
+            try: 
+                while not self.stop_event.is_set():
+                    frames = []
+                    new_counters = []
+                    for i, (lock, buffer, cam_ts, frame_counter) in enumerate(zip(self.camera_locks, self.camera_buffers, self.timestamp_buffers, self.frame_counters)):
+                        with lock:
+                            #  Only accept data if this camera has produced a new frame
+                            if frame_counter.value > self.last_frame_counters[i]:
+                                # Read and copy shared data atomically
+                                arr = np.frombuffer(buffer, dtype=np.uint8)
+                                frame = arr.reshape(self.frame_shape).copy()
+                                # Get current timestamp
+                                timestamp = bytes(cam_ts[:]).decode().strip('\x00')
+
+                                if timestamp == '': # empty data
+                                    continue
+                                else:
+                                    frames.append(frame)
+                                new_counters.append(frame_counter.value)
+                    
+                    if len(frames)!=self.num_cameras:
+                        continue
+
+                    self.last_frame_counters = new_counters.copy()
+                
+                    # print(new_counters)
+
+                    nlf_out, infer_ms, yres, boxes = est.estimate_from_frames(frames)
+
+                    keypoints_list = [None] * self.num_cameras
+                    valid_cam_ids = []
+
+                    for ii in range(self.num_cameras):
+                        out_i = nlf_out[ii]
+                        if out_i is None or not isinstance(out_i, dict):
+                            continue
+                        poses2d = out_i.get("poses2d", None)
+                        if poses2d is None or len(poses2d) == 0 or poses2d[0] is None:
+                            continue
+
+                        keypoints_list[ii] = poses2d[0].detach().float().cpu().numpy()
+                        valid_cam_ids.append(ii)
+
+                    if len(valid_cam_ids) < 2:
+                        if self.logger:
+                            self.logger.debug(f"[WARN] no output (None) for one of the frames, skip")
+                        vis_markers.delete()
+                        continue
+
+                    p3d = triangulate_points(
+                        keypoints_list=keypoints_list,
+                        mtxs=self.mtxs,
+                        dists=self.dists,
+                        projections=self.projections,
+                    )
+
+                    poses_triangul = torch.from_numpy(p3d).to(dtype=torch.float32)
+
+                    if poses_triangul.shape[0] > 0:
+                        points_all = poses_triangul.view(-1, 3).cpu().numpy().T  # (3, N)
+                        N = points_all.shape[1]
+
+                        # Joint id per point (works if points are flattened as [p0 joints..., p1 joints..., ...])
+                        joint_ids = np.arange(N) % J
+
+                        # Default: midline/other = blue
+                        colors = np.tile(np.array([[0.0], [0.0], [1.0]], dtype=np.float32), (1, N))
+
+                        # Right body = green
+                        mask_right = np.isin(joint_ids, right_joint_ids)
+                        colors[:, mask_right] = np.array([[0.0], [1.0], [0.0]], dtype=np.float32)
+
+                        # Left body = red
+                        mask_left = np.isin(joint_ids, left_joint_ids)
+                        colors[:, mask_left] = np.array([[1.0], [0.0], [0.0]], dtype=np.float32)
+
+                        # Tiny modification: arm medial points get a distinct color to separate medial vs lateral
+                        mask_r_med = np.isin(joint_ids, right_arm_medial_ids)
+                        mask_l_med = np.isin(joint_ids, left_arm_medial_ids)
+
+                        colors[:, mask_r_med] = np.array([[0.0], [1.0], [1.0]], dtype=np.float32)  # right medial = cyan
+                        colors[:, mask_l_med] = np.array([[1.0], [0.0], [1.0]], dtype=np.float32)  # left medial = magenta
+
+                        vis_markers.set_object(
+                            g.PointCloud(position=points_all, color=colors, size=0.02)
+                        )
+            finally:        
+                self.logger.info("[INFO] Display NLF Process with triangul terminated")
         else:
             cv2.namedWindow("Visualization", cv2.WINDOW_NORMAL)
 
@@ -392,7 +528,7 @@ class DisplayConsumerNLF(Process):
 
                     self.last_frame_counters = new_counters.copy()
                 
-                    print(new_counters)
+                    # print(new_counters)
 
                     nlf_out, infer_ms, yres, boxes = est.estimate_from_frames(frames)
                     vis_frames = est.visualize_frames(

@@ -2,10 +2,11 @@ import os
 import sys
 import cv2
 import numpy as np
+import pytest
 
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "../../../src")))
 
-from rtcosmik.triangulation.triangulation import DLT, triangulate_points
+from rtcosmik.triangulation.triangulation import DLT, triangulate_points, triangulate_points_torch
 
 
 def _make_camera_matrices(num_cams: int = 3):
@@ -97,3 +98,39 @@ def test_triangulate_points_empty_input():
     result = triangulate_points([], mtxs, dists, projections)
 
     assert result.shape == (0, 3)
+
+
+def test_triangulate_points_torch_native_matches_numpy_when_available():
+    torch = pytest.importorskip("torch")
+
+    mtxs, dists, projections = _make_camera_matrices(num_cams=3)
+    points_3d = np.array(
+        [
+            [0.12, -0.07, 3.20],
+            [0.08, 0.15, 4.10],
+            [-0.21, 0.03, 5.30],
+        ],
+        dtype=np.float64,
+    )
+    keypoints_list = _project_points(points_3d, projections)
+
+    # Build normalized undistorted points (C, J, 2) for the pure-torch path.
+    und = []
+    for cam_idx, points in enumerate(keypoints_list):
+        dist_coeffs_mat = np.array([dists[cam_idx]]).reshape(-1, 1)
+        und.append(
+            cv2.undistortPoints(
+                np.array(points).reshape(-1, 1, 2),
+                mtxs[cam_idx],
+                dist_coeffs_mat,
+            )[:, 0, :]
+        )
+
+    points_cj2 = np.stack(und, axis=0)
+    points_t = torch.as_tensor(points_cj2, dtype=torch.float64)
+    projections_t = torch.as_tensor(np.asarray(projections, dtype=np.float64), dtype=torch.float64)
+
+    result_torch_native = triangulate_points_torch(points_t, projections_t, return_numpy=True)
+    result_numpy = triangulate_points(keypoints_list, mtxs, dists, projections, backend="numpy")
+
+    np.testing.assert_allclose(result_torch_native, result_numpy, rtol=1e-10, atol=1e-10)
