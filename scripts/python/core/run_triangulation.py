@@ -188,10 +188,27 @@ def main(args):
 
             nlf_out, infer_ms, yres, boxes = est.estimate_from_frames(frames)
 
-            keypoints_list=[]
-            for ii in range(len(nlf_out)):
-                poses_2d = nlf_out[ii]['poses2d'][0]
-                keypoints_list.append(poses_2d.detach().float().cpu().numpy())
+            if nlf_out is None or len(nlf_out) < NUM_CAMERAS:
+                continue
+
+            keypoints_list = [None] * NUM_CAMERAS
+            valid_cam_ids = []
+
+            for ii in range(NUM_CAMERAS):
+                out_i = nlf_out[ii]
+                if out_i is None or not isinstance(out_i, dict):
+                    continue
+                poses2d = out_i.get("poses2d", None)
+                if poses2d is None or len(poses2d) == 0 or poses2d[0] is None:
+                    continue
+
+                keypoints_list[ii] = poses2d[0].detach().float().cpu().numpy()
+                valid_cam_ids.append(ii)
+
+            if len(valid_cam_ids) < 2:
+                if LOGGER:
+                    LOGGER.debug(f"[WARN] no output (None) for one of the frames, skip")
+                continue
 
             p3d = triangulate_points(
                 keypoints_list=keypoints_list,

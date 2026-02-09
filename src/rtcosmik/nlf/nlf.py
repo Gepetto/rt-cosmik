@@ -380,9 +380,13 @@ class DisplayConsumerNLF(Process):
             
             # --- 1. INITIALISATION MESHCAT ---
             vis = meshcat.Visualizer()
-            LOGGER.info(f"[INFO] Meshcat visualizer available here: {vis.url()}")
+            self.logger.info(f"[INFO] Meshcat visualizer available here: {vis.url()}")
 
             vis_markers = vis["markers"]
+
+            if self.world_R1_cam is None or self.world_T1_cam is None:
+                raise TypeError("with_triangul=True requires world_R1_cam and world_T1_cam")
+
 
             world_M_cam = np.eye(4, dtype=np.float64)
             world_M_cam[:3, :3] = self.world_R1_cam
@@ -414,32 +418,32 @@ class DisplayConsumerNLF(Process):
 
             try: 
                 while not self.stop_event.is_set():
-                    frames = []
-                    new_counters = []
-                    for i, (lock, buffer, cam_ts, frame_counter) in enumerate(zip(self.camera_locks, self.camera_buffers, self.timestamp_buffers, self.frame_counters)):
-                        with lock:
-                            #  Only accept data if this camera has produced a new frame
-                            if frame_counter.value > self.last_frame_counters[i]:
-                                # Read and copy shared data atomically
-                                arr = np.frombuffer(buffer, dtype=np.uint8)
-                                frame = arr.reshape(self.frame_shape).copy()
-                                # Get current timestamp
-                                timestamp = bytes(cam_ts[:]).decode().strip('\x00')
+                    frames = [None] * self.num_cameras
+                    new_counters = self.last_frame_counters.copy()
 
-                                if timestamp == '': # empty data
-                                    continue
-                                else:
-                                    frames.append(frame)
-                                new_counters.append(frame_counter.value)
-                    
-                    if len(frames)!=self.num_cameras:
+                    for i, (lock, buffer, cam_ts, frame_counter) in enumerate(zip(
+                            self.camera_locks, self.camera_buffers, self.timestamp_buffers, self.frame_counters)):
+                        with lock:
+                            if frame_counter.value > self.last_frame_counters[i]:
+                                # mark as consumed immediately so we won't copy it again next loop
+                                new_counters[i] = frame_counter.value
+
+                                timestamp = bytes(cam_ts[:]).decode().strip('\x00')
+                                if timestamp != '':
+                                    arr = np.frombuffer(buffer, dtype=np.uint8)
+                                    frames[i] = arr.reshape(self.frame_shape).copy()
+
+                    # commit counters even if we can't process yet
+                    self.last_frame_counters = new_counters
+
+                    # only continue when we have all cameras
+                    if any(f is None for f in frames):
                         continue
 
-                    self.last_frame_counters = new_counters.copy()
-                
-                    # print(new_counters)
-
                     nlf_out, infer_ms, yres, boxes = est.estimate_from_frames(frames)
+
+                    if nlf_out is None or len(nlf_out) < self.num_cameras:
+                        continue
 
                     keypoints_list = [None] * self.num_cameras
                     valid_cam_ids = []
@@ -458,7 +462,6 @@ class DisplayConsumerNLF(Process):
                     if len(valid_cam_ids) < 2:
                         if self.logger:
                             self.logger.debug(f"[WARN] no output (None) for one of the frames, skip")
-                        vis_markers.delete()
                         continue
 
                     p3d = triangulate_points(
@@ -505,30 +508,27 @@ class DisplayConsumerNLF(Process):
 
             try: 
                 while not self.stop_event.is_set():
-                    frames = []
-                    new_counters = []
-                    for i, (lock, buffer, cam_ts, frame_counter) in enumerate(zip(self.camera_locks, self.camera_buffers, self.timestamp_buffers, self.frame_counters)):
+                    frames = [None] * self.num_cameras
+                    new_counters = self.last_frame_counters.copy()
+
+                    for i, (lock, buffer, cam_ts, frame_counter) in enumerate(zip(
+                            self.camera_locks, self.camera_buffers, self.timestamp_buffers, self.frame_counters)):
                         with lock:
-                            #  Only accept data if this camera has produced a new frame
                             if frame_counter.value > self.last_frame_counters[i]:
-                                # Read and copy shared data atomically
-                                arr = np.frombuffer(buffer, dtype=np.uint8)
-                                frame = arr.reshape(self.frame_shape).copy()
-                                # Get current timestamp
+                                # mark as consumed immediately so we won't copy it again next loop
+                                new_counters[i] = frame_counter.value
+
                                 timestamp = bytes(cam_ts[:]).decode().strip('\x00')
+                                if timestamp != '':
+                                    arr = np.frombuffer(buffer, dtype=np.uint8)
+                                    frames[i] = arr.reshape(self.frame_shape).copy()
 
-                                if timestamp == '': # empty data
-                                    continue
-                                else:
-                                    frames.append(frame)
-                                new_counters.append(frame_counter.value)
-                    
-                    if len(frames)!=self.num_cameras:
+                    # commit counters even if we can't process yet
+                    self.last_frame_counters = new_counters
+
+                    # only continue when we have all cameras
+                    if any(f is None for f in frames):
                         continue
-
-                    self.last_frame_counters = new_counters.copy()
-                
-                    # print(new_counters)
 
                     nlf_out, infer_ms, yres, boxes = est.estimate_from_frames(frames)
                     vis_frames = est.visualize_frames(
