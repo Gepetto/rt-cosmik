@@ -640,7 +640,7 @@ def get_head_pose(mks_positions, gender='m', subject_height= 1.80):
         # special origin: ONLY if both Head and C7 exist
         if 'C7' in mks_positions:
             ear_width = np.linalg.norm(mks_positions['REar'] - mks_positions['LEar'])
-            dx = 0.20*ear_width     # meters if markers are in meters
+            dx = 0.70*ear_width     # meters if markers are in meters
             head_center = mks_positions['C7'] + dx * X.reshape(3,)
 
     else:
