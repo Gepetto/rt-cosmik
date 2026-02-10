@@ -106,51 +106,26 @@ def triangulate_points_torch(points_cj2_torch, projections_torch, return_numpy: 
 
 def triangulate_points(keypoints_list, mtxs, dists, projections):
     """
-    Triangulates 3D points from multiple 2D keypoints using camera matrices and distortion coefficients.
-    Accepts None entries in keypoints_list (those cameras are ignored).
+    Triangulates 3D points from multiple 2D keypoints using camera matrices and distortion coefficients. 
+    All operations run on CPU with vectorized NumPy.
     """
 
-    # Filter valid cameras (must keep K/dist/P aligned with points)
-    valid = []
-    for kp, K, d, P in zip(keypoints_list, mtxs, dists, projections):
-        if kp is None:
-            continue
-        kp = np.asarray(kp)
-        if kp.size == 0:
-            continue
-        # If kp is (J,3) keep only (x,y)
-        if kp.ndim == 2 and kp.shape[1] >= 2:
-            kp = kp[:, :2]
-        else:
-            # unexpected shape -> skip this camera
-            continue
-        valid.append((kp, K, d, P))
-
-    # Need at least 2 cameras for triangulation
-    if len(valid) < 2:
-        return np.zeros((0, 3), dtype=np.float64)
-
     undistorted_points = []
-    proj_list = []
-
-    for points, K, d, P in valid:
-        points = np.asarray(points, dtype=np.float64).reshape(-1, 1, 2)
-
-        distCoeffs = np.asarray(d, dtype=np.float64).reshape(-1, 1)
-        K = np.asarray(K, dtype=np.float64)
-
-        # undistortPoints -> normalized coords (since no P= provided)
-        points_undistorted = cv2.undistortPoints(points, K, distCoeffs)
+    for ii in range(len(keypoints_list)):
+        points = keypoints_list[ii]
+        distCoeffs_mat = np.array([dists[ii]]).reshape(-1, 1)
+        points_undistorted = cv2.undistortPoints(np.array(points).reshape(-1, 1, 2), mtxs[ii], distCoeffs_mat)
         undistorted_points.append(points_undistorted)
-        proj_list.append(np.asarray(P, dtype=np.float64))
+
+    if len(undistorted_points) == 0:
+        return np.zeros((0, 3), dtype=np.float64)
 
     num_points = min(up.shape[0] for up in undistorted_points)
     if num_points == 0:
         return np.zeros((0, 3), dtype=np.float64)
 
-    points_cj2 = np.stack([up[:num_points, 0, :] for up in undistorted_points], axis=0)  # (C, J, 2)
-    projections_arr = np.stack(proj_list, axis=0)  # (C, 3, 4)
-
+    points_cj2 = np.stack([up[:num_points, 0, :] for up in undistorted_points], axis=0)
+    projections_arr = np.asarray(projections, dtype=np.float64)
     a = _build_dlt_system(points_cj2=points_cj2, projections_arr=projections_arr)
     b = np.matmul(np.transpose(a, (0, 2, 1)), a)
     _, _, vh = np.linalg.svd(b, full_matrices=False)

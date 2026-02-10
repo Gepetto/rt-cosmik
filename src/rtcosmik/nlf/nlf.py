@@ -418,27 +418,30 @@ class DisplayConsumerNLF(Process):
 
             try: 
                 while not self.stop_event.is_set():
-                    frames = [None] * self.num_cameras
-                    new_counters = self.last_frame_counters.copy()
-
-                    for i, (lock, buffer, cam_ts, frame_counter) in enumerate(zip(
-                            self.camera_locks, self.camera_buffers, self.timestamp_buffers, self.frame_counters)):
+                    frames = []
+                    new_counters = []
+                    for i, (lock, buffer, cam_ts, frame_counter) in enumerate(zip(self.camera_locks, self.camera_buffers, self.timestamp_buffers, self.frame_counters)):
                         with lock:
+                            #  Only accept data if this camera has produced a new frame
                             if frame_counter.value > self.last_frame_counters[i]:
-                                # mark as consumed immediately so we won't copy it again next loop
-                                new_counters[i] = frame_counter.value
-
+                                # Read and copy shared data atomically
+                                arr = np.frombuffer(buffer, dtype=np.uint8)
+                                frame = arr.reshape(self.frame_shape).copy()
+                                # Get current timestamp
                                 timestamp = bytes(cam_ts[:]).decode().strip('\x00')
-                                if timestamp != '':
-                                    arr = np.frombuffer(buffer, dtype=np.uint8)
-                                    frames[i] = arr.reshape(self.frame_shape).copy()
 
-                    # commit counters even if we can't process yet
-                    self.last_frame_counters = new_counters
-
-                    # only continue when we have all cameras
-                    if any(f is None for f in frames):
+                                if timestamp == '': # empty data
+                                    continue
+                                else:
+                                    frames.append(frame)
+                                new_counters.append(frame_counter.value)
+                    
+                    if len(frames)!=self.num_cameras:
+                        if self.logger:
+                            self.logger.debug(f"[WARN] one of the camera frames is missing, skip")
                         continue
+
+                    self.last_frame_counters = new_counters.copy()
 
                     nlf_out, infer_ms, yres, boxes = est.estimate_from_frames(frames)
 
@@ -508,27 +511,30 @@ class DisplayConsumerNLF(Process):
 
             try: 
                 while not self.stop_event.is_set():
-                    frames = [None] * self.num_cameras
-                    new_counters = self.last_frame_counters.copy()
-
-                    for i, (lock, buffer, cam_ts, frame_counter) in enumerate(zip(
-                            self.camera_locks, self.camera_buffers, self.timestamp_buffers, self.frame_counters)):
+                    frames = []
+                    new_counters = []
+                    for i, (lock, buffer, cam_ts, frame_counter) in enumerate(zip(self.camera_locks, self.camera_buffers, self.timestamp_buffers, self.frame_counters)):
                         with lock:
+                            #  Only accept data if this camera has produced a new frame
                             if frame_counter.value > self.last_frame_counters[i]:
-                                # mark as consumed immediately so we won't copy it again next loop
-                                new_counters[i] = frame_counter.value
-
+                                # Read and copy shared data atomically
+                                arr = np.frombuffer(buffer, dtype=np.uint8)
+                                frame = arr.reshape(self.frame_shape).copy()
+                                # Get current timestamp
                                 timestamp = bytes(cam_ts[:]).decode().strip('\x00')
-                                if timestamp != '':
-                                    arr = np.frombuffer(buffer, dtype=np.uint8)
-                                    frames[i] = arr.reshape(self.frame_shape).copy()
 
-                    # commit counters even if we can't process yet
-                    self.last_frame_counters = new_counters
-
-                    # only continue when we have all cameras
-                    if any(f is None for f in frames):
+                                if timestamp == '': # empty data
+                                    continue
+                                else:
+                                    frames.append(frame)
+                                new_counters.append(frame_counter.value)
+                    
+                    if len(frames)!=self.num_cameras:
+                        if self.logger:
+                            self.logger.debug(f"[WARN] one of the camera frames is missing, skip")
                         continue
+
+                    self.last_frame_counters = new_counters.copy()
 
                     nlf_out, infer_ms, yres, boxes = est.estimate_from_frames(frames)
                     vis_frames = est.visualize_frames(

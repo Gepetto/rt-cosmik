@@ -188,13 +188,13 @@ def main(args):
 
             nlf_out, infer_ms, yres, boxes = est.estimate_from_frames(frames)
 
-            if nlf_out is None or len(nlf_out) < NUM_CAMERAS:
+            if nlf_out is None or len(nlf_out) < len(paths):
                 continue
 
-            keypoints_list = [None] * NUM_CAMERAS
+            keypoints_list = [None] * len(paths)
             valid_cam_ids = []
 
-            for ii in range(NUM_CAMERAS):
+            for ii in range(len(paths)):
                 out_i = nlf_out[ii]
                 if out_i is None or not isinstance(out_i, dict):
                     continue
@@ -209,6 +209,7 @@ def main(args):
                 if LOGGER:
                     LOGGER.debug(f"[WARN] no output (None) for one of the frames, skip")
                 continue
+
 
             p3d = triangulate_points(
                 keypoints_list=keypoints_list,
