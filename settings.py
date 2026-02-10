@@ -1,6 +1,7 @@
 from dataclasses import dataclass, field
 import os 
 from pathlib import Path
+from typing import Dict
 
 @dataclass
 class Settings:
@@ -25,7 +26,7 @@ class Settings:
     human_gender: str = 'm'
 
     # VIEWER PARAMS
-    viewer: str = "gv" # viewer type: gv or ros
+    viewer: str = "meshcat" # viewer type: meshcat or rviz
     urdf_path: str = field(init=False) # relative path to the robot urdf
     meshes_path: str = field(init=False) # relative path to the robot meshes
 
@@ -104,7 +105,6 @@ class Settings:
            'L_lwrist_study','L_mwrist_study'])
     
     
-    # Add this to the class definition
     keys_to_track_list: list = field(default_factory=lambda: [
            "RASI", "LASI", "RPSI","LPSI",
            "C7", "T11", "T6", "RSHO", "LSHO", "RELB", "LELB", "RMELB", "LMELB", "RWRI", "LWRI", "RMWRI", "RLWRI",
@@ -113,7 +113,6 @@ class Settings:
            "R5MHD", "L5MHD", "RTOE", "LTOE", "LHEE", "RHEE",
            "Nose", "Head", "REar", "LEar", "REye", "LEye",
     ])
-
 
     def __post_init__(self):
         # Use Pathlib for better path handling

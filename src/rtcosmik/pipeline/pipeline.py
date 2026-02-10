@@ -7,7 +7,6 @@ from src.rtcosmik.triangulation.triangulation import triangulate_points
 from src.rtcosmik.filtering.iir import IIR
 from src.rtcosmik.ik.ik import RT_IK, RT_SWIKA
 from src.rtcosmik.camera.cam_utils import load_camera_parameters,load_world_transformation
-from src.rtcosmik.human_model.pin_model import build_model_no_visuals
 
 from collections import deque
 import torch
@@ -17,7 +16,6 @@ from datetime import datetime
 from multiprocessing import Process, Array, Lock, Value, Event, Queue
 from typing import List
 import time
-from src.rtcosmik.human_model.urdf_model import Robot, scale_human_model, mks_registration
 
 class PipelineProcess(Process):
     def __init__(self, 

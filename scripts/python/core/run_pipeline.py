@@ -18,12 +18,15 @@ import meshcat.transformations as tf
 import cv2
 import numpy as np
 import torch
+import pinocchio as pin 
+from pinocchio.visualize import MeshcatVisualizer
 
 from src.rtcosmik.config_loader import settings
 from src.rtcosmik.nlf.nlf import NLFEstimator, DisplayConsumerNLF
 from src.rtcosmik.triangulation.triangulation import triangulate_points
 from src.rtcosmik.filtering.iir import IIR
-from src.rtcosmik.human_model.urdf_model import scale_human_model, mks_registration
+from src.rtcosmik.human_model.model_utils import scale_human_model, mks_registration
+from src.rtcosmik.ik.ik import RT_IK, RT_SWIKA
 from src.rtcosmik.camera.cam_utils import list_cameras, load_camera_parameters, load_world_transformation
 from src.rtcosmik.camera.camera import Camera
 from src.rtcosmik.utils.mp_utils import create_udp_buffer, create_camera_shared_ressources, create_pipeline_shared_ressources
@@ -254,22 +257,27 @@ def main(args):
                     human_visual_model = human.visual_model
 
                     #scale the model to data
-                    human_model = scale_human_model(human_model, mks_dict,with_hand=True, gender=settings.human_gender,subject_height=settings.human_height)
-                    human_model= mks_registration(human_model,mks_dict, with_hand=True)
+                    human_model = scale_human_model(human_model, mks_dict, gender=settings.human_gender, subject_height=settings.human_height)
+                    human_model= mks_registration(human_model, mks_dict, gender=settings.human_gender, subject_height=settings.human_height)
                     human_data = pin.Data(human_model)
 
                     # Init meshcat viewer for human
                     # Visualizers
                     viz_human = MeshcatVisualizer(human_model, human_collision_model, human_visual_model)
-                    viz_human.initViewer(viewer, open=True)
+                    viz_human.initViewer(vis, open=True)
                     viz_human.viewer.delete()  # clear if relaunch
                     viz_human.loadViewerModel("ref")
-                    
+                    viz_human.display(pin.neutral(human_model))
+                    viz_human.viewer["/Background"].set_property("top_color", [1, 1, 1])  # Dark gray (RGB values in [0, 1])
+                    viz_human.viewer["/Background"].set_property("bottom_color", [0.65, 0.65, 0.65])  # Same color → flat background
 
                     # IK
                     if settings.ik_type == 'sbs':
+                        omega = {}
+                        for key in settings.keys_to_track_list:
+                            omega[key] = 1
                         q = pin.neutral(human_model)
-                        ik_class = RT_IK(human_model, mks_dict, q, settings.keys_to_track_list, settings.dt)
+                        ik_class = RT_IK(human_model, mks_dict, q, settings.keys_to_track_list, settings.dt, omega)
 
                         q = ik_class.solve_ik_sample_casadi()
                         ik_class._q0 = q
