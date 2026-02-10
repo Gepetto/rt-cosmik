@@ -44,20 +44,17 @@ class Settings:
 
     cano_path: str = "/root/workspace/ros_ws/RT-COSMIK/weights/canonical_verts/smplx.npy"
     nlf_path: str = "/root/workspace/ros_ws/RT-COSMIK/weights/nlf/nlf_s_multi_0.2.2.torchscript"
-    
-    nlf_indices = [
-        5484, 6629, 3878, 7040, 4302, 7105, 4369, 7584, 4848, 7457, 4721, #c7, rshoulder,lshoulder,r_lelbow,l_lelbow,r_melbow,l_melbow,r_lwrist, l_lwrist,r_mwrist, l_mwrist
-        8421, 5727, 8371, 5677, #r_asis,l_asis,r_psis,l_psis 
-        6401, 3640, 6407, 3646, 8576,5882,8680,8892, #r_knee,l_knee,r_mknee,l_mknee,r_ankle,l_ankle,r_mankle,l_mankle,
-        8596,5902,8589,5895,8482,5788,8846,8634, #r_5meta, l_5meta, r_toe, l_toe, r_big_toe, l_big_toe, l_calc, r_calc,
-        7978,4807,8004,5268,7483,4747,7664,4928,7776,5040,7887,5151,7420,4684,8078,5342, #7978,4807, r_tpinky, l_tpinky, r_bindex, l_bindex, r_tindex, l_tindex, r_tmiddle, l_tmiddle, r_tring,l_tring, r_bthumb, l_bthumb,r_tthumb, l_tthumb
-        9008,9002,1253,399,10049,9503 ,  #nose, head,right_ear,left_ear, right_eye, left_eye
-        5941,5489,5500 #L2, T11, T6
+    nlf_indices = [             # For SMPLX model
+        8421, 5727, 8371, 5677, # pelvis: RASI, LASI, RPSI, LPSI 
+        5484, 5489, 5500, 6629, 3878, 7040, 4302, 7105, 4369, 7584, 4848, 7457, 4721, # upper: C7, T11, T6,  RSHO, LSHO, RELB, LELB, RMELB, LMELB, RWRI, LWRI, RMWRI, LMWRI
+        8079, 5361, 7794, 5058, 8022, 5286,  # hands:  RTHU, LTHU, RMID, LMID, RPIN, LPIN
+        6401, 3640, 6407, 3646, 8576, 5882, 8680, 8892, # legs: RKNE, LKNE, RMKNE, LMKNE, RANK, LANK, RMANK, LMANK,
+        8474,5780,8463,5770,8635,8846, # feet: R5MHD, L5MHD, RTOE, LTOE, RHEE, LHEE,
+        9120,9002,616,6,9929,9448,  # face: Nose, Head, REar, LEar, REye, LEye
     ]
 
     # Yolo detector
     yolo_path: str = "/root/workspace/ros_ws/RT-COSMIK/weights/yolo/yolov10n.engine"
-
     yolo_conf = 0.2
     yolo_imgsz = 640
 
@@ -83,22 +80,16 @@ class Settings:
     ik_code: str = "python" # either "python" or "c" 
     cost_weights: list = field(default_factory=lambda: [1, 1e-3, 1e-5])
     N: int = 10 # number of time steps
-    
-    # For planar case 
-    side_to_track: str =  "right" # bilateral (if we want to track both side, i.e., lifting), right or left
-
 
     # MARKER SET 
     marker_names: list = field(default_factory=lambda: [
-           'r.ASIS_study','L.ASIS_study','r.PSIS_study','L.PSIS_study','r_knee_study',
-           'r_mknee_study','r_ankle_study','r_mankle_study','r_toe_study','r_5meta_study',
-           'r_calc_study','L_knee_study','L_mknee_study','L_ankle_study','L_mankle_study',
-           'L_toe_study','L_calc_study','L_5meta_study','r_shoulder_study','L_shoulder_study',
-           'C7_study','r_thigh1_study','r_thigh2_study','r_thigh3_study','L_thigh1_study',
-           'L_thigh2_study','L_thigh3_study','r_sh1_study','r_sh2_study','r_sh3_study',
-           'L_sh1_study','L_sh2_study','L_sh3_study','RHJC_study','LHJC_study','r_lelbow_study',
-           'r_melbow_study','r_lwrist_study','r_mwrist_study','L_lelbow_study','L_melbow_study',
-           'L_lwrist_study','L_mwrist_study'])
+           "RASI", "LASI", "RPSI", "LPSI",
+           "C7", "T11", "T6", "RSHO", "LSHO", "RELB", "LELB", "RMELB", "LMELB", "RWRI", "LWRI", "RMWRI", "LMWRI",
+           "RTHU", "LTHU", "RMID", "LMID", "RPIN", "LPIN",
+           "RKNE", "LKNE", "RMKNE", "LMKNE", "RANK", "LANK", "RMANK", "LMANK",
+           "R5MHD", "L5MHD", "RTOE", "LTOE", "LHEE", "RHEE",
+           "Nose", "Head", "REar", "LEar", "REye", "LEye",
+           ])
 
     marker_mocap_names: list = field(default_factory=lambda: [
            'r.ASIS_study','L.ASIS_study','r.PSIS_study','L.PSIS_study','r_knee_study',
@@ -114,22 +105,12 @@ class Settings:
     
     # Add this to the class definition
     keys_to_track_list: list = field(default_factory=lambda: [
-        'Nose', 'Head', 'REye', 'LEye',
-        'C7_study', 
-        'r.ASIS_study', 'L.ASIS_study', 
-        'r.PSIS_study', 'L.PSIS_study', 
-        'r_shoulder_study',
-        'r_lelbow_study', 'r_melbow_study',
-        'r_lwrist_study', 'r_mwrist_study',
-        'r_ankle_study', 'r_mankle_study',
-        'r_toe_study','r_5meta_study', 'r_calc_study',
-        'r_knee_study', 'r_mknee_study',
-        'L_shoulder_study', 
-        'L_lelbow_study', 'L_melbow_study',
-        'L_lwrist_study','L_mwrist_study',
-        'L_ankle_study', 'L_mankle_study', 
-        'L_toe_study','L_5meta_study', 'L_calc_study',
-        'L_knee_study', 'L_mknee_study',
+           "RASI", "LASI", "RPSI","LPSI",
+           "C7", "T11", "T6", "RSHO", "LSHO", "RELB", "LELB", "RMELB", "LMELB", "RWRI", "LWRI", "RMWRI", "RLWRI",
+           "RTHU", "LTHU", "RMID", "LMID", "RPIN", "LPIN",
+           "RKNE", "LKNE", "RMKNE", "LMKNE", "RANK", "LANK", "RMANK", "LMANK",
+           "R5MHD", "L5MHD", "RTOE", "LTOE", "LHEE", "RHEE",
+           "Nose", "Head", "REar", "LEar", "REye", "LEye",
     ])
 
 

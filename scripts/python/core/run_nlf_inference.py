@@ -98,21 +98,16 @@ def main(args):
         ]
 
         # Create display consumer
-        display = DisplayConsumerNLF(frame_counters=frame_counters,
+        display = DisplayConsumerNLF(
+            settings=settings,
+            frame_counters=frame_counters,
             camera_buffers=camera_buffers,
             camera_locks=camera_locks,
             timestamp_buffers=camera_timestamps,
             stop_event=stop_event,
+            mtxs=mtxs,
             frame_shape=FRAME_SHAPE,
             num_cameras=NUM_CAMERAS,
-            yolo_path=settings.yolo_path,
-            nlf_path=settings.nlf_path,
-            cano_path=settings.cano_path,
-            mtxs=mtxs,
-            nlf_indices=settings.nlf_indices,
-            yolo_conf=settings.yolo_conf,
-            yolo_imgsz=settings.yolo_imgsz,
-            device=settings.device,
         )
 
         processes = camera_processes + [display]

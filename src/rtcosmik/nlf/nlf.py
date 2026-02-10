@@ -67,6 +67,14 @@ class NLFEstimator:
     def load_nlf(self, path: str):
         model = torch.jit.load(path).eval().to(self.device)
 
+        def _nop(*args, **kwargs):
+            return None
+
+        try:
+            model.forward = _nop
+        except Exception:
+            pass
+        
         try:
             model = torch.jit.optimize_for_inference(
                 model,
@@ -309,22 +317,16 @@ class NLFEstimator:
         return out_frames
 
 class DisplayConsumerNLF(Process):
-    def __init__(self, 
+    def __init__(self,
+                 settings,
                  frame_counters,
                  camera_buffers, 
                  camera_locks, 
                  timestamp_buffers, 
                  stop_event, 
-                 frame_shape, 
-                 num_cameras,
-                 yolo_path,
-                 nlf_path,
-                 cano_path,
                  mtxs,
-                 nlf_indices,
-                 yolo_conf,
-                 yolo_imgsz,
-                 device,
+                 frame_shape: tuple = (720, 1280, 3),
+                 num_cameras: int = 2,
                  with_triangul=False,
                  world_R1_cam=None,
                  world_T1_cam=None,
@@ -343,18 +345,19 @@ class DisplayConsumerNLF(Process):
         self.last_frame_counters = [0] * self.num_cameras
         self.frame_counters = frame_counters
 
-        self.yolo_path=yolo_path
-        self.nlf_path=nlf_path
-        self.cano_path=cano_path
+        self.yolo_path=settings.yolo_path
+        self.nlf_path=settings.nlf_path
+        self.cano_path=settings.cano_path
+        self.marker_names=settings.marker_names
 
         self.mtxs=mtxs
         self.dists=dists
         self.projections=projections
 
-        self.nlf_indices=nlf_indices
-        self.yolo_conf=yolo_conf
-        self.yolo_imgsz=yolo_imgsz
-        self.device=device 
+        self.nlf_indices=settings.nlf_indices
+        self.yolo_conf=settings.yolo_conf
+        self.yolo_imgsz=settings.yolo_imgsz
+        self.device=settings.device 
 
         self.with_triangul=with_triangul
         self.world_R1_cam=world_R1_cam
@@ -387,7 +390,6 @@ class DisplayConsumerNLF(Process):
             if self.world_R1_cam is None or self.world_T1_cam is None:
                 raise TypeError("with_triangul=True requires world_R1_cam and world_T1_cam")
 
-
             world_M_cam = np.eye(4, dtype=np.float64)
             world_M_cam[:3, :3] = self.world_R1_cam
             world_M_cam[:3, 3] = self.world_T1_cam
@@ -397,24 +399,14 @@ class DisplayConsumerNLF(Process):
                 raise TypeError("For triangulation, please provide dists and projections")
 
             # Names aligned 1-to-1 with nlf_indices order
-            joint_names = [
-                "c7","r_shoulder","l_shoulder","r_lelbow","l_lelbow","r_melbow","l_melbow","r_lwrist","l_lwrist","r_mwrist","l_mwrist",
-                "r_asis","l_asis","r_psis","l_psis",
-                "r_knee","l_knee","r_mknee","l_mknee","r_ankle","l_ankle","r_mankle","l_mankle",
-                "r_5meta","l_5meta","r_toe","l_toe","r_big_toe","l_big_toe","l_calc","r_calc",
-                "r_tpinky","l_tpinky","r_bindex","l_bindex","r_tindex","l_tindex","r_tmiddle","l_tmiddle","r_tring","l_tring",
-                "r_bthumb","l_bthumb","r_tthumb","l_tthumb",
-                "nose","head","right_ear","left_ear","right_eye","left_eye",
-                "L2","T11","T6"
-            ]
-            J = len(joint_names)
+            J = len(self.marker_names)
 
-            right_joint_ids = [i for i, n in enumerate(joint_names) if n.startswith("r_") or n.startswith("right_")]
-            left_joint_ids  = [i for i, n in enumerate(joint_names) if n.startswith("l_") or n.startswith("left_")]
+            right_joint_ids = [i for i, n in enumerate(self.marker_names) if n.startswith("R") or n.startswith("right_")]
+            left_joint_ids  = [i for i, n in enumerate(self.marker_names) if n.startswith("L") or n.startswith("left_")]
 
             # Arm medial points only
-            right_arm_medial_ids = [joint_names.index("r_melbow"), joint_names.index("r_mwrist")]
-            left_arm_medial_ids  = [joint_names.index("l_melbow"), joint_names.index("l_mwrist")]
+            right_arm_medial_ids = [self.marker_names.index("RMELB"), self.marker_names.index("RMWRI")]
+            left_arm_medial_ids  = [self.marker_names.index("LMELB"), self.marker_names.index("LMWRI")]
 
             try: 
                 while not self.stop_event.is_set():
@@ -437,8 +429,6 @@ class DisplayConsumerNLF(Process):
                                 new_counters.append(frame_counter.value)
                     
                     if len(frames)!=self.num_cameras:
-                        if self.logger:
-                            self.logger.debug(f"[WARN] one of the camera frames is missing, skip")
                         continue
 
                     self.last_frame_counters = new_counters.copy()
@@ -463,10 +453,8 @@ class DisplayConsumerNLF(Process):
                         valid_cam_ids.append(ii)
 
                     if len(valid_cam_ids) < 2:
-                        if self.logger:
-                            self.logger.debug(f"[WARN] no output (None) for one of the frames, skip")
                         continue
-
+                    
                     p3d = triangulate_points(
                         keypoints_list=keypoints_list,
                         mtxs=self.mtxs,
@@ -498,8 +486,8 @@ class DisplayConsumerNLF(Process):
                         mask_r_med = np.isin(joint_ids, right_arm_medial_ids)
                         mask_l_med = np.isin(joint_ids, left_arm_medial_ids)
 
-                        colors[:, mask_r_med] = np.array([[0.0], [1.0], [1.0]], dtype=np.float32)  # right medial = cyan
-                        colors[:, mask_l_med] = np.array([[1.0], [0.0], [1.0]], dtype=np.float32)  # left medial = magenta
+                        colors[:, mask_r_med] = np.array([[0.0], [0.0], [0.0]], dtype=np.float32)  # right medial = black
+                        colors[:, mask_l_med] = np.array([[0.0], [0.0], [0.0]], dtype=np.float32)  # left medial = black
 
                         vis_markers.set_object(
                             g.PointCloud(position=points_all, color=colors, size=0.02)
