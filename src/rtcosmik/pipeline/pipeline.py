@@ -4,8 +4,6 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '../.
 script_directory = os.path.dirname(os.path.abspath(__file__))
 rt_cosmik_path ='/root/workspace/ros_ws/src/RT-COSMIK/'
 from src.rtcosmik.triangulation.triangulation import triangulate_points
-from src.rtcosmik.augmenter.marker_augmenter import augmentTRC, loadModel
-from src.rtcosmik.pose_estimator.pose_estimator import BatchPoseTrackerEstimator
 from src.rtcosmik.filtering.iir import IIR
 from src.rtcosmik.ik.ik import RT_IK, RT_SWIKA
 from src.rtcosmik.camera.cam_utils import load_camera_parameters,load_world_transformation

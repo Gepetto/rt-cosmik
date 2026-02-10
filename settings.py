@@ -21,7 +21,8 @@ class Settings:
 
     # HUMAN ANTHROPOMETRY
     human_height: float = 1.81
-    human_mass: float = 74.0   
+    human_weight: float = 74.0 
+    human_gender: str = 'm'
 
     # VIEWER PARAMS
     viewer: str = "gv" # viewer type: gv or ros
@@ -36,7 +37,7 @@ class Settings:
     # FILTER PARAMS
     order: int = 4
     system_freq: int = 40 
-    cutoff_freq: float = 7
+    cutoff_freq: float = 5
     filter_type: str = "lowpass"
 
     # NLF
@@ -74,7 +75,7 @@ class Settings:
                             'Rknee_flex_ext','Rankle_flex_ext', 'Rankle_abd_add']
 
     # Ik type
-    ik_type: str ="mhe" # either "mhe" for SWIKA or "sbs" for sample by sample qp
+    ik_type: str ="sbs" # either "mhe" for SWIKA or "sbs" for sample by sample qp
     
     # if ik_type = "mhe"
     ik_code: str = "python" # either "python" or "c" 

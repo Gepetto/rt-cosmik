@@ -226,7 +226,6 @@ def main(args):
                 )
 
                 points_all2 = poses_triangul.view(-1, 3).cpu().numpy().T
-                
                 colors2 = np.zeros_like(points_all2)
                 colors2[0, :] = 0.0  # R
                 colors2[1, :] = 0.0  # G

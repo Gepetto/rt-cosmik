@@ -1,129 +1,334 @@
+#!/usr/bin/env python3
 import sys
 import os
-import logging
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__)))) # Repo root
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "src")) # src dir
+import argparse
+
+import time
+from pathlib import Path
+from dataclasses import dataclass
+from typing import List, Optional, Sequence, Tuple
+
+import meshcat
+import meshcat.geometry as g
+import meshcat.transformations as tf
+
+import cv2
+import numpy as np
+import torch
 
 from src.rtcosmik.config_loader import settings
-from src.rtcosmik.camera.cam_utils import list_cameras
-from src.rtcosmik.camera.camera import Camera, DisplayConsumer
-from src.rtcosmik.utils.mp_utils import create_camera_shared_ressources, create_pipeline_shared_ressources, create_pipeline_shared_resources_with_buffers,create_udp_buffer
-from src.rtcosmik.saver.video_saver import VideoSaverProcess
+from src.rtcosmik.nlf.nlf import NLFEstimator, DisplayConsumerNLF
+from src.rtcosmik.triangulation.triangulation import triangulate_points
+from src.rtcosmik.filtering.iir import IIR
+from src.rtcosmik.human_model.urdf_model import scale_human_model, mks_registration
+from src.rtcosmik.camera.cam_utils import list_cameras, load_camera_parameters, load_world_transformation
+from src.rtcosmik.camera.camera import Camera
+from src.rtcosmik.utils.mp_utils import create_udp_buffer, create_camera_shared_ressources, create_pipeline_shared_ressources
 from src.rtcosmik.pipeline.pipeline import PipelineProcess
-from src.rtcosmik.viewer.viewer import ViewerProcess
-from src.rtcosmik.vicon.vicon import UDPDataSaver, UDPReceiver
-import time
+
+
 from multiprocessing import set_start_method
-from multiprocessing import Value, Array
+from collections import deque
+import example_robot_data as robex
+
+import logging
+
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s | %(levelname)s | %(name)s | %(message)s",
+    force=True
+)
+
+LOGGER = logging.getLogger(__name__)
+
+def list_videos(data_dir: Path) -> List[Path]:
+    if not data_dir.exists():
+        raise FileNotFoundError(f"data dir does not exist: {data_dir}")
+    vids = [p for p in sorted(data_dir.iterdir()) if p.suffix.lower() in [".mp4"]]
+    return vids
+
+@dataclass
+class OfflineVideoSource:
+    paths: List[Path]
+    size_wh: Tuple[int, int]
+
+    def __post_init__(self):
+        self.caps = [cv2.VideoCapture(str(p)) for p in self.paths]
+        for p, cap in zip(self.paths, self.caps):
+            if not cap.isOpened():
+                raise RuntimeError(f"Could not open video: {p}")
+
+    def read(self) -> Optional[List[np.ndarray]]:
+        frames: List[np.ndarray] = []
+        for cap in self.caps:
+            ok, frame = cap.read()
+            if not ok:
+                cap.set(cv2.CAP_PROP_POS_FRAMES, 0)
+                ok, frame = cap.read()
+                if not ok:
+                    return None
+            W, H = self.size_wh
+            if frame.shape[1] != W or frame.shape[0] != H:
+                frame = cv2.resize(frame, (W, H), interpolation=cv2.INTER_LINEAR)
+            frames.append(frame)
+        return frames
+
+    def release(self):
+        for cap in self.caps:
+            cap.release()
 
 
-def main():
-    saving_enabled = Value('b', False)
+def main(args):
+    torch.backends.cudnn.benchmark = True
 
-    cameras = list_cameras()
-    NUM_CAMERAS = len(cameras)
-    FRAME_SHAPE = (settings.height, settings.width, 3)
-
-    camera_buffers, camera_timestamps, camera_locks, frame_counters, camera_barrier, stop_event = create_camera_shared_ressources(NUM_CAMERAS, FRAME_SHAPE)
-    results_queues = create_pipeline_shared_ressources()
-    buffers = create_pipeline_shared_resources_with_buffers()
-    shared_ts_udp,shared_values_udp,lock_udp,cam_event = create_udp_buffer(settings.marker_mocap_names)
-
-
-     # Create camera processes
-    camera_processes = [
-        Camera(list(cameras.keys())[i], 
-               camera_buffers[i], 
-               camera_timestamps[i], 
-               camera_locks[i], 
-               frame_counters[i], 
-               camera_barrier, 
-               stop_event,
-               cam_event, 
-               FRAME_SHAPE, 
-               settings.fs, 
-               settings.fourcc,)
-        for i in range(NUM_CAMERAS)
-    ]
-
-    video_savers = []
-    if settings.SAVE_VID:
-        for i in range(NUM_CAMERAS):
-            vs = VideoSaverProcess(
-                camera_id=list(cameras.keys())[i],
-                shared_buffer=camera_buffers[i],
-                lock=camera_locks[i],
-                frame_counter=frame_counters[i],
-                frame_shape=FRAME_SHAPE,
-                save_dir=settings.SAVE_DIR,
-                fps=settings.fs,
-                stop_event=stop_event,
-                saving_flag=saving_enabled 
-            )
-            video_savers.append(vs)
+    # Determine size
+    W = settings.width
+    H = settings.height
+    mtxs, dists, projections, rotations, translations = load_camera_parameters(settings.cam_calib_path)
+    world_R1_cam, world_T1_cam = load_world_transformation(settings.cam_calib_path)
     
-    # pipeline = PipelineProcess(settings,
-    #                            camera_buffers,
-    #                            camera_timestamps,
-    #                            camera_locks,
-    #                            frame_counters,
-    #                            buffers,
-    #                            stop_event,
-    #                            frame_shape=FRAME_SHAPE,
-    #                            num_cameras=NUM_CAMERAS)
+    if args.online:
+        cameras = list_cameras()
+        NUM_CAMERAS = len(cameras)
+        FRAME_SHAPE = (H, W, 3)
+        camera_buffers, camera_timestamps, camera_locks, frame_counters, camera_barrier, stop_event = create_camera_shared_ressources(NUM_CAMERAS, FRAME_SHAPE)
+        results_queues = create_pipeline_shared_ressources()
+        shared_ts_udp,shared_values_udp,lock_udp,cam_event = create_udp_buffer(settings.marker_mocap_names)
 
-    pipeline = PipelineProcess(settings,
-                               camera_buffers,
-                               camera_timestamps,
-                               camera_locks,
-                               frame_counters,
-                               results_queues,
-                               stop_event,
-                               frame_shape=FRAME_SHAPE,
-                               num_cameras=NUM_CAMERAS)
+        # Create camera processes
+        camera_processes = [
+            Camera(list(cameras.keys())[i], 
+                camera_buffers[i], 
+                camera_timestamps[i], 
+                camera_locks[i], 
+                frame_counters[i], 
+                camera_barrier, 
+                stop_event,
+                cam_event, 
+                FRAME_SHAPE, 
+                settings.fs, 
+                settings.fourcc,)
+            for i in range(NUM_CAMERAS)
+        ]
+
+        pipeline = PipelineProcess(settings,
+                                camera_buffers,
+                                camera_timestamps,
+                                camera_locks,
+                                frame_counters,
+                                results_queues,
+                                stop_event,
+                                frame_shape=FRAME_SHAPE,
+                                num_cameras=NUM_CAMERAS)
+
+        processes = camera_processes + [pipeline]
+
+        # Start processes
+        for p in processes:
+            p.start()
+
+        try:
+            while True:
+                time.sleep(0.1)
+        except KeyboardInterrupt:
+            stop_event.set()
+            # Stop processes
+            for process in processes:
+                process.stop() if hasattr(process, 'stop') else None
+                process.join(timeout=2)
     
-    # viewer = ViewerProcess(buffers,
-    #                        stop_event,
-    #                        num_cameras=NUM_CAMERAS,
-    #                        freeflyer=True,
-    #                        saving_flag=saving_enabled)
+    else: # offline mode
 
-    viewer = ViewerProcess(results_queues,
-                           stop_event,
-                           num_cameras=NUM_CAMERAS,
-                           freeflyer=True,
-                           saving_flag=saving_enabled)
+        # --- 1. INITIALISATION MESHCAT ---
+        vis = meshcat.Visualizer()
+        LOGGER.info(f"[INFO] Meshcat visualizer available here: {vis.url()}")
 
-    vicon = UDPReceiver(shared_values_udp,shared_ts_udp,lock_udp,
-                                 ip= "172.20.183.220",
-                                 port=44445, output_dir= settings.SAVE_DIR,
-                                 stop_event= stop_event, markers_names= settings.marker_mocap_names)
+        vis_markers = vis["markers"]
 
-    udp_data_saver_process = UDPDataSaver(saving_flag=saving_enabled, 
-                                          shared_ts_udp=shared_ts_udp,
-                                          shared_values_udp=shared_values_udp,
-                                          lock_udp=lock_udp,
-                                          cam_event=cam_event, 
-                                          save_dir=settings.SAVE_DIR, 
-                                          stop_event=stop_event)
+        if args.videos and len(args.videos) > 0:
+            paths = [Path(v) for v in args.videos]
+        else:
+            paths = list_videos(Path(args.data_dir))
+        if len(paths) == 0:
+            raise RuntimeError(f"No videos found in {args.data_dir}")
 
-    processes = camera_processes  +video_savers+ [pipeline, viewer]
+        src = OfflineVideoSource(paths=paths, size_wh=(W, H))
 
-    # Start processes
-    for p in processes:
-        p.start()
+        est = NLFEstimator(
+            yolo_path=settings.yolo_path,
+            nlf_path=settings.nlf_path,
+            cano_path=settings.cano_path,
+            image_size=(W, H),
+            cam_Ks=mtxs,
+            indices=settings.nlf_indices,
+            conf=settings.yolo_conf,
+            imgsz=settings.yolo_imgsz,
+            device=settings.device,
+        )
 
-    try:
+        # Init for the rest
+        first_sample = True
+        p3d_buffer = deque(maxlen=settings.N)
+
+        # Filter
+        num_channel = 3*len(settings.marker_names)
+        iir_filter = IIR(
+            num_channel=num_channel,
+            sampling_frequency=settings.fs
+        )
+        iir_filter.add_filter(order=settings.order, cutoff=settings.cutoff_freq, filter_type=settings.filter_type)
+
         while True:
-            time.sleep(0.1)
-    except KeyboardInterrupt:
-        stop_event.set()
-        # Stop processes
-        for process in processes:
-            process.stop() if hasattr(process, 'stop') else None
-            process.join(timeout=2)
+            frames = src.read()
+            if frames is None:
+                break
+
+            nlf_out, infer_ms, yres, boxes = est.estimate_from_frames(frames)
+
+            if nlf_out is None or len(nlf_out) < len(paths):
+                continue
+
+            keypoints_list = [None] * len(paths)
+            valid_cam_ids = []
+
+            for ii in range(len(paths)):
+                out_i = nlf_out[ii]
+                if out_i is None or not isinstance(out_i, dict):
+                    continue
+                poses2d = out_i.get("poses2d", None)
+                if poses2d is None or len(poses2d) == 0 or poses2d[0] is None:
+                    continue
+
+                keypoints_list[ii] = poses2d[0].detach().float().cpu().numpy()
+                valid_cam_ids.append(ii)
+
+            if len(valid_cam_ids) < 2:
+                continue
+
+            p3d = triangulate_points(
+                keypoints_list=keypoints_list,
+                mtxs=mtxs,
+                dists=dists,
+                projections=projections,
+            )
+
+            p3d_np = torch.from_numpy(p3d).to(dtype=torch.float32)
+
+            p3d_in_world=np.array([np.dot(world_R1_cam,point) + world_T1_cam for point in p3d_np])
+
+            if first_sample:
+                for k in range(settings.N):
+                    p3d_buffer.append(p3d_in_world)  # add the 1st frame 30 times
+            else:
+                p3d_buffer.append(p3d_in_world) # add the keypoints to the buffer normally
+            
+            if len(p3d_buffer) == settings.N:
+                p3d_buffer_array = np.array(p3d_buffer)
+
+                # Filter keypoints in world to remove noisy artefacts 
+                filtered_p3d_buffer = iir_filter.filter(np.reshape(p3d_buffer_array,(settings.N, 3*len(settings.marker_names))))
+                filtered_p3d_buffer = np.reshape(filtered_p3d_buffer,(settings.N, len(settings.marker_names), 3))
+
+                augmented_markers=filtered_p3d_buffer[-1]
+
+                # VISUALISATION OF AUGMENTED MARKERS in RED
+                colors = np.zeros_like(augmented_markers.T)
+                colors[0, :] = 1.0  # R
+                colors[1, :] = 0.0  # G
+                colors[2, :] = 0.0  # B
+
+                vis_markers.set_object(
+                    g.PointCloud(position=augmented_markers.T, color=colors, size=0.02)
+                )
+
+                if first_sample:
+                    mks_dict = dict(zip(settings.marker_names, augmented_markers))
+
+                    human = robex.human.HumanLoader(height=settings.human_height, weight=settings.human_weight, gender=settings.human_gender).robot
+                    human_model = human.model
+                    human_data = human.data
+                    human_collision_model = human.collision_model
+                    human_visual_model = human.visual_model
+
+                    #scale the model to data
+                    human_model = scale_human_model(human_model, mks_dict,with_hand=True, gender=settings.human_gender,subject_height=settings.human_height)
+                    human_model= mks_registration(human_model,mks_dict, with_hand=True)
+                    human_data = pin.Data(human_model)
+
+                    # Init meshcat viewer for human
+                    # Visualizers
+                    viz_human = MeshcatVisualizer(human_model, human_collision_model, human_visual_model)
+                    viz_human.initViewer(viewer, open=True)
+                    viz_human.viewer.delete()  # clear if relaunch
+                    viz_human.loadViewerModel("ref")
+                    
+
+                    # IK
+                    if settings.ik_type == 'sbs':
+                        q = pin.neutral(human_model)
+                        ik_class = RT_IK(human_model, mks_dict, q, settings.keys_to_track_list, settings.dt)
+
+                        q = ik_class.solve_ik_sample_casadi()
+                        ik_class._q0 = q
+                        viz_human.display(q)
+
+                    elif settings.ik_type == 'mhe':
+                        ik_class = RT_SWIKA(human_model, settings.keys_to_track_list, settings.N, code = settings.ik_code)
+
+                        x_array = np.zeros((human_model.nq+human_model.nv, settings.N))
+                        x_array[6,:]=1
+                        u_array = np.zeros((human_model.nv, settings.N))
+                        deque_lstm_dict = deque(maxlen=settings.N)
+                        for k in range(settings.N):
+                            deque_lstm_dict.append(mks_dict)
+
+                        array_data = np.array([np.hstack([d[marker] for marker in settings.keys_to_track_list]) for d in deque_lstm_dict]).T
+
+                        x_array, u_array = ik_class.solve(x_array, u_array, array_data, x_array[:,-1], settings.cost_weights, settings.dt)
+
+                        q = pin.neutral(human_model)
+                        q[:] = np.array(x_array[:human_model.nq,-1]).flatten()
+                        viz_human.display(q)
+
+                    else : 
+                        raise ValueError("Invalid ik type, should be sbs (sample by sample) or mhe (moving horizon estimation)")
+
+                    self.first_sample = False
+
+                else: # Init phase finished
+                    mks_dict = dict(zip(settings.marker_names, augmented_markers))
+
+                    # IK directly 
+                    if self.ik_type == 'sbs':
+                        ik_class._dict_m = mks_dict
+                        q = ik_class.solve_ik_sample_quadprog() 
+                        ik_class._q0 = q
+                        viz_human.display(q)
+                    elif self.ik_type == 'mhe':
+                        deque_lstm_dict.append(mks_dict)
+                        array_data = np.array([np.hstack([d[marker] for marker in settings.keys_to_track_list]) for d in deque_lstm_dict]).T
+                        
+                        x_array, u_array = ik_class.solve(x_array, u_array, array_data, x_array[:,-1], settings.cost_weights, settings.dt)
+
+                        q = pin.neutral(human_model)
+                        q[:] = np.array(x_array[:human_model.nq,-1]).flatten()
+                        viz_human.display(q)
+                    else : 
+                        raise ValueError("Invalid ik type, should be sbs (sample by sample) or mhe (moving horizon estimation)")
+
+
 
 if __name__ == "__main__":
-    set_start_method('spawn')
-    main()
+    p = argparse.ArgumentParser()
+    p.add_argument("--online", action="store_true")
+    p.add_argument("--data-dir", type=str, default="data", help="Folder containing input videos")
+    p.add_argument("--videos", nargs="*", default=None, help="Optional explicit list of input videos")
+    args = p.parse_args()
+
+    if args.online:
+        set_start_method('spawn')
+
+    main(args)
