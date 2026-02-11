@@ -5,41 +5,11 @@ RT-COSMIK is a cutting-edge open-source library for solving real-time constraine
 
 ---
 
-## Getting Started
-This repository is designed to work with a pre-configured Docker environment to ensure compatibility and ease of use. Please follow the installation instructions in the [Gepetto Dev Container repository](https://gitlab.laas.fr/msabbah/gepetto-dev-container/).
+To generate the appropriate models, use:
 
-### Clone the Repo Inside the Docker Container
-Once the Docker environment is set up, clone this repository into the appropriate directory:
-
-```bash
-cd workspace/ros_ws/src
-git clone https://gitlab.laas.fr/msabbah/rt-cosmik.git
+```bash 
+./scripts/bash/fetch_models.sh 
 ```
-
-### Build RT-COSMIK with catkin build
-
-```bash
-cd workspace/ros_ws/src
-catkin build rt-cosmik
-```
-
-## Test and Deploy
-All the usable code can be found in apps folder for running the pipelines and on cams_calibration for cameras calibration
-
-For ros visualisation in rviz do the following command : 
-
-``` bash 
-roslaunch rt-cosmik start_viz.launch
-```
-
-## Authors and acknowledgment
-
-- **Maxime Sabbah (LAAS-CNRS):** Main developer and maintainer of the project, real-time pipeline, inverse kinematics, and general implementation of the library.
-- **Kahina Chalabi (LAAS-CNRS):** Main developer and maintainer of the project, MMpose, and LSTM.
-- **Mohamed Adjel (LAAS-CNRS):** Main developer, human modeling, and camera feeds handling.
-- **Thomas Bousquet (LAAS-CNRS):** Features developer.
-- **Vincent Bonnet (LAAS-CNRS / IPAL):** Project instructor.
-
 
 ## Citing RT-COSMIK
 
