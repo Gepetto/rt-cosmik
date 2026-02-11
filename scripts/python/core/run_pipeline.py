@@ -25,7 +25,7 @@ from src.rtcosmik.config_loader import settings
 from src.rtcosmik.nlf.nlf import NLFEstimator, DisplayConsumerNLF
 from src.rtcosmik.triangulation.triangulation import triangulate_points
 from src.rtcosmik.filtering.iir import IIR
-from src.rtcosmik.human_model.model_utils import scale_human_model, mks_registration
+from src.rtcosmik.human_model.model_utils import scale_human_model, mks_registration, recalibrate_marker_frames_in_joint_space
 from src.rtcosmik.ik.ik import RT_IK, RT_SWIKA
 from src.rtcosmik.camera.cam_utils import list_cameras, load_camera_parameters, load_world_transformation
 from src.rtcosmik.camera.camera import Camera
@@ -434,19 +434,20 @@ def main(args):
                     except Exception:
                         pass
                     viz_human.loadViewerModel("ref")
-                    viz_human.display(pin.neutral(human_model))
-                    # show debug frames at neutral configuration
-                    dbg_q0 = pin.neutral(human_model)
-                    # dbg_vis is created a bit later (after background), so we'll update after it's created
+                    
+                    # viz_human.display(pin.neutral(human_model))
 
-                    viz_human.viewer["/Background"].set_property("top_color", [1, 1, 1])  # Dark gray (RGB values in [0, 1])
-                    viz_human.viewer["/Background"].set_property("bottom_color", [0.65, 0.65, 0.65])  # Same color → flat background
+                    # # show debug frames at neutral configuration
+                    # dbg_q0 = pin.neutral(human_model)
+                    # # dbg_vis is created a bit later (after background), so we'll update after it's created
 
-                    # DEBUG: display joint frames + marker frames + model marker positions
-                    dbg_vis = setup_debug_visuals(vis, human_model, settings.marker_names, triad_length=0.08)
-                    update_debug_visuals(vis, human_model, human_data, dbg_q0, dbg_vis)
-                    print(human_model.frames.tolist())
-                    input()
+                    # viz_human.viewer["/Background"].set_property("top_color", [1, 1, 1])  # Dark gray (RGB values in [0, 1])
+                    # viz_human.viewer["/Background"].set_property("bottom_color", [0.65, 0.65, 0.65])  # Same color → flat background
+
+                    # # DEBUG: display joint frames + marker frames + model marker positions
+                    # dbg_vis = setup_debug_visuals(vis, human_model, settings.marker_names, triad_length=0.08)
+                    # update_debug_visuals(vis, human_model, human_data, dbg_q0, dbg_vis)
+                    # input()
 
                     # IK
                     if settings.ik_type == 'sbs':
@@ -459,6 +460,13 @@ def main(args):
                         q = ik_class.solve_ik_sample_casadi()
                         ik_class._q0 = q
                         viz_human.display(q)
+
+                        # Recalibrate briefly the markers translation in joint frames
+                        human_model=recalibrate_marker_frames_in_joint_space(human_model,q,mks_dict,settings.marker_names)
+                        human_data=human_model.createData()
+
+                        ik_class = RT_IK(human_model, mks_dict, q, settings.keys_to_track_list, settings.dt, omega)
+                        LOGGER.info("[INFO] Model calibration finished, ready to process...")
 
                     elif settings.ik_type == 'mhe':
                         ik_class = RT_SWIKA(human_model, settings.keys_to_track_list, settings.N, code = settings.ik_code)
@@ -478,6 +486,12 @@ def main(args):
                         q[:] = np.array(x_array[:human_model.nq,-1]).flatten()
                         viz_human.display(q)
 
+                        # Recalibrate briefly the markers translation in joint frames
+                        human_model=recalibrate_marker_frames_in_joint_space(human_model,q,mks_dict,settings.marker_names)
+                        human_data=human_model.createData()
+
+                        ik_class = RT_SWIKA(human_model, settings.keys_to_track_list, settings.N, code = settings.ik_code)
+                        LOGGER.info("[INFO] Model calibration finished, ready to process...")
                     else : 
                         raise ValueError("Invalid ik type, should be sbs (sample by sample) or mhe (moving horizon estimation)")
 
@@ -503,7 +517,6 @@ def main(args):
                         viz_human.display(q)
                     else : 
                         raise ValueError("Invalid ik type, should be sbs (sample by sample) or mhe (moving horizon estimation)")
-
 
 
 if __name__ == "__main__":

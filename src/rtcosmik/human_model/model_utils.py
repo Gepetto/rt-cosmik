@@ -1158,4 +1158,47 @@ def mks_registration(model, mks_dict, gender='m', subject_height=1.80):
 
     return model
 
+def recalibrate_marker_frames_in_joint_space(model, q_ref: np.ndarray, mks_dict: Dict[str, np.ndarray], marker_names: List[str]):
+    """
+    After a first IK gave a plausible configuration q_ref, recompute each marker local offset
+    in its parent joint frame so that the marker frame matches the measured marker position at q_ref.
 
+    This is the key to get rid of the "bootstrap" bias coming from segment-frame construction.
+
+    Parameters
+    ----------
+    model : pin.Model
+    q_ref : np.ndarray
+        Reference configuration (output of a first IK).
+    mks_world_dict : dict[str, np.ndarray]
+        Marker positions in world, same frame as forward kinematics.
+    marker_names : list[str]
+        Markers to recalibrate (typically settings.marker_names).
+
+    Returns
+    -------
+    pin.Model
+    """
+    data = pin.Data(model)
+    pin.forwardKinematics(model, data, q_ref)
+    pin.updateFramePlacements(model, data)
+
+    for name in marker_names:
+        if name not in mks_dict:
+            continue
+        try:
+            fid = model.getFrameId(name)
+        except Exception:
+            continue
+        if fid < 0 or fid >= model.nframes or model.frames[fid].name != name:
+            continue
+
+        parent_joint = model.frames[fid].parentJoint
+        oMj = data.oMi[parent_joint]
+        p_world = np.asarray(mks_dict[name], dtype=float).reshape(3)
+
+        # p_local = R^T (p_world - t)
+        p_local = oMj.rotation.T @ (p_world - oMj.translation)
+        model.frames[fid].placement.translation = p_local
+
+    return model

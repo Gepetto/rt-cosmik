@@ -106,8 +106,8 @@ class Settings:
     
     
     keys_to_track_list: list = field(default_factory=lambda: [
-           "RASI", "LASI", "RPSI","LPSI",
-           "C7", "T11", "T6", "RSHO", "LSHO", "RELB", "LELB", "RMELB", "LMELB", "RWRI", "LWRI", "RMWRI", "RLWRI",
+           "RASI", "LASI", "RPSI", "LPSI",
+           "C7", "T11", "T6", "RSHO", "LSHO", "RELB", "LELB", "RMELB", "LMELB", "RWRI", "LWRI", "RMWRI", "LMWRI",
            "RTHU", "LTHU", "RMID", "LMID", "RPIN", "LPIN",
            "RKNE", "LKNE", "RMKNE", "LMKNE", "RANK", "LANK", "RMANK", "LMANK",
            "R5MHD", "L5MHD", "RTOE", "LTOE", "LHEE", "RHEE",
