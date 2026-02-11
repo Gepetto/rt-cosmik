@@ -429,7 +429,8 @@ def main(args):
                     # Visualizers
                     viz_human = MeshcatVisualizer(human_model, human_collision_model, human_visual_model)
                     viz_human.initViewer(vis, open=True)
-                            # Don't delete the whole Meshcat tree: keep '/markers' etc.
+                    
+                    # Don't delete the whole Meshcat tree: keep '/markers' etc.
                     try:
                         vis["ref"].delete()
                     except Exception:
