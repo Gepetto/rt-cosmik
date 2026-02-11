@@ -2,10 +2,12 @@ from dataclasses import dataclass, field
 import os 
 from pathlib import Path
 from typing import Dict
+import torch
 
 @dataclass
 class Settings:
     cosmik_path: str = field(init=False)
+    device: str = field(default_factory=lambda: "cuda:0" if torch.cuda.is_available() else "cpu")
     
     # SAVE 
     no_trial = "test"
@@ -42,8 +44,6 @@ class Settings:
     filter_type: str = "lowpass"
 
     # NLF
-    device = "cuda:0"
-
     cano_path: str = "/root/workspace/ros_ws/RT-COSMIK/weights/canonical_verts/smplx.npy"
     nlf_path: str = "/root/workspace/ros_ws/RT-COSMIK/weights/nlf/nlf_s_multi_0.2.2.torchscript"
     nlf_indices = [             # For SMPLX model

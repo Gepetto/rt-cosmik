@@ -348,7 +348,7 @@ def main(args):
         iir_filter.add_filter(order=settings.order, cutoff=settings.cutoff_freq, filter_type=settings.filter_type)
 
         while True:
-            t0=time.perf_counter()
+            # t0=time.perf_counter()
             frames = src.read()
             if frames is None:
                 break
@@ -416,14 +416,13 @@ def main(args):
 
                     human = robex.human.HumanLoader(height=settings.human_height, weight=settings.human_weight, gender=settings.human_gender).robot
                     human_model = human.model
-                    human_data = human.data
                     human_collision_model = human.collision_model
                     human_visual_model = human.visual_model
 
                     #scale the model to data
                     human_model = scale_human_model(human_model, mks_dict, gender=settings.human_gender, subject_height=settings.human_height)
                     human_model= mks_registration(human_model, mks_dict, gender=settings.human_gender, subject_height=settings.human_height)
-                    human_data = pin.Data(human_model)
+                    # human_data = pin.Data(human_model)
 
                     # Init meshcat viewer for human
                     # Visualizers
@@ -517,8 +516,8 @@ def main(args):
                         viz_human.display(q)
                     else : 
                         raise ValueError("Invalid ik type, should be sbs (sample by sample) or mhe (moving horizon estimation)")
-            t1=time.perf_counter()
-            print(f"Time elapsed for treating one frame = {t1-t0} ms")
+            # t1=time.perf_counter()
+            # print(f"Time elapsed for treating one frame = {t1-t0} ms")
 
 
 if __name__ == "__main__":
