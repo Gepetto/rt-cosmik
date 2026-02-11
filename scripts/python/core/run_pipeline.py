@@ -348,6 +348,7 @@ def main(args):
         iir_filter.add_filter(order=settings.order, cutoff=settings.cutoff_freq, filter_type=settings.filter_type)
 
         while True:
+            t0=time.perf_counter()
             frames = src.read()
             if frames is None:
                 break
@@ -434,16 +435,14 @@ def main(args):
                     except Exception:
                         pass
                     viz_human.loadViewerModel("ref")
-                    
-                    # viz_human.display(pin.neutral(human_model))
 
+                    viz_human.viewer["/Background"].set_property("top_color", [1, 1, 1])  # Dark gray (RGB values in [0, 1])
+                    viz_human.viewer["/Background"].set_property("bottom_color", [0.65, 0.65, 0.65])  # Same color → flat background
+
+                    # viz_human.display(pin.neutral(human_model))
                     # # show debug frames at neutral configuration
                     # dbg_q0 = pin.neutral(human_model)
                     # # dbg_vis is created a bit later (after background), so we'll update after it's created
-
-                    # viz_human.viewer["/Background"].set_property("top_color", [1, 1, 1])  # Dark gray (RGB values in [0, 1])
-                    # viz_human.viewer["/Background"].set_property("bottom_color", [0.65, 0.65, 0.65])  # Same color → flat background
-
                     # # DEBUG: display joint frames + marker frames + model marker positions
                     # dbg_vis = setup_debug_visuals(vis, human_model, settings.marker_names, triad_length=0.08)
                     # update_debug_visuals(vis, human_model, human_data, dbg_q0, dbg_vis)
@@ -517,6 +516,8 @@ def main(args):
                         viz_human.display(q)
                     else : 
                         raise ValueError("Invalid ik type, should be sbs (sample by sample) or mhe (moving horizon estimation)")
+            t1=time.perf_counter()
+            print(f"Time elapsed for treating one frame = {t1-t0} ms")
 
 
 if __name__ == "__main__":
