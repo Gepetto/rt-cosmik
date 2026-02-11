@@ -32,7 +32,6 @@ from src.rtcosmik.camera.camera import Camera
 from src.rtcosmik.utils.mp_utils import create_udp_buffer, create_camera_shared_ressources, create_pipeline_shared_ressources
 from src.rtcosmik.pipeline.pipeline import PipelineProcess
 
-
 from multiprocessing import set_start_method
 from collections import deque
 import example_robot_data as robex
@@ -261,8 +260,8 @@ def main(args):
         NUM_CAMERAS = len(cameras)
         FRAME_SHAPE = (H, W, 3)
         camera_buffers, camera_timestamps, camera_locks, frame_counters, camera_barrier, stop_event = create_camera_shared_ressources(NUM_CAMERAS, FRAME_SHAPE)
-        results_queues = create_pipeline_shared_ressources()
         shared_ts_udp,shared_values_udp,lock_udp,cam_event = create_udp_buffer(settings.marker_mocap_names)
+        results_queues = create_pipeline_shared_ressources()
 
         # Create camera processes
         camera_processes = [
@@ -280,15 +279,22 @@ def main(args):
             for i in range(NUM_CAMERAS)
         ]
 
-        pipeline = PipelineProcess(settings,
-                                camera_buffers,
-                                camera_timestamps,
-                                camera_locks,
-                                frame_counters,
-                                results_queues,
-                                stop_event,
-                                frame_shape=FRAME_SHAPE,
-                                num_cameras=NUM_CAMERAS)
+        pipeline = PipelineProcess(
+            settings=settings,
+            frame_counters=frame_counters,
+            camera_buffers=camera_buffers,
+            camera_locks=camera_locks,
+            timestamp_buffers=camera_timestamps,
+            results_queues=results_queues,
+            stop_event=stop_event,
+            mtxs=mtxs,
+            dists=dists,
+            projections=projections,
+            world_R1_cam=world_R1_cam,
+            world_T1_cam=world_T1_cam,
+            frame_shape=FRAME_SHAPE,
+            num_cameras=NUM_CAMERAS,
+        )
 
         processes = camera_processes + [pipeline]
 
