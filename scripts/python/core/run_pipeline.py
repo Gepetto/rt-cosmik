@@ -47,6 +47,169 @@ logging.basicConfig(
 
 LOGGER = logging.getLogger(__name__)
 
+# -----------------------
+# Meshcat debug helpers
+# -----------------------
+
+
+def make_triad_geom(axis_length=0.08, linewidth=2):
+    """
+    RGB triad as LineSegments:
+      X = red, Y = green, Z = blue
+    Compatible with meshcat versions that don't have g.Axes.
+    """
+    # If your meshcat has Axes, use it
+    if hasattr(g, "Axes"):
+        # Some versions accept axis_radius, some don't. Keep it simple.
+        return g.Axes(axis_length=axis_length)
+
+    # Fallback: LineSegments
+    # 6 vertices = 3 segments: O->X, O->Y, O->Z
+    pts = np.array([
+        [0.0, axis_length,  0.0, 0.0,       0.0, 0.0],
+        [0.0, 0.0,          0.0, axis_length,0.0, 0.0],
+        [0.0, 0.0,          0.0, 0.0,       0.0, axis_length],
+    ], dtype=np.float32)
+
+    cols = np.array([
+        [255, 255,   0,   0,   0,   0],  # R
+        [  0,   0, 255, 255,   0,   0],  # G
+        [  0,   0,   0,   0, 255, 255],  # B
+    ], dtype=np.uint8)
+
+    geom = g.PointsGeometry(position=pts, color=cols)
+    mat  = g.LineBasicMaterial(vertexColors=True, linewidth=linewidth)
+    return g.LineSegments(geom, mat)
+
+
+def make_empty_pointcloud():
+    """
+    Empty pointcloud node that we can overwrite in update_debug_visuals.
+    Works across meshcat versions.
+    """
+    P = np.zeros((3, 0), dtype=np.float32)
+    C = np.zeros((3, 0), dtype=np.uint8)
+
+    if hasattr(g, "PointCloud"):
+        return g.PointCloud(P, C)
+
+    # Older versions: render points
+    geom = g.PointsGeometry(position=P, color=C)
+    mat = g.PointsMaterial(size=0.005, vertexColors=True)
+    return g.Points(geom, mat)
+
+
+def _pin_se3_to_meshcat_tf(M: pin.SE3) -> np.ndarray:
+    T = np.eye(4)
+    T[:3, :3] = M.rotation
+    T[:3, 3] = M.translation
+    return T
+
+def setup_debug_visuals(
+    vis,
+    model: pin.Model,
+    marker_names,
+    triad_length=0.08,
+    triad_radius=0.003,   # gardé pour compat, pas forcément utilisé en fallback
+    root="debug",
+    clear_root=True,
+):
+    if clear_root:
+        try:
+            vis[root].delete()
+        except Exception:
+            pass
+
+    dbg = {
+        "root": root,
+        "joint_entries": [],
+        "marker_entries": [],
+        "model_marker_path": f"{root}/model_markers",
+        "missing_marker_frames": [],
+    }
+
+    # Create one triad geometry and reuse it
+    # linewidth is a best-effort (WebGL may ignore thickness)
+    triad = make_triad_geom(axis_length=triad_length, linewidth=max(1, int(triad_radius * 500)))
+
+    # --- joints triads ---
+    for jid in range(1, model.njoints):
+        jname = model.names[jid]
+        path = f"{root}/joints/{jid:04d}_{jname}"  # <= name visible in Meshcat tree
+        vis[path].set_object(triad)
+        dbg["joint_entries"].append((jid, path))
+
+    # --- marker frame triads ---
+    for mk in marker_names:
+        try:
+            fid = model.getFrameId(mk)
+        except Exception:
+            fid = None
+
+        if fid is None or fid < 0 or fid >= len(model.frames):
+            dbg["missing_marker_frames"].append(mk)
+            continue
+
+        path = f"{root}/marker_frames/{fid:04d}_{mk}"  # <= name visible in Meshcat tree
+        vis[path].set_object(triad)
+        dbg["marker_entries"].append((fid, path))
+
+    # Empty pointcloud node for model markers
+    vis[dbg["model_marker_path"]].set_object(make_empty_pointcloud())
+
+    if dbg["missing_marker_frames"]:
+        print("[DEBUG] marker frames missing in model (not registered / not added):")
+        print("        ", dbg["missing_marker_frames"])
+
+    return dbg
+
+
+def update_debug_visuals(vis, model: pin.Model, data: pin.Data, q, dbg):
+    """
+    Update the transforms of all debug triads and refresh the model marker pointcloud.
+    Robust to missing keys (won't crash).
+    """
+    pin.forwardKinematics(model, data, q)
+    pin.updateFramePlacements(model, data)
+
+    # --- joints ---
+    for jid, path in dbg.get("joint_entries", []):
+        vis[path].set_transform(_pin_se3_to_meshcat_tf(data.oMi[jid]))
+
+    # --- marker frames ---
+    marker_points = []
+    for fid, path in dbg.get("marker_entries", []):
+        oMf = data.oMf[fid]
+        vis[path].set_transform(_pin_se3_to_meshcat_tf(oMf))
+        marker_points.append(oMf.translation)
+
+    # --- model marker pointcloud ---
+    if marker_points:
+        P = np.stack(marker_points, axis=1)  # (3, N)
+        C = np.tile(np.array([[0], [255], [0]], dtype=np.uint8), (1, P.shape[1]))
+        vis[dbg.get("model_marker_path", "debug/model_markers")].set_object(g.PointCloud(P, C))
+
+# -----------------------
+# Named measured markers (debug)
+# -----------------------
+
+def setup_measured_markers(vis: "meshcat.Visualizer", marker_names: Sequence[str], radius: float = 0.010, color: int = 0xff0000):
+    """Create one small sphere per measured marker, under markers/measured/<name>."""
+    sphere = g.Sphere(radius)
+    mat = g.MeshPhongMaterial(color=color, opacity=0.9)
+    for name in marker_names:
+        vis[f"markers/measured/{name}"].set_object(sphere, mat)
+
+
+def update_measured_markers(vis: "meshcat.Visualizer", mks_dict: dict):
+    """Update transforms for the measured marker spheres."""
+    for name, p in mks_dict.items():
+        try:
+            T = tf.translation_matrix(np.asarray(p, dtype=float).reshape(3))
+        except Exception:
+            continue
+        vis[f"markers/measured/{name}"].set_transform(T)
+
 def list_videos(data_dir: Path) -> List[Path]:
     if not data_dir.exists():
         raise FileNotFoundError(f"data dir does not exist: {data_dir}")
@@ -265,11 +428,25 @@ def main(args):
                     # Visualizers
                     viz_human = MeshcatVisualizer(human_model, human_collision_model, human_visual_model)
                     viz_human.initViewer(vis, open=True)
-                    viz_human.viewer.delete()  # clear if relaunch
+                            # Don't delete the whole Meshcat tree: keep '/markers' etc.
+                    try:
+                        vis["ref"].delete()
+                    except Exception:
+                        pass
                     viz_human.loadViewerModel("ref")
                     viz_human.display(pin.neutral(human_model))
+                    # show debug frames at neutral configuration
+                    dbg_q0 = pin.neutral(human_model)
+                    # dbg_vis is created a bit later (after background), so we'll update after it's created
+
                     viz_human.viewer["/Background"].set_property("top_color", [1, 1, 1])  # Dark gray (RGB values in [0, 1])
                     viz_human.viewer["/Background"].set_property("bottom_color", [0.65, 0.65, 0.65])  # Same color → flat background
+
+                    # DEBUG: display joint frames + marker frames + model marker positions
+                    dbg_vis = setup_debug_visuals(vis, human_model, settings.marker_names, triad_length=0.08)
+                    update_debug_visuals(vis, human_model, human_data, dbg_q0, dbg_vis)
+                    print(human_model.frames.tolist())
+                    input()
 
                     # IK
                     if settings.ik_type == 'sbs':
@@ -304,18 +481,18 @@ def main(args):
                     else : 
                         raise ValueError("Invalid ik type, should be sbs (sample by sample) or mhe (moving horizon estimation)")
 
-                    self.first_sample = False
+                    first_sample = False
 
                 else: # Init phase finished
                     mks_dict = dict(zip(settings.marker_names, augmented_markers))
 
                     # IK directly 
-                    if self.ik_type == 'sbs':
+                    if settings.ik_type == 'sbs':
                         ik_class._dict_m = mks_dict
                         q = ik_class.solve_ik_sample_quadprog() 
                         ik_class._q0 = q
                         viz_human.display(q)
-                    elif self.ik_type == 'mhe':
+                    elif settings.ik_type == 'mhe':
                         deque_lstm_dict.append(mks_dict)
                         array_data = np.array([np.hstack([d[marker] for marker in settings.keys_to_track_list]) for d in deque_lstm_dict]).T
                         

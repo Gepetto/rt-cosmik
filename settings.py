@@ -21,7 +21,7 @@ class Settings:
     fourcc: str = "MJPG" # video codec
 
     # HUMAN ANTHROPOMETRY
-    human_height: float = 1.81
+    human_height: float = 1.87
     human_weight: float = 74.0 
     human_gender: str = 'm'
 

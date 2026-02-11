@@ -25,24 +25,23 @@ SGTS_JOINTS_CALIB_MAPPING = {
     "left_hand": ["left_wrist_Z"],
 }
 
-
 SGTS_MKS_MAPPING = {
-     "head":      ['RSHO', 'LSHO', 'C7', 'Head','REar','LEar'],     
-     "pelvis":    ['RPSI','LPSI','RASI','LASI'],    
-     "torso":     ['RSHO', 'LSHO', 'RASI', 'LASI', 'RPSI', 'LPSI', 'C7'],
-     "thorax":     ['RSHO', 'LSHO', 'RASI', 'LASI', 'RPSI', 'LPSI', 'C7'], 
-     "right_upperarm": ['LSHO','RSHO','RMELB','RELB'],    
-     "right_lowerarm": ['RMELB','RELB','RMWRI','RWRI'],    
-     "right_hand":     ['RMWRI', 'RWRI', 'RMID'],    
-     "left_upperarm": ['LSHO','RSHO','LMELB','LELB'],     
-     "left_lowerarm": ['LMELB','LELB','LMWRI','LWRI'],
-     "left_hand":     ['LMWRI', 'LWRI', 'LMID'],          
-     "right_upperleg":    ['RASI','LASI','RKNE','RMKNE'],                
-     "right_lowerleg":    ['RKNE','RMKNE','RMANK','RANK'],             
-     "right_foot":     ['RMANK','RANK','RTOE','R5MHD','RHEE'],     
-     "left_upperleg":    ['LASI','RASI','LKNE','LMKNE'],                
-     "left_lowerleg":    ['LKNE','LMKNE','LMANK','LANK'],              
-     "left_foot":     ['LMANK','LANK','LTOE','L5MHD','LHEE'],       
+     "head":      ["Nose", "Head", "REar", "LEar", "REye", "LEye"],     
+     "pelvis":    ['RPSI','LPSI','RASI','LASI','T11'],    
+     "torso":     ['RSHO', 'LSHO'],
+     "thorax":     ['C7', 'T6'], 
+     "right_upperarm": ['RMELB','RELB'],    
+     "right_lowerarm": ['RMWRI','RWRI'],    
+     "right_hand":     ['RTHU', 'RMID', 'RPIN'],    
+     "left_upperarm": ['LMELB','LELB'],     
+     "left_lowerarm": ['LMWRI','LWRI'],
+     "left_hand":     ['LTHU', 'LMID', 'LPIN'],          
+     "right_upperleg":    ['RKNE','RMKNE'],                
+     "right_lowerleg":    ['RMANK','RANK'],             
+     "right_foot":     ['RTOE','R5MHD','RHEE'],     
+     "left_upperleg":    ['LKNE','LMKNE'],                
+     "left_lowerleg":    ['LMANK','LANK'],              
+     "left_foot":     ['LTOE','L5MHD','LHEE'],       
     }
 
 def check_orthogonality(matrix: np.ndarray):
@@ -104,7 +103,7 @@ def get_left_upperarm_pose(mks_positions, gender='m', subject_height= 1.80):
     X, Y, Z, shoulder_center = [], [], [], []
     torso_pose = get_torso_pose(mks_positions)
     bi_acromial_dist = np.linalg.norm(mks_positions['LSHO'] - mks_positions['RSHO'])
-    shoulder_center = mks_positions['LSHO'].reshape(3,1) + (torso_pose[:3, :3].reshape(3,3) @ col_vector_3D(0.0, -0.1*bi_acromial_dist, 0.0)).reshape(3,1)
+    shoulder_center = mks_positions['LSHO'].reshape(3,1) + (torso_pose[:3, :3].reshape(3,3) @ col_vector_3D(0.0, -0.17*bi_acromial_dist, 0.0)).reshape(3,1)
     elbow_center = (mks_positions['LMELB'] + mks_positions['LELB']).reshape(3,1)/2.0
     
     Y = shoulder_center - elbow_center
@@ -770,10 +769,10 @@ def get_right_hand_pose(mks_positions, gender='m', subject_height=1.80):
 
     wrist_center = ((mks_positions['RWRI'] + mks_positions['RMWRI']) / 2.0).reshape(3, 1)
 
-    Y = (mks_positions['RMID'].reshape(3, 1) - wrist_center)
+    Y = (wrist_center - mks_positions['RMID'].reshape(3, 1))
     Y = Y / np.linalg.norm(Y)
 
-    Z = (mks_positions['RMWRI'].reshape(3, 1) - mks_positions['RWRI'].reshape(3, 1))
+    Z = (mks_positions['RWRI'].reshape(3, 1) - mks_positions['RMWRI'].reshape(3, 1))
     Z = Z / np.linalg.norm(Z)
 
     X = np.cross(Y, Z, axis=0)
@@ -796,7 +795,7 @@ def get_left_hand_pose(mks_positions, gender='m', subject_height=1.80):
 
     wrist_center = ((mks_positions['LWRI'] + mks_positions['LMWRI']) / 2.0).reshape(3, 1)
 
-    Y = (mks_positions['LMID'].reshape(3, 1) - wrist_center)
+    Y = (wrist_center - mks_positions['LMID'].reshape(3, 1))
     Y = Y / np.linalg.norm(Y)
 
     Z = (mks_positions['LMWRI'].reshape(3, 1) - mks_positions['LWRI'].reshape(3, 1))
@@ -996,7 +995,7 @@ def construct_segments_frames(mks_positions, gender='m', subject_height=1.80):
 
 def scale_human_model(model, mks_dict, gender='m', subject_height=1.80):
     """
-    Scales a human Pinocchio model and updates associated visual geometry placements.
+    Scales the segment lenghts a human Pinocchio model only.
 
     Parameters
     ----------
@@ -1036,11 +1035,16 @@ def scale_human_model(model, mks_dict, gender='m', subject_height=1.80):
                 LOGGER.info(f"[WARN] Joint '{joint_name}' not found in model.")
                 continue
 
-            model.jointPlacements[joint_id].translation = local_segments_positions[segment_name]
+            if joint_name=="right_hip_Z" or joint_name=="left_hip_Z" or joint_name=="right_shoulder_Z" or joint_name=="left_shoulder_Z": # only 3D scaling of the model for this joints
+                model.jointPlacements[joint_id].translation = local_segments_positions[segment_name]
+            else:
+                if model.jointPlacements[joint_id].translation[1]<0:
+                    model.jointPlacements[joint_id].translation[1] = - np.linalg.norm(local_segments_positions[segment_name])
+                else:
+                    model.jointPlacements[joint_id].translation[1] = np.linalg.norm(local_segments_positions[segment_name])
             LOGGER.info(f"[INFO] Updated joint '{joint_name}' (ID {joint_id}) using segment '{segment_name}'")
 
     return model
-
 
 def mks_registration(model, mks_dict, gender='m', subject_height=1.80):
     """
@@ -1078,7 +1082,7 @@ def mks_registration(model, mks_dict, gender='m', subject_height=1.80):
         "RPSI":  "root_joint",
         "LPSI":  "root_joint",
 
-        "C7":    "right_clavicle_joint_X",
+        "C7":    "middle_thoracic_Y",
         "T11":   "middle_lumbar_X",
         "T6":    "middle_thoracic_Y",
         "RSHO":  "right_clavicle_joint_X",
@@ -1101,22 +1105,22 @@ def mks_registration(model, mks_dict, gender='m', subject_height=1.80):
         "RPIN": "right_wrist_X",
         "LPIN": "left_wrist_X",
 
-        "RKNE":   "right_hip_Z",
-        "LKNE":   "left_hip_Z",
-        "RMKNE":  "right_hip_Z",
-        "LMKNE":  "left_hip_Z",
+        "RKNE":   "right_hip_Y",
+        "LKNE":   "left_hip_Y",
+        "RMKNE":  "right_hip_Y",
+        "LMKNE":  "left_hip_Y",
 
         "RANK":   "right_knee_Z",
         "LANK":   "left_knee_Z",
         "RMANK":  "right_knee_Z",
         "LMANK":  "left_knee_Z",
 
-        "R5MHD":  "right_ankle_Z",
-        "L5MHD":  "left_ankle_Z",
-        "RTOE":   "right_ankle_Z",
-        "LTOE":   "left_ankle_Z",
-        "RHEE":   "right_knee_Z",
-        "LHEE":   "left_knee_Z",
+        "R5MHD":  "right_ankle_X",
+        "L5MHD":  "left_ankle_X",
+        "RTOE":   "right_ankle_X",
+        "LTOE":   "left_ankle_X",
+        "RHEE":   "right_ankle_X",
+        "LHEE":   "left_ankle_X",
 
         "Nose": "middle_cervical_Y",
         "Head": "middle_cervical_Y",
