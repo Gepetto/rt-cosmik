@@ -1,39 +1,40 @@
-import os
-import importlib.util
-from pathlib import Path
+"""Load a single, import-stable settings module for multiprocessing spawn.
+
+The spawn start method imports modules in fresh child interpreters, so the
+settings module must have a canonical import path instead of an ad-hoc dynamic
+loader identity.
+"""
+
 from dataclasses import dataclass
+from pathlib import Path
+
+
+@dataclass
+class DefaultSettings:
+    """Fallback settings used when project-level settings cannot be imported."""
+
+    SAVE_VID: bool = False
+    SAVE_CSV: bool = False
+    SAVE_DIR: str = "/default/output/path"
+
+    def __post_init__(self):
+        pkg_path = Path(__file__).resolve().parent.parent
+        self.cosmik_path = str(pkg_path)
+        self.cam_calib_path = str(pkg_path / "config/cam_params")
+
 
 def load_settings():
-    """Load settings from root directory or installed location"""
+    """Load settings from a canonical module path."""
     try:
-        # Try to load from project root (development mode)
-        root_path = Path(__file__).resolve().parent.parent.parent
-        spec = importlib.util.spec_from_file_location(
-            "settings", 
-            root_path / "settings.py"
-        )
-        settings = importlib.util.module_from_spec(spec)
-        spec.loader.exec_module(settings)
-        return settings.Settings()
-    
-    except FileNotFoundError:
-        # Fallback for installed package
-        from dataclasses import dataclass
-        @dataclass
-        class DefaultSettings:
-            # Replicate your settings structure here
-            SAVE_VID = False
-            SAVE_CSV = False
-            SAVE_DIR = "/default/output/path"
-            # ... all other fields ...
-            
-            def __post_init__(self):
-                # Calculate paths relative to package location
-                pkg_path = Path(__file__).resolve().parent.parent
-                self.cosmik_path = str(pkg_path)
-                self.cam_calib_path = str(pkg_path / "config/cam_params")
-                # ... other path calculations ...
+        # Development / editable install path.
+        import settings as settings_module
+    except ImportError:
+        # Packaged module fallback with canonical identity.
+        from rtcosmik import default_settings as settings_module
 
+    try:
+        return settings_module.Settings()
+    except AttributeError:
         return DefaultSettings()
 
 # Singleton instance accessible throughout the package

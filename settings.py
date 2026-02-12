@@ -11,8 +11,8 @@ class Settings:
     
     # SAVE 
     no_trial = "test"
-    SAVE_VID: bool = True
-    SAVE_CSV: bool = True
+    SAVE_VID: bool = False
+    SAVE_CSV: bool = False
     SAVE_DIR: str = f"/root/workspace/RT-COSMIK/output/{no_trial}" # abs path to the save folder
 
     # CAM PARAMS

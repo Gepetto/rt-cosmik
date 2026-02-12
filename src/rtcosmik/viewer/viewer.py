@@ -25,13 +25,12 @@ class Viewer:
 
         self.marker_names = marker_names
         self.freeflyer = freeflyer
-        self.viewer_type = settings.viewer
         
         self.vis = meshcat.Visualizer()
         LOGGER.info(f"[INFO] Meshcat visualizer available here: {self.vis.url()}")
-        self.vis_markers = vis["markers"]
+        self.vis_markers = self.vis["markers"]
 
-        self.marker_colors = np.zeros_like(self.marker_names)
+        self.marker_colors = np.zeros((3,len(self.marker_names)))
         self.marker_colors[0, :] = 1.0  # R
         self.marker_colors[1, :] = 0.0  # G
         self.marker_colors[2, :] = 0.0  # B
@@ -56,8 +55,9 @@ class Viewer:
         self.viz_human.display(q)
 
     def display_markers(self, pos_markers_dict):
+        pts = np.stack(list(pos_markers_dict.values()), axis=0).astype(np.float32)
         self.vis_markers.set_object(
-                    g.PointCloud(position=pos_markers_dict.values().T, color=self.marker_colors, size=0.02)
+                    g.PointCloud(position=pts.T, color=self.marker_colors, size=0.02)
                 )
 
 class ViewerProcess(Process):
@@ -110,14 +110,13 @@ class ViewerProcess(Process):
         if self.SAVE_CSV:
             self.csv_saver = CSVSaver(
                 self.SAVE_DIR,
-                self.keypoints_header,
                 self.markers_header,
                 self.joint_angles_header
             ) 
 
         self.viewer = Viewer(
                              self.model, 
-                             self.geom_model, 
+                             self.collision_model, 
                              self.visual_model, 
                              self.marker_names, 
                              self.freeflyer
