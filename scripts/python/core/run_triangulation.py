@@ -161,6 +161,8 @@ def main(args):
         if len(paths) == 0:
             raise RuntimeError(f"No videos found in {args.data_dir}")
 
+        NUM_CAMERAS = len(paths)
+
         src = OfflineVideoSource(paths=paths, size_wh=(W, H))
 
         est = NLFEstimator(
@@ -182,17 +184,17 @@ def main(args):
 
             nlf_out, infer_ms, yres, boxes = est.estimate_from_frames(frames)
 
-            if nlf_out is None or len(nlf_out) < len(paths):
+            nlf_out_2d = nlf_out["poses2d"]
+
+            if nlf_out_2d is None or len(nlf_out_2d) < NUM_CAMERAS:
                 continue
 
-            keypoints_list = [None] * len(paths)
+            keypoints_list = [None] * NUM_CAMERAS
             valid_cam_ids = []
 
-            for ii in range(len(paths)):
-                out_i = nlf_out[ii]
-                if out_i is None or not isinstance(out_i, dict):
-                    continue
-                poses2d = out_i.get("poses2d", None)
+            for ii in range(NUM_CAMERAS):
+                poses2d = nlf_out_2d[ii]
+                
                 if poses2d is None or len(poses2d) == 0 or poses2d[0] is None:
                     continue
 
@@ -211,9 +213,9 @@ def main(args):
             )
 
             poses_triangul = torch.from_numpy(p3d).to(dtype=torch.float32)
-            poses_cam0=nlf_out[0]['poses3d'][0]/1000
+            poses_cam0=nlf_out['poses3d'][0]/1000
 
-            if nlf_out[0]['poses3d'][0].shape[0] > 0:
+            if nlf_out['poses3d'][0].shape[0] > 0:
                 points_all = poses_cam0.view(-1, 3).cpu().numpy().T
                 
                 colors = np.zeros_like(points_all)

@@ -327,6 +327,8 @@ def main(args):
         if len(paths) == 0:
             raise RuntimeError(f"No videos found in {args.data_dir}")
 
+        NUM_CAMERAS = len(paths)
+
         src = OfflineVideoSource(paths=paths, size_wh=(W, H))
 
         est = NLFEstimator(
@@ -354,24 +356,24 @@ def main(args):
         iir_filter.add_filter(order=settings.order, cutoff=settings.cutoff_freq, filter_type=settings.filter_type)
 
         while True:
-            # t0=time.perf_counter()
+            t0=time.perf_counter()
             frames = src.read()
             if frames is None:
                 break
 
             nlf_out, infer_ms, yres, boxes = est.estimate_from_frames(frames)
 
-            if nlf_out is None or len(nlf_out) < len(paths):
+            nlf_out_2d = nlf_out["poses2d"]
+
+            if nlf_out_2d is None or len(nlf_out_2d) < NUM_CAMERAS:
                 continue
 
-            keypoints_list = [None] * len(paths)
+            keypoints_list = [None] * NUM_CAMERAS
             valid_cam_ids = []
 
-            for ii in range(len(paths)):
-                out_i = nlf_out[ii]
-                if out_i is None or not isinstance(out_i, dict):
-                    continue
-                poses2d = out_i.get("poses2d", None)
+            for ii in range(NUM_CAMERAS):
+                poses2d = nlf_out_2d[ii]
+                
                 if poses2d is None or len(poses2d) == 0 or poses2d[0] is None:
                     continue
 
@@ -522,8 +524,8 @@ def main(args):
                         viz_human.display(q)
                     else : 
                         raise ValueError("Invalid ik type, should be sbs (sample by sample) or mhe (moving horizon estimation)")
-            # t1=time.perf_counter()
-            # print(f"Time elapsed for treating one frame = {t1-t0} ms")
+            t1=time.perf_counter()
+            print(f"Time elapsed for treating one frame = {t1-t0} ms")
 
 
 if __name__ == "__main__":
