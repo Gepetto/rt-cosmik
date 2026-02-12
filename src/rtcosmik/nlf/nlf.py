@@ -39,7 +39,7 @@ class NLFEstimator:
         self.logger = logger or LOGGER
         self.conf = conf
         self.imgsz = imgsz
-        self.width, self.height = image_size
+        self.W, self.H = image_size
         self.indices = indices
 
         self.logger.info(f"[INFO] Loading YOLO detector model at {yolo_path}")
@@ -57,6 +57,24 @@ class NLFEstimator:
         self.geom_dtype = torch.float32
         K_stack = np.stack(cam_Ks, axis=0) 
         self.Kt = torch.from_numpy(K_stack).to(self.device, dtype=self.geom_dtype)  # (C,3,3)
+
+        self.C = self.Kt.shape[0]
+
+        # CPU pinned buffer (fast H2D, non_blocking)
+        self._cpu_pinned = torch.empty((self.C, self.H, self.W, 3), dtype=torch.uint8, pin_memory=True)
+        self._cpu_pinned_np = self._cpu_pinned.numpy()  # writable view, no alloc
+
+        # GPU buffers (reused every call)
+        self._gpu_hwc_u8 = torch.empty((self.C, self.H, self.W, 3), device=self.device, dtype=torch.uint8)
+        self._gpu_chw_u8 = torch.empty((self.C, 3, self.H, self.W), device=self.device, dtype=torch.uint8)
+
+        # temp for channel swap (BGR->RGB) without extra alloc
+        self._tmp_ch = torch.empty((self.C, self.H, self.W), device=self.device, dtype=torch.uint8)
+
+        # final tensor for NLF
+        self._gpu_fp16 = torch.empty((self.C, 3, self.H, self.W), device=self.device, dtype=torch.float16)
+
+        self._inv255 = 1.0 / 255.0
 
         if warmup:
             self.logger.info("[INFO] Starting to warm up all the models")
@@ -88,13 +106,10 @@ class NLFEstimator:
         return model
 
     def _warmup(self, iters: int = 10):
-        C = len(self.Kt)
-        H, W = self.height, self.width
-
-        frames = [np.random.randint(0, 256, (H, W, 3), dtype=np.uint8) for _ in range(C)]
-        dummy_xywh = torch.tensor([[0.0, 0.0, float(W - 1), float(H - 1)]],
+        frames = [np.random.randint(0, 256, (self.H, self.W, 3), dtype=np.uint8) for _ in range(self.C)]
+        dummy_xywh = torch.tensor([[0.0, 0.0, float(self.W - 1), float(self.H - 1)]],
                                   device=self.device, dtype=self.geom_dtype)
-        boxes_list = [dummy_xywh.clone() for _ in range(C)]
+        boxes_list = [dummy_xywh.clone() for _ in range(self.C)]
 
         with torch.inference_mode():
             for _ in range(iters):
@@ -117,10 +132,7 @@ class NLFEstimator:
                 )
     
     def _warmup_all_in_one(self, iters: int = 10):
-        C = len(self.Kt)
-        H, W = self.height, self.width
-
-        frames = [np.random.randint(0, 256, (H, W, 3), dtype=np.uint8) for _ in range(C)]
+        frames = [np.random.randint(0, 256, (self.H, self.W, 3), dtype=np.uint8) for _ in range(self.C)]
 
         with torch.inference_mode():
             imgs = self.preprocess_batch(frames)  # (C,3,H,W)
@@ -146,18 +158,29 @@ class NLFEstimator:
         return xywh.contiguous().to(self.geom_dtype)
 
     def preprocess_batch(self, frames_bgr):
-        arr = np.ascontiguousarray(np.stack(frames_bgr, axis=0))   # (C,H,W,3) uint8
-        x = torch.from_numpy(arr).to(self.device)                  # single transfer
-        x = x[..., [2, 1, 0]]                                       # BGR->RGB
-        x = x.permute(0, 3, 1, 2).contiguous()                      # (C,3,H,W)
-        x = x.to(torch.float16).mul_(1.0 / 255.0)                   # try fp16 for speed
-        return x
+        # 1) copy frames into pinned CPU buffer (no big stack allocation)
+        for i, f in enumerate(frames_bgr):
+            self._cpu_pinned_np[i] = f  # copies into pinned memory
+
+        # 2) async H2D copy
+        self._gpu_hwc_u8.copy_(self._cpu_pinned, non_blocking=True)
+
+        # 3) HWC -> CHW into a contiguous buffer
+        self._gpu_chw_u8.copy_(self._gpu_hwc_u8.permute(0, 3, 1, 2), non_blocking=True)
+
+        # 4) in-place BGR -> RGB using a persistent temp channel (no alloc)
+        self._tmp_ch.copy_(self._gpu_chw_u8[:, 0], non_blocking=True)      # B
+        self._gpu_chw_u8[:, 0].copy_(self._gpu_chw_u8[:, 2], non_blocking=True)  # R -> slot 0
+        self._gpu_chw_u8[:, 2].copy_(self._tmp_ch, non_blocking=True)      # B -> slot 2
+
+        # 5) cast + normalize into persistent fp16 tensor (copy_ does casting)
+        self._gpu_fp16.copy_(self._gpu_chw_u8, non_blocking=True)
+        self._gpu_fp16.mul_(self._inv255)
+
+        return self._gpu_fp16
 
     @torch.inference_mode()
     def estimate_from_frames(self, frames_bgr):
-        C = len(frames_bgr)
-        assert C == len(self.Kt)
-
         # --- CPU preprocess timing (stacking etc.) ---
         t_cpu0 = time.perf_counter()
 
@@ -195,9 +218,6 @@ class NLFEstimator:
 
     @torch.inference_mode()
     def detect_and_estimate_from_frames(self, frames_bgr):
-        C = len(frames_bgr)
-        assert C == len(self.Kt)
-
         # --- CPU preprocess timing (stacking etc.) ---
         t_cpu0 = time.perf_counter()
 
