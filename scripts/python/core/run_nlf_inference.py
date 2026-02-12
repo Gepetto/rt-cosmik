@@ -157,6 +157,9 @@ def main(args):
                 break
 
             nlf_out, infer_ms, yres, boxes = est.estimate_from_frames(frames)
+
+            print(f"Timings to perform inference = {infer_ms}")
+
             vis_frames = est.visualize_frames(
                 frames,
                 nlf_out,

@@ -24,6 +24,7 @@ class NLFEstimator:
         image_size,
         cam_Ks,
         indices,
+        all_in_one=False, # performs detection + nlf all in one or not 
         conf=0.75,
         imgsz=640,
         device="cuda:0",
@@ -54,15 +55,16 @@ class NLFEstimator:
             self.weights = self.nlf0.get_weights_for_canonical_points(pts)
 
         self.geom_dtype = torch.float32
-        K_stack = np.stack(cam_Ks, axis=0)  # (C,3,3)
-        self.Kt = torch.from_numpy(K_stack).to(self.device, dtype=self.geom_dtype).unsqueeze(1)  # (C,1,3,3)
-
-        self.Et = torch.eye(4, dtype=self.geom_dtype, device=self.device).unsqueeze(0)
-        self.world_up = torch.tensor([0.0, -1.0, 0.0], device=self.device, dtype=self.geom_dtype)
+        K_stack = np.stack(cam_Ks, axis=0) 
+        self.Kt = torch.from_numpy(K_stack).to(self.device, dtype=self.geom_dtype)  # (C,3,3)
 
         if warmup:
             self.logger.info("[INFO] Starting to warm up all the models")
-            self._warmup(iters=warmup_iters)
+            if all_in_one:
+                self._warmup_all_in_one(iters=warmup_iters)
+            else:
+                self._warmup(iters=warmup_iters)
+            self.logger.info("[INFO] Models warmed up")
     
     def load_nlf(self, path: str):
         model = torch.jit.load(path).eval().to(self.device)
@@ -78,7 +80,7 @@ class NLFEstimator:
         try:
             model = torch.jit.optimize_for_inference(
                 model,
-                other_methods=["estimate_poses_batched", "get_weights_for_canonical_points"],
+                other_methods=["detect_poses_batched", "estimate_poses_batched", "get_weights_for_canonical_points"],
             )
         except RuntimeError as exc:
             self.logger.warning("[WARN] NLF optimize_for_inference skipped: %s", exc)
@@ -86,60 +88,62 @@ class NLFEstimator:
         return model
 
     def _warmup(self, iters: int = 10):
-        """
-        Warm up YOLO + NLF to reduce first-call latency.
-        Uses synthetic data but matches your real tensor shapes & camera count.
-        """
         C = len(self.Kt)
         H, W = self.height, self.width
 
-        # Fake frames (uint8 BGR)
         frames = [np.random.randint(0, 256, (H, W, 3), dtype=np.uint8) for _ in range(C)]
-
-        # Dummy bbox: xywh + score (your NLF call uses xywh_score)
-        # Here: full image box with a high score
-        dummy_bbox = torch.tensor([[0.0, 0.0, float(W - 1), float(H - 1), 1.0]],
+        dummy_xywh = torch.tensor([[0.0, 0.0, float(W - 1), float(H - 1)]],
                                   device=self.device, dtype=self.geom_dtype)
+        boxes_list = [dummy_xywh.clone() for _ in range(C)]
 
-        # Warm up YOLO (batched)
         with torch.inference_mode():
             for _ in range(iters):
                 _ = self.yolo.predict(
-                    frames,
-                    imgsz=self.imgsz,
-                    classes=0,
-                    conf=self.conf,
-                    device=self.device,
-                    verbose=False,
-                    half=True,
+                    frames, imgsz=self.imgsz, classes=0, conf=self.conf,
+                    device=self.device, verbose=False, half=True,
                 )
 
-        # Warm up NLF (per-camera, since NLF isn't batched)
         with torch.inference_mode():
-            imgs = self.preprocess_batch(frames)  # (C,3,H,W) fp16
+            imgs = self.preprocess_batch(frames)  # (C,3,H,W)
+
             for _ in range(iters):
-                img_0 = imgs[0:1]     # (1,3,H,W)
-                Kt_el = self.Kt[0]      # (1,3,3)
+                # One single batched call
                 _ = self.nlf0.estimate_poses_batched(
-                    img_0,
-                    [dummy_bbox],
-                    intrinsic_matrix=Kt_el,
-                    extrinsic_matrix=self.Et,
-                    world_up_vector=self.world_up,
+                    imgs,
+                    boxes_list,
+                    intrinsic_matrix=self.Kt,   # see note below if shape mismatch
+                    weights=self.weights,
+                    num_aug=1,
+                )
+    
+    def _warmup_all_in_one(self, iters: int = 10):
+        C = len(self.Kt)
+        H, W = self.height, self.width
+
+        frames = [np.random.randint(0, 256, (H, W, 3), dtype=np.uint8) for _ in range(C)]
+
+        with torch.inference_mode():
+            imgs = self.preprocess_batch(frames)  # (C,3,H,W)
+
+            for _ in range(iters):
+                # One single batched call
+                _ = self.nlf0.detect_poses_batched(
+                    imgs,
+                    intrinsic_matrix=self.Kt,   # see note below if shape mismatch
                     weights=self.weights,
                     num_aug=1,
                 )
 
-        torch.cuda.synchronize()
-
-    def top1_box_xywh_score(self, res):
+    def top1_box_xywh(self, res):
+        """Return top-1 bbox as (1,4) xywh on self.device, or (0,4) if none."""
         if len(res.boxes) == 0:
-            return torch.zeros((0, 5), device=self.device, dtype=self.geom_dtype)
+            return torch.zeros((0, 4), device=self.device, dtype=self.geom_dtype)
+
         j = int(torch.argmax(res.boxes.conf).item())
-        boxes = res.boxes.xyxy[j:j + 1].to(self.device)
-        scores = res.boxes.conf[j:j + 1].to(self.device).unsqueeze(1)
-        wh = boxes[:, 2:] - boxes[:, :2]
-        return torch.cat([boxes[:, :2], wh, scores], dim=1).contiguous().to(self.geom_dtype)
+        boxes_xyxy = res.boxes.xyxy[j:j + 1].to(self.device)  # (1,4) xyxy
+        wh = boxes_xyxy[:, 2:] - boxes_xyxy[:, :2]
+        xywh = torch.cat([boxes_xyxy[:, :2], wh], dim=1)       # (1,4) xywh
+        return xywh.contiguous().to(self.geom_dtype)
 
     def preprocess_batch(self, frames_bgr):
         arr = np.ascontiguousarray(np.stack(frames_bgr, axis=0))   # (C,H,W,3) uint8
@@ -149,121 +153,106 @@ class NLFEstimator:
         x = x.to(torch.float16).mul_(1.0 / 255.0)                   # try fp16 for speed
         return x
 
-    
     @torch.inference_mode()
     def estimate_from_frames(self, frames_bgr):
+        C = len(frames_bgr)
+        assert C == len(self.Kt)
+
+        # --- CPU preprocess timing (stacking etc.) ---
+        t_cpu0 = time.perf_counter()
+
+        torch.cuda.synchronize()
         t0 = time.perf_counter()
 
-        # YOLO batched
+        # YOLO
         yres = self.yolo.predict(
-            frames_bgr,
-            imgsz=self.imgsz,
-            classes=0,
-            conf=self.conf,
-            device=self.device,   # keep consistent with user input
-            verbose=False,
-            half=True,
+            frames_bgr, imgsz=self.imgsz, classes=0, conf=self.conf,
+            device=self.device, verbose=False, half=True
         )
 
-        # Top-1 bbox per image (each b[i] is (1,5) or (0,5))
-        b = [self.top1_box_xywh_score(y) for y in yres]
-
-        C = len(frames_bgr)
-        if C != len(self.Kt):
-            raise ValueError(f"Need {len(self.Kt)} frames, got {C}")
-
-        # One GPU upload + format for all images
-        imgs = self.preprocess_batch(frames_bgr)  # (C,3,H,W)
-
-        out = [None] * C
-        for i in range(C):
-            b_el = b[i]
-            if b_el.numel() == 0:
-                continue
-
-            img_i = imgs[i:i+1]      # (1,3,H,W) keeps batch dim
-            Kt_el = self.Kt[i]      
-            # Et is already (1,4,4)
-
-            # Keep whatever NLF expects here; common pattern is list-of-boxes
-            out[i] = self.nlf0.estimate_poses_batched(
-                img_i,
-                [b_el],
-                intrinsic_matrix=Kt_el,
-                extrinsic_matrix=self.Et,
-                world_up_vector=self.world_up,
-                weights=self.weights,
-                num_aug=1,
-            )
-
+        torch.cuda.synchronize()
         t1 = time.perf_counter()
-        elapsed = (t1 - t0) * 1000.0
-        # self.logger.info(f"[INFO] NLF estimation took {elapsed} ms")
 
-        return out, elapsed, yres, b
+        boxes = [self.top1_box_xywh(y) for y in yres]
+
+        # preprocess_batch includes H2D; count it separately
+        torch.cuda.synchronize()
+        t2 = time.perf_counter()
+        imgs = self.preprocess_batch(frames_bgr)
+        torch.cuda.synchronize()
+        t3 = time.perf_counter()
+
+        # NLF
+        out = self.nlf0.estimate_poses_batched(
+            imgs, boxes, intrinsic_matrix=self.Kt, weights=self.weights, num_aug=1
+        )
+        torch.cuda.synchronize()
+        t4 = time.perf_counter()
+
+        timings = {
+            "yolo_ms": (t1 - t0) * 1000.0,
+            "h2d+pre_ms": (t3 - t2) * 1000.0,
+            "nlf_ms": (t4 - t3) * 1000.0,
+            "total_ms": (t4 - t0) * 1000.0,
+            "cpu_overhead_ms": (time.perf_counter() - t_cpu0) * 1000.0,  # small sanity
+        }
+        return out, timings, yres, boxes
+
+    @torch.inference_mode()
+    def detect_and_estimate_from_frames(self, frames_bgr):
+        C = len(frames_bgr)
+        assert C == len(self.Kt)
+
+        # --- CPU preprocess timing (stacking etc.) ---
+        t_cpu0 = time.perf_counter()
+
+        # preprocess_batch includes H2D; count it separately
+        torch.cuda.synchronize()
+        t2 = time.perf_counter()
+        imgs = self.preprocess_batch(frames_bgr)
+        torch.cuda.synchronize()
+        t3 = time.perf_counter()
+
+        # NLF
+        out = self.nlf0.detect_poses_batched(
+            imgs, intrinsic_matrix=self.Kt, weights=self.weights, num_aug=1
+        )
+        torch.cuda.synchronize()
+        t4 = time.perf_counter()
+
+        timings = {
+            "h2d+pre_ms": (t3 - t2) * 1000.0,
+            "nlf_ms": (t4 - t3) * 1000.0,
+            "total_ms": (t4 - t_cpu0) * 1000.0,
+            "cpu_overhead_ms": (time.perf_counter() - t_cpu0) * 1000.0,  # small sanity
+        }
+        return out, timings
+
 
     @staticmethod
-    def _extract_poses3d(nlf_out):
-        """Best-effort extraction of a (P,J,3) torch.Tensor from NLF output."""
-        if nlf_out is None:
-            return None
-
-        # Common case in your bench: dict with key "poses3d"
-        if isinstance(nlf_out, dict) and "poses3d" in nlf_out:
-            poses = nlf_out["poses3d"]
-            # Often wrapped as length-1 list/tuple (batch)
-            if isinstance(poses, (list, tuple)) and len(poses) > 0:
-                poses = poses[0]
-            if torch.is_tensor(poses):
-                # Accept (P,J,3) or (1,P,J,3)
-                if poses.ndim == 4 and poses.shape[0] == 1:
-                    poses = poses[0]
-                return poses
-
-        # If TorchScript returns a tuple/list, try to find a plausible tensor
-        if isinstance(nlf_out, (list, tuple)):
-            for item in nlf_out:
-                if torch.is_tensor(item):
-                    if item.ndim == 4 and item.shape[-1] == 3:
-                        return item[0] if item.shape[0] == 1 else item
-                    if item.ndim == 3 and item.shape[-1] == 3:
-                        return item
-
-        return None
-
-    @staticmethod
-    def draw_projection(frame_bgr, poses_3d, K, color=(0, 255, 255)):
+    def draw_points(frame_bgr, poses_2d, color=(0, 255, 255)):
         """Draws projected 3D points (no skeleton) on a BGR image."""
-        if poses_3d is None:
+        if poses_2d is None:
             return frame_bgr
 
         img = frame_bgr.copy()
-        pts = poses_3d.detach().float().cpu().numpy()
+        pts = poses_2d.detach().float().cpu().numpy()
         h, w = img.shape[:2]
 
-        K_new = K.detach().float().cpu().numpy()[0]
-
-        # pts: (P,J,3)
+        # pts: (P,J,2)
         for person in pts:
             radius = 1 if len(person) > 100 else 3
-            for x, y, z in person:
-                if abs(z) < 1e-9:
-                    continue
-                u = (K_new[0, 0] * x / z) + K_new[0, 2]
-                v = (K_new[1, 1] * y / z) + K_new[1, 2]
-                ui, vi = int(round(u)), int(round(v))
+            for x, y in person:
+                ui, vi = int(round(x)), int(round(y))
                 if 0 <= ui < w and 0 <= vi < h:
                     cv2.circle(img, (ui, vi), radius, color, -1, lineType=cv2.LINE_AA)
         return img
 
     @staticmethod
-    def draw_bbox_xywh(frame_bgr, bbox_xywh_score, color=(0, 255, 0), thickness=2):
+    def draw_bbox_xywh(frame_bgr, b, color=(0, 255, 0), thickness=2):
         """Optional helper to draw the top-1 bbox used for NLF."""
-        if bbox_xywh_score is None or bbox_xywh_score.numel() == 0:
-            return frame_bgr
         img = frame_bgr.copy()
-        b = bbox_xywh_score.detach().float().cpu().numpy()[0]
-        x, y, w, h = b[:4]
+        x, y, w, h = b.detach().float().cpu().numpy()[0]
         p0 = (int(round(x)), int(round(y)))
         p1 = (int(round(x + w)), int(round(y + h)))
         cv2.rectangle(img, p0, p1, color, thickness, lineType=cv2.LINE_AA)
@@ -287,7 +276,7 @@ class NLFEstimator:
         - draw_boxes: if True, draws the bbox used for NLF
         - draw: if False, returns copies of frames without drawing
         """
-        if len(frames_bgr) != len(nlf_outputs):
+        if len(frames_bgr) != len(nlf_outputs["poses2d"]):
             raise ValueError(f"frames_bgr and nlf_outputs length mismatch: {len(frames_bgr)} vs {len(nlf_outputs)}")
         if boxes is not None and len(boxes) != len(frames_bgr):
             raise ValueError(f"boxes length mismatch: {len(boxes)} vs {len(frames_bgr)}")
@@ -295,13 +284,14 @@ class NLFEstimator:
             raise ValueError(f"Need {self.Kt.shape[0]} frames (one per camera), got {len(frames_bgr)}")
 
         out_frames = []
-        for i, (frm, nlf_out) in enumerate(zip(frames_bgr, nlf_outputs)):
+        for i, (frm, nlf_out) in enumerate(zip(frames_bgr, nlf_outputs["poses2d"])):
             img = frm.copy()
+
             if draw:
-                poses3d = self._extract_poses3d(nlf_out)
-                img = self.draw_projection(img, poses3d, self.Kt[i])
+                img = self.draw_points(img, nlf_out)
                 if draw_boxes and boxes is not None:
                     img = self.draw_bbox_xywh(img, boxes[i])
+
             if put_text:
                 cv2.putText(
                     img,
@@ -313,6 +303,7 @@ class NLFEstimator:
                     2,
                     lineType=cv2.LINE_AA,
                 )
+
             out_frames.append(img)
         return out_frames
 
