@@ -217,12 +217,15 @@ class PipelineProcess(Process):
 
                         else: # Init phase finished
                             mks_dict = dict(zip(self.settings.marker_names, augmented_markers))
+                            self.results_queues[0].put((new_counters, mks_dict))
 
                             # IK directly 
                             if self.settings.ik_type == 'sbs':
                                 ik_class._dict_m = mks_dict
                                 q = ik_class.solve_ik_sample_quadprog() 
                                 ik_class._q0 = q
+                                self.results_queues[1].put((new_counters, q))
+
                             elif settings.ik_type == 'mhe':
                                 deque_lstm_dict.append(mks_dict)
                                 array_data = np.array([np.hstack([d[marker] for marker in self.settings.keys_to_track_list]) for d in deque_lstm_dict]).T
@@ -231,6 +234,7 @@ class PipelineProcess(Process):
 
                                 q = pin.neutral(human_model)
                                 q[:] = np.array(x_array[:human_model.nq,-1]).flatten()
+                                self.results_queues[1].put((new_counters, q))
                             else : 
                                 raise ValueError("Invalid ik type, should be sbs (sample by sample) or mhe (moving horizon estimation)")
         finally:        

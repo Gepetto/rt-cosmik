@@ -28,7 +28,7 @@ class Settings:
     human_gender: str = 'm'
 
     # VIEWER PARAMS
-    viewer: str = "meshcat" # viewer type: meshcat or rviz
+    viewer: str = "meshcat" # viewer type: meshcat or ros
     urdf_path: str = field(init=False) # relative path to the robot urdf
     meshes_path: str = field(init=False) # relative path to the robot meshes
 

@@ -31,6 +31,7 @@ from src.rtcosmik.camera.cam_utils import list_cameras, load_camera_parameters, 
 from src.rtcosmik.camera.camera import Camera
 from src.rtcosmik.utils.mp_utils import create_udp_buffer, create_camera_shared_ressources, create_pipeline_shared_ressources
 from src.rtcosmik.pipeline.pipeline import PipelineProcess
+from src.rtcosmik.viewer.viewer import ViewerProcess
 
 from multiprocessing import set_start_method
 from collections import deque
@@ -298,7 +299,14 @@ def main(args):
             num_cameras=NUM_CAMERAS,
         )
 
-        processes = camera_processes + [pipeline]
+        viewer= ViewerProcess(
+            settings=settings,
+            results_queues=result_queues,
+            stop_event=stop_event,
+            num_cameras=NUM_CAMERAS,
+        )
+
+        processes = camera_processes + [pipeline, viewer]
 
         # Start processes
         for p in processes:

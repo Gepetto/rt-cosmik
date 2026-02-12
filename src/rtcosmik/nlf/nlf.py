@@ -130,6 +130,7 @@ class NLFEstimator:
                     weights=self.weights,
                     num_aug=1,
                 )
+        torch.cuda.synchronize()
     
     def _warmup_all_in_one(self, iters: int = 10):
         frames = [np.random.randint(0, 256, (self.H, self.W, 3), dtype=np.uint8) for _ in range(self.C)]
@@ -145,6 +146,7 @@ class NLFEstimator:
                     weights=self.weights,
                     num_aug=1,
                 )
+        torch.cuda.synchronize()
 
     def top1_box_xywh(self, res):
         """Return top-1 bbox as (1,4) xywh on self.device, or (0,4) if none."""
