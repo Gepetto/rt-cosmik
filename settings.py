@@ -13,7 +13,7 @@ class Settings:
     no_trial = "test"
     SAVE_VID: bool = True
     SAVE_CSV: bool = True
-    SAVE_DIR: str = f"/root/workspace/ros_ws/src/RT-COSMIK/output/{no_trial}" # abs path to the save folder
+    SAVE_DIR: str = f"/root/workspace/RT-COSMIK/output/{no_trial}" # abs path to the save folder
 
     # CAM PARAMS
     fs: int = 40
@@ -39,8 +39,8 @@ class Settings:
     filter_type: str = "lowpass"
 
     # NLF
-    cano_path: str = "/root/workspace/ros_ws/RT-COSMIK/weights/canonical_verts/smplx.npy"
-    nlf_path: str = "/root/workspace/ros_ws/RT-COSMIK/weights/nlf/nlf_s_multi_0.2.2.torchscript"
+    cano_path: str = "/root/workspace/RT-COSMIK/weights/canonical_verts/smplx.npy"
+    nlf_path: str = "/root/workspace/RT-COSMIK/weights/nlf/nlf_s_multi_0.2.2.torchscript"
     nlf_indices = [             # For SMPLX model
         8421, 5727, 8371, 5677, # pelvis: RASI, LASI, RPSI, LPSI 
         5484, 5489, 5500, 6629, 3878, 7040, 4302, 7105, 4369, 7584, 4848, 7457, 4721, # upper: C7, T11, T6,  RSHO, LSHO, RELB, LELB, RMELB, LMELB, RWRI, LWRI, RMWRI, LMWRI
@@ -51,7 +51,7 @@ class Settings:
     ]
 
     # Yolo detector
-    yolo_path: str = "/root/workspace/ros_ws/RT-COSMIK/weights/yolo/yolov10n.engine"
+    yolo_path: str = "/root/workspace/RT-COSMIK/weights/yolo/yolov10n.engine"
     yolo_conf = 0.2
     yolo_imgsz = 640
 

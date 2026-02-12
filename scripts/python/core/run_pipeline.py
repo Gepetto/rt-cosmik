@@ -21,17 +21,17 @@ import torch
 import pinocchio as pin 
 from pinocchio.visualize import MeshcatVisualizer
 
-from src.rtcosmik.config_loader import settings
-from src.rtcosmik.nlf.nlf import NLFEstimator, DisplayConsumerNLF
-from src.rtcosmik.triangulation.triangulation import triangulate_points
-from src.rtcosmik.filtering.iir import IIR
-from src.rtcosmik.human_model.model_utils import scale_human_model, mks_registration, recalibrate_marker_frames_in_joint_space
-from src.rtcosmik.ik.ik import RT_IK, RT_SWIKA
-from src.rtcosmik.camera.cam_utils import list_cameras, load_camera_parameters, load_world_transformation
-from src.rtcosmik.camera.camera import Camera
-from src.rtcosmik.utils.mp_utils import create_camera_shared_ressources, create_pipeline_shared_ressources
-from src.rtcosmik.pipeline.pipeline import PipelineProcess
-from src.rtcosmik.viewer.viewer import ViewerProcess
+from rtcosmik.config_loader import settings
+from rtcosmik.nlf.nlf import NLFEstimator, DisplayConsumerNLF
+from rtcosmik.triangulation.triangulation import triangulate_points
+from rtcosmik.filtering.iir import IIR
+from rtcosmik.human_model.model_utils import scale_human_model, mks_registration, recalibrate_marker_frames_in_joint_space
+from rtcosmik.ik.ik import RT_IK, RT_SWIKA
+from rtcosmik.camera.cam_utils import list_cameras, load_camera_parameters, load_world_transformation
+from rtcosmik.camera.camera import Camera
+from rtcosmik.utils.mp_utils import create_camera_shared_ressources, create_pipeline_shared_ressources
+from rtcosmik.pipeline.pipeline import PipelineProcess
+from rtcosmik.viewer.viewer import ViewerProcess
 
 from multiprocessing import set_start_method
 from collections import deque

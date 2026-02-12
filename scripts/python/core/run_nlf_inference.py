@@ -14,11 +14,11 @@ from typing import List, Optional, Sequence, Tuple
 import cv2
 import numpy as np
 import torch
-from src.rtcosmik.nlf.nlf import NLFEstimator, DisplayConsumerNLF
-from src.rtcosmik.config_loader import settings
-from src.rtcosmik.camera.cam_utils import list_cameras, load_camera_parameters
-from src.rtcosmik.camera.camera import Camera
-from src.rtcosmik.utils.mp_utils import create_camera_shared_ressources
+from rtcosmik.nlf.nlf import NLFEstimator, DisplayConsumerNLF
+from rtcosmik.config_loader import settings
+from rtcosmik.camera.cam_utils import list_cameras, load_camera_parameters
+from rtcosmik.camera.camera import Camera
+from rtcosmik.utils.mp_utils import create_camera_shared_ressources
 
 from multiprocessing import set_start_method
 

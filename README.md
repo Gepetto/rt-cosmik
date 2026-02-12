@@ -11,6 +11,11 @@ To generate the appropriate models, use:
 ./scripts/bash/fetch_models.sh 
 ```
 
+To install the toolbox and use the scripts files: 
+```bash 
+pip install -e .
+```
+
 ## Citing RT-COSMIK
 
 

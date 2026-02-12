@@ -16,3 +16,7 @@ data/
 *.torchscript
 *.onnx
 *.pt
+# Packaging/build artifacts
+*.egg-info/
+build/
+dist/

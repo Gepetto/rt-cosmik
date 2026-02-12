@@ -5,11 +5,11 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__)))) 
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "src")) # src dir
 
 import time
-from src.rtcosmik.config_loader import settings
-from src.rtcosmik.camera.cam_utils import list_cameras
-from src.rtcosmik.camera.camera import Camera, DisplayConsumer
-from src.rtcosmik.utils.mp_utils import create_camera_shared_ressources
-from src.rtcosmik.saver.video_saver import VideoSaverProcess2
+from rtcosmik.config_loader import settings
+from rtcosmik.camera.cam_utils import list_cameras
+from rtcosmik.camera.camera import Camera, DisplayConsumer
+from rtcosmik.utils.mp_utils import create_camera_shared_ressources
+from rtcosmik.saver.video_saver import VideoSaverProcess2
 
 def main():
     cameras = list_cameras()

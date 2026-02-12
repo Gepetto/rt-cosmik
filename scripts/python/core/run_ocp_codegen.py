@@ -4,9 +4,9 @@ import os
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__)))) # Repo root
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "src")) # src dir
 
-from src.rtcosmik.config_loader import settings
-from src.rtcosmik.ik.ik import RT_SWIKA
-from src.rtcosmik.human_model.pin_model import build_dummy_model_no_visuals
+from rtcosmik.config_loader import settings
+from rtcosmik.ik.ik import RT_SWIKA
+from rtcosmik.human_model.pin_model import build_dummy_model_no_visuals
 
 human_model = build_dummy_model_no_visuals()
 
