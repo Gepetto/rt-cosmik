@@ -2,7 +2,7 @@ import pinocchio as pin
 import numpy as np 
 from scipy.spatial.transform import Rotation as R
 from typing import List, Tuple, Dict
-from src.rtcosmik.utils.linear_algebra_utils import col_vector_3D
+from rtcosmik.utils.linear_algebra_utils import col_vector_3D
 import logging 
 LOGGER = logging.getLogger(__name__)
 

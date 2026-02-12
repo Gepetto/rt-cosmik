@@ -8,12 +8,12 @@ from multiprocessing import Process, Array, Lock, Value, Event, Queue
 from typing import List
 import time
 
-from src.rtcosmik.nlf.nlf import NLFEstimator
-from src.rtcosmik.triangulation.triangulation import triangulate_points
-from src.rtcosmik.filtering.iir import IIR
-from src.rtcosmik.human_model.model_utils import scale_human_model, mks_registration, recalibrate_marker_frames_in_joint_space
-from src.rtcosmik.ik.ik import RT_IK, RT_SWIKA
-from src.rtcosmik.camera.cam_utils import load_camera_parameters,load_world_transformation
+from rtcosmik.nlf.nlf import NLFEstimator
+from rtcosmik.triangulation.triangulation import triangulate_points
+from rtcosmik.filtering.iir import IIR
+from rtcosmik.human_model.model_utils import scale_human_model, mks_registration, recalibrate_marker_frames_in_joint_space
+from rtcosmik.ik.ik import RT_IK, RT_SWIKA
+from rtcosmik.camera.cam_utils import load_camera_parameters,load_world_transformation
 
 import logging
 

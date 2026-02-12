@@ -8,8 +8,8 @@ import pandas as pd
 from collections import deque
 import numpy as np
 from scipy import signal
-from src.rtcosmik.augmenter.marker_augmenter import augmentTRC, loadModel
-from src.rtcosmik.utils.read_write_utils import read_mmpose_file, save_to_csv
+from rtcosmik.augmenter.marker_augmenter import augmentTRC, loadModel
+from rtcosmik.utils.read_write_utils import read_mmpose_file, save_to_csv
 base_path = "/root/workspace/ros_ws/src/rt-cosmik"
 
 no_trial = "trial3"

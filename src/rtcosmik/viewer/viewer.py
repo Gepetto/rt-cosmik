@@ -6,8 +6,8 @@ from pinocchio.visualize import MeshcatVisualizer
 from multiprocessing import Process, Queue, Event
 import pinocchio as pin 
 import example_robot_data as robex
-from src.rtcosmik.saver.csv_saver import CSVSaver
-from src.rtcosmik.human_model.model_utils import scale_human_model
+from rtcosmik.saver.csv_saver import CSVSaver
+from rtcosmik.human_model.model_utils import scale_human_model
 from typing import List
 import numpy as np
 from collections import OrderedDict
@@ -63,7 +63,7 @@ class Viewer:
 class ViewerProcess(Process):
     def __init__(self,
                  settings,
-                 result_queues: List[Queue],
+                 results_queues: List[Queue],
                  stop_event: Event,
                  num_cameras: int,
                  freeflyer=True,
@@ -75,7 +75,7 @@ class ViewerProcess(Process):
 
         self.saving_flag = saving_flag
 
-        self.result_queues = result_queues
+        self.results_queues = results_queues
         self.stop_event = stop_event
         self.num_cameras = num_cameras
         self.marker_names = self.settings.marker_names
@@ -144,8 +144,8 @@ class ViewerProcess(Process):
 
         try: 
             while not self.stop_event.is_set():
-                cam_counters, mks_dict = self.result_queues[0].get()
-                _, q = self.result_queues[1].get()
+                cam_counters, mks_dict = self.results_queues[0].get()
+                _, q = self.results_queues[1].get()
 
                 #scale the model to data
                 if self.first_sample:

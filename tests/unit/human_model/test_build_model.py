@@ -13,9 +13,9 @@ import pandas as pd
 import time
 
 # Adjust the import path according to your project structure.
-from src.rtcosmik.human_model.pin_model import build_model_no_visuals
-from src.rtcosmik.human_model.model_utils import construct_segments_frames
-from src.rtcosmik.viewer.gv_viewer import place
+from rtcosmik.human_model.pin_model import build_model_no_visuals
+from rtcosmik.human_model.model_utils import construct_segments_frames
+from rtcosmik.viewer.gv_viewer import place
 
 class TestBuildModelNoVisuals(unittest.TestCase):
     def setUp(self):

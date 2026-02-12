@@ -18,12 +18,12 @@ sys.path.insert(
 )
 
 from settings import Settings
-from src.rtcosmik.triangulation.triangulation import triangulate_points
-from src.rtcosmik.augmenter.marker_augmenter import augmentTRC, loadModel
-from src.rtcosmik.pose_estimator.pose_estimator import BatchPoseTrackerEstimator
-from src.rtcosmik.filtering.iir import IIR
-from src.rtcosmik.ik.ik import RT_IK, RT_SWIKA
-from src.rtcosmik.human_model.urdf_model import Robot, scale_human_model, mks_registration
+from rtcosmik.triangulation.triangulation import triangulate_points
+from rtcosmik.augmenter.marker_augmenter import augmentTRC, loadModel
+from rtcosmik.pose_estimator.pose_estimator import BatchPoseTrackerEstimator
+from rtcosmik.filtering.iir import IIR
+from rtcosmik.ik.ik import RT_IK, RT_SWIKA
+from rtcosmik.human_model.urdf_model import Robot, scale_human_model, mks_registration
 
 # Path to rt-cosmik repo root (adapt if different on your machine)
 rt_cosmik_path = "/root/workspace/ros_ws/src/rt-cosmik/"

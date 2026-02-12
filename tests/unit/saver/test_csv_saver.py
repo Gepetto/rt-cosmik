@@ -9,7 +9,7 @@ import unittest
 import os
 import tempfile
 from collections import OrderedDict
-from src.rtcosmik.saver.csv_saver import CSVSaver
+from rtcosmik.saver.csv_saver import CSVSaver
 
 class TestCSVSaver(unittest.TestCase):
     def setUp(self):

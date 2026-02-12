@@ -9,7 +9,7 @@ import meshcat.geometry as g
 import meshcat.transformations as tf
 
 from multiprocessing import Process, Array, Value, Lock, Barrier, Event, Queue
-from src.rtcosmik.triangulation.triangulation import triangulate_points
+from rtcosmik.triangulation.triangulation import triangulate_points
 
 LOGGER = logging.getLogger(__name__)
 

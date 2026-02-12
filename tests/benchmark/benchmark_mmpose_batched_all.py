@@ -8,7 +8,7 @@ from multiprocessing import Process, Queue, Event, set_start_method
 import cv2
 import numpy as np
 
-from src.rtcosmik.pose_estimator.pose_estimator import BatchPoseTrackerEstimator
+from rtcosmik.pose_estimator.pose_estimator import BatchPoseTrackerEstimator
 from settings import Settings
 
 # --------------------------------------------------------------------------- #

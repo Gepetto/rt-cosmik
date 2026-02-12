@@ -7,16 +7,16 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '../.
 script_directory = os.path.dirname(os.path.abspath(__file__))
 
 rt_cosmik_path = os.path.dirname(script_directory)
-from src.rtcosmik.human_model.urdf_model import * 
+from rtcosmik.human_model.urdf_model import * 
 import numpy as np
 import pinocchio as pin
 from pinocchio.visualize import GepettoVisualizer
-from src.rtcosmik.utils.read_write_utils import read_mks_data,udp_csv_to_dataframe,marker_data_to_dataframe
+from rtcosmik.utils.read_write_utils import read_mks_data,udp_csv_to_dataframe,marker_data_to_dataframe
 import pandas as pd
-from src.rtcosmik.human_model.urdf_model import * 
-from src.rtcosmik.viewer.gv_viewer import place, gv_init,add_frames
-from src.rtcosmik.config_loader import settings
-from src.rtcosmik.human_model.model_utils import get_segment_length
+from rtcosmik.human_model.urdf_model import * 
+from rtcosmik.viewer.gv_viewer import place, gv_init,add_frames
+from rtcosmik.config_loader import settings
+from rtcosmik.human_model.model_utils import get_segment_length
 
 #read mks data
 no_trial = "trial_2"
