@@ -248,6 +248,8 @@ class OfflineVideoSource:
 
 def main(args):
     torch.backends.cudnn.benchmark = True
+    torch.backends.cuda.matmul.allow_tf32 = True
+    torch.backends.cudnn.allow_tf32 = True
 
     # Determine size
     W = settings.width
