@@ -23,14 +23,9 @@ class Settings:
     fourcc: str = "MJPG" # video codec
 
     # HUMAN ANTHROPOMETRY
-    human_height: float = 1.87
+    human_height: float = 1.81
     human_weight: float = 74.0 
     human_gender: str = 'm'
-
-    # VIEWER PARAMS
-    viewer: str = "meshcat" # viewer type: meshcat or ros
-    urdf_path: str = field(init=False) # relative path to the robot urdf
-    meshes_path: str = field(init=False) # relative path to the robot meshes
 
     # CALIB
     cam_calib_path: str = field(init=False) # relative path to the camera calibration file
@@ -92,18 +87,6 @@ class Settings:
            "R5MHD", "L5MHD", "RTOE", "LTOE", "LHEE", "RHEE",
            "Nose", "Head", "REar", "LEar", "REye", "LEye",
            ])
-
-    marker_mocap_names: list = field(default_factory=lambda: [
-           'r.ASIS_study','L.ASIS_study','r.PSIS_study','L.PSIS_study','r_knee_study',
-           'r_mknee_study','r_ankle_study','r_mankle_study','r_toe_study','r_5meta_study',
-           'r_calc_study','L_knee_study','L_mknee_study','L_ankle_study','L_mankle_study',
-           'L_toe_study','L_calc_study','L_5meta_study','r_shoulder_study','L_shoulder_study',
-           'C7_study','r_thigh1_study','r_thigh2_study','r_thigh3_study','L_thigh1_study',
-           'L_thigh2_study','L_thigh3_study','r_sh1_study','r_sh2_study','r_sh3_study',
-           'L_sh1_study','L_sh2_study','L_sh3_study','RHJC_study','LHJC_study','r_lelbow_study',
-           'r_melbow_study','r_lwrist_study','r_mwrist_study','L_lelbow_study','L_melbow_study',
-           'L_lwrist_study','L_mwrist_study'])
-    
     
     keys_to_track_list: list = field(default_factory=lambda: [
            "RASI", "LASI", "RPSI", "LPSI",
@@ -120,6 +103,4 @@ class Settings:
         self.cam_calib_path = str(Path(self.cosmik_path) / "config/cam_params")
         self.human_calib_path = str(Path(self.cosmik_path) / "config/human_params")
         self.robot_calib_path = str(Path(self.cosmik_path) / "config/robot_params")
-        self.urdf_path = str(Path(self.cosmik_path) / "urdf/human.urdf")
-        self.meshes_path = str(Path(self.cosmik_path) / "meshes")
         self.dt = 1 / self.fs

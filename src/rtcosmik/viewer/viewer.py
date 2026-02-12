@@ -18,7 +18,7 @@ import logging
 LOGGER = logging.getLogger(__name__)
 
 class Viewer:
-    def __init__(self, settings, model, collision_model, visual_model, marker_names, freeflyer=True):
+    def __init__(self, model, collision_model, visual_model, marker_names, freeflyer=True):
         self.model = model
         self.collision_model = collision_model 
         self.visual_model = visual_model
@@ -51,26 +51,12 @@ class Viewer:
         self.viz_human.viewer["/Background"].set_property("top_color", [1, 1, 1])  # Dark gray (RGB values in [0, 1])
         self.viz_human.viewer["/Background"].set_property("bottom_color", [0.65, 0.65, 0.65])  # Same color → flat background
 
-        # ROS specific publishers
-        self.marker_pub = None
-        self.q_pub = None
-        self.br = None
-        
-        if self.viewer_type == 'ros':
-            from .ros_viewer import ros_init, publish_augmented_markers, publish_kinematics
-            self.keypoints_pub, self.marker_pub, self.q_pub, self.br = ros_init(self.freeflyer)
     
     def display_q(self, q):
-        if self.viewer_type == 'ros':
-            publish_kinematics(q, self.q_pub, self.model.names, self.br)
-        else:
-            self.viz_human.display(q)
+        self.viz_human.display(q)
 
     def display_markers(self, pos_markers_dict):
-        if self.viewer_type == 'ros':
-            publish_augmented_markers(list(pos_markers_dict.values()), self.marker_pub, pos_markers_dict.keys())
-        else:
-            self.vis_markers.set_object(
+        self.vis_markers.set_object(
                     g.PointCloud(position=pos_markers_dict.values().T, color=self.marker_colors, size=0.02)
                 )
 
@@ -130,7 +116,6 @@ class ViewerProcess(Process):
             ) 
 
         self.viewer = Viewer(
-                             self.settings,
                              self.model, 
                              self.geom_model, 
                              self.visual_model, 

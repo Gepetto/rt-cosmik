@@ -22,7 +22,7 @@ from src.rtcosmik.nlf.nlf import NLFEstimator, DisplayConsumerNLF
 from src.rtcosmik.config_loader import settings
 from src.rtcosmik.camera.cam_utils import list_cameras, load_camera_parameters, load_world_transformation
 from src.rtcosmik.camera.camera import Camera
-from src.rtcosmik.utils.mp_utils import create_udp_buffer, create_camera_shared_ressources
+from src.rtcosmik.utils.mp_utils import create_camera_shared_ressources
 from src.rtcosmik.triangulation.triangulation import triangulate_points
 
 from multiprocessing import set_start_method
@@ -89,7 +89,6 @@ def main(args):
         NUM_CAMERAS = len(cameras)
         FRAME_SHAPE = (H, W, 3)
         camera_buffers, camera_timestamps, camera_locks, frame_counters, camera_barrier, stop_event = create_camera_shared_ressources(NUM_CAMERAS, FRAME_SHAPE)
-        shared_ts_udp,shared_values_udp,lock_udp,cam_event = create_udp_buffer(settings.marker_mocap_names)
 
         # Create camera processes
         camera_processes = [
@@ -100,7 +99,6 @@ def main(args):
                 frame_counters[i], 
                 camera_barrier, 
                 stop_event,
-                cam_event, 
                 FRAME_SHAPE, 
                 settings.fs, 
                 settings.fourcc,)

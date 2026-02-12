@@ -4,10 +4,8 @@ from datetime import datetime
 import multiprocessing as mp
 from multiprocessing import Process, Array, Value, Lock, Barrier, Event, Queue
 import logging
-import select
-import socket
-import csv 
-import time
+
+LOGGER = logging.getLogger(__name__)
 
 class Camera(Process):
     def __init__(self, 
@@ -18,10 +16,11 @@ class Camera(Process):
                  frame_counter: Value,
                  barrier: Barrier,
                  stop_event: Event,
-                 cam_event :Event,
                  frame_shape: tuple = (720, 1280, 3),
-                 cam_fps: int = None,
-                 cam_fourcc: str = "MJPG"):
+                 cam_fps: int = 40,
+                 cam_fourcc: str = "MJPG",
+                 logger=None,
+                 ):
         
         super().__init__()
         self.cam_id = cam_id
@@ -31,12 +30,13 @@ class Camera(Process):
         self.frame_counter = frame_counter
         self.barrier = barrier
         self.stop_event = stop_event
-        self.cam_event = cam_event
         
         # Video capture parameters
         self.frame_shape = frame_shape  # (height, width, channels)
         self.cam_fps = cam_fps
         self.cam_fourcc = cam_fourcc
+
+        self.logger=logger or LOGGER
 
         # Validate timestamp buffer size (need 26 chars for format)
         if len(timestamp_buffer) != 26:
@@ -63,6 +63,7 @@ class Camera(Process):
         frame_buffer = arr.reshape(self.frame_shape)
 
         # let everyone get to this point
+        self.logger.info(f"[INFO] Camera {self.cam_id} is ready to acquire images ...")
         self.barrier.wait()
 
         try:
@@ -72,8 +73,6 @@ class Camera(Process):
 
                 # --- 2) tell the driver to queue the next frame
                 cap.grab()
-                if self.cam_id == 0:
-                    self.cam_event.set()
 
                 # --- 3) wait here until everyone has grabbed
                 self.barrier.wait()
@@ -92,15 +91,10 @@ class Camera(Process):
                     np.copyto(frame_buffer, resized)
                     self.timestamp_buffer[:26] = now_str.ljust(26, "\0").encode("utf-8")
                     self.frame_counter.value += 1
-                    # print(f"counters in camera {self.cam_id} :{self.frame_counter.value}")
-                    # print(self.timestamp_buffer[:26])
-
-                # optional: wait here if you need a post‑write barrier
-                # self.barrier.wait()
 
         finally:
             cap.release()
-            print(f"Camera {self.cam_id} process exiting.")
+            self.logger.info(f"[INFO] Camera process for camera {self.cam_id} terminated...")
 
 class DisplayConsumer(Process):
     def __init__(self, 

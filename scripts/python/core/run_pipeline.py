@@ -29,7 +29,7 @@ from src.rtcosmik.human_model.model_utils import scale_human_model, mks_registra
 from src.rtcosmik.ik.ik import RT_IK, RT_SWIKA
 from src.rtcosmik.camera.cam_utils import list_cameras, load_camera_parameters, load_world_transformation
 from src.rtcosmik.camera.camera import Camera
-from src.rtcosmik.utils.mp_utils import create_udp_buffer, create_camera_shared_ressources, create_pipeline_shared_ressources
+from src.rtcosmik.utils.mp_utils import create_camera_shared_ressources, create_pipeline_shared_ressources
 from src.rtcosmik.pipeline.pipeline import PipelineProcess
 from src.rtcosmik.viewer.viewer import ViewerProcess
 
@@ -263,7 +263,6 @@ def main(args):
         NUM_CAMERAS = len(cameras)
         FRAME_SHAPE = (H, W, 3)
         camera_buffers, camera_timestamps, camera_locks, frame_counters, camera_barrier, stop_event = create_camera_shared_ressources(NUM_CAMERAS, FRAME_SHAPE)
-        shared_ts_udp,shared_values_udp,lock_udp,cam_event = create_udp_buffer(settings.marker_mocap_names)
         results_queues = create_pipeline_shared_ressources()
 
         # Create camera processes
@@ -274,8 +273,7 @@ def main(args):
                 camera_locks[i], 
                 frame_counters[i], 
                 camera_barrier, 
-                stop_event,
-                cam_event, 
+                stop_event, 
                 FRAME_SHAPE, 
                 settings.fs, 
                 settings.fourcc,)

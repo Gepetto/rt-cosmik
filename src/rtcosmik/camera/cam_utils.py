@@ -294,14 +294,6 @@ def compute_extrinsics_in_cam0(R02, T02, R24, T24, R46, T46):
 
     return R02, T02,R04, T04,R06, T06
 
-# def load_four_camera_parameters(config_path):
-#     """Load intrinsic and extrinsic camera parameters."""
-#     K1,D1,K2,D2,K3,D3,K4, D4 = load_intrinsic_cams(config_path)
-#     R02, T02,R24, T24,R46, T46= load_extrinsic_cams(config_path)
-#     R2, T2,R4, T4, R6, T6= compute_extrinsics_in_cam0(R02, T02,R24, T24,R46, T46)
-#     return get_four_cameras_params(K1,D1,K2,D2,K3,D3,K4, D4,R2,T2,R4,T4,R6, T6)
-
-
 def load_four_camera_parameters(config_path):
     """Load intrinsic and extrinsic camera parameters."""
     K1, D1 = load_cam_params(os.path.join(config_path, "c0_params_color.yaml"))
