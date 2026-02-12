@@ -161,7 +161,6 @@ class NLFEstimator:
         # --- CPU preprocess timing (stacking etc.) ---
         t_cpu0 = time.perf_counter()
 
-        torch.cuda.synchronize()
         t0 = time.perf_counter()
 
         # YOLO
@@ -170,23 +169,19 @@ class NLFEstimator:
             device=self.device, verbose=False, half=True
         )
 
-        torch.cuda.synchronize()
         t1 = time.perf_counter()
 
         boxes = [self.top1_box_xywh(y) for y in yres]
 
         # preprocess_batch includes H2D; count it separately
-        torch.cuda.synchronize()
         t2 = time.perf_counter()
         imgs = self.preprocess_batch(frames_bgr)
-        torch.cuda.synchronize()
         t3 = time.perf_counter()
 
         # NLF
         out = self.nlf0.estimate_poses_batched(
             imgs, boxes, intrinsic_matrix=self.Kt, weights=self.weights, num_aug=1
         )
-        torch.cuda.synchronize()
         t4 = time.perf_counter()
 
         timings = {
@@ -207,17 +202,14 @@ class NLFEstimator:
         t_cpu0 = time.perf_counter()
 
         # preprocess_batch includes H2D; count it separately
-        torch.cuda.synchronize()
         t2 = time.perf_counter()
         imgs = self.preprocess_batch(frames_bgr)
-        torch.cuda.synchronize()
         t3 = time.perf_counter()
 
         # NLF
         out = self.nlf0.detect_poses_batched(
             imgs, intrinsic_matrix=self.Kt, weights=self.weights, num_aug=1
         )
-        torch.cuda.synchronize()
         t4 = time.perf_counter()
 
         timings = {

@@ -74,7 +74,7 @@ class OfflineVideoSource:
             cap.release()
 
 def main(args):
-    torch.backends.cudnn.benchmark = True
+    torch.backends.cudnn.benchmark = False
     torch.backends.cuda.matmul.allow_tf32 = True
     torch.backends.cudnn.allow_tf32 = True
 
