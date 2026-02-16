@@ -84,7 +84,7 @@ class Settings:
            "C7", "T11", "T6", "RSHO", "LSHO", "RELB", "LELB", "RMELB", "LMELB", "RWRI", "LWRI", "RMWRI", "LMWRI",
            "RTHU", "LTHU", "RMID", "LMID", "RPIN", "LPIN",
            "RKNE", "LKNE", "RMKNE", "LMKNE", "RANK", "LANK", "RMANK", "LMANK",
-           "R5MHD", "L5MHD", "RTOE", "LTOE", "LHEE", "RHEE",
+           "R5MHD", "L5MHD", "RTOE", "LTOE", "RHEE", "LHEE", 
            "Nose", "Head", "REar", "LEar", "REye", "LEye",
            ])
     
@@ -93,7 +93,7 @@ class Settings:
            "C7", "T11", "T6", "RSHO", "LSHO", "RELB", "LELB", "RMELB", "LMELB", "RWRI", "LWRI", "RMWRI", "LMWRI",
            "RTHU", "LTHU", "RMID", "LMID", "RPIN", "LPIN",
            "RKNE", "LKNE", "RMKNE", "LMKNE", "RANK", "LANK", "RMANK", "LMANK",
-           "R5MHD", "L5MHD", "RTOE", "LTOE", "LHEE", "RHEE",
+           "R5MHD", "L5MHD", "RTOE", "LTOE", "RHEE", "LHEE", 
            "Nose", "Head", "REar", "LEar", "REye", "LEye",
     ])
 
