@@ -10,6 +10,7 @@ import importlib.util
 import logging
 import os
 from pathlib import Path
+from types import SimpleNamespace
 from types import ModuleType
 from typing import Optional
 
@@ -57,6 +58,22 @@ def _load_module_from_file(module_name: str, module_path: Path) -> Optional[Modu
     except Exception as exc:
         LOGGER.warning("Failed loading module %s from %s: %s", module_name, module_path, exc)
         return None
+
+
+def _to_spawn_safe_settings(settings_obj):
+    """Convert arbitrary settings objects to a pickle-friendly namespace."""
+    data = {}
+    for name in dir(settings_obj):
+        if name.startswith("_"):
+            continue
+        try:
+            value = getattr(settings_obj, name)
+        except Exception:
+            continue
+        if callable(value):
+            continue
+        data[name] = value
+    return SimpleNamespace(**data)
 
 
 @dataclass
@@ -154,7 +171,9 @@ def load_settings():
         settings_module = _load_module_from_file("rtcosmik_project_settings", settings_file)
         if settings_module is not None and hasattr(settings_module, "Settings"):
             try:
-                return settings_module.Settings()
+                # Settings loaded from an explicit file path are not importable as a
+                # normal module in spawned children. Normalize to a stdlib type.
+                return _to_spawn_safe_settings(settings_module.Settings())
             except Exception as exc:
                 LOGGER.warning("Failed constructing Settings() from %s: %s", settings_file, exc)
         else:
