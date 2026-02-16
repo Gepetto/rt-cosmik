@@ -23,9 +23,7 @@ def list_cameras():
                     cap = cv.VideoCapture(index, cv.CAP_V4L2)
                     if cap.isOpened():
                         cameras[index] = device_name
-                        cap.release()
-                    else:
-                        cap.release()
+                    cap.release()
     except Exception as e:
         print("Error using v4l2-ctl:", e)
     return cameras
