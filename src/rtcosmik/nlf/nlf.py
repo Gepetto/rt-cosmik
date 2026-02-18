@@ -266,7 +266,29 @@ class NLFEstimator:
     def draw_bbox_xywh(frame_bgr, b, color=(0, 255, 0), thickness=2):
         """Optional helper to draw the top-1 bbox used for NLF."""
         img = frame_bgr.copy()
-        x, y, w, h = b.detach().float().cpu().numpy()[0]
+        if b is None:
+            return img
+
+        # YOLO can return no detections for a frame -> empty (0,4) tensor.
+        try:
+            bb = b.detach().float().cpu().numpy()
+        except Exception:
+            bb = np.asarray(b)
+
+        if bb.ndim == 1:
+            if bb.shape[0] < 4:
+                return img
+            x, y, w, h = bb[:4]
+        elif bb.ndim >= 2:
+            if bb.shape[0] == 0 or bb.shape[1] < 4:
+                return img
+            x, y, w, h = bb[0, :4]
+        else:
+            return img
+
+        if not np.all(np.isfinite([x, y, w, h])):
+            return img
+
         p0 = (int(round(x)), int(round(y)))
         p1 = (int(round(x + w)), int(round(y + h)))
         cv2.rectangle(img, p0, p1, color, thickness, lineType=cv2.LINE_AA)
