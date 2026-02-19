@@ -59,6 +59,9 @@ class NLFEstimator:
         self.Kt = torch.from_numpy(K_stack).to(self.device, dtype=self.geom_dtype)  # (C,3,3)
 
         self.C = self.Kt.shape[0]
+        # Per-camera lock state to keep tracking the same person across frames.
+        self._locked_boxes_xyxy = [None for _ in range(self.C)]
+        self._lock_missing_count = [0 for _ in range(self.C)]
 
         # CPU pinned buffer (fast H2D, non_blocking)
         self._cpu_pinned = torch.empty((self.C, self.H, self.W, 3), dtype=torch.uint8, pin_memory=True)
@@ -159,6 +162,88 @@ class NLFEstimator:
         xywh = torch.cat([boxes_xyxy[:, :2], wh], dim=1)       # (1,4) xywh
         return xywh.contiguous().to(self.geom_dtype)
 
+    def _xyxy_to_xywh(self, box_xyxy):
+        box = box_xyxy.reshape(1, 4).to(self.device, dtype=self.geom_dtype)
+        wh = box[:, 2:] - box[:, :2]
+        return torch.cat([box[:, :2], wh], dim=1).contiguous()
+
+    def _box_iou_single_to_many(self, box_xyxy, boxes_xyxy):
+        """IoU between one box (4,) and many boxes (N,4)."""
+        if boxes_xyxy.numel() == 0:
+            return torch.zeros((0,), device=self.device, dtype=self.geom_dtype)
+
+        b = box_xyxy.reshape(1, 4)
+        xx1 = torch.maximum(b[:, 0], boxes_xyxy[:, 0])
+        yy1 = torch.maximum(b[:, 1], boxes_xyxy[:, 1])
+        xx2 = torch.minimum(b[:, 2], boxes_xyxy[:, 2])
+        yy2 = torch.minimum(b[:, 3], boxes_xyxy[:, 3])
+        inter_w = torch.clamp(xx2 - xx1, min=0.0)
+        inter_h = torch.clamp(yy2 - yy1, min=0.0)
+        inter = inter_w * inter_h
+
+        area_b = torch.clamp((b[:, 2] - b[:, 0]) * (b[:, 3] - b[:, 1]), min=0.0)
+        area_n = torch.clamp((boxes_xyxy[:, 2] - boxes_xyxy[:, 0]) * (boxes_xyxy[:, 3] - boxes_xyxy[:, 1]), min=0.0)
+        union = area_b + area_n - inter
+        return inter / torch.clamp(union, min=1e-12)
+
+    def _select_locked_box_xywh(self, res, cam_idx):
+        """
+        Keep selecting the same person by matching current detections
+        against the previously selected box for each camera.
+        """
+        if len(res.boxes) == 0:
+            locked = self._locked_boxes_xyxy[cam_idx]
+            if locked is None:
+                return torch.zeros((0, 4), device=self.device, dtype=self.geom_dtype)
+            self._lock_missing_count[cam_idx] += 1
+            if self._lock_missing_count[cam_idx] <= 10:
+                return self._xyxy_to_xywh(locked)
+            self._locked_boxes_xyxy[cam_idx] = None
+            self._lock_missing_count[cam_idx] = 0
+            return torch.zeros((0, 4), device=self.device, dtype=self.geom_dtype)
+
+        boxes_xyxy = res.boxes.xyxy.to(self.device, dtype=self.geom_dtype)  # (N,4)
+        conf = res.boxes.conf.to(self.device, dtype=self.geom_dtype)
+
+        # First frame for this camera: initialize lock from highest confidence.
+        locked = self._locked_boxes_xyxy[cam_idx]
+        if locked is None:
+            j = int(torch.argmax(conf).item())
+            chosen = boxes_xyxy[j]
+            self._locked_boxes_xyxy[cam_idx] = chosen
+            self._lock_missing_count[cam_idx] = 0
+            return self._xyxy_to_xywh(chosen)
+
+        # Prefer the detection that best matches the previous lock.
+        ious = self._box_iou_single_to_many(locked, boxes_xyxy)  # (N,)
+        centers = 0.5 * (boxes_xyxy[:, :2] + boxes_xyxy[:, 2:])
+        locked_center = 0.5 * (locked[:2] + locked[2:])
+        d = torch.linalg.norm(centers - locked_center.reshape(1, 2), dim=1)
+        locked_area = torch.clamp((locked[2] - locked[0]) * (locked[3] - locked[1]), min=1.0)
+        d_norm = d / torch.sqrt(locked_area)
+        # Lower is better; IoU helps break ties.
+        score = d_norm - 0.5 * ious
+        j = int(torch.argmin(score).item())
+
+        # Accept candidate if it is spatially or overlap-consistent with lock.
+        if float(ious[j]) >= 0.02 or float(d_norm[j]) <= 1.5:
+            chosen = boxes_xyxy[j]
+            self._locked_boxes_xyxy[cam_idx] = chosen
+            self._lock_missing_count[cam_idx] = 0
+            return self._xyxy_to_xywh(chosen)
+
+        # No confident match: keep lock briefly to avoid identity switches.
+        self._lock_missing_count[cam_idx] += 1
+        if self._lock_missing_count[cam_idx] <= 10:
+            return self._xyxy_to_xywh(locked)
+
+        # Re-acquire only after lock is considered lost.
+        j_conf = int(torch.argmax(conf).item())
+        chosen = boxes_xyxy[j_conf]
+        self._locked_boxes_xyxy[cam_idx] = chosen
+        self._lock_missing_count[cam_idx] = 0
+        return self._xyxy_to_xywh(chosen)
+
     def preprocess_batch(self, frames_bgr):
         # 1) copy frames into pinned CPU buffer (no big stack allocation)
         for i, f in enumerate(frames_bgr):
@@ -196,7 +281,7 @@ class NLFEstimator:
 
         t1 = time.perf_counter()
 
-        boxes = [self.top1_box_xywh(y) for y in yres]
+        boxes = [self._select_locked_box_xywh(y, i) for i, y in enumerate(yres)]
 
         # preprocess_batch includes H2D; count it separately
         t2 = time.perf_counter()
