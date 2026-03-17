@@ -718,7 +718,7 @@ def get_right_lowerarm_pose(mks_positions, gender='m', subject_height= 1.80):
     
     Y = elbow_center - wrist_center
     Y = Y/np.linalg.norm(Y)
-    Z = (mks_positions['RMWRI'] - mks_positions['RWRI']).reshape(3,1)
+    Z = (mks_positions['RWRI'] - mks_positions['RMWRI']).reshape(3,1)
     Z = Z/np.linalg.norm(Z)
     X = np.cross(Y, Z, axis=0)
     Z = np.cross(X, Y, axis=0)
