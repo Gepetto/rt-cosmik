@@ -27,7 +27,7 @@ from rtcosmik.nlf.nlf import NLFEstimator, DisplayConsumerNLF
 from rtcosmik.triangulation.triangulation import triangulate_points
 from rtcosmik.filtering.iir import IIR
 from rtcosmik.human_model.model_utils import scale_human_model, mks_registration, recalibrate_marker_frames_in_joint_space
-from rtcosmik.ik.ik import RT_IK, RT_SWIKA
+from rtcosmik.ik.ik import RT_IK, RT_SWIKA_FATROP, RT_SWIKA_ACADOS
 from rtcosmik.camera.cam_utils import list_cameras, load_camera_parameters, load_world_transformation
 from rtcosmik.camera.camera import Camera
 from rtcosmik.utils.mp_utils import create_camera_shared_ressources, create_pipeline_shared_ressources
@@ -485,7 +485,7 @@ def main(args):
                         LOGGER.info("[INFO] Model calibration finished, ready to process...")
 
                     elif settings.ik_type == 'mhe':
-                        ik_class = RT_SWIKA(human_model, settings.keys_to_track_list, settings.N, code = settings.ik_code)
+                        ik_class = RT_SWIKA_FATROP(human_model, settings.keys_to_track_list, settings.N, code = settings.ik_code)
 
                         x_array = np.zeros((human_model.nq+human_model.nv, settings.N))
                         x_array[6,:]=1
@@ -506,7 +506,10 @@ def main(args):
                         human_model=recalibrate_marker_frames_in_joint_space(human_model,q,mks_dict,settings.marker_names)
                         human_data=human_model.createData()
 
-                        ik_class = RT_SWIKA(human_model, settings.keys_to_track_list, settings.N, code = settings.ik_code)
+                        if settings.mhe_backend == 'acados':
+                            ik_class = RT_SWIKA_ACADOS(human_model, settings.keys_to_track_list, settings.N, settings.dt, export_dir=settings.acados_export_dir, acados_source_dir=settings.acados_source_dir)
+                        else:
+                            ik_class = RT_SWIKA_FATROP(human_model, settings.keys_to_track_list, settings.N, code = settings.ik_code)
                         LOGGER.info("[INFO] Model calibration finished, ready to process...")
                     else : 
                         raise ValueError("Invalid ik type, should be sbs (sample by sample) or mhe (moving horizon estimation)")

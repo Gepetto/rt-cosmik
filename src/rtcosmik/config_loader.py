@@ -121,9 +121,12 @@ class DefaultSettings:
 
     # IK
     ik_type: str = "sbs"
+    mhe_backend: str = "fatrop"  # "fatrop" (validated reference) or "acados"
     ik_code: str = "python"
     cost_weights: list = field(default_factory=lambda: [1, 1e-3, 1e-5])
     N: int = 10
+    acados_export_dir: str = None  # default: <repo>/output/acados
+    acados_source_dir: str = None  # default: read from ACADOS_SOURCE_DIR env var
 
     # MARKERS
     marker_names: list = field(default_factory=lambda: [
