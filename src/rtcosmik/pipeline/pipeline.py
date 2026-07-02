@@ -203,7 +203,6 @@ class PipelineProcess(Process):
 
                                 q = pin.neutral(human_model)
                                 q[:] = np.array(x_array[:human_model.nq,-1]).flatten()
-                                viz_human.display(q)
 
                                 # Recalibrate briefly the markers translation in joint frames
                                 human_model=recalibrate_marker_frames_in_joint_space(human_model,q,mks_dict,self.settings.marker_names)
@@ -229,7 +228,7 @@ class PipelineProcess(Process):
                                 ik_class._q0 = q
                                 self.results_queues[1].put((new_counters, q))
 
-                            elif settings.ik_type == 'mhe':
+                            elif self.settings.ik_type == 'mhe':
                                 deque_lstm_dict.append(mks_dict)
                                 array_data = np.array([np.hstack([d[marker] for marker in self.settings.keys_to_track_list]) for d in deque_lstm_dict]).T
                                 
