@@ -258,22 +258,45 @@ def replay_motion(viz, model, frames, q_array, keys, dt, color=0xBBBBBB):
 # Run one backend over the whole sequence (pipeline sliding-window logic)
 # ---------------------------------------------------------------------------
 
-def make_solver(backend, model, keys, settings, export_dir, max_iter=None):
+def _acados_cache_dir(base_dir, model, keys, N, dt, max_iter):
+    """Per-formulation export dir so an already-compiled acados solver is reused
+    when the calibrated model + options are identical, and rebuilt automatically
+    when anything that affects the generated C changes (FK, N, dt, keys, max_iter).
+    """
+    import hashlib
+    h = hashlib.md5()
+    h.update(f"nq{model.nq}|nv{model.nv}|N{N}|dt{dt}|it{max_iter}".encode())
+    for jp in model.jointPlacements:                       # scaled segment lengths
+        h.update(np.ascontiguousarray(jp.translation, dtype=float).tobytes())
+        h.update(np.ascontiguousarray(jp.rotation, dtype=float).tobytes())
+    for k in keys:                                         # recalibrated marker offsets
+        pl = model.frames[model.getFrameId(k)].placement
+        h.update(np.ascontiguousarray(pl.translation, dtype=float).tobytes())
+    h.update("|".join(keys).encode())
+    return os.path.join(base_dir, "acados_" + h.hexdigest()[:12])
+
+
+def make_solver(backend, model, keys, settings, export_dir, max_iter=None, force_build=False):
     if backend == "fatrop":
         return RT_SWIKA_FATROP(model, keys, settings.N, code="python", max_iter=max_iter)
+    edir = _acados_cache_dir(export_dir, model, keys, settings.N, settings.dt, max_iter)
+    lib = os.path.join(edir, f"libacados_ocp_solver_rt_swika_acados_nq{model.nq}_N{settings.N}.so")
+    build = force_build or not os.path.exists(lib)
+    print(f"[acados] {'compiling (first build for this model/options)' if build else 'reusing cached solver'}: {edir}")
     return RT_SWIKA_ACADOS(model, keys, settings.N, settings.dt,
-                           export_dir=export_dir, acados_source_dir=None, max_iter=max_iter)
+                           export_dir=edir, acados_source_dir=None,
+                           max_iter=max_iter, build=build)
 
 
 def run_backend(backend, model, keys, frames, q0, settings, export_dir,
-                max_iter=None):
+                max_iter=None, force_build=False):
     nq, nv = model.nq, model.nv
     cost_weights = np.asarray(settings.cost_weights, dtype=float)
     N, dt = settings.N, settings.dt
 
     print(f"[{backend}] building solver (N={N}, max_iter={max_iter})...")
     t0 = time.time()
-    solver = make_solver(backend, model, keys, settings, export_dir, max_iter)
+    solver = make_solver(backend, model, keys, settings, export_dir, max_iter, force_build)
     print(f"[{backend}] solver built in {time.time() - t0:.1f}s")
 
     # warm-start initialised to the calibration pose (identical for both backends)
@@ -350,6 +373,8 @@ def parse_args(settings):
     p.add_argument("--max-frames", type=int, default=None)
     p.add_argument("--max-iter", type=int, default=None,
                    help="Cap solver iterations for BOTH backends (None = solver default).")
+    p.add_argument("--rebuild-acados", action="store_true",
+                   help="Force acados to recompile even if a cached solver exists.")
     p.add_argument("--display", action="store_true")
     p.add_argument("--display-backend", default=None, choices=["fatrop", "acados"])
     p.add_argument("--acados-export-dir",
@@ -386,7 +411,8 @@ def main():
     results = {}
     for backend in backends:
         results[backend] = run_backend(backend, model, keys, frames, q0, settings,
-                                       args.acados_export_dir, max_iter)
+                                       args.acados_export_dir, max_iter,
+                                       force_build=args.rebuild_acados)
         report(backend, results[backend])
 
         if args.save_dir:
