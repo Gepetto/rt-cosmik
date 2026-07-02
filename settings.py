@@ -9,36 +9,36 @@ class Settings:
     cosmik_path: str = field(init=False)
     device: str = field(default_factory=lambda: "cuda:0" if torch.cuda.is_available() else "cpu")
     
-    # SAVE 
+    ### SAVE ###
     no_trial = "test"
     SAVE_VID: bool = False
     SAVE_CSV: bool = False
     SAVE_DIR: str = f"/root/workspace/RT-COSMIK/output/{no_trial}" # abs path to the save folder
 
-    # CAM PARAMS
+    ### CAM PARAMS ###
     fs: int = 40
     dt: float = field(init=False)  # Mark `dt` as excluded from the constructor
     width: int = 1280 # image resolution
     height: int = 720 # image resolution
     fourcc: str = "MJPG" # video codec
 
-    # HUMAN ANTHROPOMETRY
+    ### HUMAN ANTHROPOMETRY ###
     human_height: float = 1.81
     human_weight: float = 74.0 
     human_gender: str = 'm'
 
-    # CALIB
+    ### CALIB ###
     cam_calib_path: str = field(init=False) # relative path to the camera calibration file
     human_calib_path: str = field(init=False)  # relative path to the human calibration file
     robot_calib_path: str = field(init=False)  # relative path to the robot calibration file
 
-    # FILTER PARAMS
+    ### FILTER PARAMS ###
     order: int = 4
     system_freq: int = 40 
     cutoff_freq: float = 5
     filter_type: str = "lowpass"
 
-    # NLF
+    ### NLF ###
     cano_path: str = "/root/workspace/RT-COSMIK/weights/canonical_verts/smplx.npy"
     nlf_path: str = "/root/workspace/RT-COSMIK/weights/nlf/nlf_s_multi_0.2.2.torchscript"
     nlf_indices = [             # For SMPLX model
@@ -50,12 +50,12 @@ class Settings:
         9120,9002,616,6,9929,9448,  # face: Nose, Head, REar, LEar, REye, LEye
     ]
 
-    # Yolo detector
+    ### YOLO detector ###
     yolo_path: str = "/root/workspace/RT-COSMIK/weights/yolo/yolov10n.engine"
     yolo_conf = 0.2
     yolo_imgsz = 640
 
-    # IK AND DATA HANDLING
+    #### IK AND DATA HANDLING ###
     # For whole body model :
 
     joint_angles_names = ['FF_X', 'FF_Y', 'FF_Z', 'FF_quatx','FF_quaty',
@@ -78,6 +78,7 @@ class Settings:
     ik_code: str = "python" # fatrop only: either "python" or "c"
     cost_weights: list = field(default_factory=lambda: [1, 1e-3, 1e-5])
     N: int = 10 # number of time steps
+    mhe_max_iter: int = None # shared MHE knob: cap solver iterations (both backends). None = solver default
     # acados only: where generated C code/.so/.json go (default: <repo>/output/acados),
     # and the acados install dir (default: read from the ACADOS_SOURCE_DIR env var).
     acados_export_dir: str = None

@@ -329,7 +329,7 @@ class RT_IK:
         return q
 
 class RT_SWIKA_FATROP:
-    def __init__(self, pin_model: pin.Model, keys_to_track: List, N: int, dict_dof_to_keypoints: Dict=None, with_freeflyer=True, code: str ='c'):
+    def __init__(self, pin_model: pin.Model, keys_to_track: List, N: int, dict_dof_to_keypoints: Dict=None, with_freeflyer=True, code: str ='c', max_iter: int = None):
         # Initialize the Pinocchio model
         self._pin_model = pin_model
         self._nq = self._pin_model.nq
@@ -338,6 +338,7 @@ class RT_SWIKA_FATROP:
         self._nu = self._nv
         self._with_freeflyer = with_freeflyer
         self._code = code 
+        self._max_iter = max_iter  # shared MHE knob (settings.mhe_max_iter): None=fatrop default; caps fatrop iterations
 
         self._N = N
 
@@ -441,6 +442,8 @@ class RT_SWIKA_FATROP:
         options["print_time"] = False
         options["expand"] = True
         options["fatrop"] = {"print_level":0, "mu_init": 1e-1, "tol":1e-4}#'warm_start_mult_bound_push' : 1e-7, "linsol_iterative_refinement":False, "warm_start_init_point":True}
+        if self._max_iter is not None:
+            options["fatrop"]["max_iter"] = self._max_iter
         options["structure_detection"] = "auto"
         options["debug"] = False
 
@@ -507,7 +510,8 @@ class RT_SWIKA_ACADOS:
     def __init__(self, pin_model: pin.Model, keys_to_track: List, N: int, dt: float,
                  dict_dof_to_keypoints: Dict = None, with_freeflyer: bool = True,
                  code: str = 'c', build: bool = True,
-                 export_dir: str = None, acados_source_dir: str = None) -> None:
+                 export_dir: str = None, acados_source_dir: str = None,
+                 max_iter: int = None) -> None:
         if AcadosOcpSolver is None:
             raise ImportError(
                 "The acados MHE backend was selected but 'acados_template' is not "
@@ -528,6 +532,7 @@ class RT_SWIKA_ACADOS:
         self._n_markers = len(keys_to_track)
         self._nmc = 3 * self._n_markers
         self._code = code
+        self._max_iter = max_iter  # shared MHE knob (settings.mhe_max_iter): None=acados default 50; caps SQP iterations
         self._dict_dof_to_keypoints = dict_dof_to_keypoints
 
         # CasADi symbolic model -- FK is baked from THIS (calibrated) model.
@@ -648,7 +653,7 @@ class RT_SWIKA_ACADOS:
         ocp.solver_options.hessian_approx = "GAUSS_NEWTON"
         ocp.solver_options.integrator_type = "DISCRETE"
         ocp.solver_options.nlp_solver_type = "SQP"
-        ocp.solver_options.nlp_solver_max_iter = 50
+        ocp.solver_options.nlp_solver_max_iter = self._max_iter if self._max_iter is not None else 50
         ocp.solver_options.qp_solver_iter_max = 100
         ocp.solver_options.tol = 1e-4
         ocp.solver_options.globalization = "MERIT_BACKTRACKING"

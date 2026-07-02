@@ -205,7 +205,7 @@ def make_visualizer(robot, model, keys):
             mesh, g.MeshLambertMaterial(color=0xBBBBBB, opacity=0.5))
         geoms.append((go.name, go.parentJoint,
                       np.array(go.placement.homogeneous),
-                      np.asarray(go.meshScale).flatten()))
+                      np.asarray(go.meshScale).flatten(), mesh))
 
     for key in keys:
         vis[f"meas/{key}"].set_object(
@@ -218,7 +218,7 @@ def make_visualizer(robot, model, keys):
 def show_frame(viz, model, data, q, mks, keys):
     """Update mesh + marker transforms (data must already hold FK for q)."""
     vis, tf, geoms = viz["vis"], viz["tf"], viz["geoms"]
-    for name, jid, jMg, scale in geoms:
+    for name, jid, jMg, scale, _mesh in geoms:
         T = data.oMi[jid].homogeneous @ jMg @ np.diag([scale[0], scale[1], scale[2], 1.0])
         vis[f"human/{name}"].set_transform(T)
     for key in keys:
@@ -227,26 +227,53 @@ def show_frame(viz, model, data, q, mks, keys):
         vis[f"model/{key}"].set_transform(tf.translation_matrix(p))
 
 
+# per-backend human colour, so it's obvious which solver's motion is playing
+BACKEND_COLORS = {"fatrop": 0xBBBBBB, "acados": 0xFF7F0E}  # grey / orange
+
+
+def set_human_color(viz, color):
+    """Recolor the human meshes (meshcat has no text primitive, so colour is the
+    minimal way to label which backend's motion is being replayed)."""
+    import meshcat.geometry as g
+    vis = viz["vis"]
+    for name, _jid, _jMg, _scale, mesh in viz["geoms"]:
+        vis[f"human/{name}"].set_object(
+            mesh, g.MeshLambertMaterial(color=color, opacity=0.6))
+
+
+def replay_motion(viz, model, frames, q_array, keys, dt, color=0xBBBBBB):
+    """Replay a stored q trajectory in meshcat -- decoupled from timing, so the
+    rendering + sleep never perturb the measured solve times."""
+    set_human_color(viz, color)
+    data = pin.Data(model)
+    for i in range(min(len(frames), len(q_array))):
+        q = q_array[i]
+        pin.forwardKinematics(model, data, q)
+        pin.updateFramePlacements(model, data)
+        show_frame(viz, model, data, q, frames[i], keys)
+        time.sleep(dt)
+
+
 # ---------------------------------------------------------------------------
 # Run one backend over the whole sequence (pipeline sliding-window logic)
 # ---------------------------------------------------------------------------
 
-def make_solver(backend, model, keys, settings, export_dir):
+def make_solver(backend, model, keys, settings, export_dir, max_iter=None):
     if backend == "fatrop":
-        return RT_SWIKA_FATROP(model, keys, settings.N, code="python")
+        return RT_SWIKA_FATROP(model, keys, settings.N, code="python", max_iter=max_iter)
     return RT_SWIKA_ACADOS(model, keys, settings.N, settings.dt,
-                           export_dir=export_dir, acados_source_dir=None)
+                           export_dir=export_dir, acados_source_dir=None, max_iter=max_iter)
 
 
 def run_backend(backend, model, keys, frames, q0, settings, export_dir,
-                viz=None):
+                max_iter=None):
     nq, nv = model.nq, model.nv
     cost_weights = np.asarray(settings.cost_weights, dtype=float)
     N, dt = settings.N, settings.dt
 
-    print(f"[{backend}] building solver (N={N})...")
+    print(f"[{backend}] building solver (N={N}, max_iter={max_iter})...")
     t0 = time.time()
-    solver = make_solver(backend, model, keys, settings, export_dir)
+    solver = make_solver(backend, model, keys, settings, export_dir, max_iter)
     print(f"[{backend}] solver built in {time.time() - t0:.1f}s")
 
     # warm-start initialised to the calibration pose (identical for both backends)
@@ -288,9 +315,6 @@ def run_backend(backend, model, keys, frames, q0, settings, export_dir,
             p = np.asarray(data.oMf[model.getFrameId(k)].translation)
             sq_err[k].append(float(np.sum((p - mks[k]) ** 2)))
 
-        if viz is not None:
-            show_frame(viz, model, data, q, mks, keys)
-            time.sleep(dt)
         if i % 25 == 0:
             print(f"[{backend}] frame {i}/{len(frames)}")
 
@@ -324,6 +348,8 @@ def parse_args(settings):
     p.add_argument("--backends", nargs="+", default=["fatrop", "acados"],
                    choices=["fatrop", "acados"])
     p.add_argument("--max-frames", type=int, default=None)
+    p.add_argument("--max-iter", type=int, default=None,
+                   help="Cap solver iterations for BOTH backends (None = solver default).")
     p.add_argument("--display", action="store_true")
     p.add_argument("--display-backend", default=None, choices=["fatrop", "acados"])
     p.add_argument("--acados-export-dir",
@@ -355,14 +381,12 @@ def main():
         print("[warn] ACADOS_SOURCE_DIR not set -> skipping acados backend.")
         backends.remove("acados")
 
-    display_backend = args.display_backend or (backends[0] if backends else None)
+    # 1) Solve + time each backend WITHOUT visualization (clean, repeatable timing).
+    max_iter = args.max_iter if args.max_iter is not None else getattr(settings, "mhe_max_iter", None)
     results = {}
     for backend in backends:
-        viz = None
-        if args.display and backend == display_backend:
-            viz = make_visualizer(robot, model, keys)
         results[backend] = run_backend(backend, model, keys, frames, q0, settings,
-                                       args.acados_export_dir, viz)
+                                       args.acados_export_dir, max_iter)
         report(backend, results[backend])
 
         if args.save_dir:
@@ -379,6 +403,17 @@ def main():
         print(f"  joint config |dq|: mean {dq.mean():.2e}  max {dq.max():.2e}")
         speedup = results["fatrop"]["time_stats"].mean / results["acados"]["time_stats"].mean
         print(f"  mean solve-time ratio (fatrop / acados): {speedup:.2f}x")
+
+    # 2) AFTER timing: replay the stored motion in meshcat for visual validation
+    #    (fatrop then acados), colour-coded, so rendering never perturbs the times.
+    if args.display:
+        viz = make_visualizer(robot, model, keys)
+        for backend in backends:
+            if args.display_backend in (None, backend):
+                print(f"[viz] replaying {backend} motion "
+                      f"(colour #{BACKEND_COLORS.get(backend, 0xBBBBBB):06x})...")
+                replay_motion(viz, model, frames, results[backend]["q"], keys,
+                              settings.dt, BACKEND_COLORS.get(backend, 0xBBBBBB))
     return 0
 
 

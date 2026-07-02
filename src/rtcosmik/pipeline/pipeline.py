@@ -209,9 +209,9 @@ class PipelineProcess(Process):
                                 human_model=recalibrate_marker_frames_in_joint_space(human_model,q,mks_dict,self.settings.marker_names)
 
                                 if self.settings.mhe_backend == 'acados':
-                                    ik_class = RT_SWIKA_ACADOS(human_model, self.settings.keys_to_track_list, self.settings.N, self.settings.dt, export_dir=self.settings.acados_export_dir, acados_source_dir=self.settings.acados_source_dir)
+                                    ik_class = RT_SWIKA_ACADOS(human_model, self.settings.keys_to_track_list, self.settings.N, self.settings.dt, export_dir=self.settings.acados_export_dir, acados_source_dir=self.settings.acados_source_dir, max_iter=self.settings.mhe_max_iter)
                                 else:
-                                    ik_class = RT_SWIKA_FATROP(human_model, self.settings.keys_to_track_list, self.settings.N, code = self.settings.ik_code)
+                                    ik_class = RT_SWIKA_FATROP(human_model, self.settings.keys_to_track_list, self.settings.N, code = self.settings.ik_code, max_iter=self.settings.mhe_max_iter)
                                 self.logger.info("[INFO] Model calibration finished, ready to process...")
                             else : 
                                 raise ValueError("Invalid ik type, should be sbs (sample by sample) or mhe (moving horizon estimation)")

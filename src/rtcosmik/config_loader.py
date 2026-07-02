@@ -125,6 +125,7 @@ class DefaultSettings:
     ik_code: str = "python"
     cost_weights: list = field(default_factory=lambda: [1, 1e-3, 1e-5])
     N: int = 10
+    mhe_max_iter: int = None  # cap solver iterations (both backends); None = solver default
     acados_export_dir: str = None  # default: <repo>/output/acados
     acados_source_dir: str = None  # default: read from ACADOS_SOURCE_DIR env var
 
