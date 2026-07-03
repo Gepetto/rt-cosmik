@@ -185,7 +185,6 @@ def load_cam_to_cam_params(path):
     # FileNode object back instead of a matrix
     R = cv_file.getNode('R').mat()
     T = cv_file.getNode('T').mat()
-
     cv_file.release()
     return R, T
 
@@ -296,12 +295,16 @@ def compute_extrinsics_in_cam0(R02, T02, R24, T24, R46, T46):
 
 def load_four_camera_parameters(config_path):
     """Load intrinsic and extrinsic camera parameters."""
-    K1, D1 = load_cam_params(os.path.join(config_path, "c0_params_color.yaml"))
-    K2, D2 = load_cam_params(os.path.join(config_path, "c2_params_color.yaml"))
-    K3, D3 = load_cam_params(os.path.join(config_path, "c4_params_color.yaml"))
-    K4, D4 = load_cam_params(os.path.join(config_path, "c6_params_color.yaml"))
-    R1, T1= load_cam_to_cam_params(os.path.join(config_path, "c0_to_c2_params_color.yaml"))
-    R2, T2 = load_cam_to_cam_params(os.path.join(config_path, "c0_to_c4_params_color.yaml"))
-    R3, T3 = load_cam_to_cam_params(os.path.join(config_path, "c0_to_c6_params_color.yaml"))
 
-    return get_four_cameras_params(K1, D1, K2, D2,K3, D3, K4, D4, R1, T1,R2, T2,R3, T3)
+    K0, D0 = load_cam_params(os.path.join(config_path, "c0_params_color.yaml"))
+    K2, D2 = load_cam_params(os.path.join(config_path, "c2_params_color.yaml"))
+    K4, D4 = load_cam_params(os.path.join(config_path, "c4_params_color.yaml"))
+    K6, D6 = load_cam_params(os.path.join(config_path, "c6_params_color.yaml"))
+
+    R02, T02= load_cam_to_cam_params(os.path.join(config_path, "c0_to_c2_params_color.yaml"))
+    
+    R04, T04 = load_cam_to_cam_params(os.path.join(config_path, "c0_to_c4_params_color.yaml"))
+    R06, T06 = load_cam_to_cam_params(os.path.join(config_path, "c0_to_c6_params_color.yaml"))
+
+    return get_four_cameras_params(K0, D0, K2, D2,K4, D4, K6, D6, R02, T02,R04, T04,R06, T06)
+

@@ -59,6 +59,7 @@ YOLO_REPO="yolov10"
 YOLO_TAG="v1.1"
 YOLO_ASSET="yolov10n.pt"
 YOLO_PT="${YOLO_DIR}/${YOLO_ASSET}"
+YOLO_ENGINE="${YOLO_DIR}/yolov10n.engine"
 
 download_release_asset "${YOLO_OWNER}" "${YOLO_REPO}" "${YOLO_TAG}" "${YOLO_ASSET}" "${YOLO_PT}"
 
@@ -66,11 +67,10 @@ download_release_asset "${YOLO_OWNER}" "${YOLO_REPO}" "${YOLO_TAG}" "${YOLO_ASSE
 DEVICE="${DEVICE:-0}"
 BATCH=2
 IMGSZ=640
-ENGINE_OUT="${YOLO_DIR}/yolov10n_b${BATCH}_img${IMGSZ}_fp16.engine"
 
 
-if [[ -f "${ENGINE_OUT}" ]]; then
-  echo "[OK] TensorRT engine already exists: ${ENGINE_OUT}"
+if [[ -f "${YOLO_ENGINE}" ]]; then
+  echo "[OK] TensorRT engine already exists: ${YOLO_ENGINE}"
   exit 0
 fi
 
@@ -99,42 +99,23 @@ yolo export \
   model="${YOLO_PT}" \
   format=engine \
   device="${DEVICE}" \
-  imgsz=640 \
-  batch=2 \
+  imgsz=${IMGSZ} \
+  batch=${BATCH} \
   dynamic=False \
   simplify=False | tee "${LOG}"
 
-# Locate the newest engine produced (restrict to likely locations first)
-NEW_ENGINE="$(find "${ROOT_DIR}/runs" "${YOLO_DIR}" -type f -name "*.engine" -printf "%T@ %p\n" 2>/dev/null | sort -n | tail -1 | awk '{print $2}')"
-if [[ -z "${NEW_ENGINE}" || ! -f "${NEW_ENGINE}" ]]; then
-  # fallback: anywhere in repo
-  NEW_ENGINE="$(find "${ROOT_DIR}" -type f -name "*.engine" -printf "%T@ %p\n" 2>/dev/null | sort -n | tail -1 | awk '{print $2}')"
-fi
-if [[ -z "${NEW_ENGINE}" || ! -f "${NEW_ENGINE}" ]]; then
-  echo "[ERR] Export finished but no .engine file was found. Check ${LOG}" >&2
+ 
+
+# Double-check that the file built successfully
+if [[ ! -f "${YOLO_ENGINE}" ]]; then
+  echo "[ERR] Export completed but engine artifact could not be found at ${YOLO_ENGINE}" >&2
   exit 2
 fi
 
-# Parse actual input shape from logs, e.g. "input shape (2, 3, 640, 640)"
-# batch = first number, imgsz = last number (assuming square)
-SHAPE_LINE="$(grep -Eo 'input shape \\([0-9]+, *3, *[0-9]+, *[0-9]+\\)' "${LOG}" | tail -1 || true)"
-if [[ -z "${SHAPE_LINE}" ]]; then
-  # fallback: sometimes logs differ; keep a generic name
-  echo "[WARN] Could not parse input shape from export logs; using generic name" >&2
-  FINAL_ENGINE="${YOLO_DIR}/yolov10n.engine"
-else
-  # Extract numbers
-  BATCH_ACTUAL="$(echo "${SHAPE_LINE}" | grep -Eo '\\([0-9]+' | tr -d '(')"
-  H_ACTUAL="$(echo "${SHAPE_LINE}" | grep -Eo ', *[0-9]+, *[0-9]+\\)' | grep -Eo '[0-9]+' | head -1)"
-  W_ACTUAL="$(echo "${SHAPE_LINE}" | grep -Eo ', *[0-9]+\\)' | tr -d '() ,' )"
-  # If square, encode as img{size}, else imgHxW
-  if [[ "${H_ACTUAL}" == "${W_ACTUAL}" ]]; then
-    FINAL_ENGINE="${YOLO_DIR}/yolov10n_b${BATCH_ACTUAL}_img${H_ACTUAL}.engine"
-  else
-    FINAL_ENGINE="${YOLO_DIR}/yolov10n_b${BATCH_ACTUAL}_img${H_ACTUAL}x${W_ACTUAL}.engine"
-  fi
-fi
+# Write sidecar configuration file right next to it as yolov10n.engine.meta
+META_PATH="${YOLO_ENGINE}.meta"
+echo "${BATCH},${IMGSZ}" > "${META_PATH}"
 
-mv -f "${NEW_ENGINE}" "${FINAL_ENGINE}"
-rm -f "${LOG}"
-echo "[OK] Wrote ${FINAL_ENGINE}"
+echo "[OK] Export completed successfully!"
+echo "[OK] Engine saved to: ${YOLO_ENGINE}"
+echo "[OK] Synchronized verification sidecar metadata layout to: ${META_PATH}"

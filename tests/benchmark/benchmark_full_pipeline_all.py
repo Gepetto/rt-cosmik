@@ -22,7 +22,7 @@ from rtcosmik.triangulation.triangulation import triangulate_points
 from rtcosmik.augmenter.marker_augmenter import augmentTRC, loadModel
 from rtcosmik.pose_estimator.pose_estimator import BatchPoseTrackerEstimator
 from rtcosmik.filtering.iir import IIR
-from rtcosmik.ik.ik import RT_IK, RT_SWIKA
+from rtcosmik.ik.ik import RT_IK, RT_SWIKA_FATROP
 from rtcosmik.human_model.urdf_model import Robot, scale_human_model, mks_registration
 
 # Path to rt-cosmik repo root (adapt if different on your machine)
@@ -527,7 +527,7 @@ class FullPipelineBenchmarker:
                         self.ik_class._q0 = q_init
 
                     elif self.ik_type == "mhe":
-                        self.ik_class = RT_SWIKA(
+                        self.ik_class = RT_SWIKA_FATROP(
                             self.human_model,
                             self.keys_to_track_list,
                             self.N,

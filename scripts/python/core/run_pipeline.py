@@ -27,7 +27,7 @@ from rtcosmik.nlf.nlf import NLFEstimator, DisplayConsumerNLF
 from rtcosmik.triangulation.triangulation import triangulate_points
 from rtcosmik.filtering.iir import IIR
 from rtcosmik.human_model.model_utils import scale_human_model, mks_registration, recalibrate_marker_frames_in_joint_space
-from rtcosmik.ik.ik import RT_IK, RT_SWIKA
+from rtcosmik.ik.ik import RT_IK, RT_SWIKA_FATROP, RT_SWIKA_ACADOS
 from rtcosmik.camera.cam_utils import list_cameras, load_camera_parameters, load_world_transformation
 from rtcosmik.camera.camera import Camera
 from rtcosmik.utils.mp_utils import create_camera_shared_ressources, create_pipeline_shared_ressources
@@ -39,6 +39,9 @@ from collections import deque
 import example_robot_data as robex
 
 import logging
+
+import subprocess
+import json
 
 logging.basicConfig(
     level=logging.INFO,
@@ -249,6 +252,9 @@ class OfflineVideoSource:
 
 
 def main(args):
+    frame_counter=0
+    total_history=[]
+    ik_history=[]
     torch.backends.cudnn.benchmark = False
     torch.backends.cuda.matmul.allow_tf32 = True
     torch.backends.cudnn.allow_tf32 = True
@@ -364,7 +370,27 @@ def main(args):
         )
         iir_filter.add_filter(order=settings.order, cutoff=settings.cutoff_freq, filter_type=settings.filter_type)
 
-        while True:
+        prof = torch.profiler.profile(
+            activities=[torch.profiler.ProfilerActivity.CPU, torch.profiler.ProfilerActivity.CUDA],
+            schedule=torch.profiler.schedule(wait=20, warmup=10, active=40, repeat=1),
+            record_shapes=True,
+            profile_memory=True,
+            with_stack=False
+            )
+        prof.start()
+
+        cmd = [
+            'ffprobe', '-v', 'error',
+            '-select_streams', 'v:0',
+            '-show_entries', 'stream=nb_frames',
+            '-of', 'json', str(paths[0])
+        ]
+        result = subprocess.run(cmd, capture_output=True, text=True)
+        data = json.loads(result.stdout)
+        total_frames = int(data['streams'][0]['nb_frames'])
+        LOGGER.info(f"[INFO] Total frames determined from ffprobe: {total_frames}")
+
+        while frame_counter<total_frames:
             t0=time.perf_counter()
             frames = src.read()
             if frames is None:
@@ -485,15 +511,18 @@ def main(args):
                         LOGGER.info("[INFO] Model calibration finished, ready to process...")
 
                     elif settings.ik_type == 'mhe':
-                        ik_class = RT_SWIKA(human_model, settings.keys_to_track_list, settings.N, code = settings.ik_code)
-
+                        '''
+                        ik_class = RT_SWIKA_FATROP(human_model, settings.keys_to_track_list, settings.N, code = settings.ik_code)
+                        '''
                         x_array = np.zeros((human_model.nq+human_model.nv, settings.N))
                         x_array[6,:]=1
                         u_array = np.zeros((human_model.nv, settings.N))
                         deque_lstm_dict = deque(maxlen=settings.N)
+                        
                         for k in range(settings.N):
                             deque_lstm_dict.append(mks_dict)
 
+                        '''
                         array_data = np.array([np.hstack([d[marker] for marker in settings.keys_to_track_list]) for d in deque_lstm_dict]).T
 
                         x_array, u_array = ik_class.solve(x_array, u_array, array_data, x_array[:,-1], settings.cost_weights, settings.dt)
@@ -505,8 +534,27 @@ def main(args):
                         # Recalibrate briefly the markers translation in joint frames
                         human_model=recalibrate_marker_frames_in_joint_space(human_model,q,mks_dict,settings.marker_names)
                         human_data=human_model.createData()
+                        '''
 
-                        ik_class = RT_SWIKA(human_model, settings.keys_to_track_list, settings.N, code = settings.ik_code)
+                        omega = {}
+                        for key in settings.keys_to_track_list:
+                            omega[key] = 1
+                        q = pin.neutral(human_model)
+                        ik_class = RT_IK(human_model, mks_dict, q, settings.keys_to_track_list, settings.dt, omega)
+
+                        q = ik_class.solve_ik_sample_casadi()
+                        ik_class._q0 = q
+                        viz_human.display(q)
+
+                        # Recalibrate briefly the markers translation in joint frames
+                        human_model=recalibrate_marker_frames_in_joint_space(human_model,q,mks_dict,settings.marker_names)
+                        human_data=human_model.createData()
+
+
+                        if settings.mhe_backend == 'acados':
+                            ik_class = RT_SWIKA_ACADOS(human_model, settings.keys_to_track_list, settings.N, settings.dt, export_dir=settings.acados_export_dir, acados_source_dir=settings.acados_source_dir)
+                        else:
+                            ik_class = RT_SWIKA_FATROP(human_model, settings.keys_to_track_list, settings.N, code = settings.ik_code)
                         LOGGER.info("[INFO] Model calibration finished, ready to process...")
                     else : 
                         raise ValueError("Invalid ik type, should be sbs (sample by sample) or mhe (moving horizon estimation)")
@@ -514,6 +562,7 @@ def main(args):
                     first_sample = False
 
                 else: # Init phase finished
+                    ik_time=time.perf_counter()
                     mks_dict = dict(zip(settings.marker_names, augmented_markers))
 
                     # IK directly 
@@ -525,16 +574,44 @@ def main(args):
                     elif settings.ik_type == 'mhe':
                         deque_lstm_dict.append(mks_dict)
                         array_data = np.array([np.hstack([d[marker] for marker in settings.keys_to_track_list]) for d in deque_lstm_dict]).T
-                        
-                        x_array, u_array = ik_class.solve(x_array, u_array, array_data, x_array[:,-1], settings.cost_weights, settings.dt)
+
+                        with torch.profiler.record_function("ik_solve"):
+                            x_array, u_array = ik_class.solve(x_array, u_array, array_data, x_array[:,-1], settings.cost_weights, settings.dt)
 
                         q = pin.neutral(human_model)
                         q[:] = np.array(x_array[:human_model.nq,-1]).flatten()
                         viz_human.display(q)
                     else : 
                         raise ValueError("Invalid ik type, should be sbs (sample by sample) or mhe (moving horizon estimation)")
+                
+                    time_ik=(time.perf_counter()-ik_time)*1000
+                        
+                    ik_history.append(time_ik)
+
+            frame_counter += 1
+            prof.step()
             t1=time.perf_counter()
-            print(f"Time elapsed for treating one frame = {t1-t0} ms")
+            total_one_frame=(time.perf_counter()-t0)*1000
+            total_history.append(total_one_frame)
+            
+        ik_history.pop(0)
+        total_history.pop(0)
+        #print(f"Time elapsed for treating one frame = {t1-t0} ms")
+        print("\n--- BENCHMARK RESULTS ---")
+        #print("ik calibration time", ik_calib_time, " s")
+        print(f"Total Video Frames   : {total_frames}")
+        print(f"IK:   mean {np.mean(ik_history):.1f} ms | median {np.median(ik_history):.1f} ms | max {np.max(ik_history):.1f} ms")
+        print(f"Total Time:      mean {np.mean(total_history):.1f} ms | median {np.median(total_history):.1f} ms | max {np.max(total_history):.1f} ms")
+        
+
+        try:
+            print("="*37 + " PYTORCH COMPLETE GPU KERNEL PROFILE REPORT " + "="*36)
+            print(prof.key_averages().table(sort_by="cuda_time_total", row_limit=15))
+            print("="*115 + "\n")
+            prof.export_chrome_trace("trace.json")
+        except Exception as e:
+            print(f"[Warning] Could not print PyTorch kernel table: {e}")
+        prof.stop()
 
 
 if __name__ == "__main__":

@@ -12,7 +12,7 @@ from rtcosmik.nlf.nlf import NLFEstimator
 from rtcosmik.triangulation.triangulation import triangulate_points
 from rtcosmik.filtering.iir import IIR
 from rtcosmik.human_model.model_utils import scale_human_model, mks_registration, recalibrate_marker_frames_in_joint_space
-from rtcosmik.ik.ik import RT_IK, RT_SWIKA
+from rtcosmik.ik.ik import RT_IK, RT_SWIKA_FATROP, RT_SWIKA_ACADOS
 from rtcosmik.camera.cam_utils import load_camera_parameters,load_world_transformation
 
 import logging
@@ -188,7 +188,7 @@ class PipelineProcess(Process):
                                 self.logger.info("[INFO] Model calibration finished, ready to process...")
 
                             elif self.settings.ik_type == 'mhe':
-                                ik_class = RT_SWIKA(human_model, self.settings.keys_to_track_list, self.settings.N, code = self.settings.ik_code)
+                                ik_class = RT_SWIKA_FATROP(human_model, self.settings.keys_to_track_list, self.settings.N, code = self.settings.ik_code)
 
                                 x_array = np.zeros((human_model.nq+human_model.nv, self.settings.N))
                                 x_array[6,:]=1
@@ -208,7 +208,10 @@ class PipelineProcess(Process):
                                 # Recalibrate briefly the markers translation in joint frames
                                 human_model=recalibrate_marker_frames_in_joint_space(human_model,q,mks_dict,self.settings.marker_names)
 
-                                ik_class = RT_SWIKA(human_model, self.settings.keys_to_track_list, self.settings.N, code = self.settings.ik_code)
+                                if self.settings.mhe_backend == 'acados':
+                                    ik_class = RT_SWIKA_ACADOS(human_model, self.settings.keys_to_track_list, self.settings.N, self.settings.dt, export_dir=self.settings.acados_export_dir, acados_source_dir=self.settings.acados_source_dir, build=False)
+                                else:
+                                    ik_class = RT_SWIKA_FATROP(human_model, self.settings.keys_to_track_list, self.settings.N, code = self.settings.ik_code)
                                 self.logger.info("[INFO] Model calibration finished, ready to process...")
                             else : 
                                 raise ValueError("Invalid ik type, should be sbs (sample by sample) or mhe (moving horizon estimation)")

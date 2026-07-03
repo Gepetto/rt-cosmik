@@ -20,3 +20,9 @@ data/
 *.egg-info/
 build/
 dist/
+**/acados_codegen/
+scripts/python/core/benchmark_output_cam0.mp4
+scripts/python/core/benchmark_output_cam1.mp4
+scripts/python/core/out.txt
+scripts/python/core/trace.json
+tests/benchmark/nlf_2d_keypoints.json

@@ -71,12 +71,17 @@ class Settings:
                             'Rknee_flex_ext','Rankle_flex_ext', 'Rankle_abd_add']
 
     # Ik type
-    ik_type: str ="sbs" # either "mhe" for SWIKA or "sbs" for sample by sample qp
-    
+    ik_type: str ="mhe" # either "mhe" for SWIKA or "sbs" for sample by sample qp
+
     # if ik_type = "mhe"
-    ik_code: str = "python" # either "python" or "c" 
+    mhe_backend: str = "fatrop" # solver backend: "fatrop" (validated reference) or "acados"
+    ik_code: str = "python" # fatrop only: either "python" or "c"
     cost_weights: list = field(default_factory=lambda: [1, 1e-3, 1e-5])
     N: int = 10 # number of time steps
+    # acados only: where generated C code/.so/.json go (default: <repo>/output/acados),
+    # and the acados install dir (default: read from the ACADOS_SOURCE_DIR env var).
+    acados_export_dir: str = None
+    acados_source_dir: str = None
 
     # MARKER SET 
     marker_names: list = field(default_factory=lambda: [
