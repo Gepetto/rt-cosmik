@@ -74,16 +74,17 @@ class Settings:
     ik_type: str ="mhe" # either "mhe" for SWIKA or "sbs" for sample by sample qp
 
     # if ik_type = "mhe"
-    mhe_backend: str = "fatrop" # solver backend: "fatrop" (validated reference) or "acados"
+    mhe_backend: str = "acados" # solver backend: "fatrop" (validated reference) or "acados"
     ik_code: str = "python" # fatrop only: either "python" or "c"
     cost_weights: list = field(default_factory=lambda: [1, 1e-3, 1e-5])
     N: int = 10 # number of time steps
+    mhe_max_iter: int = 10 # shared MHE knob: cap solver iterations (both backends). None = solver default
     # acados only: where generated C code/.so/.json go (default: <repo>/output/acados),
     # and the acados install dir (default: read from the ACADOS_SOURCE_DIR env var).
     acados_export_dir: str = None
     acados_source_dir: str = None
 
-    # MARKER SET 
+    # # MARKER SET 
     marker_names: list = field(default_factory=lambda: [
            "RASI", "LASI", "RPSI", "LPSI",
            "C7", "T11", "T6", "RSHO", "LSHO", "RELB", "LELB", "RMELB", "LMELB", "RWRI", "LWRI", "RMWRI", "LMWRI",
@@ -93,14 +94,27 @@ class Settings:
            "Nose", "Head", "REar", "LEar", "REye", "LEye",
            ])
     
-    keys_to_track_list: list = field(default_factory=lambda: [
-           "RASI", "LASI", "RPSI", "LPSI",
-           "C7", "T11", "T6", "RSHO", "LSHO", "RELB", "LELB", "RMELB", "LMELB", "RWRI", "LWRI", "RMWRI", "LMWRI",
-           "RTHU", "LTHU", "RMID", "LMID", "RPIN", "LPIN",
-           "RKNE", "LKNE", "RMKNE", "LMKNE", "RANK", "LANK", "RMANK", "LMANK",
-           "R5MHD", "L5MHD", "RTOE", "LTOE", "RHEE", "LHEE", 
-           "Nose", "Head", "REar", "LEar", "REye", "LEye",
-    ])
+    # keys_to_track_list: list = field(default_factory=lambda: [
+    #        "RASI", "LASI", "RPSI", "LPSI",
+    #        "C7", "T11", "T6", "RSHO", "LSHO", "RELB", "LELB", "RMELB", "LMELB", "RWRI", "LWRI", "RMWRI", "LMWRI",
+    #        "RTHU", "LTHU", "RMID", "LMID", "RPIN", "LPIN",
+    #        "RKNE", "LKNE", "RMKNE", "LMKNE", "RANK", "LANK", "RMANK", "LMANK",
+    #        "R5MHD", "L5MHD", "RTOE", "LTOE", "RHEE", "LHEE", 
+    #        "Nose", "Head", "REar", "LEar", "REye", "LEye",
+    # ])
+
+
+
+    # Markers actually tracked by the IK (must be registered frames). Reliable body
+    # subset, excluding the approximate head/hand markers.
+    keys_to_track_list = [
+        "RASI", "LASI", "RPSI", "LPSI", "C7", "RSHO", "LSHO",
+        "RELB", "RMELB", "RWRI", "RMWRI", "LELB", "LMELB", "LWRI", "LMWRI",
+        "RKNE", "RMKNE", "RANK", "RMANK", "RTOE", "R5MHD", "RHEE",
+        "LKNE", "LMKNE", "LANK", "LMANK", "LTOE", "L5MHD", "LHEE",
+    ]
+
+
 
     def __post_init__(self):
         # Use Pathlib for better path handling

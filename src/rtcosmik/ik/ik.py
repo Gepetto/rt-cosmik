@@ -7,7 +7,9 @@ import numpy as np
 import time
 import os
 from os import system
-
+import statistics
+import collections
+import ctypes
 
 # acados is an optional backend: keep ik.py importable (e.g. for the fatrop path)
 # even when acados_template is not installed. A clear error is raised only if the
@@ -16,6 +18,44 @@ try:
     from acados_template import AcadosModel, AcadosOcp, AcadosOcpSolver
 except ImportError:
     AcadosModel = AcadosOcp = AcadosOcpSolver = None
+
+
+def _read_cpu_freq_khz(core_id: int):
+    """Reads the current CPU clock frequency for a given core ID from sysfs.
+
+    Returns the frequency in kHz, or None if sysfs is restricted or unavailable.
+    """
+    try:
+        path = f"/sys/devices/system/cpu/cpu{core_id}/cpufreq/scaling_cur_freq"
+        with open(path, "r") as f:
+            return float(f.read().strip())
+    except Exception:
+        return None
+
+
+def _get_current_cpu_core() -> int:
+    """Safely retrieves the current CPU core ID under Linux environments/Docker."""
+    if hasattr(os, 'sched_getcpu'):
+        try:
+            return os.sched_getcpu()
+        except Exception:
+            pass
+    try:
+        libc = ctypes.CDLL("libc.so.6")
+        res = libc.sched_getcpu()
+        if res != -1:
+            return res
+    except Exception:
+        pass
+    try:
+        with open("/proc/self/stat", "r") as f:
+            stat_line = f.read().strip()
+        fields = stat_line.rsplit(")", 1)[1].split()
+        return int(fields[36])
+    except Exception:
+        pass
+    return 0
+
 
 def quadprog_solve_qp(P: np.ndarray, q: np.ndarray, G: np.ndarray=None, h: np.ndarray=None, A: np.ndarray=None, b: np.ndarray=None):
     """_Set up the qp solver using quadprog API_
@@ -142,8 +182,6 @@ class RT_IK:
         self._c = 0.5 # Backtracking line search factor 
         self._beta = 0.8 # Reduction factor 
 
-        # #TODO: Change the mapping and adapt it to the model
-        # self._mapping_joint_angle = dict(zip(['FF_TX','FF_TY','FF_TZ','FF_Rquat0','FF_Rquat1','FF_Rquat2','FF_Rquat3','L5S1_FE','L5S1_RIE','RShoulder_FE','RShoulder_AA','RShoulder_RIE','RElbow_FE','RElbow_PS','RHip_FE','RHip_AA','RHip_RIE','RKnee_FE','RAnkle_FE'],np.arange(0,self._nq,1)))
         self.omega = omega
 
     def calculate_RMSE_dicts(self, meas:Dict, est:Dict)->float:
@@ -248,7 +286,6 @@ class RT_IK:
                 q_ii=np.matmul(-self._K_ii*v_ii.T,J_ii_reduced)
                 q+=q_ii.flatten()
 
-            # print('Solving ...')
             dq=quadprog_solve_qp(P,q,G,h)
 
             # Line search 
@@ -330,7 +367,7 @@ class RT_IK:
         return q
 
 class RT_SWIKA_FATROP:
-    def __init__(self, pin_model: pin.Model, keys_to_track: List, N: int, dict_dof_to_keypoints: Dict=None, with_freeflyer=True, code: str ='c'):
+    def __init__(self, pin_model: pin.Model, keys_to_track: List, N: int, dict_dof_to_keypoints: Dict=None, with_freeflyer=True, code: str ='c', max_iter: int = None):
         # Initialize the Pinocchio model
         self._pin_model = pin_model
         self._nq = self._pin_model.nq
@@ -339,6 +376,7 @@ class RT_SWIKA_FATROP:
         self._nu = self._nv
         self._with_freeflyer = with_freeflyer
         self._code = code 
+        self._max_iter = max_iter  # shared MHE knob (settings.mhe_max_iter): None=fatrop default; caps fatrop iterations
 
         self._N = N
 
@@ -441,7 +479,9 @@ class RT_SWIKA_FATROP:
         options["verbose"] = False
         options["print_time"] = False
         options["expand"] = True
-        options["fatrop"] = {"print_level":0, "mu_init": 1e-1, "tol":1e-4}#'warm_start_mult_bound_push' : 1e-7, "linsol_iterative_refinement":False, "warm_start_init_point":True}
+        options["fatrop"] = {"print_level":0, "mu_init": 1e-1, "tol":1e-4}
+        if self._max_iter is not None:
+            options["fatrop"]["max_iter"] = self._max_iter
         options["structure_detection"] = "auto"
         options["debug"] = False
 
@@ -467,9 +507,6 @@ class RT_SWIKA_FATROP:
         else : 
             raise ValueError('Code should be either c or python')
 
-        # print(X.shape, U.shape, marker_meas.shape, X0.shape, cost_weights.shape, dt)
-        # print(ocp_fun)
-
         X, U = ocp_fun(X, U, marker_meas, X0, cost_weights, dt)
         return X, U
 
@@ -482,33 +519,19 @@ class RT_SWIKA_ACADOS:
     The ``solve()`` signature is identical to ``RT_SWIKA_FATROP.solve()`` so the two are
     interchangeable behind a simple backend ``if`` switch in the caller.
 
-    Problem over ``N`` nodes ``k = 0 .. N-1`` (RT_SWIKA_FATROP's ``N`` counts *nodes*):
-
-        variables : x_k = [q_k; dq_k] (nx),  u_k = ddq_k (nu)
-        dynamics  : x_{k+1} = [ integrate(q_k, dq_k*dt) ; dq_k + u_k*dt ]  (Euler, DISCRETE)
-        cost      : sum_k  w0 ||markers(q_k) - meas_k||^2
-                          + w1 ||x_k - X0||^2          (soft arrival, every node)
-                          + w2 ||u_k||^2
-        bounds    : lower <= q_k[7:] <= upper          (freeflyer skipped)
-        output    : q at the most-recent node (k = N-1)
-
-    Notes:
-      * Arrival cost is *soft* (``w1 ||x_k - X0||^2`` with ``X0`` = previous newest
-        estimate), exactly as RT_SWIKA_FATROP -- there is NO hard clamp on ``x_0``.
-      * Acados counts *intervals* (``N_horizon``), so ``N_horizon = N - 1`` to obtain
-        the same ``N`` nodes and ``N`` tracked measurements as RT_SWIKA_FATROP.
-      * The marker forward-kinematics is baked into the generated C code, so the
-        solver must be (re)built from the *calibrated* model. Pass ``build=True``
-        (default) when constructing on the subject-calibrated model; ``build=False``
-        reuses previously generated/compiled code in ``export_dir``.
-      * Requires ``ACADOS_SOURCE_DIR`` to point at the acados install (set it in the
-        environment, or pass ``acados_source_dir=...``).
+    Diagnostics:
+      * ``solve()`` records, per call, wall time and the CPU core it ran on (plus
+        that core's clock frequency, when readable from sysfs). This exists to
+        distinguish genuine solve-time variability from OS-scheduler core
+        migration / contention with other threads in the same process. Call
+        ``print_core_performance_breakdown()`` any time to see a summary.
     """
 
     def __init__(self, pin_model: pin.Model, keys_to_track: List, N: int, dt: float,
                  dict_dof_to_keypoints: Dict = None, with_freeflyer: bool = True,
                  code: str = 'c', build: bool = True,
-                 export_dir: str = None, acados_source_dir: str = None) -> None:
+                 export_dir: str = None, acados_source_dir: str = None,
+                 max_iter: int = None) -> None:
         if AcadosOcpSolver is None:
             raise ImportError(
                 "The acados MHE backend was selected but 'acados_template' is not "
@@ -529,6 +552,7 @@ class RT_SWIKA_ACADOS:
         self._n_markers = len(keys_to_track)
         self._nmc = 3 * self._n_markers
         self._code = code
+        self._max_iter = max_iter  # shared MHE knob (settings.mhe_max_iter): None=acados default 50; caps SQP iterations
         self._dict_dof_to_keypoints = dict_dof_to_keypoints
 
         # CasADi symbolic model -- FK is baked from THIS (calibrated) model.
@@ -544,6 +568,9 @@ class RT_SWIKA_ACADOS:
         self._w_cache = None   # last cost_weights, to skip redundant W updates
         self._ocp_solver = self._create_ocp_solver(build=build)
 
+        # --- lightweight per-call diagnostics (core id / clock / wall time) ---
+        self._solve_diag = collections.deque(maxlen=5000)
+
     def _build_marker_fk_expr(self, cq):
         """CasADi expression of stacked marker positions [x0,y0,z0, x1,...] for q."""
         cpin.framesForwardKinematics(self._cmodel, self._cdata, cq)
@@ -557,14 +584,7 @@ class RT_SWIKA_ACADOS:
 
     @staticmethod
     def _build_block_weight(w_markers, w_state, w_control, nmc, nx, nu, terminal=False):
-        """Block-diagonal NONLINEAR_LS weight reproducing RT_SWIKA_FATROP's cost.
-
-        Residual ordering is [markers, state, control] (no control at terminal),
-        mapping directly to RT_SWIKA_FATROP's ``cost_weights`` = [w0, w1, w2]:
-          - w_markers (w0): ``||markers(q) - meas||^2``
-          - w_state   (w1): ``||x - X0||^2``  (full state, q and dq)
-          - w_control (w2): ``||u||^2``
-        """
+        """Block-diagonal NONLINEAR_LS weight reproducing RT_SWIKA_FATROP's cost."""
         if terminal:
             ny = nmc + nx
             W = np.zeros((ny, ny))
@@ -616,8 +636,7 @@ class RT_SWIKA_ACADOS:
         ocp.solver_options.N_horizon = self._Nh
         ocp.solver_options.tf = self._Nh * self._dt
 
-        # Cost: weights here are placeholders; real values set per-solve from
-        # cost_weights so the runtime interface matches RT_SWIKA_FATROP.solve().
+        # Cost placeholders; real values set per-solve from cost_weights.
         ocp.cost.cost_type = "NONLINEAR_LS"
         ocp.cost.cost_type_e = "NONLINEAR_LS"
         ocp.cost.W = self._build_block_weight(1.0, 1e-3, 1e-5, nmc, nx, nu)
@@ -649,8 +668,8 @@ class RT_SWIKA_ACADOS:
         ocp.solver_options.hessian_approx = "GAUSS_NEWTON"
         ocp.solver_options.integrator_type = "DISCRETE"
         ocp.solver_options.nlp_solver_type = "SQP"
-        ocp.solver_options.nlp_solver_max_iter = 50
-        ocp.solver_options.qp_solver_iter_max = 100
+        ocp.solver_options.nlp_solver_max_iter = self._max_iter if self._max_iter is not None else 50
+        ocp.solver_options.qp_solver_iter_max = 10
         ocp.solver_options.tol = 1e-4
         ocp.solver_options.globalization = "MERIT_BACKTRACKING"
 
@@ -660,20 +679,10 @@ class RT_SWIKA_ACADOS:
 
     def solve(self, X: np.ndarray, U: np.ndarray, marker_meas: np.ndarray,
               X0: np.ndarray, cost_weights, dt: float):
-        """Drop-in replacement for ``RT_SWIKA_FATROP.solve`` (identical I/O).
+        """Drop-in replacement for ``RT_SWIKA_FATROP.solve`` (identical I/O)."""
+        _core_before = _get_current_cpu_core()
+        _wall_t0 = time.perf_counter()
 
-        Args:
-            X: warm-start states, shape (nx, N).
-            U: warm-start controls, shape (nu, N) (last column ignored / returned 0).
-            marker_meas: measurements, shape (3*n_markers, N); column k -> node k.
-            X0: arrival/regularization anchor (previous newest estimate), shape (nx,).
-            cost_weights: [w_markers, w_state, w_control].
-            dt: must equal the dt the solver was generated with (baked at codegen).
-
-        Returns:
-            (X_out, U_out): optimized trajectory, shapes (nx, N) and (nu, N).
-            The current estimate is ``X_out[:nq, -1]``.
-        """
         X = np.asarray(X, dtype=float)
         U = np.asarray(U, dtype=float)
         marker_meas = np.asarray(marker_meas, dtype=float)
@@ -712,7 +721,9 @@ class RT_SWIKA_ACADOS:
         yref_e = np.concatenate([marker_meas[:, self._N - 1], X0])
         self._ocp_solver.cost_set(self._Nh, "yref", yref_e)
 
+        _wall_before_c_solve = time.perf_counter()
         self._ocp_solver.solve()  # status 0=success, 2=max_iter (best iterate usable)
+        _wall_after_c_solve = time.perf_counter()
 
         X_out = np.zeros((self._nx, self._N))
         U_out = np.zeros((self._nu, self._N))
@@ -721,4 +732,64 @@ class RT_SWIKA_ACADOS:
         for k in range(self._Nh):
             U_out[:, k] = self._ocp_solver.get(k, "u")
         # U_out[:, -1] stays 0: RT_SWIKA_FATROP's terminal control is an unused free var.
+
+        _wall_t1 = time.perf_counter()
+        _core_after = _get_current_cpu_core()
+        _freq_khz = _read_cpu_freq_khz(_core_after)
+
+        self._solve_diag.append({
+            "wall_ms": (_wall_t1 - _wall_t0) * 1000.0,
+            "c_solve_ms": (_wall_after_c_solve - _wall_before_c_solve) * 1000.0,
+            "core_id": _core_after,
+            "core_migrated": _core_before != _core_after,
+            "freq_mhz": (_freq_khz / 1000.0) if _freq_khz is not None else None,
+        })
+
         return X_out, U_out
+
+    def print_core_performance_breakdown(self) -> None:
+        """Per-core breakdown of solve() latency, migrations, and clock speed.
+
+        Use this to tell apart genuine solve-time variability from OS-scheduler
+        contention: if migrations are frequent, or latency/clock differ sharply
+        between cores, that points at contention (fix: thread/process pinning)
+        rather than the solver itself needing more/fewer iterations.
+        """
+        rows = list(self._solve_diag)
+        if not rows:
+            print("[RT_SWIKA_ACADOS] no solve() calls recorded yet")
+            return
+
+        total = len(rows)
+        core_latencies = collections.defaultdict(list)
+        core_freqs = collections.defaultdict(list)
+        for r in rows:
+            core_latencies[r["core_id"]].append(r["wall_ms"])
+            if r["freq_mhz"] is not None:
+                core_freqs[r["core_id"]].append(r["freq_mhz"])
+        migrations = sum(1 for r in rows if r["core_migrated"])
+
+        wall = [r["wall_ms"] for r in rows]
+        c_solve = [r["c_solve_ms"] for r in rows]
+
+        print(f"\n{'='*20} RT_SWIKA_ACADOS solve() diagnostics ({total} calls) {'='*20}")
+        print(f"total wall (ms):   mean {statistics.mean(wall):8.2f} | median {statistics.median(wall):8.2f} | max {max(wall):8.2f}")
+        print(f"of which C solve:  mean {statistics.mean(c_solve):8.2f} | median {statistics.median(c_solve):8.2f} | max {max(c_solve):8.2f}")
+        print(f"core migrations: {migrations}/{total} calls switched cores | distinct cores used: {sorted(core_latencies.keys())}")
+        print(f"\n{'Core ID':<9} | {'Calls':<7} | {'Share':<8} | {'Median (ms)':<12} | {'Max (ms)':<10} | {'Avg Clock':<10}")
+        print("-" * 70)
+        for cid in sorted(core_latencies.keys()):
+            times = core_latencies[cid]
+            freqs = core_freqs[cid]
+            share = 100.0 * len(times) / total
+            freq_str = f"{statistics.mean(freqs):.0f} MHz" if freqs else "N/A"
+            print(f"{cid:<9} | {len(times):<7} | {share:6.1f}% | {statistics.median(times):10.2f}  | {max(times):8.2f}  | {freq_str}")
+
+        if len(core_latencies) > 1:
+            med_per_core = {cid: statistics.median(t) for cid, t in core_latencies.items()}
+            fastest, slowest = min(med_per_core, key=med_per_core.get), max(med_per_core, key=med_per_core.get)
+            delta = med_per_core[slowest] - med_per_core[fastest]
+            print(f"\nGap between fastest (core {fastest}) and slowest (core {slowest}) median: {delta:.2f} ms")
+            if delta > 15.0 or migrations > total * 0.1:
+                print("-> High variance/migration detected: likely OS-scheduler contention.")
+                print("   Consider pinning this thread's affinity away from GPU-feeding threads.")

@@ -107,7 +107,7 @@ def main():
 
     elif settings.ik_type == 'mhe':
         x_array = np.zeros((human_model.nq + human_model.nv, settings.N))
-        x_array[6, :] = 1.0
+        x_array[:human_model.nq, :] = q[:, None]
         u_array = np.zeros((human_model.nv, settings.N))
         
         deque_lstm_dict = deque(maxlen=settings.N)
@@ -144,8 +144,9 @@ def main():
         # --- STEP 4.1: Triangulation & World Frame Transform ---
         t_tri_start = time.perf_counter()
         p3d = triangulate_points(keypoints_list, mtxs, dists, projections)
-        p3d_np = torch.from_numpy(p3d).to(dtype=torch.float32)
-        p3d_in_world = np.array([np.dot(world_R1_cam, point) + world_T1_cam for point in p3d_np])
+
+        # Vectorized matrix math: Multiply all points at once and add the translation vector
+        p3d_in_world = (world_R1_cam @ p3d.T).T + world_T1_cam
         
         if first_sample:
             for _ in range(settings.N):
@@ -186,7 +187,8 @@ def main():
         elif settings.ik_type == 'mhe':
             deque_lstm_dict.append(mks_dict)
             array_data = np.array([np.hstack([d[marker] for marker in settings.keys_to_track_list]) for d in deque_lstm_dict]).T
-            #t_ik_start = time.perf_counter()
+            array_data = np.ascontiguousarray(array_data, dtype=np.float64)
+            t_ik_start = time.perf_counter()
             x_array, u_array = ik_class.solve(x_array, u_array, array_data, x_array[:, -1], settings.cost_weights, settings.dt)
             t_ik_end = time.perf_counter()
             q = pin.neutral(human_model)
@@ -200,6 +202,8 @@ def main():
         fil_history.append((t_fil_end - t_fil_start) * 1000)
         ik_history.append((t_ik_end - t_ik_start) * 1000)
         total_history.append((t_frame_end - t_frame_start) * 1000)
+    
+    ik_history.pop(0)
 
     # ----------------------------------------------------
     # 5. Granular Performance Reporting
