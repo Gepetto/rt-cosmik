@@ -8,30 +8,116 @@ import meshcat
 import meshcat.geometry as g
 import meshcat.transformations as tf
 
-from multiprocessing import Process, Array, Value, Lock, Barrier, Event, Queue
+import os
+import shutil
+
+
+from multiprocessing import Process
 from rtcosmik.triangulation.triangulation import triangulate_points
 
 LOGGER = logging.getLogger(__name__)
 
+def check_yolo_engine(num_cameras, imgsz=640, device=0):
+    """
+    Checks if yolov10n.engine matches the required camera count profile and if not rebatched YOLO.
+    Parameters:
+        num_cameras (int): Number of cameras used
+        imgsz (int, optional): Image size (height, width) in pixels. Defaults to 640.
+        device (int, optional): Device index. Defaults to 0.
+    """
+    yolo_dir = "/root/workspace/RT-COSMIK/weights/yolo"
+    pt_weight_path = os.path.join(yolo_dir, "yolov10n.pt")
+    expected_engine_path = os.path.join(yolo_dir, "yolov10n.engine")
+    
+    # Inspect existing engine layout safely using direct binary parsing
+    if os.path.exists(expected_engine_path):
+        print(f"[INFO] Engine file found at {expected_engine_path}. Verifying layout metadata via stream...")
+        try:
+            
+            meta_path = expected_engine_path + ".meta"
+            
+            if os.path.exists(meta_path):
+                with open(meta_path, "r") as f:
+                    meta_data = f.read().strip().split(",")
+                
+                actual_batch = int(meta_data[0])
+                actual_imgsz = int(meta_data[1])
+                
+                if actual_batch == num_cameras and actual_imgsz == imgsz:
+                    print(f"[OK] Verified engine configuration matches. Skipping compilation.")
+                    return expected_engine_path
+                else:
+                    print(f"[WARN] Engine profile mismatch. Found Batch {actual_batch}, Size {actual_imgsz}. Need Batch {num_cameras}. Rebuilding...")
+            else:
+                print("[WARN] Engine metadata tracker missing. Forcing compilation to sync configurations.")
+                    
+        except Exception as e:
+            print(f"[WARN] Failed to read engine framework metadata safely ({e}). Forcing compilation rebuild.")
+
+    # Validation failed or file missing -> Trigger programmatic compilation pipeline
+    print(f"[INFO] Compiling a new TensorRT engine for Batch {num_cameras}...")
+    if not os.path.exists(pt_weight_path):
+        raise FileNotFoundError(f"Base PyTorch weights file missing at {pt_weight_path}. Run download sequence first.")
+
+    try:
+        # Load the floating point PyTorch framework weights
+        model = YOLO(pt_weight_path)
+        
+        # Compile static graph optimized layout directly targeting the active camera count
+        exported_path = model.export(
+            format="engine",
+            device=device,
+            imgsz=imgsz,
+            batch=num_cameras,
+            dynamic=False,
+            simplify=False,
+            half=True
+        )
+        
+        # Clean up the pipeline output path and rename to exact target format
+        if exported_path and os.path.exists(exported_path):
+            if os.path.abspath(exported_path) != os.path.abspath(expected_engine_path):
+                # Erase the outdated mismatched or corrupted file layout completely
+                if os.path.exists(expected_engine_path):
+                    os.remove(expected_engine_path)
+                    
+                shutil.move(exported_path, expected_engine_path)
+            
+            # Write a companion metadata file to have its configuration shape!
+            meta_path = expected_engine_path + ".meta"
+            with open(meta_path, "w") as f:
+                f.write(f"{num_cameras},{imgsz}")
+                
+            print(f"[OK] Successfully wrote verified engine and configuration metadata to: {expected_engine_path}")
+            return expected_engine_path
+        else:
+            raise RuntimeError("YOLO export finished but target engine file could not be verified.")
+            
+    except Exception as e:
+        print(f"[ERR] Automated TensorRT export execution failed: {e}")
+        raise
+
 class NLFEstimator:
     """Roll YOLO detection (batched) + per-camera NLF sequential estimation for multiple images."""
 
-    def __init__(
-        self,
-        yolo_path,
-        nlf_path,
-        cano_path,
-        image_size,
-        cam_Ks,
-        indices,
-        all_in_one=False, # performs detection + nlf all in one or not 
-        conf=0.75,
-        imgsz=640,
-        device="cuda:0",
-        logger=None,
-        warmup=True,
-        warmup_iters=10,
-    ):
+    def __init__(self, yolo_path, nlf_path, cano_path, image_size, cam_Ks, indices,
+        all_in_one=False, conf=0.75, imgsz=640, device="cuda:0", logger=None, warmup=True, warmup_iters=10):
+        """
+        Initialize the NLF estimator.
+        Parameters:
+            yolo_path (str): Path to the YOLO model.
+            nlf_path (str): Path to the NLF model.
+            cano_path (str): Path to the canonical vertex for NLF detection.
+            image_size (int): Image size of the video frame.
+            cam_Ks (np.array): list of camera Ks.
+            all_in_one (bool, optional): performs detection + nlf all in one or not
+            conf (float, optional): confidence threshold
+            device (int, optional): Device index and hardware acceleration. Defaults to cuda:0.
+            imgsz (int, optional): Image size for YOLO batch. Defaults to 640.
+            logger (logging.Logger, optional): Logger to use. Defaults to None.
+            warmup (bool, optional): Warmup the GPU or not. Defaults to True.
+            warmup_iters (int, optional): Warmup iterations. Defaults to 10.
+        """
         if not torch.cuda.is_available():
             raise RuntimeError("CUDA not available")
 
@@ -56,7 +142,7 @@ class NLFEstimator:
 
         self.geom_dtype = torch.float32
         K_stack = np.stack(cam_Ks, axis=0) 
-        self.Kt = torch.from_numpy(K_stack).to(self.device, dtype=self.geom_dtype)  # (C,3,3)
+        self.Kt = torch.from_numpy(K_stack).to(self.device, dtype=self.geom_dtype)  # (C,3,3)F
 
         self.C = self.Kt.shape[0]
         # Per-camera lock state to keep tracking the same person across frames.
@@ -88,6 +174,18 @@ class NLFEstimator:
             self.logger.info("[INFO] Models warmed up")
     
     def load_nlf(self, path: str):
+
+        """
+        Loads and prepares a dynamic raw TorchScript NLF module for high-performance inference.
+
+        Parameters
+            path (str): File system path locating the JIT serialized NLF module.
+
+        Returns
+        torch.jit.ScriptModule
+            model: Optimized, static evaluation-ready model instance bound to target device memory.
+        """
+
         model = torch.jit.load(path).eval().to(self.device)
 
         def _nop(*args, **kwargs):
@@ -109,6 +207,11 @@ class NLFEstimator:
         return model
 
     def _warmup(self, iters: int = 10):
+        """
+        Warms up independent YOLO detection networks and NLF pose tracking stages separately.
+        Parameters
+        iters (int, optional): Number of inference cycles to loop during the warm-up sequence. Defaults to 10.
+        """
         frames = [np.random.randint(0, 256, (self.H, self.W, 3), dtype=np.uint8) for _ in range(self.C)]
         dummy_xywh = torch.tensor([[0.0, 0.0, float(self.W - 1), float(self.H - 1)]],
                                   device=self.device, dtype=self.geom_dtype)
@@ -120,6 +223,7 @@ class NLFEstimator:
                     frames, imgsz=self.imgsz, classes=0, conf=self.conf,
                     device=self.device, verbose=False, half=True,
                 )
+
 
         with torch.inference_mode():
             imgs = self.preprocess_batch(frames)  # (C,3,H,W)
@@ -136,6 +240,11 @@ class NLFEstimator:
         torch.cuda.synchronize()
     
     def _warmup_all_in_one(self, iters: int = 10):
+        """
+        Warms up the combined visual pipeline layout where detection and estimation happen in one call.
+        Parameters:
+            iters (int, optional): Number of inference cycles to loop during the warmup sequence. Defaults to 10.
+        """
         frames = [np.random.randint(0, 256, (self.H, self.W, 3), dtype=np.uint8) for _ in range(self.C)]
 
         with torch.inference_mode():
@@ -152,7 +261,13 @@ class NLFEstimator:
         torch.cuda.synchronize()
 
     def top1_box_xywh(self, res):
-        """Return top-1 bbox as (1,4) xywh on self.device, or (0,4) if none."""
+        """
+        Extracts the single bounding box container with the absolute highest confidence score.
+        Parameters:
+            res (ultralytics.engine.results.Results): YOLO raw inference parsing structure output containing generated target frames.
+        Returns:
+            torch.Tensor: A continuous (1, 4) or empty (0, 4) tensor matrix holding properties structured as `[x_min, y_min, width, height]`.
+        """
         if len(res.boxes) == 0:
             return torch.zeros((0, 4), device=self.device, dtype=self.geom_dtype)
 
@@ -163,12 +278,26 @@ class NLFEstimator:
         return xywh.contiguous().to(self.geom_dtype)
 
     def _xyxy_to_xywh(self, box_xyxy):
+        """
+        Transforms bounding box configurations from corner coordinate layouts to spatial size forms.
+        Parameters:
+            box_xyxy (torch.Tensor): Tensor of bounding box bounds formatted as `[x_min, y_min, x_max, y_max]`.
+        Returns:
+        torch.Tensor: Reshaped coordinate system configurations mapped as `[x_min, y_min, width, height]`.
+        """
         box = box_xyxy.reshape(1, 4).to(self.device, dtype=self.geom_dtype)
         wh = box[:, 2:] - box[:, :2]
         return torch.cat([box[:, :2], wh], dim=1).contiguous()
 
     def _box_iou_single_to_many(self, box_xyxy, boxes_xyxy):
-        """IoU between one box (4,) and many boxes (N,4)."""
+        """
+        Calculates Intersection over Union (IoU) scores comparing an isolated anchor box against an array.
+        Parameters:
+            box_xyxy (torch.Tensor): Singular comparison anchor target tensor baseline shaped as (4,).
+            boxes_xyxy (torch.Tensor): Candidate matrix containing active boxes to verify, shaped as (N, 4).
+        Returns:
+            torch.Tensor: A tensor array of float intersection ratio percentages matching shape configuration (N,).
+        """
         if boxes_xyxy.numel() == 0:
             return torch.zeros((0,), device=self.device, dtype=self.geom_dtype)
 
@@ -190,6 +319,11 @@ class NLFEstimator:
         """
         Keep selecting the same person by matching current detections
         against the previously selected box for each camera.
+        Parameters:
+            res (ultralytics.engine.results.Results): Incoming framework prediction wrappers generated by the front-end YOLO stage.
+            cam_idx (int): The unique identifier key tracking the active camera lane source.
+        Returns:
+            torch.Tensor: The calculated target container vector array formatted as an `[x, y, w, h]` tensor.
         """
         if len(res.boxes) == 0:
             locked = self._locked_boxes_xyxy[cam_idx]
@@ -245,6 +379,17 @@ class NLFEstimator:
         return self._xyxy_to_xywh(chosen)
 
     def preprocess_batch(self, frames_bgr):
+        """
+        Performs high-speed image preprocessing using pre-allocated, zero-allocation GPU pipelines.
+        Executes non-blocking transfers via CPU pinned memory, transforms memory layouts from
+        Interleaved (HWC) to Planar (CHW), swaps channels inline from BGR to RGB, and normalizes
+        color values into a single half-precision FP16 tensor representation.
+        Parameters:
+            frames_bgr (list of np.ndarray): A raw sequence collection containing target source images encoded as standard uint8 BGR layouts.
+        Returns
+            torch.Tensor: A preprocessed half-precision tensor matrix shaped exactly as `(C, 3, H, W)`.
+        """
+
         # 1) copy frames into pinned CPU buffer (no big stack allocation)
         for i, f in enumerate(frames_bgr):
             self._cpu_pinned_np[i] = f  # copies into pinned memory
@@ -255,10 +400,13 @@ class NLFEstimator:
         # 3) HWC -> CHW into a contiguous buffer
         self._gpu_chw_u8.copy_(self._gpu_hwc_u8.permute(0, 3, 1, 2), non_blocking=True)
 
+        
+        
         # 4) in-place BGR -> RGB using a persistent temp channel (no alloc)
         self._tmp_ch.copy_(self._gpu_chw_u8[:, 0], non_blocking=True)      # B
         self._gpu_chw_u8[:, 0].copy_(self._gpu_chw_u8[:, 2], non_blocking=True)  # R -> slot 0
         self._gpu_chw_u8[:, 2].copy_(self._tmp_ch, non_blocking=True)      # B -> slot 2
+        
 
         # 5) cast + normalize into persistent fp16 tensor (copy_ does casting)
         self._gpu_fp16.copy_(self._gpu_chw_u8, non_blocking=True)
@@ -268,6 +416,17 @@ class NLFEstimator:
 
     @torch.inference_mode()
     def estimate_from_frames(self, frames_bgr):
+        """
+        Runs the complete decoupled estimation loop: YOLO tracking, box filtering,
+        H2D preprocessing, and explicit NLF pose evaluation.
+        Parameters
+            frames_bgr (list of np.ndarray): A raw sequence array containing camera frames formatted as standard uint8 BGR.
+        Returns
+            out (dict/tuple): Output structures from `estimate_poses_batched`.
+            timings (dict): Millisecond timing profiles covering isolated sections of the loop.
+            yres (list): Raw outputs parsed directly from individual YOLO detector runs.
+            boxes (list): Final processed tracking target location box slices applied during evaluation.
+        """
         # --- CPU preprocess timing (stacking etc.) ---
         t_cpu0 = time.perf_counter()
 
@@ -305,6 +464,14 @@ class NLFEstimator:
 
     @torch.inference_mode()
     def detect_and_estimate_from_frames(self, frames_bgr):
+        """
+        Runs unified single-stage end-to-end NLF position extraction on incoming image arrays.
+        Parameters
+            frames_bgr (list of np.ndarray): A collection sequence of individual camera streams encoded as standard uint8 BGR.
+        Returns:
+            out (dict/tuple): Output structures from `detect_poses_batched`.
+            timings (dict): Metric tracking records capturing internal processing latencies.
+        """
         # --- CPU preprocess timing (stacking etc.) ---
         t_cpu0 = time.perf_counter()
 
@@ -330,7 +497,15 @@ class NLFEstimator:
 
     @staticmethod
     def draw_points(frame_bgr, poses_2d, color=(0, 255, 255)):
-        """Draws projected 3D points (no skeleton) on a BGR image."""
+        """
+        Draws projected 3D points (no skeleton) on a BGR image.
+        Parameters:
+            frame_bgr (np.ndarray): The baseline image matrix canvas where tracking coordinates are drawn.
+            poses_2d (torch.Tensor): Coordinate matrix holding positions
+            color ((int, int, int), optional): Color values assigned to point outputs represented as a BGR triplet. Defaults to (0, 255, 255).
+        Returns
+            np.ndarray: A modified or duplicate copy of the target canvas displaying drawn coordinate circles.
+        """
         if poses_2d is None:
             return frame_bgr
 
@@ -379,23 +554,20 @@ class NLFEstimator:
         cv2.rectangle(img, p0, p1, color, thickness, lineType=cv2.LINE_AA)
         return img
 
-    def visualize_frames(
-        self,
-        frames_bgr,
-        nlf_outputs,
-        boxes=None,
-        draw_boxes=False,
-        draw=True,
-        put_text=False,
-        text_prefix="cam",
-    ):
-        """Return a list of frames with projected NLF keypoints drawn.
-
-        - frames_bgr: list of BGR images
-        - nlf_outputs: list aligned with frames (the `out` from estimate_from_frames)
-        - boxes: optional list of bbox tensors aligned with frames
-        - draw_boxes: if True, draws the bbox used for NLF
-        - draw: if False, returns copies of frames without drawing
+    def visualize_frames(self, frames_bgr, nlf_outputs,
+        boxes=None, draw_boxes=False, draw=True, put_text=False, text_prefix="cam"):
+        """
+        Renders diagnostic tracking data overlays across a batch of multicam frames.
+        Parameters:
+             - frames_bgr (list of np.array): list of BGR images
+             - nlf_outputs (list of dict) : list aligned with frames (the `out` from estimate_from_frames)
+             - boxes: optional list of bbox tensors aligned with frames
+             - draw_boxes (bool, optional): if True, draws the bbox used for NLF
+             - draw (bool, optional): if False, returns copies of frames without drawing
+             - put_text (bool, optional): Enables drawing channel name tracking labels in the corner. Defaults to False.
+             - text_prefix (str, optional): String identifier key used when drawing channel metadata labels. Defaults to "cam".
+        Returns:
+             out_frames: a list of frames with projected NLF keypoints drawn.
         """
         if len(frames_bgr) != len(nlf_outputs["poses2d"]):
             raise ValueError(f"frames_bgr and nlf_outputs length mismatch: {len(frames_bgr)} vs {len(nlf_outputs)}")
@@ -429,23 +601,38 @@ class NLFEstimator:
         return out_frames
 
 class DisplayConsumerNLF(Process):
-    def __init__(self,
-                 settings,
-                 frame_counters,
-                 camera_buffers, 
-                 camera_locks, 
-                 timestamp_buffers, 
-                 stop_event, 
-                 mtxs,
-                 frame_shape: tuple = (720, 1280, 3),
-                 num_cameras: int = 2,
-                 with_triangul=False,
-                 world_R1_cam=None,
-                 world_T1_cam=None,
-                 dists=None,
-                 projections=None,
-                 logger=None,
-                 ):
+    """
+    A multi-camera processing consumer that runs as an isolated system Process.
+
+    This consumer handles real-time synchronization across multi-camera shared
+    memory buffers, triggers an underlying batched NLF Estimator, and handles two
+    distinct rendering paths:
+      1. Epipolar 3D triangulation rendered via Meshcat cloud visualizers.
+      2. Stacked 2D side-by-side video stream frames rendered via OpenCV.
+    """
+    def __init__(self, settings, frame_counters, camera_buffers,  camera_locks,  timestamp_buffers, stop_event, mtxs,
+                 frame_shape: tuple = (720, 1280, 3), num_cameras: int = 2, with_triangul=False, world_R1_cam=None,
+                 world_T1_cam=None, dists=None, projections=None, logger=None):
+        """
+        Initializes the multiprocess consumer
+        Parameters:
+            settings (Object): Configuration container tracking models, indices, and confidence thresholds.
+            frame_counters (List[int]): Shared atomic integers tracking individual camera processing frame counts.
+            camera_buffers (List[Array]): Raw shared memory buffers containing raw binary image payloads.
+            camera_locks (List[Lock]): Process-safe locks protecting corresponding image buffers from race conditions.
+            timestamp_buffers (List[Array]): Shared character/byte arrays tracking camera hardware trigger timestamps.
+            stop_event (Event): Inter-process event flag indicating thread loop termination requests.
+            mtxs (List[np.ndarray]): List of 3x3 array matrices containing individual camera intrinsic properties.
+            frame_shape (tuple, optional): Expected dimensions of camera arrays as (Height, Width, Channels). Defaults to (720, 1280, 3).
+            num_cameras (int, optional): Number of cameras. Defaults to 2.
+            with_triangul (bool, optional): If True, activates 3D Meshcat point triangulation pipelines. Defaults to False.
+            world_R1_cam (np.ndarray, optional): 3x3 rotation matrix aligning camera base coordinate space with world space. Defaults to None.
+            world_T1_cam (np.ndarray, optional): 3x1 translation vector aligning camera base position spaces. Defaults to None.
+            dists (List[np.ndarray], optional): Lens distortion coefficients for target optical corrections. Defaults to None.
+            projections (List[np.ndarray], optional): 3x4 projection matrices mapping points for linear triangulation. Defaults to None.
+            logger (logging.Logger, optional): Custom system logging instance. If None, falls back to default LOGGER. Defaults to None.
+        """
+
         super().__init__()
         self.camera_buffers = camera_buffers
         self.camera_locks = camera_locks
@@ -478,6 +665,15 @@ class DisplayConsumerNLF(Process):
 
 
     def run(self):
+        """
+        The main execution loop for the isolated system Process.
+
+        Instantiates the underlying `NLFEstimator` on the designated processing device.
+        Continuously polls shared-memory pipelines for newly available image batches,
+        evaluates batched deep learning networks, and formats output streams based on the
+        active structural mode (`with_triangul` True vs False).
+        """
+
 
         est = NLFEstimator(
             yolo_path=self.yolo_path,
