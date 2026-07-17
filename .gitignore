@@ -23,3 +23,13 @@ panda_with_box_base.urdf.xacro
 panda_with_box_base.urdf
 fatrop_generated/
 ocp.c
+data/
+scripts/python/core/acados_codegen/
+tests/benchmark/acados_codegen/
+tests/benchmark/nlf_2d_keypoints.json
+weights/nlf/
+weights/yolo/
+scripts/python/core/out.txt
+scripts/python/core/benchmark_output_cam1.mp4
+scripts/python/core/benchmark_output_cam0.mp4
+scripts/python/core/trace.json
