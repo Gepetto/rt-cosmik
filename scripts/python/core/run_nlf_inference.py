@@ -9,18 +9,19 @@ if str(SRC_ROOT) not in sys.path:
 import argparse
 
 import time
-from pathlib import Path
-from dataclasses import dataclass
-from typing import List, Optional, Sequence, Tuple
+from typing import List
 
 import cv2
+
 import numpy as np
 import torch
-from rtcosmik.nlf.nlf import NLFEstimator, DisplayConsumerNLF
+from rtcosmik.nlf.nlf import NLFEstimator, DisplayConsumerNLF, check_yolo_engine
 from rtcosmik.config_loader import settings
 from rtcosmik.camera.cam_utils import list_cameras, load_camera_parameters
 from rtcosmik.camera.camera import Camera
 from rtcosmik.utils.mp_utils import create_camera_shared_ressources
+
+from rtcosmik.utils.videoReader import OfflineVideoSource
 
 from multiprocessing import set_start_method
 
@@ -34,41 +35,14 @@ logging.basicConfig(
 
 def list_videos(data_dir: Path) -> List[Path]:
     if not data_dir.exists():
-        raise FileNotFoundError(f"data dir does not exist: {data_dir}")
+        raise FileNotFoundError(f"data dir does not exist: {data_dir.resolve()}")
     vids = [p for p in sorted(data_dir.iterdir()) if p.suffix.lower() in [".mp4"]]
     return vids
 
-@dataclass
-class OfflineVideoSource:
-    paths: List[Path]
-    size_wh: Tuple[int, int]
 
-    def __post_init__(self):
-        self.caps = [cv2.VideoCapture(str(p)) for p in self.paths]
-        for p, cap in zip(self.paths, self.caps):
-            if not cap.isOpened():
-                raise RuntimeError(f"Could not open video: {p}")
-
-    def read(self) -> Optional[List[np.ndarray]]:
-        frames: List[np.ndarray] = []
-        for cap in self.caps:
-            ok, frame = cap.read()
-            if not ok:
-                cap.set(cv2.CAP_PROP_POS_FRAMES, 0)
-                ok, frame = cap.read()
-                if not ok:
-                    return None
-            W, H = self.size_wh
-            if frame.shape[1] != W or frame.shape[0] != H:
-                frame = cv2.resize(frame, (W, H), interpolation=cv2.INTER_LINEAR)
-            frames.append(frame)
-        return frames
-
-    def release(self):
-        for cap in self.caps:
-            cap.release()
 
 def main(args):
+
     torch.backends.cudnn.benchmark = False
     torch.backends.cuda.matmul.allow_tf32 = True
     torch.backends.cudnn.allow_tf32 = True
@@ -76,12 +50,13 @@ def main(args):
     # Determine size
     W = settings.width
     H =settings.height
-    mtxs, dists, projections, rotations, translations = load_camera_parameters(settings.cam_calib_path)
 
     if args.online:
         cameras = list_cameras()
         NUM_CAMERAS = len(cameras)
         FRAME_SHAPE = (H, W, 3)
+        mtxs, dists, projections, rotations, translations = load_camera_parameters(settings.cam_calib_path, NUM_CAMERAS)
+        check_yolo_engine(NUM_CAMERAS)
         camera_buffers, camera_timestamps, camera_locks, frame_counters, camera_barrier, stop_event = create_camera_shared_ressources(NUM_CAMERAS, FRAME_SHAPE)
 
         # Create camera processes
@@ -135,6 +110,18 @@ def main(args):
             paths = list_videos(Path(args.data_dir))
         if len(paths) == 0:
             raise RuntimeError(f"No videos found in {args.data_dir}")
+        
+        NUM_CAMERAS=len(paths)
+        check_yolo_engine(NUM_CAMERAS)
+        mtxs, dists, projections, rotations, translations = load_camera_parameters(settings.cam_calib_path, NUM_CAMERAS)
+        
+        '''
+        To save output videos to check if they are synchronized
+        fps=40
+        fourcc = cv2.VideoWriter_fourcc(*'mp4v')
+        out_stream1 = cv2.VideoWriter('sync_check_video1.mp4', fourcc, fps, (W, H))
+        out_stream2 = cv2.VideoWriter('sync_check_video2.mp4', fourcc, fps, (W, H))
+        '''
 
         src = OfflineVideoSource(paths=paths, size_wh=(W, H))
 
@@ -153,10 +140,17 @@ def main(args):
 
         cv2.namedWindow("Visualization", cv2.WINDOW_NORMAL)
 
+        
         while True:
             frames = src.read()
             if frames is None:
                 break
+            
+            '''
+            To save output videos to check if they are synchronized
+            out_stream1.write(frames[0])
+            out_stream2.write(frames[1])
+            '''
 
             nlf_out, infer_ms, yres, boxes = est.estimate_from_frames(frames)
 
@@ -179,6 +173,12 @@ def main(args):
                 break
 
         src.release()
+        
+        '''
+        To save output videos to check if they are synchronized
+        out_stream1.release()
+        out_stream2.release()
+        '''
         cv2.destroyAllWindows()
 
 
