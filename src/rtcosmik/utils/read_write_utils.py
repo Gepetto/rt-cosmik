@@ -4,6 +4,21 @@ from typing import Dict, Tuple, List
 import matplotlib.pyplot as plt 
 import os
 import csv
+from pathlib import Path
+import yaml
+def read_subject_yaml(file_path):
+    """
+    Lit un fichier YAML et retourne directement id, height, weight et gender.
+    """
+    with open(file_path, 'r') as f:
+        data = yaml.safe_load(f)
+    
+    subject_id = data.get('id')
+    height = data.get('height')
+    weight = data.get('weight')
+    gender = data.get('gender')
+    
+    return subject_id, height, weight, gender
 
 def set_zero_data_df(df, x=None, y=None, z=None):
     # Isolate the right ankle coordinates for frame 1
@@ -317,6 +332,71 @@ def read_joint_angles(directory_name:str)->np.ndarray:
     q=np.array(q)
     return q
 
+def read_joint_angles_wholebody(file_path, start_sample):
+
+    dofs_names  = ['FF_X', 'FF_Y', 'FF_Z', 'FF_quatx','FF_quaty',
+                          'FF_quatz', 'FF_quatw', 'Lhip_flex_ext', 'Lhip_abd_add','Lhip_int_ext_rot','Lknee_flex_ext','Lankle_flex_ext','Lankle_abd_add',
+                          'Lumbar_flex_ext', 'Lumbar_lateral_flex',
+                          'thoracic_flex_ext','thoracic_lateral_flex','thoracic_rot_int_ext',
+                          'Lcalvicule_x',
+                          'Lshoulder_flex_ext','Lshoulder_abd_add', 'Lshoulder_int_ext_rot','Lelbow_flex_ext','Lelbow_pron_supi','Lwrist_flex_ext','Lwrist_x',
+                          'Cervical_flex_ext', 'Cervical_lat_bend', 'Cervical_int_ext_rot',
+                          'rcalvicule_x',
+                          'Rshoulder_flex_ext', 'Rshoulder_abd_add', 'Rshoulder_int_ext_rot','Relbow_flex_ext', 'Relbow_pron_supi', 'Rwrist_flex_ext','Rwrist_x',
+                          'Rhip_flex_ext','Rhip_abd_add','Rhip_int_ext_rot',
+                          'Rknee_flex_ext','Rankle_flex_ext', 'Rankle_abd_add']
+    q = []
+    with open(file_path, mode='r') as csv_file:
+        csv_reader = csv.reader(csv_file)
+        #Skip the header 
+        header = next(csv_reader)
+        
+        # Read all rows into memory to count total rows
+        all_rows = list(csv_reader)
+        total_rows = len(all_rows)
+        # print(total_rows)
+        
+        #  determine indices of columns
+        indices = [header.index(name) for name in dofs_names if name in header]
+        
+        # Start reading from the start_sampleth row and stop before the last end_sample rows
+        for row in all_rows[start_sample:total_rows]:
+            # Extract values for the specified columns
+            selected_values = [float(row[i]) for i in indices]
+            q.append(selected_values)
+    
+    return np.array(q)
+
+def read_specific_joint(file_path, dofs_list,start_sample):
+
+    q = []
+    with open(file_path, mode='r') as csv_file:
+        csv_reader = csv.reader(csv_file)
+        #Skip the header 
+        header = next(csv_reader)
+        
+        # Read all rows into memory to count total rows
+        all_rows = list(csv_reader)
+        total_rows = len(all_rows)
+        # print(total_rows)
+        
+        #  determine indices of columns
+        missing_cols = [name for name in dofs_list if name not in header]
+        if missing_cols:
+            raise ValueError(f"Colonnes manquantes : {missing_cols}")
+        
+        indices = [header.index(name) for name in dofs_list]
+        # print("Indices des colonnes :", indices)
+        
+        
+        # Start reading from the start_sampleth row and stop before the last end_sample rows
+        for row in all_rows[start_sample:total_rows]:
+            # Extract values for the specified columns
+            selected_values = [float(row[i]) for i in indices]
+            q.append(selected_values)
+    
+    return np.array(q)
+
 def read_joint_positions(file_path):
     with open(file_path, 'r') as f:
         lines = f.readlines()
@@ -343,15 +423,51 @@ def read_mmpose_file(nom_fichier):
     with open(nom_fichier, 'r') as f:
         for ligne in f:
             ligne = ligne.strip().split(',')  # Séparer les valeurs par virgule
-            donnees.append([float(valeur) for valeur in ligne[:]])  # Convertir les valeurs en float, en excluant le num_sample
-    # print('donnees=',donnees)
+            donnees.append([float(valeur) for valeur in ligne[1:]])  # Convertir les valeurs en float, en excluant le num_sample
+        # print('donnees=',donnees)
     return donnees
+
+def read_mmpose_file_clean(filepath, num_keypoints=26, max_lines=360):
+    """
+    Lit un fichier CSV de keypoints 2D MMPose.
+    - Garde seulement les 26 premiers keypoints (52 colonnes)
+    - Gère les NaNs
+    - Ne lit que les `max_lines` premières lignes
+    - Retourne un tableau (n_frames, num_keypoints, 2)
+    """
+    donnees = []
+    with open(filepath, 'r') as f:
+        for idx, ligne in enumerate(f):
+            if idx >= max_lines:
+                break  # arrêter après max_lines
+
+            ligne = ligne.strip().split(',')  # split par virgule
+            valeurs = ligne[1:]  # ignorer le premier champ (index/timestamp)
+
+            float_vals = []
+            for val in valeurs:
+                try:
+                    float_vals.append(float(val))
+                except ValueError:
+                    float_vals.append(np.nan)
+
+            # Garder seulement les 26 premiers keypoints
+            float_vals = float_vals[:2 * num_keypoints]
+
+            # Compléter si colonne manquante
+            if len(float_vals) < 2 * num_keypoints:
+                float_vals += [np.nan] * (2 * num_keypoints - len(float_vals))
+
+            donnees.append(float_vals)
+
+    data_np = np.array(donnees).reshape(-1, num_keypoints, 2)
+    return data_np
 
 def read_mmpose_scores(liste_fichiers):
     all_scores= []
     for f in liste_fichiers :
         data= np.loadtxt(f, delimiter=',')
-        all_scores.append(data[:, 1])
+        all_scores.append(data[:, 0])
     return np.array(all_scores).transpose().tolist()
 
 def get_cams_params_challenge()->dict:
@@ -467,14 +583,13 @@ def save_q_to_csv(csv_path, q, frame_idx, formatted_timestamp):
         # Write to CSV
         csv_writer.writerow([frame_idx, formatted_timestamp]+q.tolist())  
 
-def save_to_csv(data, output_path):
-    """Save 3D keypoints to a CSV file."""
+def save_to_csv(data, output_path, header=None):
+    """Save 3D keypoints to a CSV file with optional header."""
     df = pd.DataFrame(data)
-    df.to_csv(output_path, index=False, header=False)
+    df.to_csv(output_path, index=False, header=header if header is not None else False)
     print(f"Saved {len(data)} frames to {output_path}")
 
-
-def read_mks_data(data_markers, start_sample=0):
+def read_mks_data(data_markers, start_sample=0, converter = 1.0):
     #the mks are ordered in a csv like this : "time,r.ASIS_study_x,r.ASIS_study_y,r.ASIS_study_z...."
     """    
     Parameters:
@@ -488,7 +603,6 @@ def read_mks_data(data_markers, start_sample=0):
     """
     # Extract marker column names
     marker_columns = [col[:-2] for col in data_markers.columns if col.endswith("_x")]
-    # print(marker_columns)
     
     # Initialize the result list
     result_markers = []
@@ -497,9 +611,9 @@ def read_mks_data(data_markers, start_sample=0):
     for _, row in data_markers.iterrows():
         frame_dict = {}
         for marker in marker_columns:
-            x = row[f"{marker}_x"]
-            y = row[f"{marker}_y"]
-            z = row[f"{marker}_z"]
+            x = row[f"{marker}_x"] / converter  #convert to m
+            y = row[f"{marker}_y"]/ converter
+            z = row[f"{marker}_z"]/ converter
             frame_dict[marker] = np.array([x, y, z])  # Store as a NumPy array
         result_markers.append(frame_dict)
     
@@ -507,3 +621,394 @@ def read_mks_data(data_markers, start_sample=0):
     start_sample_mks = result_markers[start_sample]
     
     return result_markers, start_sample_mks
+
+def read_mocap_data(data_markers, start_sample=0, converter=1.0):
+    # the mks are ordered in a csv like this : "time,r.ASIS_study_x,r.ASIS_study_y,r.ASIS_study_z...."
+    """
+    Parameters:
+        data_markers (pd.DataFrame): The input DataFrame containing marker data.
+        start_sample (int): The index of the sample to start processing from.
+        time_column (str): The name of the time column in the DataFrame.
+
+    Returns:
+        list: A list of dictionaries where each dictionary contains markers with 3D coordinates.
+        dict: A dictionary representing the markers and their 3D coordinates for the specified start_sample.
+    """
+    # Extract marker column names
+    marker_columns = [
+        col[:-6] for col in data_markers.columns if col.endswith("_X[mm]")
+    ]
+
+    # Initialize the result list
+    result_markers = []
+
+    # Iterate over each row in the DataFrame
+    for _, row in data_markers.iterrows():
+        frame_dict = {}
+        for marker in marker_columns:
+            x = row[f"{marker}_X[mm]"] / converter  # convert to m
+            y = row[f"{marker}_Y[mm]"] / converter
+            z = row[f"{marker}_Z[mm]"] / converter
+            frame_dict[marker] = np.array([x, y, z])  # Store as a NumPy array
+        result_markers.append(frame_dict)
+
+    # Get the data for the specified start_sample
+    start_sample_mks = result_markers[start_sample]
+
+    return result_markers, start_sample_mks
+
+def parse_marker_csv(path_to_csv, mks_names, column_name='marker_data', delimiter=';'):
+    """
+    Parses a CSV containing marker data stored as a single delimited string per row.
+
+    Args:
+        path_to_csv (str): Path to the CSV file.
+        mks_names (list): List of marker names.
+        column_name (str): Name of the column containing the marker data. Default is 'marker_data'.
+        delimiter (str): Delimiter used in the marker data string. Default is ';'.
+
+    Returns:
+        list of dict: Each element is a dictionary {marker_name: np.array([x, y, z])} for one frame.
+    """
+    df = pd.read_csv(path_to_csv)
+    expected_values = len(mks_names) * 3
+
+    if column_name not in df.columns:
+        raise ValueError(f"'{column_name}' column not found in CSV")
+
+    mks_dict = []
+    for row in df[column_name]:
+        values = list(map(float, row.split(delimiter)))
+        if len(values) != expected_values:
+            raise ValueError(f"Expected {expected_values} values, got {len(values)}")
+
+        coords = [np.array(values[i:i+3]) for i in range(0, len(values), 3)]
+        frame_data = dict(zip(mks_names, coords))
+        mks_dict.append(frame_data)
+
+    return mks_dict
+
+def marker_data_to_dataframe(df, mks_names, marker_column='marker_data', delimiter=';'):
+    """
+    Converts a single-column marker string data DataFrame to a wide format DataFrame.
+
+    Parameters:
+        df (pd.DataFrame): Original DataFrame with a 'marker_data' column.
+        mks_names (list): List of marker names.
+        marker_column (str): Name of the column with delimited marker data.
+        delimiter (str): Delimiter used in the string (default ';').
+
+    Returns:
+        pd.DataFrame: A DataFrame with columns like marker_x, marker_y, marker_z.
+    """
+    all_data = []
+    for row in df[marker_column]:
+        values = list(map(float, row.split(delimiter)))
+        all_data.append(values)
+    
+    wide_df = pd.DataFrame(all_data, columns=[
+        f"{name}_{axis}" for name in mks_names for axis in ['x', 'y', 'z']
+    ])
+    
+    return wide_df
+
+
+def udp_csv_to_dataframe(csv_path, marker_names):
+    """
+    Preprocess a UDP CSV file into a DataFrame suitable for read_mks_data.
+
+    Parameters:
+        csv_path (str): Path to the CSV file.
+        marker_names (list): List of marker base names (without _x/_y/_z).
+
+    Returns:
+        pd.DataFrame: A DataFrame with columns formatted as marker_x, marker_y, marker_z.
+    """
+    # 1. Open manually
+    with open(csv_path, 'r') as f:
+        lines = f.readlines()
+
+    # 2. Skip the header
+    lines = lines[1:]
+
+    # 3. Prepare all rows
+    all_rows = []
+    for line in lines:
+        # Remove newline, then split
+        line = line.strip()
+        if not line:
+            continue  # skip empty lines
+        parts = line.split(",")
+        timestamp = parts[0]
+        udp_values = [float(val) for val in parts[1:]]
+        all_rows.append(udp_values)
+
+    # 4. Now create a dataframe
+    udp_df = pd.DataFrame(all_rows)
+
+    # 5. Build column names
+    new_columns = []
+    for marker in marker_names:
+        new_columns.extend([f"{marker}_x", f"{marker}_y", f"{marker}_z"])
+
+    if udp_df.shape[1] != len(new_columns):
+        raise ValueError(f"Mismatch between expected markers ({len(new_columns)}) and data columns ({udp_df.shape[1]}). Check marker list!")
+
+    udp_df.columns = new_columns
+
+    return udp_df
+
+#plot markers trajectories
+def plot_marker_trajectories(udp_df, marker_names):
+    """
+    Plot x, y, z trajectories of each marker in its own figure with 3 subplots.
+
+    Parameters:
+        udp_df (pd.DataFrame): Original marker data.
+        marker_names (list): List of marker names (without _x/_y/_z).
+    """
+    for marker in marker_names:
+        fig, axes = plt.subplots(6, 1, figsize=(10, 8), sharex=True)
+        axes_labels = ['x', 'y', 'z']
+
+        for i, axis in enumerate(axes_labels):
+            col = f"{marker}_{axis}"
+            axes[i].plot(udp_df.index, udp_df[col],color='r', label='Original')
+            axes[i].set_ylabel(f"{axis}-axis")
+            axes[i].legend()
+            axes[i].grid(True)
+
+        axes[-1].set_xlabel("Frame")
+        fig.suptitle(f"Marker: {marker}")
+        plt.tight_layout(rect=[0, 0, 1, 0.96])
+        plt.show()
+
+#plot mks trajectories to compare and get rmse.
+def plot_marker_comparison(
+    datasets,
+    labels,
+    markers_to_plot=None,
+    save_fig=False,
+    ref_idx=0,
+    colors=None,
+    show_barplot=False
+):
+    """
+    Plot trajectories of markers across multiple datasets and compute RMSE.
+    Optionally show compact barplots: one subplot per marker with RMSE on X/Y/Z.
+    """
+    if not datasets or len(datasets) < 2:
+        print("Error: Need at least 2 datasets (reference + prediction).")
+        return
+
+    ref_data = datasets[ref_idx]
+
+    # Déterminer les couleurs
+    if colors is None:
+        default_cycle = plt.rcParams['axes.prop_cycle'].by_key()['color']
+        colors = {lbl: default_cycle[i % len(default_cycle)] for i, lbl in enumerate(labels)}
+        colors[labels[ref_idx]] = "red"
+    elif isinstance(colors, list):
+        colors = {lbl: col for lbl, col in zip(labels, colors)}
+
+    # Markers à tracer
+    all_markers = set()
+    for frame in ref_data:
+        all_markers.update(frame.keys())
+    if markers_to_plot is None:
+        markers_to_plot = sorted(all_markers)
+
+    # Stocker les RMSE
+    rmse_results = {lbl: {} for lbl in labels if lbl != labels[ref_idx]}
+
+    for marker in markers_to_plot:
+        frames = np.arange(len(ref_data))
+        coords = {lbl: ([], [], []) for lbl in labels}
+
+        for frame_set in zip(*datasets):
+            for lbl, frame in zip(labels, frame_set):
+                if marker in frame:
+                    x, y, z = frame[marker]
+                else:
+                    x, y, z = np.nan, np.nan, np.nan
+                coords[lbl][0].append(x)
+                coords[lbl][1].append(y)
+                coords[lbl][2].append(z)
+
+        for lbl in coords:
+            coords[lbl] = tuple(map(np.array, coords[lbl]))
+
+        # Compute RMSE
+        ref_x, ref_y, ref_z = coords[labels[ref_idx]]
+        for lbl in labels:
+            if lbl == labels[ref_idx]:
+                continue
+            x, y, z = coords[lbl]
+            rmse_x = np.sqrt(np.nanmean((ref_x - x) ** 2))
+            rmse_y = np.sqrt(np.nanmean((ref_y - y) ** 2))
+            rmse_z = np.sqrt(np.nanmean((ref_z - z) ** 2))
+            rmse_results[lbl][marker] = {'x': rmse_x, 'y': rmse_y, 'z': rmse_z}
+
+        fig, axs = plt.subplots(3, 1, figsize=(10, 10), sharex=True)
+        for i, axis in enumerate(["X", "Y", "Z"]):
+            for lbl in labels:
+                axs[i].plot(frames, coords[lbl][i], label=lbl, color=colors[lbl])
+
+            rmse_texts = []
+            for lbl in labels:
+                if lbl == labels[ref_idx]:
+                    continue
+                r = rmse_results[lbl][marker]
+                rmse_texts.append(f"{lbl}: {r[axis.lower()]:.4f}")
+            axs[i].set_title(f"{axis} (RMSE: {', '.join(rmse_texts)})")
+
+            axs[i].grid(True)
+            axs[i].legend()
+
+        axs[2].set_xlabel("Frame")
+        fig.suptitle(f"{marker}", fontsize=14)
+        plt.tight_layout(rect=[0, 0.03, 1, 0.95])
+
+        # if save_fig:
+        #     plt.savefig(f"{marker}_comparison.png")
+        #     plt.close()
+        # else:
+        #     plt.show()
+
+    if show_barplot:
+        n_markers = len(markers_to_plot)
+        n_cols = 3
+        n_rows = int(np.ceil(n_markers / n_cols))
+
+        fig, axs = plt.subplots(n_rows, n_cols, figsize=(4*n_cols, 4*n_rows), gridspec_kw={'hspace': 0.5, 'wspace': 0.3}) 
+        axs = axs.flatten()
+
+        for idx, marker in enumerate(markers_to_plot):
+            ax = axs[idx]
+            axes = ["x", "y", "z"]
+            x_ticks = np.arange(len(axes))
+            bar_width = 0.4 / (len(labels) - 1)
+
+            for i, lbl in enumerate(labels):
+                if lbl == labels[ref_idx]:
+                    continue
+                values = [rmse_results[lbl][marker][axis] for axis in axes]
+                bars = ax.bar(
+                    x_ticks + (i-1)*bar_width,
+                    values,
+                    width=bar_width,
+                    label=lbl,
+                    color=colors[lbl]
+                )
+
+                for bar, val in zip(bars, values):
+                    ax.text(
+                        bar.get_x() + bar.get_width()/2,
+                        bar.get_height(),
+                        f"{val:.4f}",  
+                        ha="center", va="bottom", fontsize=8, rotation=0
+                    )
+
+            ax.set_xticks(x_ticks)
+            ax.set_xticklabels(["X", "Y", "Z"],fontsize=5)
+            ax.set_ylabel(marker, fontsize=7)
+            ax.grid(True, axis="y", linestyle="--", alpha=0.6)
+
+
+        for j in range(idx+1, len(axs)):
+            fig.delaxes(axs[j])
+
+        handles, legends = axs[0].get_legend_handles_labels()
+        fig.legend(handles, legends, loc="upper center", ncol=len(labels)-1)
+        fig.suptitle("RMSE per marker and axis", fontsize=16)
+        plt.tight_layout(rect=[0, 0.05, 1, 0.95])
+        plt.show()
+
+    rmse_mean_per_dataset = {}
+    for lbl in rmse_results:
+        all_vals = []
+        for marker in rmse_results[lbl]:
+            all_vals.extend(rmse_results[lbl][marker].values())
+        # rmse_mean_per_dataset[lbl] = np.mean(all_vals)
+        rmse_mean_per_dataset[lbl] = np.sqrt(np.mean(np.square(all_vals)))
+
+    return rmse_results, rmse_mean_per_dataset
+
+
+
+def load_transformation(file_path):
+    """
+    Loads the transformation parameters (R, d, s, rms) from a text file.
+
+    Parameters:
+    file_path: str
+        Path to the file from which the transformation parameters will be read.
+
+    Returns:
+    R: ndarray
+        Rotation matrix (3x3)
+    d: ndarray
+        Translation vector (3,)
+    s: float
+        Scale factor
+    rms: float
+        Root mean square fit error
+    """
+    with open(file_path, 'r') as f:
+        lines = f.readlines()
+        R_start = lines.index("Rotation Matrix (R):\n") + 1
+        R = np.loadtxt(lines[R_start:R_start + 3])
+        d_start = lines.index("Translation Vector (d):\n") + 1
+        d = np.loadtxt(lines[d_start:d_start + 1]).flatten()
+        s_line = next(line for line in lines if line.startswith("Scale Factor (s):"))
+        s = float(s_line.split(":")[1].strip())
+        rms_line = next(line for line in lines if line.startswith("RMS Error:"))
+        rms = float(rms_line.split(":")[1].strip())
+    return R, d, s, rms
+
+def transform_keypoints_list_cam0_to_mocap(keypoints_list, R_trans, d_trans):
+    """Apply transformation to each frame of flattened 3D keypoints."""
+    transformed_list = []
+
+    for flat_coords in keypoints_list:
+        # Convert to shape (N, 3)
+        p3d_cam0 = np.array(flat_coords).reshape(-1, 3)  # (N, 3)
+        # Apply transformation
+        p3d_mocap = (R_trans @ p3d_cam0.T).T + d_trans  # (N, 3)
+        # Flatten again
+        transformed_list.append(p3d_mocap.flatten().tolist())
+
+    return transformed_list
+
+def read_subject_info(info_path: str):
+    height = None
+    weight = None
+    gender = None
+    p = Path(info_path)
+    if not p.exists():
+        raise FileNotFoundError(f"Missing info file: {info_path}")
+    with p.open('r') as f:
+        for raw in f:
+            line = raw.strip()
+            if not line or line.startswith('#'):
+                continue
+            for sep in ['=', ':']:
+                line = line.replace(sep, ' ')
+            parts = line.split()
+            if len(parts) < 2:
+                continue
+            key = parts[0].lower()
+            val = parts[1]
+            if key.startswith('height'):
+                v = float(val)
+                height = v/100.0 if v > 3.5 else v
+            elif key.startswith('weight'):
+                try:
+                    weight = float(val)
+                except ValueError:
+                    pass
+            elif key.startswith('gender'):
+                gender = val.strip().lower()
+    if height is None or gender is None:
+        raise ValueError(f"info.txt must provide at least height and gender. Got height={height}, gender={gender}")
+    return height, weight, gender

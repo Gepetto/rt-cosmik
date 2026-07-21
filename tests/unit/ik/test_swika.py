@@ -13,7 +13,7 @@ import pinocchio as pin
 from pinocchio.visualize import GepettoVisualizer
 import numpy as np
 from utils.model_utils import build_model_challenge
-from utils.ik_utils import RT_SWIKA
+from utils.ik_utils import RT_SWIKA_FATROP
 from utils.viz_utils import place, Rquat
 from collections import deque
 
@@ -75,7 +75,7 @@ array_data = np.array([np.hstack([d[marker] for marker in keys_to_track_list]) f
 cost_weights = np.array([1, 1e-3, 1e-5])
 
 ### IK calculations
-ik_class = RT_SWIKA(human_model, keys_to_track_list, T)
+ik_class = RT_SWIKA_FATROP(human_model, keys_to_track_list, T)
 X, U = ik_class.solve(x_array, u_array, array_data, x0, cost_weights, dt)
 
 print(X,U)

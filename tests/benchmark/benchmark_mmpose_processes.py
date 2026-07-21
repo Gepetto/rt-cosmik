@@ -2,7 +2,7 @@ import cv2
 import time
 import numpy as np
 from multiprocessing import Process, Queue, Event, Barrier, set_start_method
-from src.rtcosmik.pose_estimator.pose_estimator import PoseTrackerEstimator
+from rtcosmik.pose_estimator.pose_estimator import PoseTrackerEstimator
 from settings import Settings
 import os 
 

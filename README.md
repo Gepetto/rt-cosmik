@@ -5,6 +5,19 @@ RT-COSMIK is a cutting-edge open-source library for solving real-time constraine
 
 ---
 
+To generate the appropriate models, use:
+
+```bash 
+./scripts/bash/fetch_models.sh 
+```
+
+To install the toolbox and use the scripts files: 
+```bash 
+pip install -e .
+```
+
+## Citing RT-COSMIK
+
 
 ## License
 BSD 2-Clause License

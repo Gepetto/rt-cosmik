@@ -2,8 +2,8 @@ import cv2
 import time
 import numpy as np
 from multiprocessing import Process, Queue, Event, Barrier, set_start_method
-from src.rtcosmik.pose_estimator.pose_estimator import PoseTrackerEstimator
-from src.rtcosmik.utils.linear_algebra_utils import concat_frames
+from rtcosmik.pose_estimator.pose_estimator import PoseTrackerEstimator
+from rtcosmik.utils.linear_algebra_utils import concat_frames
 from settings import Settings
 import os 
 

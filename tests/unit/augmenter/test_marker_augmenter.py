@@ -8,16 +8,37 @@ import pandas as pd
 from collections import deque
 import numpy as np
 from scipy import signal
-from augmenter.marker_augmenter import augmentTRC, loadModel
+from rtcosmik.augmenter.marker_augmenter import augmentTRC, loadModel
+from rtcosmik.utils.read_write_utils import read_mmpose_file, save_to_csv
+base_path = "/root/workspace/ros_ws/src/rt-cosmik"
 
-subject_mass = 73.0
-subject_height = 1.81
-augmenter_path = '/root/workspace/ros_ws/src/rt-cosmik/augmentation_model'
-path_to_3d_kpt = '/root/workspace/ros_ws/src/rt-cosmik/output/keypoints_3d_test.csv'
+no_trial = "trial3"
+task = "static"
+
+path_to_3d_kpt = os.path.join(base_path, f"output/{no_trial}/{task}/3d_keypoints.csv")
+output_csv_path = os.path.join(base_path, f"output/{no_trial}/{task}/augmented_markers.csv")
+
+subject_mass = 75.0
+subject_height = 1.85
+augmenter_path = '/root/workspace/ros_ws/src/rt-cosmik/src/rtcosmik/augmenter/augmentation_model'
+markers = [
+           'r.ASIS_study','L.ASIS_study','r.PSIS_study','L.PSIS_study','r_knee_study',
+           'r_mknee_study','r_ankle_study','r_mankle_study','r_toe_study','r_5meta_study',
+           'r_calc_study','L_knee_study','L_mknee_study','L_ankle_study','L_mankle_study',
+           'L_toe_study','L_calc_study','L_5meta_study','r_shoulder_study','L_shoulder_study',
+           'C7_study','r_thigh1_study','r_thigh2_study','r_thigh3_study','L_thigh1_study',
+           'L_thigh2_study','L_thigh3_study','r_sh1_study','r_sh2_study','r_sh3_study',
+           'L_sh1_study','L_sh2_study','L_sh3_study','RHJC_study','LHJC_study','r_lelbow_study',
+           'r_melbow_study','r_lwrist_study','r_mwrist_study','L_lelbow_study','L_melbow_study',
+           'L_lwrist_study','L_mwrist_study']
+header = []
+for marker in markers:
+    header.extend([f"{marker}_x", f"{marker}_y", f"{marker}_z"])
 
 keypoints_buffer = deque(maxlen=30)
 
 def main():
+    augmented_markers_list = []
     first_frame = True
     #load lstm model
     warmed_models= loadModel(augmenterDir=augmenter_path, augmenterModelName="LSTM",augmenter_model='v0.3')
@@ -49,7 +70,9 @@ def main():
             keypoints_buffer_array = np.array(keypoints_buffer)
             augmented_markers = augmentTRC(keypoints_buffer_array, subject_mass=subject_mass, subject_height=subject_height, models = warmed_models,
                                 augmenterDir=augmenter_path, augmenter_model='v0.3')
-            print(augmented_markers)
+            augmented_markers_list.append(augmented_markers)
+    save_to_csv(augmented_markers_list, output_csv_path, header=header)
+        
 
 if __name__ == "__main__":
     main()
