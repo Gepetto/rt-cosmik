@@ -47,6 +47,5 @@ OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 ## Project Status
-RT-COSMIK is currently under active development. Contributions and feedback are welcome. For any inquiries or support, feel free to contact the maintainer:  
-**Maxime Sabbah** - msabbah@laas.fr
+RT-COSMIK is currently under active development. Contributions and feedback are welcome. 
 

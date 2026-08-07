@@ -11,9 +11,8 @@ def list_cameras():
     """
     cameras = {}
     try:
-        # Get list of video devices
         output = subprocess.check_output("v4l2-ctl --list-devices", shell=True).decode("utf-8")
-        devices = output.split("\n\n")  # Separate different devices
+        devices = output.split("\n\n")
         for device in devices:
             lines = device.split("\n")
             if len(lines) > 1:
@@ -21,7 +20,10 @@ def list_cameras():
                 video_path = lines[1].strip()
                 if "/dev/video" in video_path:
                     index = int(video_path.split("video")[-1])
-                    cameras[index] = device_name
+                    cap = cv.VideoCapture(index, cv.CAP_V4L2)
+                    if cap.isOpened():
+                        cameras[index] = device_name
+                    cap.release()
     except Exception as e:
         print("Error using v4l2-ctl:", e)
     return cameras
