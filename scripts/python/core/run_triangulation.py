@@ -88,6 +88,7 @@ def main(args):
     if args.online:
         cameras = list_cameras()
         NUM_CAMERAS = len(cameras)
+        check_yolo_engine(NUM_CAMERAS)
         FRAME_SHAPE = (H, W, 3)
         camera_buffers, camera_timestamps, camera_locks, frame_counters, camera_barrier, stop_event = create_camera_shared_ressources(NUM_CAMERAS, FRAME_SHAPE)
 
@@ -163,6 +164,7 @@ def main(args):
             raise RuntimeError(f"No videos found in {args.data_dir}")
 
         NUM_CAMERAS = len(paths)
+        check_yolo_engine(NUM_CAMERAS)
 
         src = OfflineVideoSource(paths=paths, size_wh=(W, H))
 
