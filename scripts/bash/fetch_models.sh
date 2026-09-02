@@ -63,16 +63,14 @@ YOLO_ENGINE="${YOLO_DIR}/yolov10n.engine"
 
 download_release_asset "${YOLO_OWNER}" "${YOLO_REPO}" "${YOLO_TAG}" "${YOLO_ASSET}" "${YOLO_PT}"
 
-# -------- Export to TensorRT engine (fixed imgsz=640, batch=2, not dynamic) --------
+# -------- Export TensorRT engines, one per supported camera count --------
+# TensorRT engines are built non-dynamic, so an engine's batch size must equal
+# the number of cameras fed to it in one call. Rather than tie the install to a
+# single rig, build one engine per supported camera count and let the pipeline
+# pick the matching one at runtime (see rtcosmik.model_weights).
 DEVICE="${DEVICE:-0}"
-BATCH=2
+BATCHES="${BATCHES:-1 2 3 4 5 6}"
 IMGSZ=640
-
-
-if [[ -f "${YOLO_ENGINE}" ]]; then
-  echo "[OK] TensorRT engine already exists: ${YOLO_ENGINE}"
-  exit 0
-fi
 
 if ! command -v yolo >/dev/null 2>&1; then
   echo "[ERR] 'yolo' CLI not found. Install ultralytics in this environment." >&2
@@ -91,31 +89,43 @@ for m in ("onnx","tensorrt"):
         print("[WARN] cannot import", m, "->", e)
 PY
 
-echo "[INFO] Exporting TensorRT engine on device=${DEVICE}"
+echo "[INFO] Exporting YOLO engines for camera counts: ${BATCHES}  (override with BATCHES=\"2 4\")"
 
-# Run export and capture logs
-LOG="$(mktemp)"
-yolo export \
-  model="${YOLO_PT}" \
-  format=engine \
-  device="${DEVICE}" \
-  imgsz=${IMGSZ} \
-  batch=${BATCH} \
-  dynamic=False \
-  simplify=False | tee "${LOG}"
+for BATCH in ${BATCHES}; do
+  ENGINE="${YOLO_DIR}/yolov10n_b${BATCH}.engine"
+  META_PATH="${ENGINE}.meta"
 
- 
+  # An existing engine is only reusable if it was built for the same batch and
+  # image size; the sidecar records what it was built with.
+  if [[ -f "${ENGINE}" ]]; then
+    EXISTING_META=""
+    [[ -f "${META_PATH}" ]] && EXISTING_META="$(cat "${META_PATH}")"
+    if [[ "${EXISTING_META}" == "${BATCH},${IMGSZ}" ]]; then
+      echo "[OK] engine for ${BATCH} camera(s) already present: ${ENGINE}"
+      continue
+    fi
+    echo "[INFO] engine for ${BATCH} camera(s) was built for '${EXISTING_META:-unknown}'; re-exporting."
+    rm -f "${ENGINE}" "${META_PATH}"
+  fi
 
-# Double-check that the file built successfully
-if [[ ! -f "${YOLO_ENGINE}" ]]; then
-  echo "[ERR] Export completed but engine artifact could not be found at ${YOLO_ENGINE}" >&2
-  exit 2
-fi
+  echo "[INFO] Exporting TensorRT engine for ${BATCH} camera(s) on device=${DEVICE}"
+  yolo export \
+    model="${YOLO_PT}" \
+    format=engine \
+    device="${DEVICE}" \
+    imgsz=${IMGSZ} \
+    batch=${BATCH} \
+    dynamic=False \
+    simplify=False
 
-# Write sidecar configuration file right next to it as yolov10n.engine.meta
-META_PATH="${YOLO_ENGINE}.meta"
-echo "${BATCH},${IMGSZ}" > "${META_PATH}"
+  # 'yolo export' writes next to the .pt, so move it to its per-batch name.
+  if [[ ! -f "${YOLO_ENGINE}" ]]; then
+    echo "[ERR] Export for batch=${BATCH} produced no artifact at ${YOLO_ENGINE}" >&2
+    exit 2
+  fi
+  mv -f "${YOLO_ENGINE}" "${ENGINE}"
+  echo "${BATCH},${IMGSZ}" > "${META_PATH}"
+  echo "[OK] engine for ${BATCH} camera(s) saved to: ${ENGINE}"
+done
 
-echo "[OK] Export completed successfully!"
-echo "[OK] Engine saved to: ${YOLO_ENGINE}"
-echo "[OK] Synchronized verification sidecar metadata layout to: ${META_PATH}"
+echo "[OK] All engines ready in ${YOLO_DIR}"
