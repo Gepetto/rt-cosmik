@@ -14,6 +14,7 @@ from rtcosmik.filtering.iir import IIR
 from rtcosmik.human_model.model_utils import scale_human_model, mks_registration, recalibrate_marker_frames_in_joint_space
 from rtcosmik.ik.ik import RT_IK, RT_SWIKA_FATROP, RT_SWIKA_ACADOS
 from rtcosmik.camera.cam_utils import load_camera_parameters,load_world_transformation
+from rtcosmik.model_weights import resolve_detector_engine
 
 import logging
 
@@ -69,7 +70,7 @@ class PipelineProcess(Process):
     def run(self):
 
         est = NLFEstimator(
-            yolo_path=self.settings.yolo_path,
+            yolo_path=resolve_detector_engine(self.settings.yolo_path, self.num_cameras),
             nlf_path=self.settings.nlf_path,
             cano_path=self.settings.cano_path,
             image_size=(self.frame_shape[1], self.frame_shape[0]),

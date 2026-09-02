@@ -1,8 +1,31 @@
+"""Camera discovery and calibration loading.
+
+Calibration is stored in the COMFI layout, which is the canonical format for
+RT-COSMIK both online (``config/cam_params``) and offline (one participant
+directory of a recorded dataset)::
+
+    <root>/intrinsics/camera_<i>_intrinsics.yaml
+    <root>/extrinsics/cam_to_world/camera_<i>/camera_<i>_extrinsics.yaml
+
+Intrinsics are OpenCV ``FileStorage`` documents; cam-to-world files are plain
+YAML. Poses are taken from ``cam_to_world`` rather than by chaining the
+``cam_to_cam`` files the layout may also contain: one step covers any subset of
+cameras, and cam-to-cam chains are not always complete.
+"""
+
+import logging
+import os
 import subprocess
-import numpy as np
-import os  
+
 import cv2 as cv
+import numpy as np
 import yaml
+
+LOGGER = logging.getLogger(__name__)
+
+# Cameras are identified by their even v4l2 index in the COMFI layout.
+DEFAULT_CAMERA_IDS = (0, 2, 4, 6)
+
 
 def list_cameras():
     """
@@ -28,120 +51,27 @@ def list_cameras():
         print("Error using v4l2-ctl:", e)
     return cameras
 
-def rt_to_homogeneous(R, T):
-    """Convert (R, T) to a 4x4 homogeneous transformation matrix."""
-    T = T.reshape(3,)
-    H = np.eye(4)
-    H[:3, :3] = R
-    H[:3, 3] = T
-    return H
 
-def invert_homogeneous(T):
-    """Invert a 4x4 homogeneous transformation matrix."""
-    R = T[:3, :3]
-    t = T[:3, 3]
-    T_inv = np.eye(4)
-    T_inv[:3, :3] = R.T
-    T_inv[:3, 3] = -R.T @ t
-    return T_inv
+def orthonormalize_rotation(R):
+    """Project a matrix onto the nearest rotation matrix (SVD, det = +1).
 
-def decompose_homogeneous(H):
-    """Extract (R, T) from a 4x4 homogeneous matrix."""
-    R = H[:3, :3]
-    T = H[:3, 3]
-    return R, T
+    Cam-to-world files store rotations as 6-decimal text, so the parsed matrix
+    is only orthonormal to ~1e-6 (det can be off by ~2e-7). That is far below
+    calibration accuracy, but it leaves the reference camera's pose relative to
+    itself slightly off identity, so relative poses are derived from cleaned
+    rotations rather than the raw parsed values.
+    """
+    U, _, Vt = np.linalg.svd(np.asarray(R, dtype=float))
+    R_ortho = U @ Vt
+    if np.linalg.det(R_ortho) < 0:  # guard against a reflection
+        U[:, -1] *= -1
+        R_ortho = U @ Vt
+    return R_ortho
 
-def get_cameras_params(K1, D1, K2, D2, R, T):
-    dict_cam = {
-        "cam1": {
-            "mtx":np.array(K1),
-            "dist":D1,
-            "rotation":np.eye(3),
-            "translation":[
-                0.,
-                0.,
-                0.,
-            ],
-        },
-        "cam2": {
-            "mtx":np.array(K2),
-            "dist":D2,
-            "rotation":R,
-            "translation":T,
-        },
-    }
 
-    rotations=[]
-    translations=[]
-    dists=[]
-    mtxs=[]
-    projections=[]
-
-    for cam in dict_cam :
-        rotation=np.array(dict_cam[cam]["rotation"])
-        rotations.append(rotation)
-        translation=np.array([dict_cam[cam]["translation"]]).reshape(3,1)
-        translations.append(translation)
-        projection = np.concatenate([rotation, translation], axis=-1)
-        projections.append(projection)
-        dict_cam[cam]["projection"] = projection
-        dists.append(dict_cam[cam]["dist"])
-        mtxs.append(dict_cam[cam]["mtx"])
-    return mtxs, dists, projections, rotations, translations
-
-def get_four_cameras_params(K1,D1,K2,D2,K3,D3,K4,D4,R2, T2,R3, T3,R4, T4):
-    dict_cam = {
-        "cam1": {
-            "mtx":np.array(K1),
-            "dist":D1,
-            "rotation":np.eye(3),
-            "translation":[
-                0.,
-                0.,
-                0.,
-            ],
-        },
-        "cam2": {
-            "mtx":np.array(K2),
-            "dist":D2,
-            "rotation":R2,
-            "translation":T2,
-        },
-        "cam3": {
-            "mtx":np.array(K3),
-            "dist":D3,
-            "rotation":R3,
-            "translation":T3,
-        },
-        "cam4": {
-            "mtx":np.array(K4),
-            "dist":D4,
-            "rotation":R4,
-            "translation":T4,
-        }
-    }
-
-    rotations=[]
-    translations=[]
-    dists=[]
-    mtxs=[]
-    projections=[]
-
-    for cam in dict_cam :
-        print(cam)
-        print(dict_cam[cam]["translation"])
-        
-        rotation=np.array(dict_cam[cam]["rotation"])
-        rotations.append(rotation)
-        translation=np.array([dict_cam[cam]["translation"]]).reshape(3,1)
-        translations.append(translation)
-        projection = np.concatenate([rotation, translation], axis=-1)
-        projections.append(projection)
-        dict_cam[cam]["projection"] = projection
-        dists.append(dict_cam[cam]["dist"])
-        mtxs.append(dict_cam[cam]["mtx"])
-    return mtxs, dists, projections, rotations, translations
-
+# ---------------------------------------------------------------------------
+# Single-file readers
+# ---------------------------------------------------------------------------
 
 def load_cam_params(path):
     """
@@ -163,147 +93,256 @@ def load_cam_params(path):
     dist_matrix = cv_file.getNode('D').mat()
 
     cv_file.release()
+
+    if camera_matrix is None or dist_matrix is None:
+        raise ValueError(f"Missing 'K'/'D' in intrinsics file: {path}")
+
     return camera_matrix, dist_matrix
-
-
-def load_cam_to_cam_params(path):
-    """
-    Loads camera-to-camera calibration parameters from a given file.
-    This function reads the rotation matrix (R) and translation vector (T) from a 
-    specified file using OpenCV's FileStorage. The file should contain these parameters 
-    stored under the keys 'R' and 'T'.
-    Args:
-        path (str): The file path to the calibration parameters.
-    Returns:
-        tuple: A tuple containing:
-            - R (numpy.ndarray): The rotation matrix.
-            - T (numpy.ndarray): The translation vector.
-    """
-    
-    # FILE_STORAGE_READ
-    cv_file = cv.FileStorage(path, cv.FILE_STORAGE_READ)
-
-    # note we also have to specify the type to retrieve other wise we only get a
-    # FileNode object back instead of a matrix
-    R = cv_file.getNode('R').mat()
-    T = cv_file.getNode('T').mat()
-
-    cv_file.release()
-    return R, T
-
-def load_global_cam_params(path, cam_index):
-    """
-    Loads the global camera transformation parameters for a specified camera
-    from a YAML file. This function reads the rotation matrix (R) and translation
-    vector (T) stored under the keys 'camera_{cam_index}_R' and 'camera_{cam_index}_T'.
-    
-    Args:
-        path (str): The file path to the YAML file.
-        cam_index (int): The camera index to load.
-        
-    Returns:
-        tuple: A tuple containing:
-            - R (numpy.ndarray): The rotation matrix.
-            - T (numpy.ndarray): The translation vector.
-    """
-    cv_file = cv.FileStorage(path, cv.FILE_STORAGE_READ)
-    R = cv_file.getNode(f'camera_{cam_index}_R').mat()
-    T = cv_file.getNode(f'camera_{cam_index}_T').mat()
-    cv_file.release()
-    return R, T
 
 
 def load_cam_pose(filename):
     """
-        Load the rotation matrix and translation vector from a YAML file.
-        Args:
-            filename (str): The path to the YAML file.
-        Returns:
-            rotation_matrix (np.ndarray): The 3x3 rotation matrix.
-            translation_vector (np.ndarray): The 3x1 translation vector.
-    """
+    Load a camera pose from a cam-to-world YAML file.
 
+    The file holds the transform that takes a point expressed in the camera
+    frame into the world frame::
+
+        camera_extrinsics:
+          frame_from: camera_0
+          frame_to: world
+          rotation_matrix: [[...], [...], [...]]
+          translation_vector: [tx, ty, tz]
+
+    so that ``p_world = R @ p_cam + T``. The pose is used as stored; it is not
+    inverted here.
+
+    Args:
+        filename (str): The path to the YAML file.
+    Returns:
+        tuple:
+            - rotation_matrix (np.ndarray): The 3x3 rotation matrix.
+            - translation_vector (np.ndarray): The translation vector, shape (3,).
+    """
     with open(filename, 'r') as file:
         data = yaml.safe_load(file)
 
-    rotation_matrix = np.array(data['rotation_matrix']['data']).reshape((3, 3))
-    translation_vector = np.array(data['translation_vector']['data']).reshape((3, 1))
-    
+    if data is None:
+        raise ValueError(f"Empty cam-to-world file: {filename}")
+
+    extrinsics = data.get('camera_extrinsics', data)
+
+    try:
+        rotation_matrix = np.array(extrinsics['rotation_matrix'], dtype=float).reshape((3, 3))
+        translation_vector = np.array(extrinsics['translation_vector'], dtype=float).reshape((3,))
+    except KeyError as exc:
+        raise ValueError(
+            f"Missing 'rotation_matrix'/'translation_vector' in cam-to-world file: {filename}"
+        ) from exc
+
     return rotation_matrix, translation_vector
 
-def load_cam_pose_rpy(filename):
-    """
-        Load the euler angles and translation vector from a YAML file.
-        Args:
-            filename (str): The path to the YAML file.
-        Returns:
-            euler (np.ndarray): The 3x1 euler sequence.
-            translation_vector (np.ndarray): The 3x1 translation vector.
-    """
 
+def load_soder_transform(filename):
+    """
+    Load a camera pose from the ``soder.txt`` written by the Procrustes fit.
+
+    This is the source the aggregated ``camera_<i>_extrinsics.yaml`` is
+    generated from (its ``source_file`` field names it), and it carries the same
+    camera-to-world convention::
+
+        # Transformation Parameters
+        Rotation Matrix (R):
+        r00 r01 r02
+        ...
+        Translation Vector (d):
+        tx ty tz
+        Scale Factor (s): 1.000000
+        RMS Error: 0.001438
+
+    Args:
+        filename (str): The path to the soder.txt file.
+    Returns:
+        tuple:
+            - rotation_matrix (np.ndarray): The 3x3 rotation matrix.
+            - translation_vector (np.ndarray): The translation vector, shape (3,).
+    """
     with open(filename, 'r') as file:
-        data = yaml.safe_load(file)
+        lines = [line.strip() for line in file if line.strip()]
 
-    euler = np.array(data['rotation_rpy']['data']).reshape((3, 1))
-    translation_vector = np.array(data['translation_vector']['data']).reshape((3, 1))
-    
-    return euler, translation_vector
+    rows = []
+    translation = None
+    for index, line in enumerate(lines):
+        if line.startswith('Rotation Matrix'):
+            rows = [[float(v) for v in lines[index + offset].split()] for offset in (1, 2, 3)]
+        elif line.startswith('Translation Vector'):
+            translation = [float(v) for v in lines[index + 1].split()]
+
+    if len(rows) != 3 or translation is None:
+        raise ValueError(f"Could not parse rotation/translation from soder file: {filename}")
+
+    return np.array(rows, dtype=float).reshape((3, 3)), np.array(translation, dtype=float).reshape((3,))
 
 
-def load_camera_parameters(config_path):
-    """Load intrinsic and extrinsic camera parameters."""
-    K1, D1 = load_cam_params(os.path.join(config_path, "c0_params_color.yaml"))
-    K2, D2 = load_cam_params(os.path.join(config_path, "c2_params_color.yaml"))
-    R, T = load_cam_to_cam_params(os.path.join(config_path, "c0_to_c2_params_color.yaml"))
-    return get_cameras_params(K1, D1, K2, D2, R, T)
+# ---------------------------------------------------------------------------
+# Layout-aware loaders
+# ---------------------------------------------------------------------------
 
-def load_world_transformation(config_path):
-    """Load world transformation matrix."""
-    world_R1_cam, world_T1_cam = load_cam_pose(os.path.join(config_path, "camera0_pose.yaml"))
-    return world_R1_cam, world_T1_cam.reshape((3,))
+def intrinsics_path(config_path, camera_id):
+    """Path to one camera's intrinsics file."""
+    return os.path.join(config_path, "intrinsics", f"camera_{camera_id}_intrinsics.yaml")
 
-def load_intrinsic_cams(config_path):
-    """Load intrinsic and extrinsic camera parameters."""
-    K1, D1 = load_cam_params(os.path.join(config_path, "c0_params_color.yaml"))
-    K2, D2 = load_cam_params(os.path.join(config_path, "c2_params_color.yaml"))
-    K3, D3 = load_cam_params(os.path.join(config_path, "c4_params_color.yaml"))
-    K4, D4 = load_cam_params(os.path.join(config_path, "c6_params_color.yaml"))
-    return K1,D1,K2,D2,K3,D3,K4, D4
 
-def load_extrinsic_cams(config_path):
-    R02, T02 = load_cam_to_cam_params(os.path.join(config_path, "c0_to_c2_params_color.yaml"))
-    R24, T24 = load_cam_to_cam_params(os.path.join(config_path, "c2_to_c4_params_color.yaml"))
-    R46, T46 = load_cam_to_cam_params(os.path.join(config_path, "c4_to_c6_params_color.yaml"))
-    return R02, T02,R24, T24,R46, T46
-
-def compute_extrinsics_in_cam0(R02, T02, R24, T24, R46, T46):
+def cam_to_world_path(config_path, camera_id, calib_session=None):
     """
-    Returns extrinsics (R, T) of cams 0, 2, 4, 6 all expressed in cam0 frame.
+    Resolve one camera's cam-to-world pose file.
+
+    Prefers the aggregated ``camera_<i>_extrinsics.yaml``. Some recordings never
+    had it generated and instead keep the raw Procrustes output, either directly
+    in the camera directory or split across ``calib_<n>`` subdirectories when the
+    session was calibrated more than once.
+
+    Args:
+        config_path (str): Calibration root in the COMFI layout.
+        camera_id (int): Camera to resolve.
+        calib_session (str | None): Name of the ``calib_<n>`` subdirectory to use
+            when several exist. ``None`` takes the first in sorted order. The same
+            session is used for every camera so the world frame stays consistent.
+
+    Returns:
+        str | None: Path to a readable pose file, or None if there is none.
     """
-    # Build forward chain
-    T_0to2 = rt_to_homogeneous(R02, T02)
-    T_2to4 = rt_to_homogeneous(R24, T24)
-    T_4to6 = rt_to_homogeneous(R46, T46)
+    camera_dir = os.path.join(
+        config_path, "extrinsics", "cam_to_world", f"camera_{camera_id}"
+    )
 
-    # Compute transforms to cam0 frame
-    T_0to4 = T_0to2 @ T_2to4
-    T_0to6 = T_0to4 @ T_4to6
+    aggregated = os.path.join(camera_dir, f"camera_{camera_id}_extrinsics.yaml")
+    if os.path.isfile(aggregated):
+        return aggregated
 
-    # Decompose into (R, T)
-    R02, T02 = decompose_homogeneous(T_0to2)
-    R04, T04 = decompose_homogeneous(T_0to4)
-    R06, T06 = decompose_homogeneous(T_0to6)
+    direct_soder = os.path.join(camera_dir, "soder.txt")
+    if os.path.isfile(direct_soder):
+        return direct_soder
 
-    return R02, T02,R04, T04,R06, T06
+    if not os.path.isdir(camera_dir):
+        return None
 
-def load_four_camera_parameters(config_path):
-    """Load intrinsic and extrinsic camera parameters."""
-    K1, D1 = load_cam_params(os.path.join(config_path, "c0_params_color.yaml"))
-    K2, D2 = load_cam_params(os.path.join(config_path, "c2_params_color.yaml"))
-    K3, D3 = load_cam_params(os.path.join(config_path, "c4_params_color.yaml"))
-    K4, D4 = load_cam_params(os.path.join(config_path, "c6_params_color.yaml"))
-    R1, T1= load_cam_to_cam_params(os.path.join(config_path, "c0_to_c2_params_color.yaml"))
-    R2, T2 = load_cam_to_cam_params(os.path.join(config_path, "c0_to_c4_params_color.yaml"))
-    R3, T3 = load_cam_to_cam_params(os.path.join(config_path, "c0_to_c6_params_color.yaml"))
+    sessions = sorted(
+        entry for entry in os.listdir(camera_dir)
+        if os.path.isfile(os.path.join(camera_dir, entry, "soder.txt"))
+    )
+    if not sessions:
+        return None
 
-    return get_four_cameras_params(K1, D1, K2, D2,K3, D3, K4, D4, R1, T1,R2, T2,R3, T3)
+    if calib_session is not None:
+        if calib_session not in sessions:
+            raise FileNotFoundError(
+                f"Calibration session {calib_session!r} not found for camera {camera_id} "
+                f"in {camera_dir} (available: {', '.join(sessions)})"
+            )
+        chosen = calib_session
+    else:
+        chosen = sessions[0]
+        if len(sessions) > 1:
+            LOGGER.warning(
+                "Camera %d in %s has %d calibration sessions (%s); using %s. "
+                "Pass calib_session to choose explicitly.",
+                camera_id, camera_dir, len(sessions), ", ".join(sessions), chosen,
+            )
+
+    return os.path.join(camera_dir, chosen, "soder.txt")
+
+
+def load_cam_to_world(filename):
+    """Load a cam-to-world pose from either an extrinsics YAML or a soder.txt."""
+    if os.path.basename(filename) == "soder.txt":
+        return load_soder_transform(filename)
+    return load_cam_pose(filename)
+
+
+def load_camera_parameters(config_path, camera_ids=DEFAULT_CAMERA_IDS, calib_session=None):
+    """
+    Load intrinsics and extrinsics for a set of cameras.
+
+    Every camera pose is read from ``cam_to_world`` and then re-expressed
+    relative to the first requested camera, which becomes the reference frame
+    that triangulation outputs points in.
+
+    Args:
+        config_path (str): Calibration root in the COMFI layout.
+        camera_ids (Sequence[int]): Cameras to load, in order. The first one is
+            the reference frame.
+        calib_session (str | None): Calibration session to use when a camera has
+            several, see :func:`cam_to_world_path`.
+
+    Returns:
+        tuple: ``(mtxs, dists, projections, rotations, translations)``, each a
+        list ordered like ``camera_ids``. ``projections[i]`` is the 3x4 matrix
+        ``[R | T]`` *without* the intrinsics: triangulation undistorts to
+        normalized coordinates, so K must not be baked in.
+    """
+    camera_ids = list(camera_ids)
+
+    if not camera_ids:
+        raise ValueError(f"No cameras requested or found under {config_path}")
+
+    mtxs = []
+    dists = []
+    world_poses = []
+    for camera_id in camera_ids:
+        intrinsics_file = intrinsics_path(config_path, camera_id)
+        if not os.path.isfile(intrinsics_file):
+            raise FileNotFoundError(f"Missing intrinsics for camera {camera_id}: {intrinsics_file}")
+        pose_file = cam_to_world_path(config_path, camera_id, calib_session)
+        if pose_file is None:
+            raise FileNotFoundError(
+                f"No cam-to-world pose for camera {camera_id} under {config_path}"
+            )
+
+        K, D = load_cam_params(intrinsics_file)
+        mtxs.append(np.asarray(K, dtype=float))
+        dists.append(np.asarray(D, dtype=float))
+        R_world, T_world = load_cam_to_world(pose_file)
+        world_poses.append((orthonormalize_rotation(R_world), T_world))
+
+    # Reference camera: p_world = R_ref @ p_ref + T_ref
+    R_ref, T_ref = world_poses[0]
+
+    rotations = []
+    translations = []
+    projections = []
+    for R_cam, T_cam in world_poses:
+        # p_cam = R_cam^T (p_world - T_cam), and p_world = R_ref p_ref + T_ref,
+        # so p_cam = (R_cam^T R_ref) p_ref + R_cam^T (T_ref - T_cam).
+        rotation = R_cam.T @ R_ref
+        translation = (R_cam.T @ (T_ref - T_cam)).reshape(3, 1)
+
+        rotations.append(rotation)
+        translations.append(translation)
+        projections.append(np.concatenate([rotation, translation], axis=-1))
+
+    return mtxs, dists, projections, rotations, translations
+
+
+def load_world_transformation(config_path, ref_camera=DEFAULT_CAMERA_IDS[0], calib_session=None):
+    """
+    Load the transform from the reference camera frame to the world frame.
+
+    Args:
+        config_path (str): Calibration root in the COMFI layout.
+        ref_camera (int): Camera whose frame triangulation outputs points in,
+            i.e. the first entry of the ``camera_ids`` passed to
+            :func:`load_camera_parameters`.
+        calib_session (str | None): Calibration session to use when the camera
+            has several, see :func:`cam_to_world_path`.
+
+    Returns:
+        tuple: ``(world_R_cam, world_T_cam)`` with shapes (3, 3) and (3,), such
+        that ``p_world = world_R_cam @ p_cam + world_T_cam``.
+    """
+    pose_file = cam_to_world_path(config_path, ref_camera, calib_session)
+    if pose_file is None:
+        raise FileNotFoundError(
+            f"No cam-to-world pose for reference camera {ref_camera} under {config_path}"
+        )
+    world_R_cam, world_T_cam = load_cam_to_world(pose_file)
+    return orthonormalize_rotation(world_R_cam), world_T_cam.reshape((3,))

@@ -6,24 +6,20 @@ SRC_ROOT = Path(__file__).resolve().parents[3] / "src"
 if str(SRC_ROOT) not in sys.path:
     sys.path.insert(0, str(SRC_ROOT))
 import argparse
+import json
 
 import time
 from pathlib import Path
-from dataclasses import dataclass
-from typing import List, Optional, Sequence, Tuple
-
 import meshcat
 import meshcat.geometry as g
-import meshcat.transformations as tf
 
-import cv2
 import numpy as np
 import torch
 import pinocchio as pin 
 from pinocchio.visualize import MeshcatVisualizer
 
 from rtcosmik.config_loader import settings
-from rtcosmik.nlf.nlf import NLFEstimator, DisplayConsumerNLF
+from rtcosmik.nlf.nlf import NLFEstimator
 from rtcosmik.triangulation.triangulation import triangulate_points
 from rtcosmik.filtering.iir import IIR
 from rtcosmik.human_model.model_utils import scale_human_model, mks_registration, recalibrate_marker_frames_in_joint_space
@@ -31,11 +27,15 @@ from rtcosmik.ik.ik import RT_IK, RT_SWIKA_FATROP, RT_SWIKA_ACADOS
 from rtcosmik.camera.cam_utils import list_cameras, load_camera_parameters, load_world_transformation
 from rtcosmik.camera.camera import Camera
 from rtcosmik.utils.mp_utils import create_camera_shared_ressources, create_pipeline_shared_ressources
+from rtcosmik.utils.VideoReader import OfflineVideoSource
+from rtcosmik.saver.csv_saver import CSVSaver
+from rtcosmik.utils.dataset import (
+    TRIAL_CLI_EPILOG, add_trial_arguments, load_subject, resolve_trial, run_variant)
+from rtcosmik.model_weights import resolve_detector_engine
 from rtcosmik.pipeline.pipeline import PipelineProcess
-from rtcosmik.viewer.viewer import ViewerProcess
 
 from multiprocessing import set_start_method
-from collections import deque
+from collections import deque, OrderedDict
 import example_robot_data as robex
 
 import logging
@@ -48,204 +48,6 @@ logging.basicConfig(
 
 LOGGER = logging.getLogger(__name__)
 
-# -----------------------
-# Meshcat debug helpers
-# -----------------------
-
-
-def make_triad_geom(axis_length=0.08, linewidth=2):
-    """
-    RGB triad as LineSegments:
-      X = red, Y = green, Z = blue
-    Compatible with meshcat versions that don't have g.Axes.
-    """
-    # If your meshcat has Axes, use it
-    if hasattr(g, "Axes"):
-        # Some versions accept axis_radius, some don't. Keep it simple.
-        return g.Axes(axis_length=axis_length)
-
-    # Fallback: LineSegments
-    # 6 vertices = 3 segments: O->X, O->Y, O->Z
-    pts = np.array([
-        [0.0, axis_length,  0.0, 0.0,       0.0, 0.0],
-        [0.0, 0.0,          0.0, axis_length,0.0, 0.0],
-        [0.0, 0.0,          0.0, 0.0,       0.0, axis_length],
-    ], dtype=np.float32)
-
-    cols = np.array([
-        [255, 255,   0,   0,   0,   0],  # R
-        [  0,   0, 255, 255,   0,   0],  # G
-        [  0,   0,   0,   0, 255, 255],  # B
-    ], dtype=np.uint8)
-
-    geom = g.PointsGeometry(position=pts, color=cols)
-    mat  = g.LineBasicMaterial(vertexColors=True, linewidth=linewidth)
-    return g.LineSegments(geom, mat)
-
-
-def make_empty_pointcloud():
-    """
-    Empty pointcloud node that we can overwrite in update_debug_visuals.
-    Works across meshcat versions.
-    """
-    P = np.zeros((3, 0), dtype=np.float32)
-    C = np.zeros((3, 0), dtype=np.uint8)
-
-    if hasattr(g, "PointCloud"):
-        return g.PointCloud(P, C)
-
-    # Older versions: render points
-    geom = g.PointsGeometry(position=P, color=C)
-    mat = g.PointsMaterial(size=0.005, vertexColors=True)
-    return g.Points(geom, mat)
-
-
-def _pin_se3_to_meshcat_tf(M: pin.SE3) -> np.ndarray:
-    T = np.eye(4)
-    T[:3, :3] = M.rotation
-    T[:3, 3] = M.translation
-    return T
-
-def setup_debug_visuals(
-    vis,
-    model: pin.Model,
-    marker_names,
-    triad_length=0.08,
-    triad_radius=0.003,   # gardé pour compat, pas forcément utilisé en fallback
-    root="debug",
-    clear_root=True,
-):
-    if clear_root:
-        try:
-            vis[root].delete()
-        except Exception:
-            pass
-
-    dbg = {
-        "root": root,
-        "joint_entries": [],
-        "marker_entries": [],
-        "model_marker_path": f"{root}/model_markers",
-        "missing_marker_frames": [],
-    }
-
-    # Create one triad geometry and reuse it
-    # linewidth is a best-effort (WebGL may ignore thickness)
-    triad = make_triad_geom(axis_length=triad_length, linewidth=max(1, int(triad_radius * 500)))
-
-    # --- joints triads ---
-    for jid in range(1, model.njoints):
-        jname = model.names[jid]
-        path = f"{root}/joints/{jid:04d}_{jname}"  # <= name visible in Meshcat tree
-        vis[path].set_object(triad)
-        dbg["joint_entries"].append((jid, path))
-
-    # --- marker frame triads ---
-    for mk in marker_names:
-        try:
-            fid = model.getFrameId(mk)
-        except Exception:
-            fid = None
-
-        if fid is None or fid < 0 or fid >= len(model.frames):
-            dbg["missing_marker_frames"].append(mk)
-            continue
-
-        path = f"{root}/marker_frames/{fid:04d}_{mk}"  # <= name visible in Meshcat tree
-        vis[path].set_object(triad)
-        dbg["marker_entries"].append((fid, path))
-
-    # Empty pointcloud node for model markers
-    vis[dbg["model_marker_path"]].set_object(make_empty_pointcloud())
-
-    if dbg["missing_marker_frames"]:
-        print("[DEBUG] marker frames missing in model (not registered / not added):")
-        print("        ", dbg["missing_marker_frames"])
-
-    return dbg
-
-
-def update_debug_visuals(vis, model: pin.Model, data: pin.Data, q, dbg):
-    """
-    Update the transforms of all debug triads and refresh the model marker pointcloud.
-    Robust to missing keys (won't crash).
-    """
-    pin.forwardKinematics(model, data, q)
-    pin.updateFramePlacements(model, data)
-
-    # --- joints ---
-    for jid, path in dbg.get("joint_entries", []):
-        vis[path].set_transform(_pin_se3_to_meshcat_tf(data.oMi[jid]))
-
-    # --- marker frames ---
-    marker_points = []
-    for fid, path in dbg.get("marker_entries", []):
-        oMf = data.oMf[fid]
-        vis[path].set_transform(_pin_se3_to_meshcat_tf(oMf))
-        marker_points.append(oMf.translation)
-
-    # --- model marker pointcloud ---
-    if marker_points:
-        P = np.stack(marker_points, axis=1)  # (3, N)
-        C = np.tile(np.array([[0], [255], [0]], dtype=np.uint8), (1, P.shape[1]))
-        vis[dbg.get("model_marker_path", "debug/model_markers")].set_object(g.PointCloud(P, C))
-
-# -----------------------
-# Named measured markers (debug)
-# -----------------------
-
-def setup_measured_markers(vis: "meshcat.Visualizer", marker_names: Sequence[str], radius: float = 0.010, color: int = 0xff0000):
-    """Create one small sphere per measured marker, under markers/measured/<name>."""
-    sphere = g.Sphere(radius)
-    mat = g.MeshPhongMaterial(color=color, opacity=0.9)
-    for name in marker_names:
-        vis[f"markers/measured/{name}"].set_object(sphere, mat)
-
-
-def update_measured_markers(vis: "meshcat.Visualizer", mks_dict: dict):
-    """Update transforms for the measured marker spheres."""
-    for name, p in mks_dict.items():
-        try:
-            T = tf.translation_matrix(np.asarray(p, dtype=float).reshape(3))
-        except Exception:
-            continue
-        vis[f"markers/measured/{name}"].set_transform(T)
-
-def list_videos(data_dir: Path) -> List[Path]:
-    if not data_dir.exists():
-        raise FileNotFoundError(f"data dir does not exist: {data_dir}")
-    vids = [p for p in sorted(data_dir.iterdir()) if p.suffix.lower() in [".mp4"]]
-    return vids
-
-@dataclass
-class OfflineVideoSource:
-    paths: List[Path]
-    size_wh: Tuple[int, int]
-
-    def __post_init__(self):
-        self.caps = [cv2.VideoCapture(str(p)) for p in self.paths]
-        for p, cap in zip(self.paths, self.caps):
-            if not cap.isOpened():
-                raise RuntimeError(f"Could not open video: {p}")
-
-    def read(self) -> Optional[List[np.ndarray]]:
-        frames: List[np.ndarray] = []
-        for cap in self.caps:
-            ok, frame = cap.read()
-            if not ok:
-                cap.set(cv2.CAP_PROP_POS_FRAMES, 0)
-                ok, frame = cap.read()
-                if not ok:
-                    return None
-            W, H = self.size_wh
-            if frame.shape[1] != W or frame.shape[0] != H:
-                frame = cv2.resize(frame, (W, H), interpolation=cv2.INTER_LINEAR)
-            frames.append(frame)
-        return frames
-
-    def release(self):
-        for cap in self.caps:
-            cap.release()
 
 
 def main(args):
@@ -256,9 +58,25 @@ def main(args):
     # Determine size
     W = settings.width
     H = settings.height
-    mtxs, dists, projections, rotations, translations = load_camera_parameters(settings.cam_calib_path)
-    world_R1_cam, world_T1_cam = load_world_transformation(settings.cam_calib_path)
-    
+
+    if args.online:
+        cam_params_path = settings.cam_calib_path
+        video_paths = subject_path = out_dir = None
+    else:
+        cam_params_path, video_paths, subject_path, out_dir = resolve_trial(args)
+        if len(video_paths) != len(args.cameras):
+            raise ValueError(
+                f"{len(video_paths)} videos but {len(args.cameras)} cameras requested; "
+                "pass --cameras matching the videos, in the same order"
+            )
+
+    # Cameras are loaded in the requested order and the first is the reference
+    # frame triangulation outputs into, so the world transform uses that one.
+    mtxs, dists, projections, rotations, translations = load_camera_parameters(
+        cam_params_path, args.cameras
+    )
+    world_R1_cam, world_T1_cam = load_world_transformation(cam_params_path, args.cameras[0])
+
     if args.online:
         cameras = list_cameras()
         NUM_CAMERAS = len(cameras)
@@ -298,6 +116,10 @@ def main(args):
             num_cameras=NUM_CAMERAS,
         )
 
+        # Imported here rather than at module scope: it depends on pynput, which
+        # requires an X display, and offline runs must work headless.
+        from rtcosmik.viewer.viewer import ViewerProcess
+
         viewer= ViewerProcess(
             settings=settings,
             results_queues=results_queues,
@@ -329,19 +151,33 @@ def main(args):
 
         vis_markers = vis["markers"]
 
-        if args.videos and len(args.videos) > 0:
-            paths = [Path(v) for v in args.videos]
-        else:
-            paths = list_videos(Path(args.data_dir))
-        if len(paths) == 0:
-            raise RuntimeError(f"No videos found in {args.data_dir}")
-
+        paths = video_paths
         NUM_CAMERAS = len(paths)
+        LOGGER.info(
+            "Processing %d camera(s): %s", NUM_CAMERAS, ", ".join(str(p) for p in paths)
+        )
 
-        src = OfflineVideoSource(paths=paths, size_wh=(W, H))
+        subject_height, subject_weight, subject_gender = load_subject(subject_path)
+
+        # loop=False so the run ends at the end of the videos instead of
+        # restarting them, which is what makes sweeping over trials possible.
+        src = OfflineVideoSource(paths=paths, size_wh=(W, H), loop=False)
+
+        # joint_angles.csv uses the reference mocap's column names so a trial's
+        # estimate lines up with its ground truth without renaming anything.
+        saver = None
+        if not args.no_save:
+            saver = CSVSaver(
+                str(out_dir),
+                markers_header=['Frame'] + list(settings.marker_names),
+                joint_angles_header=list(settings.joint_angles_names),
+            )
+            LOGGER.info("Writing markers.csv and joint_angles.csv to %s", out_dir)
+        frames_read = 0
+        frames_written = 0
 
         est = NLFEstimator(
-            yolo_path=settings.yolo_path,
+            yolo_path=resolve_detector_engine(settings.yolo_path, NUM_CAMERAS),
             nlf_path=settings.nlf_path,
             cano_path=settings.cano_path,
             image_size=(W, H),
@@ -369,39 +205,50 @@ def main(args):
             frames = src.read()
             if frames is None:
                 break
+            frames_read += 1
 
             nlf_out, infer_ms, yres, boxes = est.estimate_from_frames(frames)
 
-            nlf_out_2d = nlf_out["poses2d"]
+            if NUM_CAMERAS == 1:
+                # A single view cannot be triangulated, but NLF regresses metric
+                # 3D directly, so use its estimate for the reference camera.
+                # It is returned in millimetres in that camera's frame.
+                poses3d = nlf_out["poses3d"]
+                if poses3d is None or len(poses3d) == 0:
+                    continue
+                pose3d = poses3d[0]
+                if pose3d is None or len(pose3d) == 0 or pose3d[0] is None:
+                    continue
+                p3d = pose3d[0].detach().float().cpu().numpy() / 1000.0
+            else:
+                nlf_out_2d = nlf_out["poses2d"]
 
-            if nlf_out_2d is None or len(nlf_out_2d) < NUM_CAMERAS:
-                continue
-
-            keypoints_list = [None] * NUM_CAMERAS
-            valid_cam_ids = []
-
-            for ii in range(NUM_CAMERAS):
-                poses2d = nlf_out_2d[ii]
-                
-                if poses2d is None or len(poses2d) == 0 or poses2d[0] is None:
+                if nlf_out_2d is None or len(nlf_out_2d) < NUM_CAMERAS:
                     continue
 
-                keypoints_list[ii] = poses2d[0].detach().float().cpu().numpy()
-                valid_cam_ids.append(ii)
+                keypoints_list = [None] * NUM_CAMERAS
+                valid_cam_ids = []
 
-            if len(valid_cam_ids) < 2:
-                continue
+                for ii in range(NUM_CAMERAS):
+                    poses2d = nlf_out_2d[ii]
 
-            p3d = triangulate_points(
-                keypoints_list=keypoints_list,
-                mtxs=mtxs,
-                dists=dists,
-                projections=projections,
-            )
+                    if poses2d is None or len(poses2d) == 0 or poses2d[0] is None:
+                        continue
 
-            p3d_np = torch.from_numpy(p3d).to(dtype=torch.float32)
+                    keypoints_list[ii] = poses2d[0].detach().float().cpu().numpy()
+                    valid_cam_ids.append(ii)
 
-            p3d_in_world=np.array([np.dot(world_R1_cam,point) + world_T1_cam for point in p3d_np])
+                if len(valid_cam_ids) < 2:
+                    continue
+
+                p3d = triangulate_points(
+                    keypoints_list=keypoints_list,
+                    mtxs=mtxs,
+                    dists=dists,
+                    projections=projections,
+                )
+
+            p3d_in_world=np.array([np.dot(world_R1_cam,point) + world_T1_cam for point in p3d])
 
             if first_sample:
                 for k in range(settings.N):
@@ -431,14 +278,14 @@ def main(args):
                 if first_sample:
                     mks_dict = dict(zip(settings.marker_names, augmented_markers))
 
-                    human = robex.human.HumanLoader(height=settings.human_height, weight=settings.human_weight, gender=settings.human_gender).robot
+                    human = robex.human.HumanLoader(height=subject_height, weight=subject_weight, gender=subject_gender).robot
                     human_model = human.model
                     human_collision_model = human.collision_model
                     human_visual_model = human.visual_model
 
                     #scale the model to data
-                    human_model = scale_human_model(human_model, mks_dict, gender=settings.human_gender, subject_height=settings.human_height)
-                    human_model= mks_registration(human_model, mks_dict, gender=settings.human_gender, subject_height=settings.human_height)
+                    human_model = scale_human_model(human_model, mks_dict, gender=subject_gender, subject_height=subject_height)
+                    human_model= mks_registration(human_model, mks_dict, gender=subject_gender, subject_height=subject_height)
                     # human_data = pin.Data(human_model)
 
                     # Init meshcat viewer for human
@@ -536,15 +383,90 @@ def main(args):
                         viz_human.display(q)
                     else : 
                         raise ValueError("Invalid ik type, should be sbs (sample by sample) or mhe (moving horizon estimation)")
+
+                if saver is not None:
+                    marker_row = OrderedDict(Frame=frames_read)
+                    for name, position in mks_dict.items():
+                        marker_row[name + '_x'] = float(position[0])
+                        marker_row[name + '_y'] = float(position[1])
+                        marker_row[name + '_z'] = float(position[2])
+                    saver.save_markers(marker_row)
+
+                    if len(q) != len(settings.joint_angles_names):
+                        raise ValueError(
+                            f"Model has {len(q)} configuration variables but "
+                            f"{len(settings.joint_angles_names)} joint angle names are defined"
+                        )
+                    saver.save_joint_angles(
+                        OrderedDict(zip(settings.joint_angles_names, (float(v) for v in q)))
+                    )
+                    frames_written += 1
             t1=time.perf_counter()
             print(f"Time elapsed for treating one frame = {t1-t0} ms")
 
+        src.release()
+        if saver is not None:
+            saver.close()
+            # Provenance so an evaluation can tell runs apart and align frames.
+            # The model's root placement is recorded because the free-flyer pose
+            # in joint_angles.csv is expressed in that frame.
+            run_info = {
+                "participant": args.participant,
+                "task": args.task,
+                "cameras": list(args.cameras),
+                "num_cameras": NUM_CAMERAS,
+                "videos": [str(v) for v in paths],
+                "fps": settings.fs,
+                "ik": {
+                    "type": settings.ik_type,
+                    "mhe_backend": settings.mhe_backend if settings.ik_type == "mhe" else None,
+                    "horizon_N": settings.N if settings.ik_type == "mhe" else None,
+                    "cost_weights": list(settings.cost_weights) if settings.ik_type == "mhe" else None,
+                    "mhe_max_iter": settings.mhe_max_iter if settings.ik_type == "mhe" else None,
+                },
+                "filter": {
+                    "order": settings.order,
+                    "cutoff_hz": settings.cutoff_freq,
+                    "type": settings.filter_type,
+                },
+                "variant": run_variant(args.cameras),
+                "subject": {"height": subject_height,
+                            "weight": subject_weight,
+                            "gender": subject_gender},
+                "frames_read": frames_read,
+                "frames_written": frames_written,
+                "joint_angles_names": list(settings.joint_angles_names),
+                "marker_names": list(settings.marker_names),
+                "root_placement_rotation":
+                    np.asarray(human_model.jointPlacements[1].rotation).tolist(),
+                # The model is rescaled from the measured markers during
+                # calibration, so record the resulting kinematics: that lets a
+                # viewer rebuild exactly the model the IK ran on rather than a
+                # nominal one built from height and weight alone.
+                "joint_names": [human_model.names[i] for i in range(human_model.njoints)],
+                "joint_placements": [
+                    np.asarray(human_model.jointPlacements[i].translation).tolist()
+                    for i in range(human_model.njoints)
+                ],
+            }
+            with open(Path(out_dir) / "run_info.json", "w") as handle:
+                json.dump(run_info, handle, indent=2)
+        LOGGER.info(
+            "Finished: %d frames read, %d rows written to %s",
+            frames_read, frames_written, out_dir,
+        )
+
 
 if __name__ == "__main__":
-    p = argparse.ArgumentParser()
-    p.add_argument("--online", action="store_true")
-    p.add_argument("--data-dir", type=str, default="data", help="Folder containing input videos")
-    p.add_argument("--videos", nargs="*", default=None, help="Optional explicit list of input videos")
+    p = argparse.ArgumentParser(
+        description="Run the RT-COSMIK pipeline live, or offline over one recorded trial.",
+        epilog=TRIAL_CLI_EPILOG + "\nSweep trials with a shell loop; there is no separate batch script.",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+    )
+    p.add_argument("--online", action="store_true",
+                   help="Capture from live cameras instead of video files")
+    add_trial_arguments(p)
+    p.add_argument("--no-save", action="store_true", help="Visualise only, write no CSV files")
     args = p.parse_args()
 
     if args.online:

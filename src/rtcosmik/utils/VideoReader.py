@@ -8,12 +8,18 @@ import subprocess
 import numpy as np
 import cv2
 
-@dataclass 
+@dataclass
 class OfflineVideoSource:
+    # Sentinel pushed onto a stream's queue when that stream reaches its end.
+    _EOF = object()
+
     paths: List[Path]
     size_wh: Tuple[int, int]
     queue_size: int = 2  # Keeps 2 frames in flight per stream to maintain speed
-    
+    # Offline processing needs the streams to end so the caller's loop can
+    # terminate; looping forever is only useful for open-ended live previews.
+    loop: bool = False
+
     # Internal engine tracking
     _procs: List[subprocess.Popen] = field(default_factory=list, init=False)
     # Changed from a single Queue to a List of independent Queues
@@ -66,7 +72,7 @@ class OfflineVideoSource:
                 'ffmpeg',
                 '-loglevel', 'error',
                 "-hwaccel", 'auto',
-                '-stream_loop', '-1',      
+                *(['-stream_loop', '-1'] if self.loop else []),
                 '-i', str(p),
                 '-vf', filter_graph,
                 '-f', 'image2pipe',
@@ -104,17 +110,20 @@ class OfflineVideoSource:
             try:
                 frame_buffer = np.empty((h, w, 3), dtype=np.uint8)
                 bytes_read = proc.stdout.readinto(frame_buffer)
-                
+
                 if bytes_read == 0 or bytes_read is None:
-                    continue 
-                
+                    # A zero-length read is EOF, not a hiccup: ffmpeg has closed
+                    # the pipe. Spinning here would busy-wait until the process
+                    # is reaped, so stop and let the sentinel below signal it.
+                    break
+
                 while bytes_read < frame_size and self._running:
                     remaining_view = memoryview(frame_buffer)[bytes_read:]
                     extra_bytes = proc.stdout.readinto(remaining_view)
                     if extra_bytes == 0 or extra_bytes is None:
                         break
                     bytes_read += extra_bytes
- 
+
                 if bytes_read == frame_size and self._running:
                     # Push straight to this stream's dedicated queue channel
                     while self._running:
@@ -123,24 +132,38 @@ class OfflineVideoSource:
                             break
                         except Full:
                             continue
- 
+                elif self._running:
+                    # Trailing partial frame: the stream is truncated, so treat
+                    # it as the end rather than emitting a half-filled buffer.
+                    break
+
             except Exception:
                 break
+
+        # Sentinel so a waiting read() learns the stream ended immediately,
+        # instead of stalling for its full timeout on every remaining call.
+        try:
+            target_queue.put(self._EOF, timeout=0.5)
+        except Full:
+            pass
  
     def read(self) -> Optional[List[np.ndarray]]:
         assembled_frames = []
- 
+
         # Force a strict lock-step read across all active channels
         for q in self._queues:
             try:
                 # Blocks until THIS specific stream yields its next sequential frame
                 frame = q.get(timeout=2.0)
-                assembled_frames.append(frame)
                 q.task_done()
             except Empty:
                 # If any single stream drops out or times out, the whole reader safely halts
                 return None
- 
+            if frame is self._EOF:
+                # One stream ended, so there is no complete multi-view frame left.
+                return None
+            assembled_frames.append(frame)
+
         return assembled_frames if self._running else None
  
     def release(self):

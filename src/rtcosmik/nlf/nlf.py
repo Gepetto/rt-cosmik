@@ -13,6 +13,9 @@ from rtcosmik.triangulation.triangulation import triangulate_points
 
 LOGGER = logging.getLogger(__name__)
 
+from rtcosmik.model_weights import resolve_detector_engine
+
+
 class NLFEstimator:
     """Roll YOLO detection (batched) + per-camera NLF sequential estimation for multiple images."""
 
@@ -457,7 +460,7 @@ class DisplayConsumerNLF(Process):
         self.last_frame_counters = [0] * self.num_cameras
         self.frame_counters = frame_counters
 
-        self.yolo_path=settings.yolo_path
+        self.yolo_path=resolve_detector_engine(settings.yolo_path, num_cameras)
         self.nlf_path=settings.nlf_path
         self.cano_path=settings.cano_path
         self.marker_names=settings.marker_names

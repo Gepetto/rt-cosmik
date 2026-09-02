@@ -9,11 +9,35 @@ class Settings:
     cosmik_path: str = field(init=False)
     device: str = field(default_factory=lambda: "cuda:0" if torch.cuda.is_available() else "cpu")
     
-    ### SAVE ###
+    ### WHERE RESULTS ARE SAVED ###
+    #
+    # Everything RT-COSMIK writes goes under one folder: <repo>/output
+    #
+    #   ONLINE runs (--online, recording from live cameras)
+    #       -> output/<no_trial>/
+    #       Set `no_trial` below to name the run, e.g. no_trial = "pilot_03"
+    #       gives output/pilot_03/. Change it between recordings so runs do not
+    #       overwrite each other.
+    #
+    #   OFFLINE runs (processing recorded video)
+    #       -> output/<participant>/<task>/      e.g. output/1012/Lifting/
+    #       Named automatically from the trial being processed, so results
+    #       mirror the dataset layout. Override per run with --out DIR.
+    #
+    # Each run directory receives joint_angles.csv and markers.csv (and the
+    # recorded videos when SAVE_VID is on).
+
+    # Name of the current ONLINE recording. Ignored offline.
     no_trial = "test"
+
+    # Save recorded videos / CSV files during ONLINE runs.
+    # (Offline runs always write their CSV files unless --no-save is passed.)
     SAVE_VID: bool = False
     SAVE_CSV: bool = False
-    SAVE_DIR: str = f"/root/workspace/RT-COSMIK/output/{no_trial}" # abs path to the save folder
+
+    # Computed automatically in __post_init__ - no need to edit these.
+    output_dir: str = field(init=False)  # <repo>/output
+    SAVE_DIR: str = field(init=False)    # <repo>/output/<no_trial>, online runs only
 
     ### CAM PARAMS ###
     fs: int = 40
@@ -21,8 +45,17 @@ class Settings:
     width: int = 1280 # image resolution
     height: int = 720 # image resolution
     fourcc: str = "MJPG" # video codec
+    # Which cameras to use, in order. The FIRST one is the reference frame that
+    # triangulated 3D points are expressed in before the world transform.
+    # Each id must exist in the calibration folder, and a matching detector
+    # engine must have been built for this many cameras (see fetch_models.sh).
+    # Override per run with: --cameras 0 2
+    cameras: tuple = (0, 2, 4, 6)
 
     ### HUMAN ANTHROPOMETRY ###
+    # Used for ONLINE runs. Offline runs read these per participant from the
+    # dataset's metadata file instead (--subject), and only fall back to these
+    # values when no subject file is given.
     human_height: float = 1.81
     human_weight: float = 74.0 
     human_gender: str = 'm'
@@ -39,8 +72,8 @@ class Settings:
     filter_type: str = "lowpass"
 
     ### NLF ###
-    cano_path: str = "/root/workspace/RT-COSMIK/weights/canonical_verts/smplx.npy"
-    nlf_path: str = "/root/workspace/RT-COSMIK/weights/nlf/nlf_s_multi_0.2.2.torchscript"
+    cano_path: str = field(init=False)
+    nlf_path: str = field(init=False)
     nlf_indices = [             # For SMPLX model
         8421, 5727, 8371, 5677, # pelvis: RASI, LASI, RPSI, LPSI 
         5484, 5489, 5500, 6629, 3878, 7040, 4302, 7105, 4369, 7584, 4848, 7457, 4721, # upper: C7, T11, T6,  RSHO, LSHO, RELB, LELB, RMELB, LMELB, RWRI, LWRI, RMWRI, LMWRI
@@ -51,27 +84,30 @@ class Settings:
     ]
 
     ### YOLO detector ###
-    yolo_path: str = "/root/workspace/RT-COSMIK/weights/yolo/yolov10n.engine"
+    yolo_path: str = field(init=False)
     yolo_conf = 0.2
     yolo_imgsz = 640
 
     #### IK AND DATA HANDLING ###
     # For whole body model :
 
-    joint_angles_names = ['FF_X', 'FF_Y', 'FF_Z', 'FF_quatx','FF_quaty',
-                            'FF_quatz', 'FF_quatw', 'Lhip_flex_ext', 'Lhip_abd_add','Lhip_int_ext_rot','Lknee_flex_ext','Lankle_flex_ext','Lankle_abd_add',
-                            'Lumbar_flex_ext', 'Lumbar_lateral_flex',
-                            'Thoracic_flex_ext','Thoracic_lateral_flex','Thoracic_rot_int_ext',
-                            'Lcalvicule_x',
-                            'Lshoulder_flex_ext','Lshoulder_abd_add', 'Lshoulder_int_ext_rot','Lelbow_flex_ext','Lelbow_pron_supi','Lwrist_flex_ext','Lwrist_x',
-                            'Cervical_flex_ext', 'Cervical_lat_bend', 'Cervical_int_ext_rot',
-                            'rcalvicule_x',
-                            'Rshoulder_flex_ext', 'Rshoulder_abd_add', 'Rshoulder_int_ext_rot','Relbow_flex_ext', 'Relbow_pron_supi', 'Rwrist_flex_ext','Rwrist_x',
-                            'Rhip_flex_ext','Rhip_abd_add','Rhip_int_ext_rot',
-                            'Rknee_flex_ext','Rankle_flex_ext', 'Rankle_abd_add']
+    # Joint angle column names. These are the RT-COSMIK standard and match the
+    # COMFI dataset exactly, so estimates and reference mocap are directly
+    # comparable without renaming anything.
+    joint_angles_names = [
+                            'Freeflyer_X[m]', 'Freeflyer_Y[m]', 'Freeflyer_Z[m]', 'Freeflyer_quaternion_X', 'Freeflyer_quaternion_Y', 'Freeflyer_quaternion_Z', 'Freeflyer_quaternion_W',
+                            'Left_Hip_Flexion_Extension[rad]', 'Left_Hip_Abduction_Adduction[rad]', 'Left_Hip_Internal_External_Rotation[rad]', 'Left_Knee_Flexion_Extension[rad]', 'Left_Ankle_Plantarflexion_Dorsiflexion[rad]', 'Left_Ankle_Inversion_Eversion[rad]',
+                            'Lumbar_Flexion_Extension[rad]', 'Lumbar_Lateral_Bending[rad]',
+                            'Thoracic_Flexion_Extension[rad]', 'Thoracic_Lateral_Bending[rad]', 'Thoracic_Internal_External_Rotation[rad]',
+                            'Left_Clavicle_Elevation_Depression[rad]',
+                            'Left_Shoulder_Flexion_Extension[rad]', 'Left_Shoulder_Abduction_Adduction[rad]', 'Left_Shoulder_Internal_External_Rotation[rad]', 'Left_Elbow_Flexion_Extension[rad]', 'Left_Elbow_Pronation_Supination[rad]', 'Left_Wrist_Flexion_Extension[rad]', 'Left_Wrist_Radial_Ulnar_Deviation[rad]',
+                            'Cervical_Flexion_Extension[rad]', 'Cervical_Lateral_Bending[rad]', 'Cervical_Internal_External_Rotation[rad]',
+                            'Right_Clavicle_Elevation_Depression[rad]',
+                            'Right_Shoulder_Flexion_Extension[rad]', 'Right_Shoulder_Abduction_Adduction[rad]', 'Right_Shoulder_Internal_External_Rotation[rad]', 'Right_Elbow_Flexion_Extension[rad]', 'Right_Elbow_Pronation_Supination[rad]', 'Right_Wrist_Flexion_Extension[rad]', 'Right_Wrist_Radial_Ulnar_Deviation[rad]',
+                            'Right_Hip_Flexion_Extension[rad]', 'Right_Hip_Abduction_Adduction[rad]', 'Right_Hip_Internal_External_Rotation[rad]', 'Right_Knee_Flexion_Extension[rad]', 'Right_Ankle_Plantarflexion_Dorsiflexion[rad]', 'Right_Ankle_Inversion_Eversion[rad]']
 
     # Ik type
-    ik_type: str ="sbs" # either "mhe" for SWIKA or "sbs" for sample by sample qp
+    ik_type: str ="mhe" # either "mhe" for SWIKA or "sbs" for sample by sample qp
 
     # if ik_type = "mhe"
     mhe_backend: str = "fatrop" # solver backend: "fatrop" (validated reference) or "acados"
@@ -109,4 +145,9 @@ class Settings:
         self.cam_calib_path = str(Path(self.cosmik_path) / "config/cam_params")
         self.human_calib_path = str(Path(self.cosmik_path) / "config/human_params")
         self.robot_calib_path = str(Path(self.cosmik_path) / "config/robot_params")
+        self.output_dir = str(Path(self.cosmik_path) / "output")
+        self.SAVE_DIR = str(Path(self.output_dir) / self.no_trial)
+        self.cano_path = str(Path(self.cosmik_path) / "weights/canonical_verts/smplx.npy")
+        self.nlf_path = str(Path(self.cosmik_path) / "weights/nlf/nlf_s_multi_0.2.2.torchscript")
+        self.yolo_path = str(Path(self.cosmik_path) / "weights/yolo/yolov10n.engine")
         self.dt = 1 / self.fs
