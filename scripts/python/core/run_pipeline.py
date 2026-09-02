@@ -19,8 +19,8 @@ import pinocchio as pin
 from pinocchio.visualize import MeshcatVisualizer
 
 from rtcosmik.config_loader import settings
-from rtcosmik.nlf.nlf import NLFEstimator
-from rtcosmik.triangulation.triangulation import triangulate_points
+from rtcosmik.nlf.nlf import NLFEstimator, extract_views
+from rtcosmik.triangulation.triangulation import reconstruct_3d
 from rtcosmik.filtering.iir import IIR
 from rtcosmik.human_model.model_utils import scale_human_model, mks_registration, recalibrate_marker_frames_in_joint_space
 from rtcosmik.ik.ik import RT_IK, RT_SWIKA_FATROP, RT_SWIKA_ACADOS
@@ -209,44 +209,10 @@ def main(args):
 
             nlf_out, infer_ms, yres, boxes = est.estimate_from_frames(frames)
 
-            if NUM_CAMERAS == 1:
-                # A single view cannot be triangulated, but NLF regresses metric
-                # 3D directly, so use its estimate for the reference camera.
-                # It is returned in millimetres in that camera's frame.
-                poses3d = nlf_out["poses3d"]
-                if poses3d is None or len(poses3d) == 0:
-                    continue
-                pose3d = poses3d[0]
-                if pose3d is None or len(pose3d) == 0 or pose3d[0] is None:
-                    continue
-                p3d = pose3d[0].detach().float().cpu().numpy() / 1000.0
-            else:
-                nlf_out_2d = nlf_out["poses2d"]
-
-                if nlf_out_2d is None or len(nlf_out_2d) < NUM_CAMERAS:
-                    continue
-
-                keypoints_list = [None] * NUM_CAMERAS
-                valid_cam_ids = []
-
-                for ii in range(NUM_CAMERAS):
-                    poses2d = nlf_out_2d[ii]
-
-                    if poses2d is None or len(poses2d) == 0 or poses2d[0] is None:
-                        continue
-
-                    keypoints_list[ii] = poses2d[0].detach().float().cpu().numpy()
-                    valid_cam_ids.append(ii)
-
-                if len(valid_cam_ids) < 2:
-                    continue
-
-                p3d = triangulate_points(
-                    keypoints_list=keypoints_list,
-                    mtxs=mtxs,
-                    dists=dists,
-                    projections=projections,
-                )
+            views = extract_views(nlf_out, NUM_CAMERAS)
+            p3d = reconstruct_3d(views, projections)
+            if len(p3d) == 0:
+                continue
 
             p3d_in_world=np.array([np.dot(world_R1_cam,point) + world_T1_cam for point in p3d])
 

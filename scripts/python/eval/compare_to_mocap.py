@@ -505,6 +505,49 @@ def write_plots(results, reference, out_dir, reference_label, colours):
         path = out_dir / "marker_error_distribution.png"
         figure.savefig(path, dpi=130); plt.close(figure); written.append(path)
 
+    # The free-flyer on its own, since its translation and its orientation
+    # cannot share an axis with each other or with the joint angles.
+    linear_names = [r["name"] for r in results[0][1]["joints"] if r["unit"] == "m"]
+    if linear_names:
+        figure, (left, right) = plt.subplots(
+            1, 2, figsize=(13, 4.2), gridspec_kw={"width_ratios": [2.2, 1]})
+
+        short_linear = [n.replace("Freeflyer_", "").replace("[m]", "")
+                        for n in linear_names]
+        y = np.arange(len(linear_names) + 1)
+        height = 0.8 / len(results)
+        for i, (label, data) in enumerate(results):
+            table = {r["name"]: r["rmse"] * 1000.0 for r in data["joints"]}
+            values = [table.get(n, np.nan) for n in linear_names]
+            finite = [v for v in values if np.isfinite(v)]
+            left.barh(y + i * height, [np.mean(finite) if finite else np.nan] + values,
+                      height=height, label=label, color=colours[i])
+        left.set_yticks(y + 0.4 - height / 2)
+        left.set_yticklabels(["MEAN"] + short_linear, fontsize=9)
+        left.get_yticklabels()[0].set_fontweight("bold")
+        left.axhline(0.8, color="0.4", lw=1.0, ls="--")
+        left.invert_yaxis()
+        left.set_xlabel("translation RMSE vs mocap (mm)")
+        left.set_title("Free-flyer translation")
+        left.legend(title="modality", fontsize=8)
+        left.grid(axis="x", alpha=0.3)
+
+        for i, (label, data) in enumerate(results):
+            angle = (data.get("freeflyer") or {}).get("orientation_deg", np.nan)
+            right.barh([i * height], [angle], height=height,
+                       label=label, color=colours[i])
+        right.set_yticks([0.4 - height / 2])
+        right.set_yticklabels(["orientation"], fontsize=9)
+        right.invert_yaxis()
+        right.set_xlabel("orientation error vs mocap (deg)")
+        right.set_title("Free-flyer orientation")
+        right.grid(axis="x", alpha=0.3)
+
+        figure.suptitle(f"Free-flyer error  ({reference_label})")
+        figure.tight_layout()
+        path = out_dir / "freeflyer_error.png"
+        figure.savefig(path, dpi=130); plt.close(figure); written.append(path)
+
     # Every joint angle over time, each panel captioned with its own error.
     columns = 3
     rows = int(math.ceil(len(joint_names) / columns))

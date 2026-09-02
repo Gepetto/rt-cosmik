@@ -8,12 +8,78 @@ import meshcat
 import meshcat.geometry as g
 import meshcat.transformations as tf
 
+from collections import namedtuple
 from multiprocessing import Process, Array, Value, Lock, Barrier, Event, Queue
-from rtcosmik.triangulation.triangulation import triangulate_points
+from rtcosmik.triangulation.triangulation import reconstruct_3d
 
 LOGGER = logging.getLogger(__name__)
 
+#: One frame's worth of per-camera observations, as returned by extract_views.
+Views = namedtuple("Views", "keypoints poses3d uncertainties valid_cam_ids")
+
 from rtcosmik.model_weights import resolve_detector_engine
+
+
+
+def extract_views(nlf_out, num_cameras):
+    """Pull per-camera 2D keypoints and per-joint uncertainties out of an NLF output.
+
+    NLF returns one entry per camera, each holding a list of detected people. The
+    pipeline tracks a single subject, so only the first person of each view is
+    kept. A camera that detected nobody this frame yields ``None`` rather than
+    being silently skipped, so the caller keeps the camera ordering that matches
+    its projection matrices.
+
+    Returns:
+        Views: ``keypoints`` holds per-camera (J, 2) pixel arrays or None;
+        ``poses3d`` holds per-camera (J, 3) metric poses **in metres, in that
+        camera's own frame** (NLF reports millimetres) or None; ``uncertainties``
+        is a (C, J) array that is NaN wherever a view reported none, or None if
+        no view did; ``valid_cam_ids`` lists the cameras that saw the subject.
+    """
+    poses_2d = nlf_out.get("poses2d") if nlf_out else None
+    if poses_2d is None or len(poses_2d) < num_cameras:
+        return Views([None] * num_cameras, [None] * num_cameras, None, [])
+
+    spreads = nlf_out.get("uncertainties")
+    poses_3d = nlf_out.get("poses3d")
+
+    keypoints_list = [None] * num_cameras
+    poses3d_list = [None] * num_cameras
+    per_camera_sigma = [None] * num_cameras
+    valid_cam_ids = []
+
+    for ii in range(num_cameras):
+        view = poses_2d[ii]
+        if view is None or len(view) == 0 or view[0] is None:
+            continue
+
+        keypoints_list[ii] = view[0].detach().float().cpu().numpy()
+        valid_cam_ids.append(ii)
+
+        if poses_3d is not None and len(poses_3d) > ii:
+            pose = poses_3d[ii]
+            if pose is not None and len(pose) and pose[0] is not None:
+                # NLF reports millimetres; the rest of the pipeline works in metres.
+                poses3d_list[ii] = pose[0].detach().float().cpu().numpy() / 1000.0
+
+        if spreads is None or len(spreads) <= ii:
+            continue
+        sigma = spreads[ii]
+        if sigma is None or len(sigma) == 0 or sigma[0] is None:
+            continue
+        per_camera_sigma[ii] = sigma[0].detach().float().cpu().numpy().reshape(-1)
+
+    if not valid_cam_ids or all(s is None for s in per_camera_sigma):
+        return Views(keypoints_list, poses3d_list, None, valid_cam_ids)
+
+    num_points = min(len(keypoints_list[ii]) for ii in valid_cam_ids)
+    uncertainties = np.full((num_cameras, num_points), np.nan, dtype=np.float64)
+    for ii, sigma in enumerate(per_camera_sigma):
+        if sigma is not None and len(sigma) >= num_points:
+            uncertainties[ii] = sigma[:num_points]
+
+    return Views(keypoints_list, poses3d_list, uncertainties, valid_cam_ids)
 
 
 class NLFEstimator:
@@ -550,32 +616,10 @@ class DisplayConsumerNLF(Process):
 
                     nlf_out, infer_ms, yres, boxes = est.estimate_from_frames(frames)
 
-                    nlf_out_2d = nlf_out["poses2d"]
-
-                    if nlf_out_2d is None or len(nlf_out_2d) < self.num_cameras:
+                    views = extract_views(nlf_out, self.num_cameras)
+                    p3d = reconstruct_3d(views, self.projections)
+                    if len(p3d) == 0:
                         continue
-
-                    keypoints_list = [None] * self.num_cameras
-                    valid_cam_ids = []
-
-                    for ii in range(self.num_cameras):
-                        poses2d = nlf_out_2d[ii]
-                        
-                        if poses2d is None or len(poses2d) == 0 or poses2d[0] is None:
-                            continue
-
-                        keypoints_list[ii] = poses2d[0].detach().float().cpu().numpy()
-                        valid_cam_ids.append(ii)
-
-                    if len(valid_cam_ids) < 2:
-                        continue
-                    
-                    p3d = triangulate_points(
-                        keypoints_list=keypoints_list,
-                        mtxs=self.mtxs,
-                        dists=self.dists,
-                        projections=self.projections,
-                    )
 
                     poses_triangul = torch.from_numpy(p3d).to(dtype=torch.float32)
 

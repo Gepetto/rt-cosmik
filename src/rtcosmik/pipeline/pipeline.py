@@ -8,8 +8,8 @@ from multiprocessing import Process, Array, Lock, Value, Event, Queue
 from typing import List
 import time
 
-from rtcosmik.nlf.nlf import NLFEstimator
-from rtcosmik.triangulation.triangulation import triangulate_points
+from rtcosmik.nlf.nlf import NLFEstimator, extract_views
+from rtcosmik.triangulation.triangulation import reconstruct_3d
 from rtcosmik.filtering.iir import IIR
 from rtcosmik.human_model.model_utils import scale_human_model, mks_registration, recalibrate_marker_frames_in_joint_space
 from rtcosmik.ik.ik import RT_IK, RT_SWIKA_FATROP, RT_SWIKA_ACADOS
@@ -115,32 +115,10 @@ class PipelineProcess(Process):
 
                     nlf_out, infer_ms, yres, boxes = est.estimate_from_frames(frames)
 
-                    nlf_out_2d = nlf_out["poses2d"]
-
-                    if nlf_out_2d is None or len(nlf_out_2d) < self.num_cameras:
+                    views = extract_views(nlf_out, self.num_cameras)
+                    p3d = reconstruct_3d(views, self.projections)
+                    if len(p3d) == 0:
                         continue
-
-                    keypoints_list = [None] * self.num_cameras
-                    valid_cam_ids = []
-
-                    for ii in range(self.num_cameras):
-                        poses2d = nlf_out_2d[ii]
-                        
-                        if poses2d is None or len(poses2d) == 0 or poses2d[0] is None:
-                            continue
-
-                        keypoints_list[ii] = poses2d[0].detach().float().cpu().numpy()
-                        valid_cam_ids.append(ii)
-
-                    if len(valid_cam_ids) < 2:
-                        continue
-                    
-                    p3d = triangulate_points(
-                        keypoints_list=keypoints_list,
-                        mtxs=self.mtxs,
-                        dists=self.dists,
-                        projections=self.projections,
-                    )
 
                     p3d_np = torch.from_numpy(p3d).to(dtype=torch.float32)
 

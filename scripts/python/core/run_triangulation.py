@@ -15,7 +15,7 @@ import meshcat.geometry as g
 
 import numpy as np
 import torch
-from rtcosmik.nlf.nlf import NLFEstimator, DisplayConsumerNLF
+from rtcosmik.nlf.nlf import NLFEstimator, DisplayConsumerNLF, extract_views
 from rtcosmik.config_loader import settings
 from rtcosmik.camera.cam_utils import list_cameras, load_camera_parameters, load_world_transformation
 from rtcosmik.camera.camera import Camera
@@ -23,7 +23,7 @@ from rtcosmik.utils.mp_utils import create_camera_shared_ressources
 from rtcosmik.utils.VideoReader import OfflineVideoSource
 from rtcosmik.utils.dataset import TRIAL_CLI_EPILOG, add_trial_arguments, resolve_trial
 from rtcosmik.model_weights import resolve_detector_engine
-from rtcosmik.triangulation.triangulation import triangulate_points
+from rtcosmik.triangulation.triangulation import reconstruct_3d
 
 from multiprocessing import set_start_method
 
@@ -156,33 +156,10 @@ def main(args):
 
             nlf_out, infer_ms, yres, boxes = est.estimate_from_frames(frames)
 
-            nlf_out_2d = nlf_out["poses2d"]
-
-            if nlf_out_2d is None or len(nlf_out_2d) < NUM_CAMERAS:
+            views = extract_views(nlf_out, NUM_CAMERAS)
+            p3d = reconstruct_3d(views, projections)
+            if len(p3d) == 0:
                 continue
-
-            keypoints_list = [None] * NUM_CAMERAS
-            valid_cam_ids = []
-
-            for ii in range(NUM_CAMERAS):
-                poses2d = nlf_out_2d[ii]
-                
-                if poses2d is None or len(poses2d) == 0 or poses2d[0] is None:
-                    continue
-
-                keypoints_list[ii] = poses2d[0].detach().float().cpu().numpy()
-                valid_cam_ids.append(ii)
-
-            if len(valid_cam_ids) < 2:
-                continue
-
-
-            p3d = triangulate_points(
-                keypoints_list=keypoints_list,
-                mtxs=mtxs,
-                dists=dists,
-                projections=projections,
-            )
 
             poses_triangul = torch.from_numpy(p3d).to(dtype=torch.float32)
             poses_cam0=nlf_out['poses3d'][0]/1000
