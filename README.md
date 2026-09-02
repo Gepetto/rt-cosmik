@@ -122,8 +122,7 @@ python3 scripts/python/eval/compare_to_mocap.py \
     1cam=output/1012/Lifting/1cam_mhe_fatrop \
     2cam=output/1012/Lifting/2cam_mhe_fatrop \
     4cam=output/1012/Lifting/4cam_mhe_fatrop \
-    --markers --plots output/1012/eval_Lifting \
-    --meshcat --urdf /path/to/COMFI/metadata/urdf/1012_scaled.urdf
+    --plots output/1012/eval_Lifting --meshcat
 ```
 
 Any labels work, so the same command compares IK methods instead of camera
@@ -134,26 +133,39 @@ python3 scripts/python/eval/compare_to_mocap.py \
     --reference /path/to/COMFI/mocap/aligned/1012/Lifting \
     sbs=output/1012/Lifting/4cam_sbs \
     mhe=output/1012/Lifting/4cam_mhe_fatrop \
-    --markers --plots output/1012/eval_ik --meshcat
+    --plots output/1012/eval_ik --meshcat
 ```
 
-**Tables** print per-joint and per-marker error with one column per run, plus a
-summary. `--csv table.csv` writes the same numbers for a spreadsheet.
+Before anything is compared, the runs are **time-aligned** to the mocap. The
+cameras are synchronised with each other but not with the mocap, so a single
+offset covers them all: it is estimated per run by correlating knee flexion
+against the reference, and the median is applied to every modality. The
+estimates and the applied lag are printed.
 
-**Figures** (`--plots DIR`):
+**Tables** print per-joint and per-marker error with one column per run, each
+ending with the mean and median across all joints or all markers.
+
+**Figures** (`--plots DIR`, which also receives `errors.csv` with the same
+numbers for a spreadsheet):
 
 | figure | shows |
 |---|---|
-| `joint_angle_rmse.png`            | error per degree of freedom, one bar per setup |
-| `marker_error.png`                | 3D error per marker, one bar per setup |
-| `joint_angle_trajectories.png`    | representative joint angles over time against mocap |
-| `marker_error_distribution.png`   | spread of marker error per setup |
+| `joint_angle_rmse.png`            | error per degree of freedom, plus the mean over all joints |
+| `marker_error.png`                | 3D error per marker, plus the mean over all markers |
+| `joint_angle_trajectories.png`    | every joint angle over time, each panel captioned with its own RMSE |
+| `marker_error_distribution.png`   | spread of marker error per modality |
 
-**3D replay** (`--meshcat`) shows every modality at once: mocap markers in
-white, each run in its own colour, and with `--urdf` a skeleton per source posed
-from its joint angles, so marker error and pose error can be judged together.
-Open the printed URL in a browser. Playback is stepped by hand from the terminal
-so you can stop on any instant:
+The bar charts carry a bold `MEAN (all …)` row at the top, so a modality can be
+judged as a whole before reading the per-item breakdown.
+
+**3D replay** (`--meshcat`) shows every modality at once, each drawn as the
+human model it solved on, tinted with the colour it has in the tables and
+figures. Each run records its calibrated model in `run_info.json`, so the body
+shown is the one the IK used - no external model file is needed. The reference
+contributes its markers, the ground truth being compared against. Models are
+semi-transparent so overlapping bodies stay readable. Open the printed URL in a
+browser. Playback is stepped by hand from the terminal so you can stop on any
+instant:
 
 | key | action |
 |---|---|
@@ -164,8 +176,8 @@ so you can stop on any instant:
 | `r` | back to the first frame |
 | `q` | quit |
 
-`--play` runs straight through instead, `--loop` repeats, and
-`--start/--end/--step/--fps` restrict or retime the replay.
+Every modality keeps the same colour and label across the tables, the figures
+and the 3D view, so a colour means the same thing everywhere.
 
 `joint_angles.csv` uses the same column names and ordering as the reference, so
 the two line up without renaming. The free-flyer needs one extra step:
@@ -173,7 +185,6 @@ RT-COSMIK's human model carries a fixed rotation on its root joint while the
 reference URDF does not, so the two base frames differ. Each run records its
 root placement in `run_info.json` and the comparison removes it before
 reporting, so the free-flyer is compared like for like.
-`--no-align-freeflyer` disables that.
 
 ### 5. Sweep several trials
 
