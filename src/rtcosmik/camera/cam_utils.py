@@ -1,20 +1,42 @@
 """Camera discovery and calibration loading.
 
-Calibration is stored in the COMFI layout, which is the canonical format for
-RT-COSMIK both online (``config/cam_params``) and offline (one participant
-directory of a recorded dataset)::
+**Camera pose convention.** RT-COSMIK expects the pose of the camera *in the
+world frame*: ``R`` is the camera's orientation in world coordinates (its columns
+are the camera axes expressed in the world frame) and ``T`` is the camera's
+position in world coordinates, in metres. Equivalently the pair maps a point from
+camera coordinates into world coordinates::
+
+    p_world = R @ p_cam + T
+
+This is the opposite of what ``cv2.solvePnP`` and most aruco helpers return, so
+their output must be inverted before being stored (``R = R_cv.T``,
+``T = -R_cv.T @ t_cv``). Getting it backwards raises no error; the subject is
+simply reconstructed in the wrong place.
+
+Calibration is stored in the COMFI layout, canonical for RT-COSMIK both online
+(``config/cam_params``) and offline (one participant directory of a dataset)::
 
     <root>/intrinsics/camera_<i>_intrinsics.yaml
     <root>/extrinsics/cam_to_world/camera_<i>/camera_<i>_extrinsics.yaml
+    <root>/extrinsics/cam_to_cam/camera_<a>_to_camera_<b>.yaml
 
 Intrinsics are OpenCV ``FileStorage`` documents; cam-to-world files are plain
-YAML. Poses are taken from ``cam_to_world`` rather than by chaining the
-``cam_to_cam`` files the layout may also contain: one step covers any subset of
-cameras, and cam-to-cam chains are not always complete.
-"""
+YAML; cam-to-cam files are ``cv2.stereoCalibrate`` output stored in OpenCV's own
+convention (``p_b = R @ p_a + T``), i.e. saved exactly as OpenCV writes them.
 
+Reconstruction only needs the cameras' poses *relative to each other*; the world
+frame enters once, through :func:`load_world_transformation`. Those relative
+poses come from either source:
+
+* a world pose per camera, as a fit against shared motion-capture markers gives.
+  Each camera is placed independently, so error does not accumulate. Preferred.
+* stereo pairs chained from the reference camera, as a checkerboard calibration
+  gives. Then only the *reference* camera needs a world pose -- typically from a
+  single aruco marker -- to place the whole rig.
+"""
 import logging
 import os
+from collections import deque
 import subprocess
 
 import cv2 as cv
@@ -192,6 +214,98 @@ def intrinsics_path(config_path, camera_id):
     return os.path.join(config_path, "intrinsics", f"camera_{camera_id}_intrinsics.yaml")
 
 
+def cam_to_cam_path(config_path, cam_a, cam_b):
+    """Path to the stereo result relating two cameras, or None if absent."""
+    candidate = os.path.join(
+        config_path, "extrinsics", "cam_to_cam", f"camera_{cam_a}_to_camera_{cam_b}.yaml")
+    return candidate if os.path.isfile(candidate) else None
+
+
+def load_cam_to_cam(filename):
+    """
+    Load a stereo (camera-to-camera) result written by ``cv2.stereoCalibrate``.
+
+    The file is an OpenCV ``FileStorage`` document holding both cameras'
+    intrinsics plus the pose relating them::
+
+        p_b = R @ p_a + T
+
+    i.e. it takes a point expressed in camera A's frame into camera B's frame.
+
+    Returns:
+        tuple: ``(R, T)`` with shapes (3, 3) and (3,).
+    """
+    storage = cv.FileStorage(filename, cv.FILE_STORAGE_READ)
+    rotation = storage.getNode("R").mat()
+    translation = storage.getNode("T").mat()
+    storage.release()
+    if rotation is None or translation is None:
+        raise ValueError(f"Missing 'R'/'T' in cam-to-cam file: {filename}")
+    return np.asarray(rotation, dtype=float).reshape(3, 3), \
+        np.asarray(translation, dtype=float).reshape(3)
+
+
+def chain_relative_poses(config_path, camera_ids):
+    """
+    Derive each camera's pose relative to the first, by chaining stereo results.
+
+    A checkerboard calibration produces a pose per *pair* of cameras, not a world
+    pose per camera, so the poses form a graph that has to be walked. Links are
+    usable in both directions -- ``camera_0_to_camera_2`` inverted relates 2 to 0
+    -- so this walks breadth-first from the reference camera, which finds the
+    shortest chain to each camera and therefore accumulates the least stereo
+    error.
+
+    Args:
+        config_path (str): Calibration root in the COMFI layout.
+        camera_ids (Sequence[int]): Cameras to resolve; the first is the reference.
+
+    Returns:
+        dict: ``{camera_id: (R, T)}`` with ``p_cam = R @ p_ref + T``.
+
+    Raises:
+        FileNotFoundError: if no chain of stereo results reaches some camera.
+    """
+    camera_ids = list(camera_ids)
+    reference = camera_ids[0]
+
+    # Collect the available links, in both directions.
+    edges = {}
+    for cam_a in camera_ids:
+        for cam_b in camera_ids:
+            if cam_a == cam_b:
+                continue
+            path = cam_to_cam_path(config_path, cam_a, cam_b)
+            if path is None:
+                continue
+            rotation, translation = load_cam_to_cam(path)
+            edges.setdefault(cam_a, {})[cam_b] = (rotation, translation)
+            # p_a = R^T (p_b - T)
+            edges.setdefault(cam_b, {})[cam_a] = (rotation.T, -rotation.T @ translation)
+
+    poses = {reference: (np.eye(3), np.zeros(3))}
+    queue = deque([reference])
+    while queue:
+        current = queue.popleft()
+        rotation_current, translation_current = poses[current]
+        for neighbour, (rotation, translation) in edges.get(current, {}).items():
+            if neighbour in poses:
+                continue
+            # p_neighbour = R (R_cur p_ref + T_cur) + T
+            poses[neighbour] = (rotation @ rotation_current,
+                                rotation @ translation_current + translation)
+            queue.append(neighbour)
+
+    missing = [camera_id for camera_id in camera_ids if camera_id not in poses]
+    if missing:
+        raise FileNotFoundError(
+            f"No chain of cam_to_cam results reaches camera(s) {missing} from camera "
+            f"{reference} under {config_path}. A stereo result is needed for every "
+            f"consecutive pair, e.g. camera_0_to_camera_2.yaml.")
+
+    return {camera_id: poses[camera_id] for camera_id in camera_ids}
+
+
 def cam_to_world_path(config_path, camera_id, calib_session=None):
     """
     Resolve one camera's cam-to-world pose file.
@@ -259,13 +373,55 @@ def load_cam_to_world(filename):
     return load_cam_pose(filename)
 
 
-def load_camera_parameters(config_path, camera_ids=DEFAULT_CAMERA_IDS, calib_session=None):
+def describe_camera_placement(config_path, camera_ids=DEFAULT_CAMERA_IDS, calib_session=None):
+    """
+    Report where each camera sits in the world, to check the pose convention.
+
+    RT-COSMIK stores the camera's pose *in the world frame*, so a pose file's
+    translation is the camera's own position in the room. Printing it is the
+    quickest way to catch the one mistake that produces no error message:
+    storing the inverse transform, which reconstructs the subject in the wrong
+    place. Positions near the origin, or at an implausible height, mean the
+    stored pose is inverted.
+
+    Args:
+        config_path (str): Calibration root in the COMFI layout.
+        camera_ids (Sequence[int]): Cameras to report on.
+        calib_session (str | None): Calibration session, see :func:`cam_to_world_path`.
+
+    Returns:
+        dict: ``{camera_id: position}`` in metres, for cameras that have a world
+        pose. Cameras without one are omitted.
+    """
+    placements = {}
+    for camera_id in camera_ids:
+        pose_file = cam_to_world_path(config_path, camera_id, calib_session)
+        if pose_file is None:
+            continue
+        _, translation = load_cam_to_world(pose_file)
+        placements[camera_id] = np.asarray(translation, dtype=float).reshape(3)
+    return placements
+
+
+def load_camera_parameters(config_path, camera_ids=DEFAULT_CAMERA_IDS, calib_session=None,
+                           extrinsics_source="auto"):
     """
     Load intrinsics and extrinsics for a set of cameras.
 
-    Every camera pose is read from ``cam_to_world`` and then re-expressed
-    relative to the first requested camera, which becomes the reference frame
-    that triangulation outputs points in.
+    Triangulation and fusion only need the cameras' poses *relative to each
+    other*; the world frame enters separately, via
+    :func:`load_world_transformation`. Those relative poses can come from either
+    of the two ways a rig gets calibrated:
+
+    ``cam_to_world``
+        A world pose per camera, as a motion-capture dataset produces by fitting
+        each camera to shared markers. Each camera is fitted independently, so
+        error does not accumulate. Preferred when available.
+    ``cam_to_cam``
+        Stereo results per *pair*, as a checkerboard calibration produces. These
+        are chained from the reference camera. This is the usual online case,
+        where a checkerboard gives intrinsics and pairwise poses and a single
+        aruco marker fixes the reference camera in the world.
 
     Args:
         config_path (str): Calibration root in the COMFI layout.
@@ -273,11 +429,14 @@ def load_camera_parameters(config_path, camera_ids=DEFAULT_CAMERA_IDS, calib_ses
             the reference frame.
         calib_session (str | None): Calibration session to use when a camera has
             several, see :func:`cam_to_world_path`.
+        extrinsics_source (str): ``"auto"`` uses cam_to_world when every camera
+            has one and falls back to chaining cam_to_cam otherwise;
+            ``"cam_to_world"`` or ``"cam_to_cam"`` force one source.
 
     Returns:
         tuple: ``(mtxs, dists, projections, rotations, translations)``, each a
         list ordered like ``camera_ids``. ``projections[i]`` is the 3x4 matrix
-        ``[R | T]`` *without* the intrinsics: triangulation undistorts to
+        ``[R | T]`` *without* the intrinsics: reconstruction undistorts to
         normalized coordinates, so K must not be baked in.
     """
     camera_ids = list(camera_ids)
@@ -285,37 +444,59 @@ def load_camera_parameters(config_path, camera_ids=DEFAULT_CAMERA_IDS, calib_ses
     if not camera_ids:
         raise ValueError(f"No cameras requested or found under {config_path}")
 
+    if extrinsics_source not in ("auto", "cam_to_world", "cam_to_cam"):
+        raise ValueError(
+            f"extrinsics_source must be 'auto', 'cam_to_world' or 'cam_to_cam', "
+            f"got {extrinsics_source!r}")
+
     mtxs = []
     dists = []
-    world_poses = []
     for camera_id in camera_ids:
         intrinsics_file = intrinsics_path(config_path, camera_id)
         if not os.path.isfile(intrinsics_file):
             raise FileNotFoundError(f"Missing intrinsics for camera {camera_id}: {intrinsics_file}")
-        pose_file = cam_to_world_path(config_path, camera_id, calib_session)
-        if pose_file is None:
-            raise FileNotFoundError(
-                f"No cam-to-world pose for camera {camera_id} under {config_path}"
-            )
-
         K, D = load_cam_params(intrinsics_file)
         mtxs.append(np.asarray(K, dtype=float))
         dists.append(np.asarray(D, dtype=float))
-        R_world, T_world = load_cam_to_world(pose_file)
-        world_poses.append((orthonormalize_rotation(R_world), T_world))
 
-    # Reference camera: p_world = R_ref @ p_ref + T_ref
-    R_ref, T_ref = world_poses[0]
+    world_files = {camera_id: cam_to_world_path(config_path, camera_id, calib_session)
+                   for camera_id in camera_ids}
+    have_all_world = all(path is not None for path in world_files.values())
+
+    use_world = have_all_world if extrinsics_source == "auto" else \
+        extrinsics_source == "cam_to_world"
+
+    if use_world:
+        if not have_all_world:
+            missing = [camera_id for camera_id, path in world_files.items() if path is None]
+            raise FileNotFoundError(
+                f"No cam-to-world pose for camera(s) {missing} under {config_path}")
+        world_poses = []
+        for camera_id in camera_ids:
+            R_world, T_world = load_cam_to_world(world_files[camera_id])
+            world_poses.append((orthonormalize_rotation(R_world), T_world))
+
+        # Reference camera: p_world = R_ref @ p_ref + T_ref
+        R_ref, T_ref = world_poses[0]
+        relative = {}
+        for camera_id, (R_cam, T_cam) in zip(camera_ids, world_poses):
+            # p_cam = R_cam^T (p_world - T_cam), and p_world = R_ref p_ref + T_ref,
+            # so p_cam = (R_cam^T R_ref) p_ref + R_cam^T (T_ref - T_cam).
+            relative[camera_id] = (R_cam.T @ R_ref, R_cam.T @ (T_ref - T_cam))
+    else:
+        LOGGER.info(
+            "Deriving relative camera poses by chaining cam_to_cam from camera %d "
+            "(%s).", camera_ids[0],
+            "forced" if extrinsics_source == "cam_to_cam" else
+            "not every camera has a cam_to_world pose")
+        relative = chain_relative_poses(config_path, camera_ids)
 
     rotations = []
     translations = []
     projections = []
-    for R_cam, T_cam in world_poses:
-        # p_cam = R_cam^T (p_world - T_cam), and p_world = R_ref p_ref + T_ref,
-        # so p_cam = (R_cam^T R_ref) p_ref + R_cam^T (T_ref - T_cam).
-        rotation = R_cam.T @ R_ref
-        translation = (R_cam.T @ (T_ref - T_cam)).reshape(3, 1)
-
+    for camera_id in camera_ids:
+        rotation, translation = relative[camera_id]
+        translation = np.asarray(translation, dtype=float).reshape(3, 1)
         rotations.append(rotation)
         translations.append(translation)
         projections.append(np.concatenate([rotation, translation], axis=-1))
@@ -323,17 +504,31 @@ def load_camera_parameters(config_path, camera_ids=DEFAULT_CAMERA_IDS, calib_ses
     return mtxs, dists, projections, rotations, translations
 
 
-def load_world_transformation(config_path, ref_camera=DEFAULT_CAMERA_IDS[0], calib_session=None):
+def load_world_transformation(config_path, ref_camera=DEFAULT_CAMERA_IDS[0], calib_session=None,
+                              required=False):
     """
     Load the transform from the reference camera frame to the world frame.
 
+    Only the *reference* camera needs one: every other camera's pose is relative
+    to it, so a single anchor places the whole rig. That anchor can be a
+    Procrustes fit to motion-capture markers, or a single aruco marker viewed by
+    the reference camera -- whichever wrote the file, the convention is the same,
+    ``p_world = R @ p_cam + T``.
+
+    With no anchor at all the reference camera's own frame is used as the world
+    frame. Joint angles stay valid, since they only depend on relative geometry,
+    but anything expressed in room coordinates -- the free-flyer translation,
+    comparisons against motion capture -- is then in camera coordinates.
+
     Args:
         config_path (str): Calibration root in the COMFI layout.
-        ref_camera (int): Camera whose frame triangulation outputs points in,
+        ref_camera (int): Camera whose frame reconstruction outputs points in,
             i.e. the first entry of the ``camera_ids`` passed to
             :func:`load_camera_parameters`.
         calib_session (str | None): Calibration session to use when the camera
             has several, see :func:`cam_to_world_path`.
+        required (bool): Raise instead of falling back to identity when the
+            reference camera has no world pose.
 
     Returns:
         tuple: ``(world_R_cam, world_T_cam)`` with shapes (3, 3) and (3,), such
@@ -341,8 +536,13 @@ def load_world_transformation(config_path, ref_camera=DEFAULT_CAMERA_IDS[0], cal
     """
     pose_file = cam_to_world_path(config_path, ref_camera, calib_session)
     if pose_file is None:
-        raise FileNotFoundError(
-            f"No cam-to-world pose for reference camera {ref_camera} under {config_path}"
-        )
+        if required:
+            raise FileNotFoundError(
+                f"No cam-to-world pose for reference camera {ref_camera} under {config_path}")
+        LOGGER.warning(
+            "No world pose for reference camera %d under %s; using its own frame as the "
+            "world frame. Joint angles are unaffected, but positions are in camera "
+            "coordinates rather than room coordinates.", ref_camera, config_path)
+        return np.eye(3), np.zeros(3)
     world_R_cam, world_T_cam = load_cam_to_world(pose_file)
     return orthonormalize_rotation(world_R_cam), world_T_cam.reshape((3,))
