@@ -2,7 +2,6 @@ from collections import deque
 import torch
 import numpy as np
 import pinocchio as pin
-import example_robot_data as robex
 from datetime import datetime
 from multiprocessing import Process, Array, Lock, Value, Event, Queue
 from typing import List
@@ -11,8 +10,7 @@ import time
 from rtcosmik.nlf.nlf import NLFEstimator, extract_views
 from rtcosmik.triangulation.triangulation import reconstruct_3d
 from rtcosmik.filtering.iir import IIR
-from rtcosmik.human_model.model_utils import scale_human_model, mks_registration, recalibrate_marker_frames_in_joint_space
-from rtcosmik.ik.ik import RT_IK, RT_SWIKA_FATROP, RT_SWIKA_ACADOS
+from rtcosmik.pipeline.solver import HumanSolver
 from rtcosmik.camera.cam_utils import load_camera_parameters,load_world_transformation
 from rtcosmik.model_weights import resolve_detector_engine
 
@@ -68,6 +66,8 @@ class PipelineProcess(Process):
         self.logger = logger or LOGGER
 
     def run(self):
+
+        self.solver = HumanSolver(self.settings, logger=self.logger)
 
         est = NLFEstimator(
             yolo_path=resolve_detector_engine(self.settings.yolo_path, self.num_cameras),
@@ -139,84 +139,17 @@ class PipelineProcess(Process):
 
                         augmented_markers=filtered_p3d_buffer[-1]
 
+                        mks_dict = dict(zip(self.settings.marker_names, augmented_markers))
+
                         if self.first_sample:
-                            mks_dict = dict(zip(self.settings.marker_names, augmented_markers))
-
-                            human = robex.human.HumanLoader(height=self.settings.human_height, weight=self.settings.human_weight, gender=self.settings.human_gender).robot
-                            human_model = human.model
-
-                            #scale the model to data
-                            human_model = scale_human_model(human_model, mks_dict, gender=self.settings.human_gender, subject_height=self.settings.human_height)
-                            human_model= mks_registration(human_model, mks_dict, gender=self.settings.human_gender, subject_height=self.settings.human_height)
-
-                            # IK
-                            if self.settings.ik_type == 'sbs':
-                                omega = {}
-                                for key in self.settings.keys_to_track_list:
-                                    omega[key] = 1
-                                q = pin.neutral(human_model)
-                                ik_class = RT_IK(human_model, mks_dict, q, self.settings.keys_to_track_list, self.settings.dt, omega)
-
-                                q = ik_class.solve_ik_sample_casadi()
-                                ik_class._q0 = q
-
-                                # Recalibrate briefly the markers translation in joint frames
-                                human_model=recalibrate_marker_frames_in_joint_space(human_model,q,mks_dict,self.settings.marker_names)
-
-                                ik_class = RT_IK(human_model, mks_dict, q, self.settings.keys_to_track_list, self.settings.dt, omega)
-                                self.logger.info("[INFO] Model calibration finished, ready to process...")
-
-                            elif self.settings.ik_type == 'mhe':
-                                ik_class = RT_SWIKA_FATROP(human_model, self.settings.keys_to_track_list, self.settings.N, code = self.settings.ik_code)
-
-                                x_array = np.zeros((human_model.nq+human_model.nv, self.settings.N))
-                                x_array[6,:]=1
-                                u_array = np.zeros((human_model.nv, self.settings.N))
-                                deque_lstm_dict = deque(maxlen=self.settings.N)
-                                for k in range(self.settings.N):
-                                    deque_lstm_dict.append(mks_dict)
-
-                                array_data = np.array([np.hstack([d[marker] for marker in self.settings.keys_to_track_list]) for d in deque_lstm_dict]).T
-
-                                x_array, u_array = ik_class.solve(x_array, u_array, array_data, x_array[:,-1], self.settings.cost_weights, self.settings.dt)
-
-                                q = pin.neutral(human_model)
-                                q[:] = np.array(x_array[:human_model.nq,-1]).flatten()
-
-                                # Recalibrate briefly the markers translation in joint frames
-                                human_model=recalibrate_marker_frames_in_joint_space(human_model,q,mks_dict,self.settings.marker_names)
-
-                                if self.settings.mhe_backend == 'acados':
-                                    ik_class = RT_SWIKA_ACADOS(human_model, self.settings.keys_to_track_list, self.settings.N, self.settings.dt, export_dir=self.settings.acados_export_dir, acados_source_dir=self.settings.acados_source_dir, max_iter=self.settings.mhe_max_iter)
-                                else:
-                                    ik_class = RT_SWIKA_FATROP(human_model, self.settings.keys_to_track_list, self.settings.N, code = self.settings.ik_code, max_iter=self.settings.mhe_max_iter)
-                                self.logger.info("[INFO] Model calibration finished, ready to process...")
-                            else : 
-                                raise ValueError("Invalid ik type, should be sbs (sample by sample) or mhe (moving horizon estimation)")
-
+                            q = self.solver.calibrate(mks_dict)
                             self.first_sample = False
-
-                        else: # Init phase finished
-                            mks_dict = dict(zip(self.settings.marker_names, augmented_markers))
+                        else:
+                            # Only publish once the model is calibrated, so a
+                            # consumer never sees poses from the init frame.
                             self.results_queues[0].put((new_counters, mks_dict))
+                            q = self.solver.step(mks_dict)
+                            self.results_queues[1].put((new_counters, q))
 
-                            # IK directly 
-                            if self.settings.ik_type == 'sbs':
-                                ik_class._dict_m = mks_dict
-                                q = ik_class.solve_ik_sample_quadprog() 
-                                ik_class._q0 = q
-                                self.results_queues[1].put((new_counters, q))
-
-                            elif self.settings.ik_type == 'mhe':
-                                deque_lstm_dict.append(mks_dict)
-                                array_data = np.array([np.hstack([d[marker] for marker in self.settings.keys_to_track_list]) for d in deque_lstm_dict]).T
-                                
-                                x_array, u_array = ik_class.solve(x_array, u_array, array_data, x_array[:,-1], self.settings.cost_weights, self.settings.dt)
-
-                                q = pin.neutral(human_model)
-                                q[:] = np.array(x_array[:human_model.nq,-1]).flatten()
-                                self.results_queues[1].put((new_counters, q))
-                            else : 
-                                raise ValueError("Invalid ik type, should be sbs (sample by sample) or mhe (moving horizon estimation)")
         finally:        
             self.logger.info("[INFO] Pipeline Process terminated")

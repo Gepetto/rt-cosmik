@@ -22,8 +22,7 @@ from rtcosmik.config_loader import settings
 from rtcosmik.nlf.nlf import NLFEstimator, extract_views
 from rtcosmik.triangulation.triangulation import reconstruct_3d
 from rtcosmik.filtering.iir import IIR
-from rtcosmik.human_model.model_utils import scale_human_model, mks_registration, recalibrate_marker_frames_in_joint_space
-from rtcosmik.ik.ik import RT_IK, RT_SWIKA_FATROP, RT_SWIKA_ACADOS
+from rtcosmik.pipeline.solver import HumanSolver
 from rtcosmik.camera.cam_utils import list_cameras, load_camera_parameters, load_world_transformation
 from rtcosmik.camera.camera import Camera
 from rtcosmik.utils.mp_utils import create_camera_shared_ressources, create_pipeline_shared_ressources
@@ -36,7 +35,6 @@ from rtcosmik.pipeline.pipeline import PipelineProcess
 
 from multiprocessing import set_start_method
 from collections import deque, OrderedDict
-import example_robot_data as robex
 
 import logging
 
@@ -189,6 +187,8 @@ def main(args):
         )
 
         # Init for the rest
+        solver = HumanSolver(settings, gender=subject_gender, height=subject_height,
+                             weight=subject_weight, logger=LOGGER)
         first_sample = True
         p3d_buffer = deque(maxlen=settings.N)
 
@@ -241,24 +241,17 @@ def main(args):
                     g.PointCloud(position=augmented_markers.T, color=colors, size=0.02)
                 )
 
+                mks_dict = dict(zip(settings.marker_names, augmented_markers))
+
                 if first_sample:
-                    mks_dict = dict(zip(settings.marker_names, augmented_markers))
-
-                    human = robex.human.HumanLoader(height=subject_height, weight=subject_weight, gender=subject_gender).robot
-                    human_model = human.model
-                    human_collision_model = human.collision_model
-                    human_visual_model = human.visual_model
-
-                    #scale the model to data
-                    human_model = scale_human_model(human_model, mks_dict, gender=subject_gender, subject_height=subject_height)
-                    human_model= mks_registration(human_model, mks_dict, gender=subject_gender, subject_height=subject_height)
-                    # human_data = pin.Data(human_model)
+                    q = solver.calibrate(mks_dict)
+                    human_model, human_data = solver.model, solver.data
 
                     # Init meshcat viewer for human
-                    # Visualizers
-                    viz_human = MeshcatVisualizer(human_model, human_collision_model, human_visual_model)
+                    viz_human = MeshcatVisualizer(
+                        human_model, solver.collision_model, solver.visual_model)
                     viz_human.initViewer(vis, open=True)
-                    
+
                     # Don't delete the whole Meshcat tree: keep '/markers' etc.
                     try:
                         vis["ref"].delete()
@@ -266,89 +259,14 @@ def main(args):
                         pass
                     viz_human.loadViewerModel("ref")
 
-                    viz_human.viewer["/Background"].set_property("top_color", [1, 1, 1])  # Dark gray (RGB values in [0, 1])
-                    viz_human.viewer["/Background"].set_property("bottom_color", [0.65, 0.65, 0.65])  # Same color → flat background
-
-                    # viz_human.display(pin.neutral(human_model))
-                    # # show debug frames at neutral configuration
-                    # dbg_q0 = pin.neutral(human_model)
-                    # # dbg_vis is created a bit later (after background), so we'll update after it's created
-                    # # DEBUG: display joint frames + marker frames + model marker positions
-                    # dbg_vis = setup_debug_visuals(vis, human_model, settings.marker_names, triad_length=0.08)
-                    # update_debug_visuals(vis, human_model, human_data, dbg_q0, dbg_vis)
-                    # input()
-
-                    # IK
-                    if settings.ik_type == 'sbs':
-                        omega = {}
-                        for key in settings.keys_to_track_list:
-                            omega[key] = 1
-                        q = pin.neutral(human_model)
-                        ik_class = RT_IK(human_model, mks_dict, q, settings.keys_to_track_list, settings.dt, omega)
-
-                        q = ik_class.solve_ik_sample_casadi()
-                        ik_class._q0 = q
-                        viz_human.display(q)
-
-                        # Recalibrate briefly the markers translation in joint frames
-                        human_model=recalibrate_marker_frames_in_joint_space(human_model,q,mks_dict,settings.marker_names)
-                        human_data=human_model.createData()
-
-                        ik_class = RT_IK(human_model, mks_dict, q, settings.keys_to_track_list, settings.dt, omega)
-                        LOGGER.info("[INFO] Model calibration finished, ready to process...")
-
-                    elif settings.ik_type == 'mhe':
-                        ik_class = RT_SWIKA_FATROP(human_model, settings.keys_to_track_list, settings.N, code = settings.ik_code)
-
-                        x_array = np.zeros((human_model.nq+human_model.nv, settings.N))
-                        x_array[6,:]=1
-                        u_array = np.zeros((human_model.nv, settings.N))
-                        deque_lstm_dict = deque(maxlen=settings.N)
-                        for k in range(settings.N):
-                            deque_lstm_dict.append(mks_dict)
-
-                        array_data = np.array([np.hstack([d[marker] for marker in settings.keys_to_track_list]) for d in deque_lstm_dict]).T
-
-                        x_array, u_array = ik_class.solve(x_array, u_array, array_data, x_array[:,-1], settings.cost_weights, settings.dt)
-
-                        q = pin.neutral(human_model)
-                        q[:] = np.array(x_array[:human_model.nq,-1]).flatten()
-                        viz_human.display(q)
-
-                        # Recalibrate briefly the markers translation in joint frames
-                        human_model=recalibrate_marker_frames_in_joint_space(human_model,q,mks_dict,settings.marker_names)
-                        human_data=human_model.createData()
-
-                        if settings.mhe_backend == 'acados':
-                            ik_class = RT_SWIKA_ACADOS(human_model, settings.keys_to_track_list, settings.N, settings.dt, export_dir=settings.acados_export_dir, acados_source_dir=settings.acados_source_dir, max_iter=settings.mhe_max_iter)
-                        else:
-                            ik_class = RT_SWIKA_FATROP(human_model, settings.keys_to_track_list, settings.N, code = settings.ik_code, max_iter=settings.mhe_max_iter)
-                        LOGGER.info("[INFO] Model calibration finished, ready to process...")
-                    else : 
-                        raise ValueError("Invalid ik type, should be sbs (sample by sample) or mhe (moving horizon estimation)")
+                    viz_human.viewer["/Background"].set_property("top_color", [1, 1, 1])
+                    viz_human.viewer["/Background"].set_property("bottom_color", [0.65, 0.65, 0.65])
 
                     first_sample = False
+                else:
+                    q = solver.step(mks_dict)
 
-                else: # Init phase finished
-                    mks_dict = dict(zip(settings.marker_names, augmented_markers))
-
-                    # IK directly 
-                    if settings.ik_type == 'sbs':
-                        ik_class._dict_m = mks_dict
-                        q = ik_class.solve_ik_sample_quadprog() 
-                        ik_class._q0 = q
-                        viz_human.display(q)
-                    elif settings.ik_type == 'mhe':
-                        deque_lstm_dict.append(mks_dict)
-                        array_data = np.array([np.hstack([d[marker] for marker in settings.keys_to_track_list]) for d in deque_lstm_dict]).T
-                        
-                        x_array, u_array = ik_class.solve(x_array, u_array, array_data, x_array[:,-1], settings.cost_weights, settings.dt)
-
-                        q = pin.neutral(human_model)
-                        q[:] = np.array(x_array[:human_model.nq,-1]).flatten()
-                        viz_human.display(q)
-                    else : 
-                        raise ValueError("Invalid ik type, should be sbs (sample by sample) or mhe (moving horizon estimation)")
+                viz_human.display(q)
 
                 if saver is not None:
                     marker_row = OrderedDict(Frame=frames_read)
