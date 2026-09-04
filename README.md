@@ -12,9 +12,12 @@ To generate the appropriate models, use:
 ```
 
 To install the toolbox and use the scripts files: 
-```bash 
+```bash
 pip install -e .
 ```
+
+For the optional monocular Fast SAM 3D Body estimator and its TensorRT setup,
+see [docs/fastsam3dbody.md](docs/fastsam3dbody.md).
 
 ## Citing RT-COSMIK
 
@@ -48,4 +51,3 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 ## Project Status
 RT-COSMIK is currently under active development. Contributions and feedback are welcome. 
-

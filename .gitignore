@@ -1,4 +1,5 @@
 **/__pycache__/
+.venv-fastsam3dbody/
 debug_fatrop_A.mtx
 debug_fatrop_actual.mtx
 debug_fatrop_B.mtx
