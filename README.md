@@ -145,6 +145,20 @@ a warning. Joint angles are unaffected, since they depend only on relative
 geometry, but positions are then in camera coordinates rather than room
 coordinates.
 
+#### Calibrating a rig
+
+[cams_calibration](https://gitlab.laas.fr/msabbah/cams_calibration) produces this
+layout directly, and installs it here:
+
+```bash
+python3 scripts/rgb/calibrate_cameras.py --cameras 0 2 4 6 --install
+python3 scripts/rgb/set_world_frame.py   --cameras 0 2 4 6 --install
+```
+
+It may also record a `cameras.yaml` naming the USB port behind each camera id.
+Where present, RT-COSMIK matches on it instead of trusting the v4l2 index, so a
+recabled rig is remapped rather than silently paired with the wrong calibration.
+
 ### 3. Run one trial
 
 ```bash

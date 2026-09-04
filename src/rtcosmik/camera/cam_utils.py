@@ -74,6 +74,103 @@ def list_cameras():
     return cameras
 
 
+# ---------------------------------------------------------------------------
+# Which physical camera is which
+# ---------------------------------------------------------------------------
+#
+# The ids in the layout are v4l2 indices, which record the order the kernel
+# happened to enumerate devices in. They are not identity: replugging a camera,
+# or simply rebooting, can hand index 0 to a different camera. Nothing in the
+# calibration would notice, so one camera's intrinsics and pose would be applied
+# to another, producing a plausible-looking but wrong reconstruction.
+#
+# A calibration may therefore carry a ``cameras.yaml`` recording the hardware
+# behind each id when it was calibrated. When present it is used to map the
+# indices seen now onto the ids they were calibrated as.
+
+
+def camera_manifest_path(config_path):
+    """Path to the record of which physical camera each id refers to."""
+    return os.path.join(config_path, "cameras.yaml")
+
+
+def load_camera_manifest(config_path):
+    """Read a calibration's camera manifest, or None when it has none."""
+    path = camera_manifest_path(config_path)
+    if not os.path.isfile(path):
+        return None
+    with open(path) as handle:
+        data = yaml.safe_load(handle) or {}
+    entries = data.get("cameras", [])
+    return {int(entry["id"]): entry for entry in entries if "id" in entry}
+
+
+def camera_bus_info(index):
+    """The USB port path behind a v4l2 index, or None.
+
+    The port path is what distinguishes otherwise identical cameras: units of
+    the same model commonly share a placeholder serial number, so a serial
+    cannot tell two of them apart.
+    """
+    try:
+        output = subprocess.check_output(
+            ["v4l2-ctl", "-d", f"/dev/video{index}", "--info"],
+            stderr=subprocess.DEVNULL).decode()
+    except Exception:
+        return None
+    for line in output.splitlines():
+        if "Bus info" in line:
+            return line.split(":", 1)[1].strip()
+    return None
+
+
+def resolve_camera_ids(config_path, indices):
+    """Map the v4l2 indices present now onto the ids they were calibrated as.
+
+    Recabling a rig changes which index each camera answers to, but not where
+    each camera sits in the room, so the calibration remains valid and is merely
+    attached to the wrong ids. Matching on the recorded port path recovers the
+    pairing, turning a reshuffle into a remap instead of a silent error.
+
+    This recovers *cable* changes only. A camera physically moved to a new place
+    has stale extrinsics whatever its port says, and only recalibration fixes
+    that; no amount of USB metadata can detect it.
+
+    Args:
+        config_path (str): calibration root, possibly holding ``cameras.yaml``.
+        indices (Sequence[int]): v4l2 indices present now.
+
+    Returns:
+        dict: ``{index: calibrated_camera_id}``. Without a manifest, or for an
+        index whose port was never calibrated, the index maps to itself, which
+        is the behaviour of a calibration that predates the manifest.
+    """
+    manifest = load_camera_manifest(config_path)
+    if manifest is None:
+        return {index: index for index in indices}
+
+    by_bus = {entry["bus_info"]: camera_id
+              for camera_id, entry in manifest.items() if entry.get("bus_info")}
+    resolved = {}
+    for index in indices:
+        bus = camera_bus_info(index)
+        camera_id = by_bus.get(bus) if bus else None
+        if camera_id is None:
+            LOGGER.warning(
+                "Camera at index %d is on port %s, which is not in the calibration's "
+                "manifest. Using its index as its id; if the rig was recabled this "
+                "pairs it with the wrong calibration.", index, bus or "unknown")
+            resolved[index] = index
+        else:
+            if camera_id != index:
+                LOGGER.warning(
+                    "Camera at index %d is the one calibrated as camera_%d (port %s); "
+                    "using camera_%d's calibration for it.",
+                    index, camera_id, bus, camera_id)
+            resolved[index] = camera_id
+    return resolved
+
+
 def orthonormalize_rotation(R):
     """Project a matrix onto the nearest rotation matrix (SVD, det = +1).
 
