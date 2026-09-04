@@ -151,8 +151,8 @@ coordinates.
 layout directly, and installs it here:
 
 ```bash
-python3 scripts/rgb/calibrate_cameras.py --cameras 0 2 4 6 --install
-python3 scripts/rgb/set_world_frame.py   --cameras 0 2 4 6 --install
+python3 scripts/calibrate_cameras.py --cameras 0 2 4 6 --install
+python3 scripts/set_world_frame.py   --cameras 0 2 4 6 --install
 ```
 
 It may also record a `cameras.yaml` naming the USB port behind each camera id.
