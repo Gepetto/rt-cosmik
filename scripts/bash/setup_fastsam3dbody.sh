@@ -89,5 +89,5 @@ Python: ${FASTSAM_VENV}/bin/python
 Run the integration test with:
 FASTSAM3DBODY_ROOT=${FASTSAM_ROOT} \\
 ${FASTSAM_VENV}/bin/python -m pytest -s \\
-  ${ROOT_DIR}/tests/unit/pose_estimator/test_fastsam3dbody.py
+  ${ROOT_DIR}/tests/unit/pose_estimator/test_fastsam3dbody_comfi.py
 EOF

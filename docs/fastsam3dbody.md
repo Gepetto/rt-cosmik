@@ -8,8 +8,8 @@ MoGe/FOV network from the inference path.
 
 The integration test uses:
 
-- `tests/full/data/camera_0.mp4`
-- `tests/full/config/c1_params_color.yaml`
+- `/root/workspace/COMFI/videos/1012/CircularWalking/camera_0.mp4`
+- `/root/workspace/COMFI/cam_params/1012/intrinsics/camera_0_intrinsics.yaml`
 
 ## GPU container requirement
 
@@ -47,14 +47,15 @@ MoGe, because RT-COSMIK supplies camera intrinsics.
 ```bash
 MPLCONFIGDIR=/tmp/rtcosmik-matplotlib \
   .venv-fastsam3dbody/bin/python -m pytest -s \
-  tests/unit/pose_estimator/test_fastsam3dbody.py
+  tests/unit/pose_estimator/test_fastsam3dbody_comfi.py
 ```
 
-The GPU integration test collects six successful outputs from the first 20
-frames, checks the MHR output contract (18,439 vertices, 70 keypoints, and 127
-joints), and saves the final result under pytest's temporary directory. Without
-a GPU or built engines, only the calibration and output-contract tests run and
-the integration test is skipped.
+The GPU integration test processes the first 20 frames, checks the MHR output
+contract (18,439 vertices, 70 keypoints, and 127 joints), and permanently saves
+the arrays, metadata, extraction log, and overlay video under
+`output/fastsam3dbody/comfi-test/1012/CircularWalking/camera_0`. Without a GPU
+or built engines, only the calibration and output-contract tests run and the
+integration test is skipped.
 
 On the RTX 4500 Ada used for this setup, the validated steady-state inference
 times were 114–116 ms/frame. Model initialization takes about 15 seconds, and
@@ -66,15 +67,17 @@ this workload, so the adapter retains the fork's native FP32 decoder policy.
 For a slower diagnostic fallback on a GPU without TensorRT engines, construct
 `FastSAM3DBodyConfig(require_tensorrt=False)`. The default remains TensorRT.
 
-## Export a complete video
+## Export one video
 
-The exporter defaults to `camera_0.mp4`, its `c1` calibration, and writes to
-`output/fastsam3dbody/camera_0`:
+The low-level exporter accepts one video and its matching calibration:
 
 ```bash
 MPLCONFIGDIR=/tmp/rtcosmik-matplotlib \
   .venv-fastsam3dbody/bin/python \
-  scripts/python/export_fastsam3dbody_video.py
+  scripts/python/export_fastsam3dbody_video.py \
+  --video /root/workspace/COMFI/videos/1012/CircularWalking/camera_0.mp4 \
+  --calibration /root/workspace/COMFI/cam_params/1012/intrinsics/camera_0_intrinsics.yaml \
+  --output-dir output/fastsam3dbody/comfi-one-video
 ```
 
 It saves one row per input frame in `bbox.npy`, `cam_t.npy`,
@@ -87,3 +90,34 @@ It saves one row per input frame in `bbox.npy`, `cam_t.npy`,
 
 Use `--start-frame`, `--end-frame`, or `--stride` for subsets. Existing output
 is protected unless `--overwrite` is supplied.
+
+## Process COMFI with one camera
+
+The COMFI launcher discovers videos using
+`videos/<subject>/<activity>/camera_N.mp4` and pairs each one with
+`cam_params/<subject>/intrinsics/camera_N_intrinsics.yaml`. It uses camera 0 by
+default and the same TensorRT exporter and output arrays described above.
+
+Check all camera-0 mappings without writing output:
+
+```bash
+.venv-fastsam3dbody/bin/python \
+  scripts/python/export_fastsam3dbody_comfi.py --dry-run
+```
+
+Run one short test before starting a large export:
+
+```bash
+MPLCONFIGDIR=/tmp/rtcosmik-matplotlib \
+  .venv-fastsam3dbody/bin/python \
+  scripts/python/export_fastsam3dbody_comfi.py \
+  --subjects 1012 --activities CircularWalking \
+  --max-videos 1 --end-frame 20 \
+  --output-root output/fastsam3dbody/comfi-smoke
+```
+
+Remove `--max-videos` and `--end-frame` to process all selected recordings.
+Use `--subjects`, `--activities`, and `--camera-id` to choose a subset. Outputs
+are organized as `<output-root>/<subject>/<activity>/camera_N/`. Processing the
+whole dataset produces large vertex arrays, so select an output location with
+enough free space.

@@ -5,10 +5,8 @@ from .fastsam3dbody import (
     FastSAM3DBodyEstimator,
     load_opencv_camera_calibration,
 )
-
 __all__ = [
     "FastSAM3DBodyConfig",
     "FastSAM3DBodyEstimator",
     "load_opencv_camera_calibration",
 ]
-
