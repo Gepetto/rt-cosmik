@@ -79,7 +79,10 @@ def resolve_detector_engine(base_path, num_cameras):
     available = available_camera_counts(base_path)
     hint = (f"engines are available for {available} camera(s)"
             if available else "no per-camera-count engines were found")
+    model = Path(base_path).stem
     raise FileNotFoundError(
-        f"No detector engine for {num_cameras} camera(s) ({hint}).\n"
-        f"Build one with: BATCHES={num_cameras} bash scripts/bash/fetch_models.sh"
+        f"No '{model}' detector engine for {num_cameras} camera(s) ({hint}).\n"
+        f"Build one with: YOLO_MODELS={model} BATCHES={num_cameras} "
+        f"bash scripts/bash/fetch_models.sh\n"
+        f"(the detector is chosen by settings.yolo_model)"
     )

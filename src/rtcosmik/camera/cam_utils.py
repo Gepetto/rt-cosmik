@@ -580,12 +580,16 @@ def load_camera_parameters(config_path, camera_ids=DEFAULT_CAMERA_IDS, calib_ses
             # p_cam = R_cam^T (p_world - T_cam), and p_world = R_ref p_ref + T_ref,
             # so p_cam = (R_cam^T R_ref) p_ref + R_cam^T (T_ref - T_cam).
             relative[camera_id] = (R_cam.T @ R_ref, R_cam.T @ (T_ref - T_cam))
+        LOGGER.info(
+            "[CAL] extrinsics from cam_to_world (%s), each camera fitted "
+            "independently", "forced" if extrinsics_source == "cam_to_world"
+            else "auto: every camera has one")
     else:
         LOGGER.info(
-            "Deriving relative camera poses by chaining cam_to_cam from camera %d "
-            "(%s).", camera_ids[0],
+            "[CAL] extrinsics by chaining cam_to_cam from camera %d (%s); error "
+            "accumulates along the chain", camera_ids[0],
             "forced" if extrinsics_source == "cam_to_cam" else
-            "not every camera has a cam_to_world pose")
+            "auto: not every camera has a cam_to_world pose")
         relative = chain_relative_poses(config_path, camera_ids)
 
     rotations = []
@@ -597,6 +601,11 @@ def load_camera_parameters(config_path, camera_ids=DEFAULT_CAMERA_IDS, calib_ses
         rotations.append(rotation)
         translations.append(translation)
         projections.append(np.concatenate([rotation, translation], axis=-1))
+        # Baselines are the cheapest sanity check on a calibration: if one does
+        # not look like the room, nothing downstream will be right.
+        if camera_id != camera_ids[0]:
+            LOGGER.info("[CAL] camera %d is %.3f m from the reference camera %d",
+                        camera_id, float(np.linalg.norm(translation)), camera_ids[0])
 
     return mtxs, dists, projections, rotations, translations
 

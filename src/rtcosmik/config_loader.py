@@ -87,6 +87,8 @@ class DefaultSettings:
     no_trial: str = "default"
     SAVE_VID: bool = False
     SAVE_CSV: bool = False
+    record_hotkeys: bool = True
+    record_on_start: bool = False
     output_dir: str = field(init=False)  # <repo>/output
     SAVE_DIR: str = field(init=False)    # online trial directory
 
@@ -117,17 +119,18 @@ class DefaultSettings:
     # MODELS
     cano_path: str = field(init=False)
     nlf_path: str = field(init=False)
+    yolo_model: str = "yolov10n"
     yolo_path: str = field(init=False)
     yolo_conf: float = 0.2
     yolo_imgsz: int = 640
 
     # IK
     ik_type: str = "sbs"
-    mhe_backend: str = "fatrop"  # "fatrop" (validated reference) or "acados"
     ik_code: str = "python"
+    mhe_backend: str = "fatrop"  # "fatrop" (validated reference) or "acados"
+    mhe_profile: str = "realtime"  # "realtime" or "accurate"
     cost_weights: list = field(default_factory=lambda: [1, 1e-3, 1e-5])
     N: int = 10
-    mhe_max_iter: int = None  # cap solver iterations (both backends); None = solver default
     acados_export_dir: str = None  # default: <repo>/output/acados
     acados_source_dir: str = None  # default: read from ACADOS_SOURCE_DIR env var
 
@@ -191,7 +194,7 @@ class DefaultSettings:
         self.robot_calib_path = str(root / "config" / "robot_params")
         self.cano_path = str(root / "weights" / "canonical_verts" / "smplx.npy")
         self.nlf_path = str(root / "weights" / "nlf" / "nlf_s_multi_0.2.2.torchscript")
-        self.yolo_path = str(root / "weights" / "yolo" / "yolov10n.engine")
+        self.yolo_path = str(root / "weights" / "yolo" / f"{self.yolo_model}.engine")
         self.dt = 1 / self.fs
 
 

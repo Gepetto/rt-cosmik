@@ -1,4 +1,8 @@
+import time
+
 import cv2
+
+from rtcosmik.camera.sources import FFmpegSource
 import numpy as np
 from datetime import datetime
 import multiprocessing as mp
@@ -19,6 +23,10 @@ class Camera(Process):
                  frame_shape: tuple = (720, 1280, 3),
                  cam_fps: int = 40,
                  cam_fourcc: str = "MJPG",
+                 source=None,
+                 record_path=None,
+                 realtime=False,
+                 calibrated_event=None,
                  logger=None,
                  ):
         
@@ -35,6 +43,10 @@ class Camera(Process):
         self.frame_shape = frame_shape  # (height, width, channels)
         self.cam_fps = cam_fps
         self.cam_fourcc = cam_fourcc
+        self.source = source
+        self.record_path = record_path
+        self.realtime = realtime
+        self.calibrated_event = calibrated_event
 
         self.logger=logger or LOGGER
 
@@ -43,20 +55,20 @@ class Camera(Process):
             raise ValueError("Timestamp buffer must be exactly 26 characters")
 
     def run(self):
-        cap = cv2.VideoCapture(self.cam_id, cv2.CAP_V4L2)
+        # ffmpeg rather than cv2.VideoCapture: it honours the low-latency flags
+        # OpenCV ignores, and it can copy the camera's own stream to disk with no
+        # re-encode. The same class replays a recording as a fake camera, which
+        # is how the online path is tested without a rig.
+        source = self.source if self.source is not None else f"/dev/video{self.cam_id}"
+        cap = FFmpegSource(
+            source,
+            width=self.frame_shape[1], height=self.frame_shape[0],
+            fps=self.cam_fps, input_format=("mjpeg" if self.cam_fourcc == "MJPG"
+                                            else "yuyv422"),
+            realtime=self.realtime, record_path=self.record_path,
+            logger=self.logger).open()
         if not cap.isOpened():
-            raise Exception(f"Camera {self.cam_id} could not be opened.")
-        
-        # Set camera properties once if specified
-        if self.cam_fourcc:
-            cap.set(cv2.CAP_PROP_FOURCC, cv2.VideoWriter_fourcc(*self.cam_fourcc))
-        if self.frame_shape:
-            cap.set(cv2.CAP_PROP_FRAME_HEIGHT, self.frame_shape[0])
-            cap.set(cv2.CAP_PROP_FRAME_WIDTH, self.frame_shape[1])
-        if self.cam_fps:
-            cap.set(cv2.CAP_PROP_FPS, self.cam_fps)
-
-        cap.set(cv2.CAP_PROP_BUFFERSIZE, 1)
+            raise Exception(f"Camera {self.cam_id} could not be opened ({source}).")
 
         # reshape shared buffer once
         arr          = np.frombuffer(self.shared_buffer, dtype=np.uint8)
@@ -66,27 +78,51 @@ class Camera(Process):
         self.logger.info(f"[INFO] Camera {self.cam_id} is ready to acquire images ...")
         self.barrier.wait()
 
+        held = None
         try:
             while not self.stop_event.is_set():
                 # --- 1) all processes synchronize before grabbing next frame
                 self.barrier.wait()
 
+                # A replay must not run ahead while the model calibrates: in a
+                # real session the subject stands still and waits, so the
+                # recording is held on its first frame until the pipeline says
+                # it is calibrated. Without this the first second of the trial
+                # is consumed before tracking even starts.
+                advance = (held is None or self.calibrated_event is None
+                           or self.calibrated_event.is_set())
+
                 # --- 2) tell the driver to queue the next frame
-                cap.grab()
+                if advance:
+                    cap.grab()
 
                 # --- 3) wait here until everyone has grabbed
                 self.barrier.wait()
 
                 # --- 4) pull the actual image out of the buffer
-                ret, frame = cap.retrieve()
-                if not ret:
-                    continue
+                if advance:
+                    ret, frame = cap.retrieve()
+                    if not ret:
+                        continue
+                    held = frame
+                else:
+                    # Pace the hold at the camera's own rate. Without this the
+                    # loop spins as fast as the barrier allows -- ffmpeg is not
+                    # being read, so nothing throttles it -- and the frame
+                    # counter races through tens of thousands of duplicates
+                    # before calibration finishes.
+                    frame = held
+                    time.sleep(1.0 / max(self.cam_fps, 1))
 
                 # --- 5) timestamp right away
                 now_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S.%f")
 
-                # --- 6) resize/check, then write under lock
-                resized = cv2.resize(frame, (self.frame_shape[1], self.frame_shape[0]))
+                # --- 6) resize/check, then write under lock. ffmpeg already
+                # scales to frame_shape, so this is a no-op unless something
+                # upstream changed the geometry.
+                resized = (frame if frame.shape == tuple(self.frame_shape)
+                           else cv2.resize(frame,
+                                           (self.frame_shape[1], self.frame_shape[0])))
                 with self.lock:
                     np.copyto(frame_buffer, resized)
                     self.timestamp_buffer[:26] = now_str.ljust(26, "\0").encode("utf-8")
