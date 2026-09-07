@@ -32,8 +32,13 @@ class Settings:
 
     # Save recorded videos / CSV files during ONLINE runs.
     # (Offline runs always write their CSV files unless --no-save is passed.)
-    SAVE_VID: bool = False
-    SAVE_CSV: bool = False
+    SAVE_VID: bool = True
+    SAVE_CSV: bool = True
+    # Recording controls (online runs). The hotkeys toggle live:
+    # 's' starts, 'q' stops. record_on_start begins immediately, which
+    # is what a headless or scripted run wants.
+    record_hotkeys: bool = False
+    record_on_start: bool = True
 
     # Computed automatically in __post_init__ - no need to edit these.
     output_dir: str = field(init=False)  # <repo>/output
@@ -84,6 +89,18 @@ class Settings:
     ]
 
     ### YOLO detector ###
+    # Which detector to run. fetch_models.sh downloads all of these and exports
+    # a TensorRT engine for whichever is named here.
+    #
+    # Benchmark the ENGINE, not the checkpoint: the ranking inverts between them.
+    # Measured on real 4-camera frames from the dataset (batch 4, imgsz 640):
+    #
+    #     as .pt          yolo11n  12.5 ms    yolov10n  14.9 ms   (11n faster)
+    #     as .engine      yolo11n  15.7 ms    yolov10n  12.7 ms   (10n faster)
+    #
+    # The pipeline loads engines, so yolov10n is the right default here even
+    # though yolo11n wins as a checkpoint.
+    yolo_model: str = "yolov10n"
     yolo_path: str = field(init=False)
     yolo_conf = 0.2
     yolo_imgsz = 640
@@ -108,13 +125,19 @@ class Settings:
 
     # Ik type
     ik_type: str ="mhe" # either "mhe" for SWIKA or "sbs" for sample by sample qp
+    # fatrop only: "python" runs the CasADi function directly, "c" loads the
+    # pre-compiled OCP from <repo>/ocp/fatrop (see run_ocp_codegen.py).
+    ik_code: str = "c"
 
     # if ik_type = "mhe"
-    mhe_backend: str = "fatrop" # solver backend: "fatrop" (validated reference) or "acados"
-    ik_code: str = "python" # fatrop only: either "python" or "c"
+    mhe_backend: str = "acados" # solver backend: "fatrop" (validated reference) or "acados"
+    # Speed/accuracy trade. "realtime" bounds the per-frame cost (acados uses
+    # one real-time iteration per frame); "accurate" converges fully. Each is a
+    # separate generated artefact -- run run_ocp_codegen.py after changing this.
+    # Measured numbers are in rtcosmik.ik.ocp_model.SOLVER_PROFILES.
+    mhe_profile: str = "realtime" # or "accurate"
     cost_weights: list = field(default_factory=lambda: [1, 1e-3, 1e-5])
     N: int = 10 # number of time steps
-    mhe_max_iter: int = None # shared MHE knob: cap solver iterations (both backends). None = solver default
     # acados only: where generated C code/.so/.json go (default: <repo>/output/acados),
     # and the acados install dir (default: read from the ACADOS_SOURCE_DIR env var).
     acados_export_dir: str = None
@@ -149,5 +172,6 @@ class Settings:
         self.SAVE_DIR = str(Path(self.output_dir) / self.no_trial)
         self.cano_path = str(Path(self.cosmik_path) / "weights/canonical_verts/smplx.npy")
         self.nlf_path = str(Path(self.cosmik_path) / "weights/nlf/nlf_s_multi_0.2.2.torchscript")
-        self.yolo_path = str(Path(self.cosmik_path) / "weights/yolo/yolov10n.engine")
+        self.yolo_path = str(Path(self.cosmik_path) / "weights" / "yolo"
+                             / f"{self.yolo_model}.engine")
         self.dt = 1 / self.fs

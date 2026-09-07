@@ -11,6 +11,12 @@ To generate the appropriate models, use:
 ./scripts/bash/fetch_models.sh 
 ```
 
+To generate the inverse-kinematics solvers (only needed for `ik_type = "mhe"`):
+
+```bash
+python3 scripts/python/core/run_ocp_codegen.py
+```
+
 To install the toolbox and use the scripts files: 
 ```bash 
 pip install -e .
@@ -39,6 +45,50 @@ viewer.
 detector engine per supported camera count (2 to 6). Engines are built
 non-dynamic, so the batch size is fixed at export time and the pipeline picks the
 engine matching the cameras in use. Build a subset with `BATCHES="2 4"`.
+
+### 1b. Generate the IK solvers
+
+Only for `ik_type = "mhe"`. Like the detector engines, these are compiled
+artefacts: generated once, gitignored, never committed.
+
+```bash
+python3 scripts/python/core/run_ocp_codegen.py                 # everything
+python3 scripts/python/core/run_ocp_codegen.py --backend acados --profile realtime
+python3 scripts/python/core/run_ocp_codegen.py --check         # up to date?
+```
+
+Output goes to `ocp/<backend>/<profile>/`. Expect ~55 s per acados artefact and
+~4 min per fatrop one, which compiles a 26 MB C file.
+
+#### Speed/accuracy profile
+
+`settings.mhe_profile` picks the solver configuration:
+
+| | per-frame solve (median / p95 / max) | marker RMSE |
+|---|---|---|
+| `realtime` (acados `SQP_RTI`) | 4.9 / 5.9 / 8.7 ms | 1.02 mm |
+| `accurate` (acados `SQP`, 10 iterations, tol 1e-6) | 12.3 / 43.2 / 45.8 ms | 1.03 mm |
+
+Measured over 120 frames of real data, 43 dof, N=10. `realtime` bounds the
+per-frame cost: plain `SQP` has the same median but a 130-210 ms tail on hard
+frames, which breaks a 40 fps budget. The two agree on marker fit to 0.01 mm, and
+`realtime` is marginally *smoother* frame to frame, so it is the default.
+
+The profile is baked into the generated code, so switching it needs a
+regeneration -- `--check` will say so.
+
+The optimal control problem is parameterized by the subject's geometry (segment
+lengths and marker offsets), so **one generated solver serves every person** —
+calibrating a new subject sets parameters in under a millisecond instead of
+recompiling for 20-40 s mid-session. Generation needs no subject data at all --
+only the model's topology, which is the same for everybody.
+
+Each artefact carries an `ocp_manifest.json` recording what it was built from.
+The pipeline refuses to load one that no longer matches your configuration, and
+names what changed. Re-run after changing the tracked marker set, `N`, the model,
+or the marker-to-joint mapping — plus `fs` for acados, which bakes the timestep
+into its dynamics (fatrop takes it at runtime). `--check` answers this and is
+what CI should call.
 
 ### 2. Data layout
 
