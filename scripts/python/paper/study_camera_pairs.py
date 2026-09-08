@@ -40,17 +40,24 @@ def main():
     ap.add_argument("--dataset", required=True)
     ap.add_argument("--cameras", type=int, nargs="+", default=[0, 2, 4, 6])
     ap.add_argument("--summary", default="results/camera_pairs.csv")
+    ap.add_argument("--participants", nargs="*", default=None,
+                    help="Restrict to these participants; default is the study set")
+    ap.add_argument("--tasks", nargs="*", default=None,
+                    help="Restrict to these tasks; default is the study set")
     args = ap.parse_args()
 
     from rtcosmik.config_loader import settings
     ev = sweep_mod._load_eval()
 
+    trials = (sweep_mod.discover(args.dataset, args.participants, args.tasks)
+              if (args.participants or args.tasks) else DEFAULT_TRIALS)
+    LOGGER.info(f"{len(trials)} trials, {len(list(itertools.combinations(args.cameras,2)))} pairs")
     pairs = list(itertools.combinations(args.cameras, 2))
     results = {}
     for pair in pairs:
         label = "-".join(map(str, pair))
         scores = {}
-        for participant, task in DEFAULT_TRIALS:
+        for participant, task in trials:
             out_dir = Path(settings.output_dir) / participant / task / f"pair_{label}"
             try:
                 sweep_mod.run_mmpose(args.dataset, participant, task, list(pair),
