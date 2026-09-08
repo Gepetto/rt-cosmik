@@ -96,6 +96,26 @@ WINDOW = 30          # frames of past context the LSTM is given, as in the old c
 MIN_SCORE = 1e-3     # floor, so a zero-confidence keypoint gets weight ~0 not inf
 
 
+def trial_stem(mmpose_dir):
+    """The filename stem COMFI's mmpose export used for this trial.
+
+    It is not the task directory's name -- Squatting holds squat_camera_*.csv,
+    Hammering holds hitting_camera_*.csv, Picking holds crouch_object_camera_*.csv
+    -- and the mapping is neither derivable nor stable enough to hard-code for 23
+    tasks across 18 participants. Read it off the directory instead.
+    """
+    mmpose_dir = Path(mmpose_dir)
+    stems = {p.name.rsplit("_camera_", 1)[0]
+             for p in mmpose_dir.glob("*_camera_*.csv")}
+    if not stems:
+        raise FileNotFoundError(f"no *_camera_*.csv under {mmpose_dir}")
+    if len(stems) > 1:
+        raise ValueError(
+            f"{mmpose_dir} holds several trials {sorted(stems)}; "
+            f"cannot tell which one is wanted")
+    return stems.pop()
+
+
 def load_trial(mmpose_dir, task, cameras):
     """Read one trial's per-camera 2D keypoints and confidences.
 
@@ -108,7 +128,7 @@ def load_trial(mmpose_dir, task, cameras):
         confidences, trimmed to the shortest camera.
     """
     mmpose_dir = Path(mmpose_dir)
-    stem = task.lower()
+    stem = trial_stem(mmpose_dir)
     kpts, scores = [], []
     for cam in cameras:
         kp_path = mmpose_dir / f"{stem}_camera_{cam}.csv"
