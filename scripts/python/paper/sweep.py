@@ -75,14 +75,16 @@ def score(run_dir, reference_dir, ev):
     }
 
 
-def run_mmpose(dataset, participant, task, cameras, out_dir, settings):
+def run_mmpose(dataset, participant, task, cameras, out_dir, settings,
+               depth_aware=False):
     """One mmpose/LSTM trial. Returns (frames, ik_ms, seconds)."""
     from collections import OrderedDict
     from rtcosmik.paper.mmpose_baseline import build_source
     from rtcosmik.pipeline.solver import HumanSolver
     from rtcosmik.saver.csv_saver import CSVSaver
 
-    source, meta = build_source(dataset, participant, task, cameras, settings)
+    source, meta = build_source(dataset, participant, task, cameras, settings,
+                                depth_aware=depth_aware)
     solver = HumanSolver(settings, gender=meta["gender"][0], height=meta["height"],
                          weight=meta["weight"], logger=logging.getLogger("solve"))
     out_dir.mkdir(parents=True, exist_ok=True)
@@ -137,7 +139,8 @@ def _nlf_estimator(mtxs, num_cameras, settings):
     return _ESTIMATORS[key]
 
 
-def run_nlf(dataset, participant, task, cameras, out_dir, settings):
+def run_nlf(dataset, participant, task, cameras, out_dir, settings,
+            depth_aware=False):
     """One NLF trial, mirroring run_pipeline's offline path. Returns (frames, ik_ms, seconds)."""
     from collections import OrderedDict, deque
     import yaml

@@ -1,0 +1,134 @@
+<robot name="human_5dof_planar_model">
+    <material name="body_color">
+        <texture />
+        <color rgba="0.005 0.005 0.005 0.6" />
+    </material>
+    <link name="trunk">
+        <inertial>
+            <mass value="35.47" />
+            <origin xyz="0.116 0.007 -0.001" rpy="0 -0 0" />
+            <inertia ixx="2.592457" ixy="7.005900e-02" ixz="-3.523000e-04" iyy="2.448720e-01" iyz="-4.236600e-03" izz="2.594914" />
+        </inertial>
+        <visual>
+	    <origin xyz="-0.15 0.0 -0.25" rpy="1.57 0 1.57" /> 
+            <geometry>
+		        
+		        <mesh filename="package://human_urdf/meshes/torso_mesh.STL" scale="0.0065 0.0065 0.0065" />
+            </geometry>
+            <material name="body_color">
+                <texture />
+                <color rgba="0.2 0.2 0.2 0.2" />
+            </material>
+        </visual>
+        <visual>
+	        <origin xyz="-0.11 0.05 0.085" rpy="1.57 0 1.57" /> 
+            <geometry>
+		        <mesh filename="package://human_urdf/meshes/head_mesh.STL" scale="0.0055 0.0055 0.0055" />
+            </geometry>
+            <material name="body_color">
+                <texture />
+                <color rgba="0.2 0.2 0.2 0.5" />
+            </material>
+        </visual>
+        <visual>
+	    <origin xyz="-0.06 0.08 0.05" rpy="0 0.0 0" /> 
+            <geometry>
+		<mesh filename="package://human_urdf/meshes/neck_mesh.STL" scale="0.005 0.005 0.005" />
+            </geometry>
+            <material name="body_color">
+                <texture />
+                <color rgba="0.2 0.2 0.2 0.7" />
+            </material>
+        </visual>
+    </link>
+    <joint name="shoulder_Z" type="revolute">
+        <origin xyz="0.0 0.0 0.0" rpy="1.57 -0 0" />
+        <axis xyz="0 0 1" />
+        <parent link="trunk" />
+        <child link="upperarm" />
+        <limit effort="0" velocity="0" lower="-1.5708" upper="1.5708" />
+    </joint>
+    <link name="upperarm">
+        <inertial>
+            <mass value="1.8" />
+            <origin xyz="0.118 -0.004 -0.007" rpy="0 -0 0" />
+            <inertia ixx="0.011874" ixy="0.000445" ixz="0.000309" iyy="0.002422" iyz="4.9e-05" izz="0.012652" />
+        </inertial>
+        <visual>
+	    <origin xyz="-0.1575 -0.04 -0.05" rpy="0 0 0" /> 
+            <geometry>
+		        <mesh filename="package://human_urdf/meshes/shoulder_mesh.STL" scale="0.0055 0.0055 0.0055" />
+            </geometry>
+            <material name="body_color">
+                <texture />
+                <color rgba="0 1 1 0.5" />
+            </material>
+        </visual>
+        <visual>
+            <origin xyz="-0.0 -0.05 -0.175" rpy="1.57 -1.57 3.14" />
+            <geometry>
+                <mesh filename="package://human_urdf/meshes/upperarm_mesh.STL" scale="0.0063 0.0060 0.007" />
+            </geometry>
+            <material name="body_color" />
+        </visual>
+    </link>
+    <joint name="elbow_Z" type="revolute">
+        <origin xyz="0.262 0.0 0.0" rpy="0 -0 0" />
+        <axis xyz="0 0 1" />
+        <parent link="upperarm" />
+        <child link="lowerarm" />
+        <limit effort="0" velocity="0" lower="0" upper="2.74889" />
+    </joint>
+    <link name="lowerarm">
+        <inertial>
+            <mass value="1.28" />
+            <origin xyz="0.0 -0.000 0.000" rpy="0 -0 0" />
+            <inertia ixx="0.007479" ixy="8.6e-05" ixz="3.8e-05" iyy="0.001154" iyz="-0.000611" izz="0.006954" />
+        </inertial>
+        <visual>
+	    <origin xyz="-0.17 -0.03 -0.04" rpy="0 0 0" /> 
+            <geometry>
+		        <mesh filename="package://human_urdf/meshes/elbow_mesh.STL" scale="0.0055 0.0055 0.0055" />
+            </geometry>
+            <material name="body_color">
+                <texture />
+                <color rgba="0 1 1 0.5" />
+            </material>
+        </visual>
+        <visual>
+            <origin xyz="-0.0 -0.035 -0.175" rpy="1.57 -1.57 3.14" />
+            <geometry>
+                <mesh filename="package://human_urdf/meshes/lowerarm_mesh.STL" scale="0.0060 0.0060 0.0060" />
+            </geometry>
+            <material name="body_color">
+                <texture />
+                <color rgba="0 1 1 0.5" />
+            </material>
+        </visual>
+    </link>
+    <joint name="hand_fixed" type="fixed">
+        <origin xyz="0.273 0.0 0.0" rpy="0 -0 0" />
+        <axis xyz="0 0 1" />
+        <parent link="lowerarm" />
+        <child link="hand" />
+        <limit effort="0" velocity="0" lower="-1.5708" upper="1.5708" />
+    </joint>
+    <link name="hand">
+        <inertial>
+            <mass value="0.45" />
+            <origin xyz="0.015 -0.154 0.014" rpy="0 -0 0" />
+            <inertia ixx="0.005608" ixy="0.000729" ixz="0.000339" iyy="0.002176" iyz="-0.000603" izz="0.004726" />
+        </inertial>
+        <visual>
+            <origin xyz="0.17 0.055 -0.15" rpy="1.57 -1.57 0" />
+            <geometry>
+		        <mesh filename="package://human_urdf/meshes/hand_mesh.STL" scale="0.0060 0.0060 0.0060" />
+                
+            </geometry>
+            <material name="body_color">
+                <texture />
+                <color rgba="0 1 1 0.5" />
+            </material>
+        </visual>
+    </link>
+</robot>

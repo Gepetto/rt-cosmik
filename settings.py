@@ -137,7 +137,11 @@ class Settings:
     # Measured numbers are in rtcosmik.ik.ocp_model.SOLVER_PROFILES.
     mhe_profile: str = "realtime" # or "accurate"
     cost_weights: list = field(default_factory=lambda: [1, 1e-3, 1e-5])
-    N: int = 10 # number of time steps
+    # MHE horizon, in time steps. 7 follows Bailly et al.'s moving-horizon
+    # estimation work. Measured on 10 COMFI trials, accuracy is flat in N --
+    # 16.685 to 16.700 deg across N = 3 to 20 -- while throughput falls 4.8x
+    # over that range, so N is a speed choice, not an accuracy one.
+    N: int = 7 # number of time steps
     # acados only: where generated C code/.so/.json go (default: <repo>/output/acados),
     # and the acados install dir (default: read from the ACADOS_SOURCE_DIR env var).
     acados_export_dir: str = None

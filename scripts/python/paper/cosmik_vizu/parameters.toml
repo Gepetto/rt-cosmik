@@ -1,0 +1,85 @@
+size = 1.77
+weigth = 59.25
+gender = "f"
+
+free_flyer = true
+Tf=2
+nb_samples = 100
+optimal_control = 0
+
+ 
+
+active_joints = [
+    "universe",
+    "root_joint",
+    "left_hip_Z",
+    "left_hip_X",
+    "left_hip_Y", 
+    "left_knee_Z",
+    "left_ankle_Z",
+    "left_ankle_X",
+    "right_hip_Z",
+    "right_hip_X",
+    "right_hip_Y",
+    "right_knee_Z",
+    "right_ankle_Z",
+    "right_ankle_X",
+   "middle_lumbar_Z",
+   "middle_lumbar_X",
+   "left_clavicle_joint_X",
+   "left_shoulder_Z",
+   "left_shoulder_X",
+   "left_shoulder_Y",
+   "left_elbow_Z",
+   "left_elbow_Y",
+
+   "middle_cervical_Z",
+   "middle_cervical_X",
+   "middle_cervical_Y",
+   
+    "right_clavicle_joint_X",
+   "right_shoulder_Z",
+   "right_shoulder_X",
+   "right_shoulder_Y",
+   "right_elbow_Z",
+   "right_elbow_Y",
+  ]
+
+active_costs=[
+  "min_joint_torque",  
+  #"min_torque_change", 
+  "min_joint_acc", 
+  "min_joint_vel",
+  "min_com_deviation", # along X axis
+  "min_com_velocity",
+  #"min_joint_jerk",  
+  #"min_cartesian_acc",  
+  #"min_cartesian_jerk" 
+  ] 
+
+
+groups_joint_torques = {all=false, group1 = ["left_hip_Z","left_hip_X","left_hip_Y", "left_knee","left_ankle_Z", "left_ankle_X","right_hip_Z","right_hip_X","right_hip_Y","right_knee","right_ankle_Z",
+    "right_ankle_X",], group2 = ["left_shoulder_Z", "right_shoulder_Z"] } 
+
+
+
+
+
+# default values
+viewer = "meshcat"
+solver="acados"#"fatrop"#"ipopt"#
+cop_lim = [-0.05, 0.25]
+external_forces="optimal_forces_estimation"#"linear_zmp_distance_forces_estimation"#""#"linear_zmp_distance_forces_estimation" #"optimal_forces_estimation"
+qdi = {type = "array", size = 37, fill = 1e-3, deg2rad = true}
+q_min = {type = "array", size = 37, fill = -360, deg2rad = true}
+q_max = {type = "array", size = 37, fill = 360, deg2rad = true}
+dq_lim = {type = "array", size = 37, fill = 720, deg2rad = true}
+dqdi = {type = "array", size = 37, fill = 0, deg2rad = true}
+n_tau = {type = "array", size = 37, fill = 200, deg2rad = false} # Can also remove the field deg2rad
+n_dq = {type = "array", size = 37, fill = "pi", mult = "2", deg2rad = false}
+n_ddq = {type = "array", size = 37, fill = "3*pi", deg2rad = false}
+toto_to_bobo = {type = "SE3", rotation = "Identity", position = [0, 0, -0.4]}
+L = {toto_to_bobo = {type = "SE3", rotation = "Identity", position = [0, 0, -0.4]}}
+pyf = 0
+
+

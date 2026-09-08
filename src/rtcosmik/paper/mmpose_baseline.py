@@ -183,7 +183,7 @@ class MmposeMarkerSource:
 
     def __init__(self, keypoints, confidences, mtxs, dists, projections,
                  world_R, world_T, models, augmenter_dir, height, mass,
-                 iir=None, buffer_len=10, logger=None):
+                 iir=None, buffer_len=10, logger=None, depth_aware=False):
         self.keypoints = keypoints
         self.confidences = confidences
         self.mtxs = mtxs
@@ -198,6 +198,9 @@ class MmposeMarkerSource:
         self.iir = iir
         self.buffer_len = buffer_len
         self.logger = logger or LOGGER
+        self.depth_aware = depth_aware
+        self._centres = None
+        self._previous = None   # last frame's points, reference frame
 
     def __len__(self):
         return self.keypoints.shape[0]
@@ -210,12 +213,25 @@ class MmposeMarkerSource:
         NLF's per-joint uncertainty gives, from the quantity mmpose actually
         provides.
         """
-        from rtcosmik.triangulation.triangulation import triangulate_points
+        from rtcosmik.triangulation.triangulation import (
+            camera_centres, distance_scaled_uncertainties, triangulate_points)
 
         views = [self.keypoints[frame, c] for c in range(self.keypoints.shape[1])]
         sigma = 1.0 / np.clip(self.confidences[frame], MIN_SCORE, None)
+
+        if self.depth_aware and self._previous is not None:
+            # Range predicts a view's reliability independently of confidence.
+            # The distances come from the previous frame's solve, so this stays
+            # causal -- at 40 Hz the body has moved millimetres, far less than
+            # the metres that separate the cameras.
+            if self._centres is None:
+                self._centres = camera_centres(self.projections)
+            sigma = distance_scaled_uncertainties(sigma, self._previous,
+                                                  self._centres)
+
         p3d = triangulate_points(views, self.mtxs, self.dists, self.projections,
                                  uncertainties=sigma)
+        self._previous = p3d
         return p3d @ self.world_R.T + self.world_T
 
     def __iter__(self):
@@ -261,7 +277,8 @@ class MmposeMarkerSource:
             yield frame, mks
 
 
-def build_source(dataset, participant, task, cameras, settings, logger=None):
+def build_source(dataset, participant, task, cameras, settings, logger=None,
+                 depth_aware=False):
     """Assemble the marker source for one trial, with its subject metadata.
 
     Returns ``(source, meta)``. Split out from the driver so a sweep can reuse
@@ -290,7 +307,7 @@ def build_source(dataset, participant, task, cameras, settings, logger=None):
     source = MmposeMarkerSource(
         keypoints, confidences, mtxs, dists, projections, world_R, world_T,
         load_models(), augmenter_dir(), meta["height"], meta["weight"],
-        iir=iir, buffer_len=settings.N, logger=logger)
+        iir=iir, buffer_len=settings.N, logger=logger, depth_aware=depth_aware)
     return source, meta
 
 

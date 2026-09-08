@@ -119,6 +119,75 @@ def triangulate_points_torch(points_cj2_torch, projections_torch, return_numpy: 
     return xyz
 
 
+def camera_centres(projections):
+    """Camera centres in the reference frame, from ``[R | T]`` projections.
+
+    A projection maps a reference-frame point into the camera, ``x = R p + T``,
+    so the camera sits at ``-R.T @ T``.
+
+    Returns:
+        np.ndarray: (C, 3) centres.
+    """
+    centres = []
+    for projection in projections:
+        matrix = np.asarray(projection, dtype=np.float64)
+        rotation, translation = matrix[:, :3], matrix[:, 3]
+        centres.append(-rotation.T @ translation)
+    return np.asarray(centres, dtype=np.float64)
+
+
+def distance_scaled_uncertainties(uncertainties, points3d, centres, floor=0.1):
+    """Fold range into per-camera uncertainty: ``sigma_cj *= distance(c, j)``.
+
+    A triangulated point's depth error grows with range -- roughly
+    ``d**2 / (baseline * f)`` for a stereo pair -- so how far a joint is from a
+    camera predicts that camera's reliability for it, independently of how
+    confident the detector is. Confidence alone misses this: a detector can be
+    perfectly sure about a joint it sees from 6 m away, and still localise it
+    worse than a less certain view from 2 m.
+
+    Taking sigma proportional to distance is the principled form and, unlike a
+    Gaussian proximity kernel, introduces no length scale to tune. Weights are
+    normalised per joint downstream, so only the ratio between cameras matters.
+
+    The caller supplies ``points3d`` from the *previous* frame, which keeps this
+    causal -- no peeking at the solve it is about to weight.
+
+    MEASURED AND NOT ADOPTED. On 10 COMFI trials this is a wash where the cameras
+    are roughly equidistant and a disaster where they are not: StraightWalking,
+    with a 2.61x near/far range ratio, went from 24.3 to 39.5 deg. The reason is
+    that proximity is the wrong prior for a multi-view DLT. What conditions the
+    solve is angular diversity, and the distant views are usually the wide-
+    parallax ones, so downweighting by range strips out exactly the geometry the
+    triangulation depends on -- effective cameras per joint fell 3.39 to 3.16 on
+    that trial.
+
+    The idea was taken from a pipeline that fused two already-triangulated stereo
+    estimates, and there it is sound: each pair has already spent its own
+    baseline, so proximity really does predict which pair to trust. It does not
+    survive the move to fusing 2D rays. Kept, off by default, because the
+    negative result is worth more than the code.
+
+    Args:
+        uncertainties: (C, J) per-camera per-joint sigma, or None for distance
+            weighting alone.
+        points3d: (J, 3) reference-frame points, from the previous frame.
+        centres: (C, 3) camera centres, from :func:`camera_centres`.
+        floor: metres; distances below this are clamped, so a joint that lands
+            near a camera centre cannot produce a zero uncertainty.
+
+    Returns:
+        np.ndarray: (C, J) scaled uncertainties.
+    """
+    points3d = np.asarray(points3d, dtype=np.float64)
+    centres = np.asarray(centres, dtype=np.float64)
+    distances = np.linalg.norm(points3d[None, :, :] - centres[:, None, :], axis=2)
+    distances = np.maximum(distances, floor)
+    if uncertainties is None:
+        return distances
+    return np.asarray(uncertainties, dtype=np.float64) * distances
+
+
 def weights_from_uncertainties(uncertainties, num_cams, num_points,
                                power=2.0, eps=1e-3):
     """Turn NLF's per-joint uncertainties into per-camera, per-joint DLT weights.

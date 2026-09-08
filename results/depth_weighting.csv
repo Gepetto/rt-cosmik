@@ -1,0 +1,11 @@
+participant,task,confidence_deg,distance_deg
+1012,Lifting,14.247,14.226
+1012,Squatting,16.483,16.177
+1012,StraightWalking,24.272,39.499
+1118,Lifting,13.588,13.44
+1118,StraightWalking,24.485,35.588
+1508,SitToStand,14.47,14.757
+1602,CircularWalking,12.549,13.087
+1847,Picking,18.302,18.36
+4279,SideOverhead,15.29,15.23
+4279,Squatting,13.239,13.563

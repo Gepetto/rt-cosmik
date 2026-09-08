@@ -1,0 +1,4 @@
+arm,participant,task,cameras,n_horizon,frames,lag,sync_r,joint_rmse_mean,joint_rmse_median,scored_dof,freeflyer_mm,marker_mm,root_orientation_deg,ik_ms_median,ik_ms_p95,fps,status
+mmpose,1012,Lifting,0-2-4-6,10,1771,5,0.9963,14.249,11.291,29,30.34,73.96,10.863,7.32,35.33,53.7,ok
+mmpose,1012,Squatting,0-2-4-6,10,1720,5,0.996,16.47,15.703,29,36.07,74.28,9.181,7.43,36.46,61.4,ok
+mmpose,1012,StraightWalking,0-2-4-6,10,282,-50,0.4787,24.259,17.703,29,363.4,570.07,27.908,6.38,8.79,82.0,ok
