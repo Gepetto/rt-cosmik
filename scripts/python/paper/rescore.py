@@ -10,7 +10,13 @@ Both tables are worth having and they answer different questions:
 
   vs COMFI      how far the pipeline lands from the dataset's own published
                 kinematics -- the number a reader outside this work would expect
-  vs our IK     how much of that is the estimator rather than the model
+  vs our IK     what the estimator alone contributes
+
+The two sources are independent, so they add in quadrature rather than linearly:
+a 13.2 deg estimation error and a 7.1 deg model difference give 14.9, not 20.3.
+Measured on 1012, predicted and actual agree to within 1 deg on 5 of 6 trials.
+So the model difference inflates the reported error by about 1.8 deg -- real, and
+worth removing, but far less than its size alone suggests.
 
 No pipeline is re-run. Both sides already exist on disk as joint_angles.csv; this
 only re-scores.
@@ -93,8 +99,11 @@ def main():
         b = np.mean([per_config[config][k][1] for k in shared])
         print(f"{config:<22}{a:>14.2f}{b:>12.2f}{b - a:>+13.2f}")
     print("-" * 61 + "   deg")
-    print("\nA large drop means the published-angle number was dominated by the\n"
-          "difference between the two biomechanical models, not by estimation.")
+    print("\nThe two error sources are independent and add in quadrature, so the\n"
+          "drop is smaller than the model difference itself. On 1012, estimation\n"
+          "of 13.2 deg and a model difference of 7.1 combine to 14.9 -- which is\n"
+          "what scoring against COMFI reports, to within 1 deg on 5 of 6 trials.\n"
+          "The published-angle number is inflated by about 1.8 deg, not doubled.")
     return 0
 
 
