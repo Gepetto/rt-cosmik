@@ -123,9 +123,21 @@ def _nlf_estimator(mtxs, num_cameras, settings):
     Building it loads a YOLO engine and the NLF torchscript, tens of seconds, so
     it must not happen per trial. The intrinsics are baked in, so participants
     with different calibrations get their own.
+
+    The torch backend flags must match run_pipeline's exactly. They change the
+    numerics of NLF inference, not just its speed: without them this path and the
+    real pipeline disagreed by up to 2.5 mm per marker and 1.8e-2 rad per joint
+    on the same trial -- small, but a systematic offset rather than noise, and
+    enough to make the sweep measure something other than the shipped pipeline.
     """
+    import torch
+
     from rtcosmik.nlf.nlf import NLFEstimator
     from rtcosmik.model_weights import resolve_detector_engine
+
+    torch.backends.cudnn.benchmark = False
+    torch.backends.cuda.matmul.allow_tf32 = True
+    torch.backends.cudnn.allow_tf32 = True
 
     key = (num_cameras, tuple(np.asarray(m).round(4).tobytes() for m in mtxs))
     if key not in _ESTIMATORS:
