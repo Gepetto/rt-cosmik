@@ -79,12 +79,23 @@ def main():
               f"{', '.join('/'.join(m) for m in missing[:8])}"
               f"{' ...' if len(missing) > 8 else ''}")
 
-    def stat(config, field, function=np.mean):
-        values = [by_config[config][k][field] for k in shared]
+    def stat(config, field, function=np.mean, keys=None):
+        keys = shared if keys is None else keys
+        values = [by_config[config][k][field] for k in keys
+                  if k in by_config[config]]
         values = [v for v in values if np.isfinite(v)]
         return function(values) if values else np.nan
 
-    table("Accuracy and speed, over the shared trials", configs, [
+    # Each configuration's own coverage, so a configuration that failed trials is
+    # visible rather than silently shrinking the shared set for everyone else.
+    print("\ncoverage")
+    for config in configs:
+        own = stat(config, "joint_rmse_mean", keys=set(by_config[config]))
+        print(f"  {config:<16} {len(by_config[config]):>4} trials completed, "
+              f"own mean {own:.2f} deg")
+
+    table("Accuracy and speed, over the trials every configuration completed",
+          configs, [
         ("joint RMSE mean", {c: stat(c, "joint_rmse_mean") for c in configs}),
         ("joint RMSE median", {c: stat(c, "joint_rmse_mean", np.median) for c in configs}),
         ("marker error mm", {c: stat(c, "marker_mm") for c in configs}),
