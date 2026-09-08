@@ -233,10 +233,21 @@ def backend_dir(backend, settings=None, profile=None):
     The profile is part of the path because ``nlp_solver_type``, ``qp_solver``
     and ``globalization`` are baked into the generated C -- switching profiles is
     a different artefact, not a runtime option.
+
+    A non-default ``marker_set`` is part of it for the same reason: it changes
+    the tracked marker count and the locked DoF, so it is a structurally
+    different OCP. Without this the paper's parity build would overwrite the
+    ordinary one, and every switch between them would cost a full regeneration.
+    The default set keeps the original path, so existing artefacts and the
+    README's instructions stay valid.
     """
     if profile is None and settings is not None:
         profile = getattr(settings, "mhe_profile", "realtime")
-    return os.path.join(artifact_root(settings), backend, profile or "realtime")
+    profile = profile or "realtime"
+    marker_set = getattr(settings, "marker_set", "nlf") if settings else "nlf"
+    if marker_set and marker_set != "nlf":
+        profile = f"{profile}_{marker_set}"
+    return os.path.join(artifact_root(settings), backend, profile)
 
 
 def write_manifest(directory, description, backend, extra=None):
@@ -305,7 +316,7 @@ def check_manifest(directory, description, backend):
         f"--backend {backend}")
 
 
-def register_marker_frames(model):
+def register_marker_frames(model, keys_to_track=None):
     """Attach a frame per tracked marker, with a zero offset.
 
     ``mks_registration`` needs real marker positions, but only to compute each
@@ -316,13 +327,22 @@ def register_marker_frames(model):
 
     Ordering matters and comes from ``SGTS_MKS_MAPPING``, so the frame ids match
     a model built the ordinary way.
+
+    ``keys_to_track`` restricts the set, for a configuration that tracks fewer
+    markers than the mapping defines. ``mks_registration`` drops exactly the same
+    markers -- it has no position for them -- so the two models keep identical
+    frame ids. Left as None, every marker in the mapping is registered.
     """
+    wanted = None if keys_to_track is None else set(keys_to_track)
     from rtcosmik.human_model.model_utils import (
         MKS_COSMIK_2_JOINTS, SGTS_MKS_MAPPING)
+
 
     inertia = pin.Inertia.Zero()
     for _, marker_names in SGTS_MKS_MAPPING.items():
         for marker_name in marker_names:
+            if wanted is not None and marker_name not in wanted:
+                continue
             joint_id = model.getJointId(MKS_COSMIK_2_JOINTS[marker_name])
             model.addFrame(pin.Frame(marker_name, joint_id,
                                      model.joints[joint_id].id,
@@ -344,6 +364,7 @@ def build_structural_model(settings, gender=None, height=None, weight=None):
     do it. Nothing about a real person is needed, or wanted, here.
     """
     import example_robot_data as robex
+    from rtcosmik.human_model.model_utils import apply_joint_locks
 
     gender = gender or settings.human_gender
     height = height if height is not None else settings.human_height
@@ -351,4 +372,5 @@ def build_structural_model(settings, gender=None, height=None, weight=None):
 
     model = robex.human.HumanLoader(height=height, weight=weight,
                                     gender=gender).robot.model
-    return register_marker_frames(model)
+    apply_joint_locks(model, getattr(settings, "locked_joints", ()))
+    return register_marker_frames(model, settings.keys_to_track_list)

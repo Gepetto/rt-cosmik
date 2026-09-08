@@ -162,6 +162,21 @@ class Settings:
            "Nose", "Head", "REar", "LEar", "REye", "LEye",
     ])
 
+    ### MARKER SET / PARITY COMPARISON ###
+    #
+    # "nlf"    - the full 43-marker NLF set above, all 36 articulated DoF.
+    # "parity" - the 35 markers the mmpose/LSTM baseline can also produce, with
+    #            the 7 DoF that set cannot observe locked. Use this for BOTH
+    #            arms of the paper comparison: same markers, same model, same
+    #            IK, so the only difference left is the pose estimator.
+    #
+    # The parity set drops the 8 markers the LSTM augmenter does not emit:
+    # T11, T6 and the six hand markers. Nothing else changes.
+    marker_set: str = "parity"
+
+    # Filled in by __post_init__ from marker_set; do not edit by hand.
+    locked_joints: list = field(init=False)
+
     def __post_init__(self):
         # Use Pathlib for better path handling
         self.cosmik_path = str(Path(__file__).parent.resolve())
@@ -175,3 +190,28 @@ class Settings:
         self.yolo_path = str(Path(self.cosmik_path) / "weights" / "yolo"
                              / f"{self.yolo_model}.engine")
         self.dt = 1 / self.fs
+        self._apply_marker_set()
+
+    #: Markers the mmpose/LSTM baseline cannot produce, and the DoF that become
+    #: unobservable without them. The wrists have no distal marker at all; the
+    #: thorax keeps only C7, leaving its orientation determined indirectly
+    #: through the shoulders, past a clavicle DoF each.
+    PARITY_DROPPED_MARKERS = ("T11", "T6",
+                              "RTHU", "LTHU", "RMID", "LMID", "RPIN", "LPIN")
+    PARITY_LOCKED_JOINTS = ("middle_thoracic_Z", "middle_thoracic_X",
+                            "middle_thoracic_Y",
+                            "left_wrist_Z", "left_wrist_X",
+                            "right_wrist_Z", "right_wrist_X")
+
+    def _apply_marker_set(self):
+        if self.marker_set == "nlf":
+            self.locked_joints = []
+            return
+        if self.marker_set != "parity":
+            raise ValueError(
+                f"marker_set must be 'nlf' or 'parity', got {self.marker_set!r}")
+        dropped = set(self.PARITY_DROPPED_MARKERS)
+        self.marker_names = [m for m in self.marker_names if m not in dropped]
+        self.keys_to_track_list = [k for k in self.keys_to_track_list
+                                   if k not in dropped]
+        self.locked_joints = list(self.PARITY_LOCKED_JOINTS)

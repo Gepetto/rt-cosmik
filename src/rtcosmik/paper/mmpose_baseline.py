@@ -1,0 +1,241 @@
+"""The old COSMIK front end: mmpose 2D keypoints -> DLT -> OpenCap LSTM markers.
+
+This reproduces the architecture RT-COSMIK replaced, so the paper can compare
+the two on equal terms. Everything downstream of this module -- filtering, model
+calibration, IK, evaluation -- is the *current* codebase, unmodified. Only the
+marker source differs, which is the whole point: with ``marker_set = "parity"``
+the two arms run the same 35 markers through the same model and the same solver,
+so a difference in the result is a difference in pose estimation and nothing
+else.
+
+Three things make the comparison fair rather than merely similar:
+
+*Causality.* The LSTM sees a 30-frame window of past frames only, exactly as the
+old real-time pipeline used it. Running it over a whole trial at once, the usual
+offline OpenCap usage, would let the baseline see the future while NLF works
+frame by frame -- a handicap in the wrong direction.
+
+*Weighting.* mmpose emits a confidence per keypoint per view. Feeding it as
+``1/score`` into the weighted DLT gives the baseline the same
+uncertainty-weighted multi-view fusion NLF gets, rather than a plain DLT that
+would understate it.
+
+*Marker naming.* 29 of the LSTM's 43 markers are the same anatomical landmarks
+NLF emits, so they are renamed rather than re-modelled. The 14 with no NLF
+counterpart -- thigh and shank tracking clusters, and the two hip joint centres
+-- are dropped, which is what the old pipeline did with them too.
+"""
+
+import logging
+from collections import deque
+from pathlib import Path
+
+import numpy as np
+
+LOGGER = logging.getLogger(__name__)
+
+#: Halpe26, in the column order COMFI's mmpose export uses. Verified against the
+#: score files' own header, and against the indices hard-coded in the augmenter.
+HALPE26 = [
+    "Nose", "LEye", "REye", "LEar", "REar",
+    "LShoulder", "RShoulder", "LElbow", "RElbow", "LWrist", "RWrist",
+    "LHip", "RHip", "LKnee", "RKnee", "LAnkle", "RAnkle",
+    "Head", "Neck", "midHip",
+    "LBigToe", "RBigToe", "LSmallToe", "RSmallToe", "LHeel", "RHeel",
+]
+
+#: The augmenter's output order: the lower-body model's 35 markers followed by
+#: the upper-body model's 8. Taken from the response_markers lists recorded in
+#: marker_augmenter.py. Note the left foot runs toe/calc/5meta where the right
+#: runs toe/5meta/calc -- the asymmetry is in the trained model, not a typo.
+LSTM_OUTPUT_ORDER = [
+    "r.ASIS_study", "L.ASIS_study", "r.PSIS_study", "L.PSIS_study",
+    "r_knee_study", "r_mknee_study", "r_ankle_study", "r_mankle_study",
+    "r_toe_study", "r_5meta_study", "r_calc_study",
+    "L_knee_study", "L_mknee_study", "L_ankle_study", "L_mankle_study",
+    "L_toe_study", "L_calc_study", "L_5meta_study",
+    "r_shoulder_study", "L_shoulder_study", "C7_study",
+    "r_thigh1_study", "r_thigh2_study", "r_thigh3_study",
+    "L_thigh1_study", "L_thigh2_study", "L_thigh3_study",
+    "r_sh1_study", "r_sh2_study", "r_sh3_study",
+    "L_sh1_study", "L_sh2_study", "L_sh3_study",
+    "RHJC_study", "LHJC_study",
+    "r_lelbow_study", "r_melbow_study", "r_lwrist_study", "r_mwrist_study",
+    "L_lelbow_study", "L_melbow_study", "L_lwrist_study", "L_mwrist_study",
+]
+
+#: The 29 LSTM markers that are the same landmark as an NLF marker. The 14
+#: omitted ones (thigh1-3, sh1-3 both sides, and the hip joint centres) have no
+#: NLF counterpart and no frame in the human model.
+LSTM_TO_NLF = {
+    "r.ASIS_study": "RASI",   "L.ASIS_study": "LASI",
+    "r.PSIS_study": "RPSI",   "L.PSIS_study": "LPSI",
+    "C7_study": "C7",
+    "r_shoulder_study": "RSHO", "L_shoulder_study": "LSHO",
+    "r_lelbow_study": "RELB", "r_melbow_study": "RMELB",
+    "L_lelbow_study": "LELB", "L_melbow_study": "LMELB",
+    "r_lwrist_study": "RWRI", "r_mwrist_study": "RMWRI",
+    "L_lwrist_study": "LWRI", "L_mwrist_study": "LMWRI",
+    "r_knee_study": "RKNE",   "r_mknee_study": "RMKNE",
+    "L_knee_study": "LKNE",   "L_mknee_study": "LMKNE",
+    "r_ankle_study": "RANK",  "r_mankle_study": "RMANK",
+    "L_ankle_study": "LANK",  "L_mankle_study": "LMANK",
+    "r_toe_study": "RTOE",    "r_5meta_study": "R5MHD", "r_calc_study": "RHEE",
+    "L_toe_study": "LTOE",    "L_5meta_study": "L5MHD", "L_calc_study": "LHEE",
+}
+
+#: Head markers the LSTM does not produce. The old pipeline took them straight
+#: from the raw keypoints, and so do we -- without them the head segment cannot
+#: be built at all and the cervical DoF join the locked set.
+FACE_FROM_KEYPOINTS = {
+    "Nose": "Nose", "Head": "Head",
+    "REar": "REar", "LEar": "LEar", "REye": "REye", "LEye": "LEye",
+}
+
+WINDOW = 30          # frames of past context the LSTM is given, as in the old code
+MIN_SCORE = 1e-3     # floor, so a zero-confidence keypoint gets weight ~0 not inf
+
+
+def load_trial(mmpose_dir, task, cameras):
+    """Read one trial's per-camera 2D keypoints and confidences.
+
+    The keypoint files carry no header: column 0 is the frame's mean score and
+    the remaining 52 are x,y per Halpe26 joint. The score files do have a header,
+    and their frame column is 1-based.
+
+    Returns:
+        (keypoints, scores): ``(F, C, 26, 2)`` pixels and ``(F, C, 26)``
+        confidences, trimmed to the shortest camera.
+    """
+    mmpose_dir = Path(mmpose_dir)
+    stem = task.lower()
+    kpts, scores = [], []
+    for cam in cameras:
+        kp_path = mmpose_dir / f"{stem}_camera_{cam}.csv"
+        sc_path = mmpose_dir / f"{stem}_scores_{cam}.csv"
+        if not kp_path.exists():
+            raise FileNotFoundError(f"no mmpose keypoints for camera {cam}: {kp_path}")
+        if not sc_path.exists():
+            raise FileNotFoundError(f"no mmpose scores for camera {cam}: {sc_path}")
+        raw = np.loadtxt(kp_path, delimiter=",", ndmin=2)
+        if raw.shape[1] != 1 + 2 * len(HALPE26):
+            raise ValueError(
+                f"{kp_path} has {raw.shape[1]} columns, expected "
+                f"{1 + 2*len(HALPE26)} (mean score + 26 xy pairs)")
+        kpts.append(raw[:, 1:].reshape(-1, len(HALPE26), 2))
+
+        sc = np.genfromtxt(sc_path, delimiter=",", names=True)
+        cols = [f"{n}_score" for n in HALPE26]
+        missing = [c for c in cols if c not in sc.dtype.names]
+        if missing:
+            raise ValueError(f"{sc_path} is missing score columns: {missing}")
+        scores.append(np.stack([sc[c] for c in cols], axis=1))
+
+    frames = min(min(k.shape[0] for k in kpts), min(s.shape[0] for s in scores))
+    keypoints = np.stack([k[:frames] for k in kpts], axis=1)
+    confidences = np.stack([s[:frames] for s in scores], axis=1)
+    return keypoints, confidences
+
+
+class MmposeMarkerSource:
+    """Turn one trial's mmpose output into the marker dicts the solver wants.
+
+    Iterating yields ``(frame_index, mks_dict)`` with the 35 parity markers in
+    world coordinates: 29 from the LSTM augmenter, 6 taken from the triangulated
+    face keypoints.
+
+    Args:
+        keypoints: ``(F, C, 26, 2)`` pixel keypoints.
+        confidences: ``(F, C, 26)`` mmpose confidences.
+        mtxs, dists, projections: camera parameters, as
+            ``load_camera_parameters`` returns them.
+        world_R, world_T: reference-camera-to-world transform.
+        models: the loaded LSTM sessions, from ``augmenter.loadModel``.
+        augmenter_dir: where those models live; the augmenter re-reads its
+            normalisation statistics from there.
+        height, mass: the subject's, from the dataset metadata. The augmenter
+            was trained with both as explicit features.
+        iir: optional filter applied to the triangulated keypoints before the
+            LSTM sees them, matching how the baseline was built and validated.
+        buffer_len: how many frames the filter is run over, ``settings.N``, so
+            the smoothing procedure matches the NLF arm's.
+    """
+
+    def __init__(self, keypoints, confidences, mtxs, dists, projections,
+                 world_R, world_T, models, augmenter_dir, height, mass,
+                 iir=None, buffer_len=10, logger=None):
+        self.keypoints = keypoints
+        self.confidences = confidences
+        self.mtxs = mtxs
+        self.dists = dists
+        self.projections = projections
+        self.world_R = np.asarray(world_R)
+        self.world_T = np.asarray(world_T)
+        self.models = models
+        self.augmenter_dir = str(augmenter_dir)
+        self.height = float(height)
+        self.mass = float(mass)
+        self.iir = iir
+        self.buffer_len = buffer_len
+        self.logger = logger or LOGGER
+
+    def __len__(self):
+        return self.keypoints.shape[0]
+
+    def triangulate(self, frame):
+        """Weighted DLT for one frame, in world coordinates.
+
+        The confidence enters as ``sigma = 1/score`` so the DLT's ``1/sigma**p``
+        weighting becomes ``score**p`` -- the same shape of multi-view weighting
+        NLF's per-joint uncertainty gives, from the quantity mmpose actually
+        provides.
+        """
+        from rtcosmik.triangulation.triangulation import triangulate_points
+
+        views = [self.keypoints[frame, c] for c in range(self.keypoints.shape[1])]
+        sigma = 1.0 / np.clip(self.confidences[frame], MIN_SCORE, None)
+        p3d = triangulate_points(views, self.mtxs, self.dists, self.projections,
+                                 uncertainties=sigma)
+        return p3d @ self.world_R.T + self.world_T
+
+    def __iter__(self):
+        from rtcosmik.augmenter.marker_augmenter import augmentTRC
+
+        window = deque(maxlen=WINDOW)
+        smooth = deque(maxlen=self.buffer_len)
+        n_kp = len(HALPE26)
+
+        for frame in range(len(self)):
+            p3d = self.triangulate(frame)
+
+            # Mirror the NLF arm exactly: hold a buffer of buffer_len frames,
+            # filter the buffer, keep its last sample. The first frame seeds the
+            # buffer so filtering can start immediately rather than after a
+            # silent warm-up that would shift the two arms out of step.
+            if not smooth:
+                for _ in range(self.buffer_len):
+                    smooth.append(p3d)
+            else:
+                smooth.append(p3d)
+            if self.iir is not None:
+                block = np.asarray(smooth).reshape(self.buffer_len, 3 * n_kp)
+                p3d = self.iir.filter(block).reshape(self.buffer_len, n_kp, 3)[-1]
+
+            if not window:
+                for _ in range(WINDOW):
+                    window.append(p3d)
+            else:
+                window.append(p3d)
+
+            augmented = augmentTRC(
+                np.asarray(window), subject_mass=self.mass,
+                subject_height=self.height, models=self.models,
+                augmenterDir=self.augmenter_dir, augmenter_model="v0.3")
+            augmented = np.asarray(augmented).reshape(len(LSTM_OUTPUT_ORDER), 3)
+
+            mks = {LSTM_TO_NLF[name]: augmented[i]
+                   for i, name in enumerate(LSTM_OUTPUT_ORDER)
+                   if name in LSTM_TO_NLF}
+            for nlf_name, kp_name in FACE_FROM_KEYPOINTS.items():
+                mks[nlf_name] = p3d[HALPE26.index(kp_name)]
+            yield frame, mks

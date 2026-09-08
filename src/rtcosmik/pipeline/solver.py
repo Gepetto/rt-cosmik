@@ -17,7 +17,8 @@ import pinocchio as pin
 import example_robot_data as robex
 
 from rtcosmik.human_model.model_utils import (
-    scale_human_model, mks_registration, recalibrate_marker_frames_in_joint_space)
+    scale_human_model, mks_registration, recalibrate_marker_frames_in_joint_space,
+    apply_joint_locks)
 from rtcosmik.ik.ik import RT_IK, RT_SWIKA_FATROP, RT_SWIKA_ACADOS
 from rtcosmik.ik import ocp_model
 
@@ -93,6 +94,15 @@ class HumanSolver:
         self.model = human.model
         self.collision_model = human.collision_model
         self.visual_model = human.visual_model
+
+        # Must happen before the OCP is built, and must match what
+        # build_structural_model did when the artefact was generated -- the
+        # limits are fingerprinted, so a mismatch is caught rather than ignored.
+        locked = getattr(self.settings, "locked_joints", ())
+        if locked:
+            apply_joint_locks(self.model, locked)
+            self.logger.info(
+                f"[MODEL] locked {len(locked)} DoF: {', '.join(locked)}")
 
         self.model = scale_human_model(
             self.model, mks_dict, gender=self.gender, subject_height=self.height)

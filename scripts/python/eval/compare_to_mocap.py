@@ -242,6 +242,41 @@ def _best_fit_rotation(P, Q):
     return Vt.T @ np.diag([1.0, 1.0, d]) @ U.T
 
 
+def locked_angle_columns():
+    """Joint-angle column names the configuration has locked, if any.
+
+    A locked DoF is held at zero because the marker set cannot observe it, so
+    scoring it against mocap measures the lock, not the pipeline, and drags the
+    summary toward whatever the subject happened to do with that joint. The
+    columns are still listed, marked, so the exclusion is visible rather than
+    silent.
+
+    Returns an empty set for an ordinary run, which leaves every number here
+    exactly as it was before locking existed.
+    """
+    try:
+        from rtcosmik.config_loader import settings
+        import example_robot_data as robex
+    except Exception:
+        return set()
+    locked = list(getattr(settings, "locked_joints", ()) or ())
+    if not locked:
+        return set()
+    names = list(settings.joint_angles_names)
+    model = robex.human.HumanLoader(
+        height=settings.human_height, weight=settings.human_weight,
+        gender=settings.human_gender).robot.model
+    columns = set()
+    for joint in locked:
+        if not model.existJointName(joint):
+            continue
+        first = model.joints[model.getJointId(joint)].idx_q
+        span = model.joints[model.getJointId(joint)].nq
+        # joint_angles_names is written in q order, so idx_q indexes it directly.
+        columns.update(names[first:first + span])
+    return columns
+
+
 def compare_joint_angles(run, reference):
     """Per-DoF error. Returns (rows, freeflyer_info)."""
     header, est = run["joint_header"], run["joint_values"]
@@ -288,6 +323,7 @@ def compare_joint_angles(run, reference):
                         max(-1.0, min(1.0, (np.trace(relative) - 1) / 2)))))
             freeflyer["orientation_deg"] = float(np.mean(angles)) if angles else math.nan
 
+    locked = locked_angle_columns()
     rows = []
     for index, name in enumerate(header):
         if index in quaternion_cols:
@@ -304,6 +340,7 @@ def compare_joint_angles(run, reference):
         difference = difference[np.isfinite(difference)]
         if difference.size:
             rows.append({"name": name, "unit": unit,
+                         "locked": name in locked,
                          "rmse": float(np.sqrt((difference ** 2).mean())),
                          "mae": float(np.abs(difference).mean())})
     return rows, freeflyer
@@ -328,13 +365,23 @@ def compare_markers(run, reference):
 # Reporting
 # ---------------------------------------------------------------------------
 
-def _print_table(title, row_names, columns, values, unit, width=34):
+def _print_table(title, row_names, columns, values, unit, width=34, excluded=()):
+    """Print one comparison table.
+
+    ``excluded`` rows are still printed, marked with a trailing dot, but left out
+    of the mean and median: they are DoF the configuration locked, so their error
+    describes the lock rather than the pipeline. Showing them keeps the exclusion
+    auditable instead of hiding rows the reader might expect to find.
+    """
+    excluded = set(excluded)
+    scored = [n for n in row_names if n not in excluded]
     print(f"\n{title}")
     header = f"{'':{width}}" + "".join(f"{label:>12}" for label in columns)
     print(header)
     print("-" * len(header))
     for name in row_names:
-        line = f"{name:{width}.{width}}"
+        marker = " ." if name in excluded else ""
+        line = f"{name:{width - len(marker)}.{width - len(marker)}}{marker}"
         for label in columns:
             value = values.get((label, name))
             line += (f"{value:>12.2f}" if value is not None and np.isfinite(value)
@@ -344,11 +391,14 @@ def _print_table(title, row_names, columns, values, unit, width=34):
     for stat, function in (("mean", np.mean), ("median", np.median)):
         line = f"{stat:{width}}"
         for label in columns:
-            column = [values[(label, n)] for n in row_names
+            column = [values[(label, n)] for n in scored
                       if values.get((label, n)) is not None
                       and np.isfinite(values[(label, n)])]
             line += f"{function(column):>12.2f}" if column else f"{'-':>12}"
         print(line + (f"   {unit}" if stat == "median" else ""))
+    if excluded & set(row_names):
+        print(f"  . locked DoF, excluded from the mean and median "
+              f"({len(scored)} of {len(row_names)} scored)")
 
 
 def report(results, reference_label):
@@ -357,8 +407,10 @@ def report(results, reference_label):
     joint_names = [r["name"] for r in results[0][1]["joints"] if r["unit"] == "deg"]
     joint_values = {(label, r["name"]): r["rmse"]
                     for label, data in results for r in data["joints"]}
+    locked = {r["name"] for _, data in results for r in data["joints"]
+              if r.get("locked")}
     _print_table(f"Joint angle RMSE vs {reference_label}", joint_names,
-                 labels, joint_values, "deg")
+                 labels, joint_values, "deg", excluded=locked)
 
     linear_names = [r["name"] for r in results[0][1]["joints"] if r["unit"] == "m"]
     if linear_names:

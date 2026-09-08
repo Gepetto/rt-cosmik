@@ -1103,6 +1103,54 @@ def scale_human_model(model, mks_dict, gender='m', subject_height=1.80):
 
     return model
 
+#: Half-width of a locked joint's position window, in radians. See
+#: apply_joint_locks for why this is not zero.
+LOCK_HALF_WIDTH = 1e-4
+
+
+def apply_joint_locks(model, locked_joints):
+    """Pin the named joints to zero by collapsing their position limits.
+
+    Some marker sets cannot observe every degree of freedom. The mmpose/LSTM
+    baseline emits no markers distal to the wrist and only one on the thorax, so
+    the wrist and thoracic DoF are unobservable (wrist) or badly under-determined
+    (thorax) and would otherwise absorb error and corrupt the joints that *are*
+    observable, through the kinematic chain.
+
+    Locking is done through the position limits rather than by building a reduced
+    model: both IK backends already enforce the limits as box constraints, the
+    limits are part of the OCP fingerprint -- so a lock change forces a
+    regeneration instead of silently reusing a mismatched artefact -- and nq/nv
+    stay put, which keeps every joint name, frame id and CSV column aligned with
+    an unlocked run.
+
+    The window is narrow but deliberately not zero. acados solves the QP with an
+    interior-point method, and a zero-width box has no strict interior for it to
+    stay inside: locking to exactly [0, 0] made 22% of frames fail with
+    ACADOS_MINSTEP and dragged the per-frame p95 from 8 ms to 337 ms. At 1e-4 rad
+    the joint is fixed for any practical purpose -- 0.006 degrees, tens of
+    microns at the fingertip -- and the QP stays well conditioned.
+
+    Args:
+        model: the pinocchio model, modified in place.
+        locked_joints: joint names to pin. Unknown names raise, because a typo
+            here would silently leave a DoF free.
+
+    Returns:
+        The same model.
+    """
+    for name in locked_joints or []:
+        if not model.existJointName(name):
+            raise ValueError(
+                f"cannot lock unknown joint {name!r}; "
+                f"model joints are {list(model.names)[1:]}")
+        joint = model.joints[model.getJointId(name)]
+        span = slice(joint.idx_q, joint.idx_q + joint.nq)
+        model.lowerPositionLimit[span] = -LOCK_HALF_WIDTH
+        model.upperPositionLimit[span] = LOCK_HALF_WIDTH
+    return model
+
+
 def mks_registration(model, mks_dict, gender='m', subject_height=1.80):
     """
     Registers marker frames to a Pinocchio model using a hardcoded marker->joint mapping.
@@ -1139,6 +1187,12 @@ def mks_registration(model, mks_dict, gender='m', subject_height=1.80):
 
     for segment, marker_names in sgts_mks_dict.items():
         for marker_name in marker_names:
+            # A reduced marker set (the mmpose/LSTM baseline) simply has no
+            # position for some markers. Skip them rather than registering a
+            # frame with no data behind it; register_marker_frames applies the
+            # same filter so the structural model keeps identical frame ids.
+            if marker_name not in mks_local_positions:
+                continue
             # Get joint name from hardcoded mapping
             joint_name = MKS_COSMIK_2_JOINTS[marker_name]
 
