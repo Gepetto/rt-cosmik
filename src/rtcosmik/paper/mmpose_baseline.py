@@ -116,6 +116,32 @@ def trial_stem(mmpose_dir):
     return stems.pop()
 
 
+#: Participants whose camera files are not labelled the way their calibration is.
+#: COMFI's 3361 has its two stereo pairs the other way round: the data in
+#: camera_0.csv comes from the camera calibrated as camera_4, and so on. Detected
+#: without any ground truth, by reprojection error -- 68 px as labelled against
+#: 7 px swapped, where every other participant is 8 to 10 px as labelled. Left
+#: uncorrected it put the whole body about a metre from where mocap says it was,
+#: at 54 to 61 deg joint error across all six tasks, while still reconstructing a
+#: correctly sized person, which is why it looked like a pose failure rather than
+#: a labelling one.
+CAMERA_ID_OVERRIDES = {
+    "3361": {0: 4, 2: 6, 4: 0, 6: 2},
+}
+
+
+def calibration_cameras(participant, cameras):
+    """Calibration ids to pair with each requested camera's data.
+
+    Returns ``cameras`` unchanged for every participant but the mislabelled ones.
+    Works on subsets too, so a two-camera run picks up the same correction.
+    """
+    mapping = CAMERA_ID_OVERRIDES.get(str(participant))
+    if not mapping:
+        return list(cameras)
+    return [mapping.get(c, c) for c in cameras]
+
+
 def load_trial(mmpose_dir, task, cameras):
     """Read one trial's per-camera 2D keypoints and confidences.
 
@@ -294,9 +320,11 @@ def build_source(dataset, participant, task, cameras, settings, logger=None,
     meta = yaml.safe_load(
         (root / "metadata" / f"{participant}.yaml").read_text())
     cam_dir = root / "cam_params" / participant
-    mtxs, dists, projections, _, _ = load_camera_parameters(cam_dir, cameras)
-    world_R, world_T = load_world_transformation(cam_dir, cameras[0])
+    calib = calibration_cameras(participant, cameras)
+    mtxs, dists, projections, _, _ = load_camera_parameters(cam_dir, calib)
+    world_R, world_T = load_world_transformation(cam_dir, calib[0])
 
+    # The keypoint files are read by their own ids; only the calibration moves.
     keypoints, confidences = load_trial(
         root / "mmpose" / "output" / participant / task, task, cameras)
 
