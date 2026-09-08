@@ -61,8 +61,8 @@ class Settings:
     # Used for ONLINE runs. Offline runs read these per participant from the
     # dataset's metadata file instead (--subject), and only fall back to these
     # values when no subject file is given.
-    human_height: float = 1.81
-    human_weight: float = 74.0 
+    human_height: float = 1.80
+    human_weight: float = 70.0 
     human_gender: str = 'm'
 
     ### CALIB ###
@@ -73,7 +73,7 @@ class Settings:
     ### FILTER PARAMS ###
     order: int = 4
     system_freq: int = 40 
-    cutoff_freq: float = 5
+    cutoff_freq: float = 10
     filter_type: str = "lowpass"
 
     ### NLF ###

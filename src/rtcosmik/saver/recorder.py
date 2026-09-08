@@ -32,7 +32,9 @@ class Recorder:
         num_cameras: how many per-camera frame counters to record.
         saving_flag: optional shared ``Value`` read by the video writers, so a
             single toggle drives every recorder in the run.
-        logger: optional logger.
+        logger: optional logger. Messages are pre-formatted rather than passed
+            printf-style, because the ROS bridge injects an rclpy logger whose
+            ``info(message, **kwargs)`` takes no positional format arguments.
     """
 
     def __init__(self, settings, num_cameras, saving_flag=None, logger=None):
@@ -62,7 +64,7 @@ class Recorder:
                 joint_angles_header=self._counter_names
                 + list(self.settings.joint_angles_names),
             )
-            self.logger.info("[REC] writing CSV to %s", self.settings.SAVE_DIR)
+            self.logger.info(f"[REC] writing CSV to {self.settings.SAVE_DIR}")
 
         self.hotkeys_active = False
         if getattr(self.settings, "record_hotkeys", True):
@@ -74,8 +76,8 @@ class Recorder:
         state = ("ON" if self.enabled else
                  "OFF (press 's' to start)" if toggleable else
                  "OFF and NOT TOGGLEABLE -- set settings.record_on_start = True")
-        self.logger.info("[REC] csv=%s video=%s, recording %s",
-                         self.settings.SAVE_CSV, self.settings.SAVE_VID, state)
+        self.logger.info(f"[REC] csv={self.settings.SAVE_CSV} "
+                         f"video={self.settings.SAVE_VID}, recording {state}")
         if not (self.settings.SAVE_CSV or self.settings.SAVE_VID):
             self.logger.warning(
                 "[REC] nothing will be saved: both SAVE_CSV and SAVE_VID are False")
@@ -88,8 +90,8 @@ class Recorder:
             # Headless runs have no input device; recording still works from
             # settings, it just cannot be toggled live.
             self.logger.debug(
-                "[REC] in-process hotkeys unavailable (%s); the terminal "
-                "listener in the parent handles this", exc)
+                f"[REC] in-process hotkeys unavailable ({exc}); the terminal "
+                f"listener in the parent handles this")
             return
 
         def on_press(key):
@@ -111,7 +113,8 @@ class Recorder:
         self.enabled = enabled
         if self.saving_flag is not None:
             self.saving_flag.value = enabled
-        self.logger.info("[REC] recording %s", "started" if enabled else "stopped")
+        self.logger.info(
+            f"[REC] recording {'started' if enabled else 'stopped'}")
 
     def close(self):
         if self._listener is not None:
@@ -121,7 +124,7 @@ class Recorder:
             self._csv.close()
             self._csv = None
         if self.rows:
-            self.logger.info("[REC] %d rows written", self.rows)
+            self.logger.info(f"[REC] {self.rows} rows written")
 
     def __enter__(self):
         return self.start()
@@ -143,8 +146,8 @@ class Recorder:
         wanted = bool(self.saving_flag.value)
         if wanted != self.enabled:
             self.enabled = wanted
-            self.logger.info("[REC] recording %s",
-                             "started" if wanted else "stopped")
+            self.logger.info(
+                f"[REC] recording {'started' if wanted else 'stopped'}")
         return self.enabled
 
     def record(self, frame_counters, mks_dict, q):
