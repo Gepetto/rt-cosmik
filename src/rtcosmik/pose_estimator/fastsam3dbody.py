@@ -244,13 +244,48 @@ class FastSAM3DBodyEstimator:
         return outputs[index]
 
     @staticmethod
-    def camera_result(person: dict[str, Any], inference_ms: float) -> dict[str, Any]:
+    def _project_camera_points(
+        points_camera: np.ndarray, camera_matrix: np.ndarray
+    ) -> np.ndarray:
+        """Project camera-frame points with the complete pinhole matrix.
+
+        The pinned Fast-SAM-3D-Body fork recomputes ``pred_keypoints_2d``
+        after hand fusion with ``fx`` on both axes and the image midpoint as
+        principal point.  That convention is only correct for a centred,
+        square-pixel camera.  COSMIK supplies calibrated intrinsics, so its
+        public 2D result must instead use ``fx, fy, cx, cy`` from ``K``.
+
+        Input frames are rectified before inference; consequently distortion
+        coefficients must not be applied again here.
+        """
+
+        points = np.asarray(points_camera, dtype=np.float32)
+        camera = np.asarray(camera_matrix, dtype=np.float32).reshape(3, 3)
+        projected = np.full(points.shape[:-1] + (2,), np.nan, dtype=np.float32)
+        valid = np.isfinite(points).all(axis=-1) & (points[..., 2] > 1e-8)
+        xyz = points[valid]
+        projected[valid, 0] = (
+            camera[0, 0] * xyz[:, 0] / xyz[:, 2] + camera[0, 2]
+        )
+        projected[valid, 1] = (
+            camera[1, 1] * xyz[:, 1] / xyz[:, 2] + camera[1, 2]
+        )
+        return projected
+
+    @classmethod
+    def camera_result(
+        cls,
+        person: dict[str, Any],
+        inference_ms: float,
+        camera_matrix: np.ndarray,
+    ) -> dict[str, Any]:
         """Convert one external model result into explicit camera-frame arrays."""
 
         translation = np.asarray(person["pred_cam_t"], dtype=np.float32).reshape(3)
         vertices_local = np.asarray(person["pred_vertices"], dtype=np.float32)
         keypoints_local = np.asarray(person["pred_keypoints_3d"], dtype=np.float32)
         joints_local = np.asarray(person["pred_joint_coords"], dtype=np.float32)
+        keypoints_camera = keypoints_local + translation[None, :]
         return {
             "bbox": np.asarray(person["bbox"], dtype=np.float32).reshape(4),
             "camera_translation": translation,
@@ -258,8 +293,13 @@ class FastSAM3DBodyEstimator:
             "vertices_local": vertices_local,
             "vertices_camera": vertices_local + translation[None, :],
             "keypoints70_local": keypoints_local,
-            "keypoints70_camera": keypoints_local + translation[None, :],
-            "keypoints70_2d": np.asarray(
+            "keypoints70_camera": keypoints_camera,
+            "keypoints70_2d": cls._project_camera_points(
+                keypoints_camera, camera_matrix
+            ),
+            # Retained only to make differences with the pinned fork easy to
+            # diagnose.  Downstream COSMIK code must use ``keypoints70_2d``.
+            "keypoints70_2d_fork": np.asarray(
                 person["pred_keypoints_2d"], dtype=np.float32
             ),
             "joints127_local": joints_local,
@@ -329,4 +369,8 @@ class FastSAM3DBodyEstimator:
         self._torch.cuda.synchronize()
         inference_ms = 1e3 * (time.perf_counter() - started)
         person = self._select_person(outputs)
-        return None if person is None else self.camera_result(person, inference_ms)
+        return (
+            None
+            if person is None
+            else self.camera_result(person, inference_ms, camera_matrix)
+        )

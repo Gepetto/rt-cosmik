@@ -22,13 +22,13 @@ from rtcosmik.pose_estimator import (
 
 COMFI_ROOT = Path(os.environ.get("COMFI_ROOT", "/root/workspace/COMFI"))
 PROJECT_ROOT = Path(__file__).resolve().parents[3]
-VIDEO_PATH = COMFI_ROOT / "videos/1012/CircularWalking/camera_0.mp4"
+VIDEO_PATH = COMFI_ROOT / "videos/1012/Lifting/camera_0.mp4"
 CALIBRATION_PATH = (
     COMFI_ROOT / "cam_params/1012/intrinsics/camera_0_intrinsics.yaml"
 )
 OUTPUT_DIR = (
     PROJECT_ROOT
-    / "output/fastsam3dbody/comfi-test/1012/CircularWalking/camera_0"
+    / "output/fastsam3dbody/comfi-test/1012/Lifting/camera_0"
 )
 
 
@@ -304,6 +304,8 @@ def export_full_video() -> dict[str, Any]:
         "distortion_coeffs": distortion.tolist(),
         "distortion_applied": True,
         "overlay_frames": "undistorted source video frames",
+        "keypoints2d_projection": "u=fx*X/Z+cx; v=fy*Y/Z+cy",
+        "keypoints2d_source": "keypoints70_camera reprojected with calibrated K",
         "tensorrt": {
             "detector": str(estimator.config.detector_path),
             "backbone": str(estimator.config.backbone_engine_path),
