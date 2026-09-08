@@ -207,14 +207,35 @@ class Settings:
                             "left_wrist_Z", "left_wrist_X",
                             "right_wrist_Z", "right_wrist_X")
 
+    #: Markers the mocap reference cannot supply either. It carries a Vicon head
+    #: cluster (RHD/LHD/FHD/BHD) rather than facial landmarks, so Head, REar and
+    #: LEar are mapped from that cluster and the remaining three are dropped.
+    #: The head segment only needs Head, REar and LEar, so cervical stays
+    #: observable and the locked set is the same seven as parity.
+    MOCAP_DROPPED_MARKERS = ("Nose", "REye", "LEye")
+
     def _apply_marker_set(self):
+        # Always derive from the pristine lists, so the switch can be re-applied
+        # in a process that has already applied one -- a study script that wants
+        # a different marker set should not have to rebuild Settings.
+        if not hasattr(self, "full_marker_names"):
+            self.full_marker_names = list(self.marker_names)
+            self.full_keys_to_track = list(self.keys_to_track_list)
+            self.full_nlf_indices = list(self.nlf_indices)
+        self.marker_names = list(self.full_marker_names)
+        self.keys_to_track_list = list(self.full_keys_to_track)
+        self.nlf_indices = list(self.full_nlf_indices)
+
         if self.marker_set == "nlf":
             self.locked_joints = []
             return
-        if self.marker_set != "parity":
+        if self.marker_set not in ("parity", "mocap"):
             raise ValueError(
-                f"marker_set must be 'nlf' or 'parity', got {self.marker_set!r}")
+                f"marker_set must be 'nlf', 'parity' or 'mocap', "
+                f"got {self.marker_set!r}")
         dropped = set(self.PARITY_DROPPED_MARKERS)
+        if self.marker_set == "mocap":
+            dropped |= set(self.MOCAP_DROPPED_MARKERS)
         missing = dropped - set(self.marker_names)
         if missing:
             raise ValueError(f"parity drops markers not in the set: {sorted(missing)}")

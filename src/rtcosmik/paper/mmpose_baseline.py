@@ -355,3 +355,32 @@ def load_models():
         _MODELS = loadModel(augmenterDir=str(augmenter_dir()),
                             augmenterModelName="LSTM", augmenter_model="v0.3")
     return _MODELS
+
+def apply_marker_set(settings, name):
+    """Switch a loaded settings namespace to another marker set.
+
+    ``Settings._apply_marker_set`` cannot be used here: the config loader turns
+    the dataclass into a SimpleNamespace and drops its methods, so a study that
+    needs a different marker set than settings.py declares has to re-derive it.
+    The pristine lists and the dropped-marker constants come from settings.py,
+    which stays the single source of truth for what each set contains.
+    """
+    settings.marker_names = list(settings.full_marker_names)
+    settings.keys_to_track_list = list(settings.full_keys_to_track)
+    settings.nlf_indices = list(settings.full_nlf_indices)
+    settings.marker_set = name
+    if name == "nlf":
+        settings.locked_joints = []
+        return settings
+    if name not in ("parity", "mocap"):
+        raise ValueError(f"unknown marker set {name!r}")
+    dropped = set(settings.PARITY_DROPPED_MARKERS)
+    if name == "mocap":
+        dropped |= set(settings.MOCAP_DROPPED_MARKERS)
+    keep = [i for i, m in enumerate(settings.marker_names) if m not in dropped]
+    settings.nlf_indices = [settings.nlf_indices[i] for i in keep]
+    settings.marker_names = [settings.marker_names[i] for i in keep]
+    settings.keys_to_track_list = [k for k in settings.keys_to_track_list
+                                   if k not in dropped]
+    settings.locked_joints = list(settings.PARITY_LOCKED_JOINTS)
+    return settings

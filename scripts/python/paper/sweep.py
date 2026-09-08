@@ -241,7 +241,52 @@ def run_nlf(dataset, participant, task, cameras, out_dir, settings,
     return rows, np.asarray(ik_ms), time.perf_counter() - started
 
 
-ARMS = {"mmpose": run_mmpose, "nlf": run_nlf}
+def run_mocap(dataset, participant, task, cameras, out_dir, settings,
+              depth_aware=False):
+    """Drive the same model and IK from mocap markers. Returns (frames, ik_ms, seconds).
+
+    ``cameras`` is ignored -- mocap has no cameras -- but kept in the signature so
+    the sweep can treat this like any other arm.
+    """
+    from collections import OrderedDict
+    import yaml
+    from rtcosmik.paper.mocap_reference import MocapMarkerSource
+    from rtcosmik.pipeline.solver import HumanSolver
+    from rtcosmik.saver.csv_saver import CSVSaver
+
+    root = Path(dataset)
+    meta = yaml.safe_load((root / "metadata" / f"{participant}.yaml").read_text())
+    source = MocapMarkerSource(root / "mocap" / "aligned" / participant / task,
+                               settings.marker_names)
+    solver = HumanSolver(settings, gender=meta["gender"][0], height=meta["height"],
+                         weight=meta["weight"], logger=logging.getLogger("solve"))
+    out_dir.mkdir(parents=True, exist_ok=True)
+    saver = CSVSaver(str(out_dir),
+                     markers_header=["Frame_0"] + list(settings.marker_names),
+                     joint_angles_header=list(settings.joint_angles_names))
+
+    ik_ms, rows = [], 0
+    started = time.perf_counter()
+    for frame, mks in source:
+        t0 = time.perf_counter()
+        q = solver.solve(mks)
+        if rows:
+            ik_ms.append((time.perf_counter() - t0) * 1e3)
+        markers = OrderedDict([("Frame_0", frame)])
+        for name in settings.marker_names:
+            position = mks[name]
+            markers[f"{name}_x"] = float(position[0])
+            markers[f"{name}_y"] = float(position[1])
+            markers[f"{name}_z"] = float(position[2])
+        saver.save_markers(markers)
+        saver.save_joint_angles(
+            OrderedDict(zip(settings.joint_angles_names, (float(v) for v in q))))
+        rows += 1
+    saver.close()
+    return rows, np.asarray(ik_ms), time.perf_counter() - started
+
+
+ARMS = {"mmpose": run_mmpose, "nlf": run_nlf, "mocap": run_mocap}
 
 
 def discover(dataset, participants, tasks, arm="mmpose"):
@@ -270,7 +315,7 @@ def discover(dataset, participants, tasks, arm="mmpose"):
 def main():
     ap = argparse.ArgumentParser(description=__doc__,
                                  formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument("--arm", choices=["mmpose", "nlf"], default="mmpose")
+    ap.add_argument("--arm", choices=["mmpose", "nlf", "mocap"], default="mmpose")
     ap.add_argument("--dataset", required=True)
     ap.add_argument("--cameras", type=int, nargs="+", required=True)
     ap.add_argument("--summary", required=True, help="CSV to append results to")
@@ -281,6 +326,12 @@ def main():
     args = ap.parse_args()
 
     from rtcosmik.config_loader import settings
+    if args.arm == "mocap":
+        # Mocap has no facial landmarks, so it runs a 32-marker set of its own.
+        # The OCP for it must already exist; the fingerprint check refuses a
+        # mismatched one rather than silently reusing the parity build.
+        from rtcosmik.paper.mmpose_baseline import apply_marker_set
+        apply_marker_set(settings, "mocap")
     ev = _load_eval()
 
     tag = args.tag or f"{len(args.cameras)}cam_{args.arm}"
