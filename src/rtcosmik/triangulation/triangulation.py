@@ -155,18 +155,24 @@ def distance_scaled_uncertainties(uncertainties, points3d, centres, floor=0.1):
 
     MEASURED AND NOT ADOPTED. On 10 COMFI trials this is a wash where the cameras
     are roughly equidistant and a disaster where they are not: StraightWalking,
-    with a 2.61x near/far range ratio, went from 24.3 to 39.5 deg. The reason is
-    that proximity is the wrong prior for a multi-view DLT. What conditions the
-    solve is angular diversity, and the distant views are usually the wide-
-    parallax ones, so downweighting by range strips out exactly the geometry the
-    triangulation depends on -- effective cameras per joint fell 3.39 to 3.16 on
-    that trial.
+    with a 2.61x near/far range ratio, went from 24.3 to 39.5 deg while Lifting,
+    at 1.07x, did not move at all.
 
-    The idea was taken from a pipeline that fused two already-triangulated stereo
-    estimates, and there it is sound: each pair has already spent its own
-    baseline, so proximity really does predict which pair to trust. It does not
-    survive the move to fusing 2D rays. Kept, off by default, because the
-    negative result is worth more than the code.
+    The mechanism is that the weighting becomes non-stationary. COMFI's rig is
+    two stereo pairs facing each other across 5.3 m, and their reconstructions
+    disagree -- about 70 mm systematically and 140 mm randomly. Weighting by range
+    makes the solve follow whichever pair the subject is nearer, so as they walk
+    the estimate hands off between two sources that do not agree, and the markers
+    step. Frame-to-frame marker motion on that trial went from a 95 mm worst case
+    to 408 mm, while Lifting, where no hand-off happens, was unchanged at 90 mm.
+    The IK then has to chase those steps.
+
+    So the cost is not mainly the loss of parallax -- effective cameras per joint
+    fell only 3.39 to 3.16 -- it is the discontinuity. Any weighting that varies
+    with subject position has this problem whenever the views it is choosing
+    between disagree.
+
+    Kept, off by default, because the negative result is worth more than the code.
 
     Args:
         uncertainties: (C, J) per-camera per-joint sigma, or None for distance
