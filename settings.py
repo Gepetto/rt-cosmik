@@ -211,7 +211,16 @@ class Settings:
             raise ValueError(
                 f"marker_set must be 'nlf' or 'parity', got {self.marker_set!r}")
         dropped = set(self.PARITY_DROPPED_MARKERS)
-        self.marker_names = [m for m in self.marker_names if m not in dropped]
+        missing = dropped - set(self.marker_names)
+        if missing:
+            raise ValueError(f"parity drops markers not in the set: {sorted(missing)}")
+        # nlf_indices is positionally aligned with the full marker_names list, so
+        # it has to be subset by the same positions -- otherwise NLF would keep
+        # emitting 43 points against 35 names and every marker would be silently
+        # mislabelled.
+        keep = [i for i, m in enumerate(self.marker_names) if m not in dropped]
+        self.nlf_indices = [self.nlf_indices[i] for i in keep]
+        self.marker_names = [self.marker_names[i] for i in keep]
         self.keys_to_track_list = [k for k in self.keys_to_track_list
                                    if k not in dropped]
         self.locked_joints = list(self.PARITY_LOCKED_JOINTS)

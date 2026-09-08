@@ -259,3 +259,54 @@ class MmposeMarkerSource:
             for nlf_name, kp_name in FACE_FROM_KEYPOINTS.items():
                 mks[nlf_name] = p3d[HALPE26.index(kp_name)]
             yield frame, mks
+
+
+def build_source(dataset, participant, task, cameras, settings, logger=None):
+    """Assemble the marker source for one trial, with its subject metadata.
+
+    Returns ``(source, meta)``. Split out from the driver so a sweep can reuse
+    one loaded set of LSTM sessions across hundreds of trials instead of paying
+    the onnxruntime startup for each.
+    """
+    import yaml
+    from rtcosmik.camera.cam_utils import (load_camera_parameters,
+                                           load_world_transformation)
+    from rtcosmik.filtering.iir import IIR
+
+    root = Path(dataset)
+    meta = yaml.safe_load(
+        (root / "metadata" / f"{participant}.yaml").read_text())
+    cam_dir = root / "cam_params" / participant
+    mtxs, dists, projections, _, _ = load_camera_parameters(cam_dir, cameras)
+    world_R, world_T = load_world_transformation(cam_dir, cameras[0])
+
+    keypoints, confidences = load_trial(
+        root / "mmpose" / "output" / participant / task, task, cameras)
+
+    iir = IIR(num_channel=3 * len(HALPE26), sampling_frequency=settings.fs)
+    iir.add_filter(order=settings.order, cutoff=settings.cutoff_freq,
+                   filter_type=settings.filter_type)
+
+    source = MmposeMarkerSource(
+        keypoints, confidences, mtxs, dists, projections, world_R, world_T,
+        load_models(), augmenter_dir(), meta["height"], meta["weight"],
+        iir=iir, buffer_len=settings.N, logger=logger)
+    return source, meta
+
+
+def augmenter_dir():
+    """Where the LSTM sessions and their normalisation statistics live."""
+    return Path(__file__).resolve().parents[1] / "augmenter" / "augmentation_model"
+
+
+_MODELS = None
+
+
+def load_models():
+    """The LSTM sessions, loaded once per process."""
+    global _MODELS
+    if _MODELS is None:
+        from rtcosmik.augmenter.marker_augmenter import loadModel
+        _MODELS = loadModel(augmenterDir=str(augmenter_dir()),
+                            augmenterModelName="LSTM", augmenter_model="v0.3")
+    return _MODELS
