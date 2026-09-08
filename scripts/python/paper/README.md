@@ -78,18 +78,13 @@ that trial (mean confidence 0.59/0.64 against 0.83/0.85 for cameras 0 and 2), so
 effective coverage drops to ~3.7 of 4 cameras. It is unfavourable rig geometry
 for that walk direction, and it applies to both arms equally.
 
-## Two measurements still owed
+## Reading the timing columns
 
-**Throughput is not comparable as it stands.** The mmpose arm starts from
-COMFI's precomputed 2D keypoints, so its figure covers triangulation, the LSTM
-and the IK, and excludes the cost of running mmpose itself. NLF's figure is
-end to end: YOLO, NLF, video decode and IK. Reporting 90 fps against 32 fps
-would therefore be wrong in the baseline's favour. Either label the baseline's
-number as post-2D, or measure mmpose and add it.
-
-mmpose is not installed here, and `tests/benchmark/benchmark_mmpose_batched_all.py`
--- which already targets these six tasks -- needs the detector and pose weights.
-Its results were never committed, so someone may already have them.
+**The sweep's mmpose fps column is post-2D only.** That arm reads COMFI's
+precomputed 2D keypoints, so its figure covers triangulation, the LSTM and the
+IK, and excludes running mmpose. NLF's figure is end to end: YOLO, NLF, video
+decode and IK. The two must not be printed side by side without adding mmpose's
+own inference cost, which is measured separately and held outside this repo.
 
 **The NLF timings in this sweep are lower bounds.** They were measured with
 another job sharing the GPU: about 2.9 GB of the 5.07 GB in use was outside this
