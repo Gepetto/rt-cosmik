@@ -158,12 +158,19 @@ class Recorder:
 
         counters = OrderedDict(zip(self._counter_names, frame_counters))
         markers = OrderedDict(counters)
-        markers.update((name, mks_dict[name]) for name in self.settings.marker_names
-                       if name in mks_dict)
+        for name in self.settings.marker_names:
+            p = mks_dict.get(name)
+            try:
+                markers[f"{name}_x"] = float(p[0]) if p is not None else None
+                markers[f"{name}_y"] = float(p[1]) if p is not None else None
+                markers[f"{name}_z"] = float(p[2]) if p is not None else None
+            except Exception:
+                markers[f"{name}_x"] = None
+                markers[f"{name}_y"] = None
+                markers[f"{name}_z"] = None
         angles = OrderedDict(counters)
         angles.update(zip(self.settings.joint_angles_names,
                           (float(v) for v in q)))
-
         self._csv.save_markers(markers)
         self._csv.save_joint_angles(angles)
         self.rows += 1
