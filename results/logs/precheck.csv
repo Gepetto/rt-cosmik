@@ -1,0 +1,2 @@
+arm,participant,task,cameras,n_horizon,frames,lag,sync_r,joint_rmse_mean,joint_rmse_median,scored_dof,freeflyer_mm,marker_mm,root_orientation_deg,ik_ms_median,ik_ms_p95,fps,status
+nlf,1012,Lifting,0-2-4-6,7,1771,4,0.9987,12.525,8.453,29,20.8,53.75,9.234,3.61,4.65,31.6,ok

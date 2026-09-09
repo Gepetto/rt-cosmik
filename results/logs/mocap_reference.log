@@ -1,0 +1,270 @@
+2026-09-09 00:59:40,700 | INFO | 6 trials; 0 already summarised; cameras 0; N=7; marker_set=mocap
+/usr/lib/python3/dist-packages/scipy/__init__.py:146: UserWarning: A NumPy version >=1.17.3 and <1.25.0 is required for this version of SciPy (detected version 1.26.4
+  warnings.warn(f"A NumPy version >={np_minversion} and <{np_maxversion}"
+2026-09-09 00:59:47,593 | INFO | [1/6] 1012/Lifting: 7.114 deg over 29 DoF, r=0.9999, 294.2 fps
+2026-09-09 00:59:54,289 | INFO | [2/6] 1012/Polishing: 7.722 deg over 29 DoF, r=0.9982, 303.4 fps
+2026-09-09 01:00:03,987 | INFO | [3/6] 1012/RobotPolishing: 7.113 deg over 29 DoF, r=0.9976, 306.6 fps
+2026-09-09 01:00:11,633 | INFO | [4/6] 1012/RobotWelding: 6.666 deg over 29 DoF, r=0.9963, 275.6 fps
+2026-09-09 01:00:21,997 | INFO | [5/6] 1012/Screwing: 8.497 deg over 29 DoF, r=0.9918, 287.3 fps
+2026-09-09 01:00:36,840 | INFO | [6/6] 1012/SideOverhead: 11.038 deg over 29 DoF, r=0.9974, 283.0 fps
+acados was compiled without OpenMP.
+acados was compiled without OpenMP.
+acados was compiled without OpenMP.
+acados was compiled without OpenMP.
+acados was compiled without OpenMP.
+acados was compiled without OpenMP.
+2026-09-09 01:00:37,762 | INFO | 6 trials; 6 already summarised; cameras 0; N=7; marker_set=mocap
+/usr/lib/python3/dist-packages/scipy/__init__.py:146: UserWarning: A NumPy version >=1.17.3 and <1.25.0 is required for this version of SciPy (detected version 1.26.4
+  warnings.warn(f"A NumPy version >={np_minversion} and <{np_maxversion}"
+2026-09-09 01:00:41,733 | INFO | [1/6] 1118/Lifting: 6.217 deg over 29 DoF, r=0.9998, 285.6 fps
+2026-09-09 01:00:53,010 | INFO | [2/6] 1118/Polishing: 8.023 deg over 29 DoF, r=0.9263, 278.0 fps
+2026-09-09 01:01:02,315 | INFO | [3/6] 1118/RobotPolishing: 5.81 deg over 29 DoF, r=0.9984, 351.8 fps
+2026-09-09 01:01:09,126 | INFO | [4/6] 1118/RobotWelding: 6.189 deg over 29 DoF, r=0.9987, 334.3 fps
+2026-09-09 01:01:16,993 | INFO | [5/6] 1118/Screwing: 6.773 deg over 29 DoF, r=0.9839, 339.7 fps
+2026-09-09 01:01:26,762 | INFO | [6/6] 1118/SideOverhead: 7.236 deg over 29 DoF, r=0.9911, 322.1 fps
+acados was compiled without OpenMP.
+acados was compiled without OpenMP.
+acados was compiled without OpenMP.
+acados was compiled without OpenMP.
+acados was compiled without OpenMP.
+acados was compiled without OpenMP.
+2026-09-09 01:01:27,652 | INFO | 6 trials; 12 already summarised; cameras 0; N=7; marker_set=mocap
+/usr/lib/python3/dist-packages/scipy/__init__.py:146: UserWarning: A NumPy version >=1.17.3 and <1.25.0 is required for this version of SciPy (detected version 1.26.4
+  warnings.warn(f"A NumPy version >={np_minversion} and <{np_maxversion}"
+2026-09-09 01:01:34,095 | INFO | [1/6] 1508/Lifting: 6.962 deg over 29 DoF, r=0.9999, 293.0 fps
+2026-09-09 01:01:42,410 | INFO | [2/6] 1508/Polishing: 7.775 deg over 29 DoF, r=0.9625, 259.3 fps
+2026-09-09 01:01:53,568 | INFO | [3/6] 1508/RobotPolishing: 7.035 deg over 29 DoF, r=0.9967, 297.0 fps
+2026-09-09 01:02:03,758 | INFO | [4/6] 1508/RobotWelding: 6.504 deg over 29 DoF, r=0.999, 315.9 fps
+2026-09-09 01:02:11,319 | INFO | [5/6] 1508/Screwing: 6.156 deg over 29 DoF, r=0.9897, 333.9 fps
+2026-09-09 01:02:21,835 | INFO | [6/6] 1508/SideOverhead: 7.881 deg over 29 DoF, r=0.9933, 309.4 fps
+acados was compiled without OpenMP.
+acados was compiled without OpenMP.
+acados was compiled without OpenMP.
+acados was compiled without OpenMP.
+acados was compiled without OpenMP.
+acados was compiled without OpenMP.
+2026-09-09 01:02:22,720 | INFO | 6 trials; 18 already summarised; cameras 0; N=7; marker_set=mocap
+/usr/lib/python3/dist-packages/scipy/__init__.py:146: UserWarning: A NumPy version >=1.17.3 and <1.25.0 is required for this version of SciPy (detected version 1.26.4
+  warnings.warn(f"A NumPy version >={np_minversion} and <{np_maxversion}"
+2026-09-09 01:02:28,363 | INFO | [1/6] 1602/Lifting: 6.186 deg over 29 DoF, r=0.9987, 293.0 fps
+2026-09-09 01:02:35,814 | INFO | [2/6] 1602/Polishing: 9.16 deg over 29 DoF, r=0.9902, 273.9 fps
+2026-09-09 01:02:48,730 | INFO | [3/6] 1602/RobotPolishing: 9.435 deg over 29 DoF, r=0.9893, 316.3 fps
+2026-09-09 01:02:57,012 | INFO | [4/6] 1602/RobotWelding: 6.388 deg over 29 DoF, r=0.9965, 293.0 fps
+2026-09-09 01:03:04,999 | INFO | [5/6] 1602/Screwing: 6.133 deg over 29 DoF, r=0.9973, 345.0 fps
+2026-09-09 01:03:18,422 | INFO | [6/6] 1602/SideOverhead: 14.271 deg over 29 DoF, r=0.9959, 278.2 fps
+acados was compiled without OpenMP.
+acados was compiled without OpenMP.
+acados was compiled without OpenMP.
+acados was compiled without OpenMP.
+acados was compiled without OpenMP.
+acados was compiled without OpenMP.
+2026-09-09 01:03:19,280 | INFO | 6 trials; 24 already summarised; cameras 0; N=7; marker_set=mocap
+/usr/lib/python3/dist-packages/scipy/__init__.py:146: UserWarning: A NumPy version >=1.17.3 and <1.25.0 is required for this version of SciPy (detected version 1.26.4
+  warnings.warn(f"A NumPy version >={np_minversion} and <{np_maxversion}"
+2026-09-09 01:03:26,002 | INFO | [1/6] 1847/Lifting: 6.66 deg over 29 DoF, r=0.9998, 313.8 fps
+2026-09-09 01:03:34,381 | INFO | [2/6] 1847/Polishing: 9.641 deg over 29 DoF, r=0.9774, 317.6 fps
+2026-09-09 01:03:46,541 | INFO | [3/6] 1847/RobotPolishing: 8.102 deg over 29 DoF, r=0.9978, 359.2 fps
+2026-09-09 01:03:58,526 | INFO | [4/6] 1847/RobotWelding: 7.799 deg over 29 DoF, r=0.9961, 329.6 fps
+2026-09-09 01:04:08,231 | INFO | [5/6] 1847/Screwing: 12.577 deg over 29 DoF, r=0.9884, 260.2 fps
+2026-09-09 01:04:21,260 | INFO | [6/6] 1847/SideOverhead: 16.5 deg over 29 DoF, r=0.987, 290.5 fps
+acados was compiled without OpenMP.
+acados was compiled without OpenMP.
+acados was compiled without OpenMP.
+acados was compiled without OpenMP.
+acados was compiled without OpenMP.
+acados was compiled without OpenMP.
+2026-09-09 01:04:22,168 | INFO | 6 trials; 30 already summarised; cameras 0; N=7; marker_set=mocap
+/usr/lib/python3/dist-packages/scipy/__init__.py:146: UserWarning: A NumPy version >=1.17.3 and <1.25.0 is required for this version of SciPy (detected version 1.26.4
+  warnings.warn(f"A NumPy version >={np_minversion} and <{np_maxversion}"
+2026-09-09 01:04:28,684 | INFO | [1/6] 2112/Lifting: 6.3 deg over 29 DoF, r=1.0, 280.3 fps
+2026-09-09 01:04:35,835 | INFO | [2/6] 2112/Polishing: 5.59 deg over 29 DoF, r=0.9909, 263.9 fps
+2026-09-09 01:04:46,857 | INFO | [3/6] 2112/RobotPolishing: 6.146 deg over 29 DoF, r=0.9966, 297.3 fps
+2026-09-09 01:04:56,106 | INFO | [4/6] 2112/RobotWelding: 6.013 deg over 29 DoF, r=0.9933, 268.2 fps
+2026-09-09 01:05:06,116 | INFO | [5/6] 2112/Screwing: 4.801 deg over 29 DoF, r=0.996, 315.0 fps
+2026-09-09 01:05:14,976 | INFO | [6/6] 2112/SideOverhead: 6.737 deg over 29 DoF, r=0.9964, 281.7 fps
+acados was compiled without OpenMP.
+acados was compiled without OpenMP.
+acados was compiled without OpenMP.
+acados was compiled without OpenMP.
+acados was compiled without OpenMP.
+acados was compiled without OpenMP.
+2026-09-09 01:05:15,874 | INFO | 6 trials; 36 already summarised; cameras 0; N=7; marker_set=mocap
+/usr/lib/python3/dist-packages/scipy/__init__.py:146: UserWarning: A NumPy version >=1.17.3 and <1.25.0 is required for this version of SciPy (detected version 1.26.4
+  warnings.warn(f"A NumPy version >={np_minversion} and <{np_maxversion}"
+2026-09-09 01:05:23,395 | INFO | [1/6] 2198/Lifting: 4.838 deg over 29 DoF, r=0.9999, 265.9 fps
+2026-09-09 01:05:30,291 | INFO | [2/6] 2198/Polishing: 8.919 deg over 29 DoF, r=0.9875, 267.8 fps
+2026-09-09 01:05:37,207 | INFO | [3/6] 2198/RobotPolishing: 4.573 deg over 29 DoF, r=0.9987, 277.8 fps
+2026-09-09 01:05:46,537 | INFO | [4/6] 2198/RobotWelding: 7.996 deg over 29 DoF, r=0.9939, 277.9 fps
+2026-09-09 01:05:52,841 | INFO | [5/6] 2198/Screwing: 8.486 deg over 29 DoF, r=0.9888, 327.3 fps
+2026-09-09 01:06:06,174 | INFO | [6/6] 2198/SideOverhead: 10.855 deg over 29 DoF, r=0.9958, 279.3 fps
+acados was compiled without OpenMP.
+acados was compiled without OpenMP.
+acados was compiled without OpenMP.
+acados was compiled without OpenMP.
+acados was compiled without OpenMP.
+acados was compiled without OpenMP.
+2026-09-09 01:06:07,068 | INFO | 6 trials; 42 already summarised; cameras 0; N=7; marker_set=mocap
+/usr/lib/python3/dist-packages/scipy/__init__.py:146: UserWarning: A NumPy version >=1.17.3 and <1.25.0 is required for this version of SciPy (detected version 1.26.4
+  warnings.warn(f"A NumPy version >={np_minversion} and <{np_maxversion}"
+2026-09-09 01:06:12,698 | INFO | [1/6] 2307/Lifting: 5.606 deg over 29 DoF, r=0.9999, 313.3 fps
+2026-09-09 01:06:20,616 | INFO | [2/6] 2307/Polishing: 7.369 deg over 29 DoF, r=0.9909, 314.2 fps
+2026-09-09 01:06:30,797 | INFO | [3/6] 2307/RobotPolishing: 8.498 deg over 29 DoF, r=0.9974, 341.2 fps
+2026-09-09 01:06:39,010 | INFO | [4/6] 2307/RobotWelding: 7.188 deg over 29 DoF, r=0.9944, 324.9 fps
+2026-09-09 01:06:46,294 | INFO | [5/6] 2307/Screwing: 7.081 deg over 29 DoF, r=0.9931, 342.0 fps
+2026-09-09 01:06:54,547 | INFO | [6/6] 2307/SideOverhead: 8.353 deg over 29 DoF, r=0.9945, 333.4 fps
+acados was compiled without OpenMP.
+acados was compiled without OpenMP.
+acados was compiled without OpenMP.
+acados was compiled without OpenMP.
+acados was compiled without OpenMP.
+acados was compiled without OpenMP.
+2026-09-09 01:06:55,438 | INFO | 6 trials; 48 already summarised; cameras 0; N=7; marker_set=mocap
+/usr/lib/python3/dist-packages/scipy/__init__.py:146: UserWarning: A NumPy version >=1.17.3 and <1.25.0 is required for this version of SciPy (detected version 1.26.4
+  warnings.warn(f"A NumPy version >={np_minversion} and <{np_maxversion}"
+2026-09-09 01:06:59,053 | INFO | [1/6] 3361/Lifting: 7.32 deg over 29 DoF, r=0.9979, 248.0 fps
+2026-09-09 01:07:06,800 | INFO | [2/6] 3361/Polishing: 6.596 deg over 29 DoF, r=0.9886, 265.1 fps
+2026-09-09 01:07:19,311 | INFO | [3/6] 3361/RobotPolishing: 6.204 deg over 29 DoF, r=0.9943, 262.2 fps
+2026-09-09 01:07:29,817 | INFO | [4/6] 3361/RobotWelding: 6.36 deg over 29 DoF, r=0.9925, 258.5 fps
+2026-09-09 01:07:37,687 | INFO | [5/6] 3361/Screwing: 6.314 deg over 29 DoF, r=0.9926, 254.3 fps
+2026-09-09 01:07:49,236 | INFO | [6/6] 3361/SideOverhead: 9.23 deg over 29 DoF, r=0.9911, 280.0 fps
+acados was compiled without OpenMP.
+acados was compiled without OpenMP.
+acados was compiled without OpenMP.
+acados was compiled without OpenMP.
+acados was compiled without OpenMP.
+acados was compiled without OpenMP.
+2026-09-09 01:07:50,120 | INFO | 6 trials; 54 already summarised; cameras 0; N=7; marker_set=mocap
+/usr/lib/python3/dist-packages/scipy/__init__.py:146: UserWarning: A NumPy version >=1.17.3 and <1.25.0 is required for this version of SciPy (detected version 1.26.4
+  warnings.warn(f"A NumPy version >={np_minversion} and <{np_maxversion}"
+2026-09-09 01:07:56,477 | INFO | [1/6] 4162/Lifting: 6.515 deg over 29 DoF, r=0.9999, 334.1 fps
+2026-09-09 01:08:04,707 | INFO | [2/6] 4162/Polishing: 7.024 deg over 29 DoF, r=0.9929, 322.9 fps
+2026-09-09 01:08:14,119 | INFO | [3/6] 4162/RobotPolishing: 8.837 deg over 29 DoF, r=0.9939, 340.1 fps
+2026-09-09 01:08:22,701 | INFO | [4/6] 4162/RobotWelding: 9.72 deg over 29 DoF, r=0.9962, 337.5 fps
+2026-09-09 01:08:32,722 | INFO | [5/6] 4162/Screwing: 10.609 deg over 29 DoF, r=0.9748, 329.0 fps
+2026-09-09 01:08:43,693 | INFO | [6/6] 4162/SideOverhead: 19.325 deg over 29 DoF, r=0.9918, 337.5 fps
+acados was compiled without OpenMP.
+acados was compiled without OpenMP.
+acados was compiled without OpenMP.
+acados was compiled without OpenMP.
+acados was compiled without OpenMP.
+acados was compiled without OpenMP.
+2026-09-09 01:08:44,613 | INFO | 6 trials; 60 already summarised; cameras 0; N=7; marker_set=mocap
+/usr/lib/python3/dist-packages/scipy/__init__.py:146: UserWarning: A NumPy version >=1.17.3 and <1.25.0 is required for this version of SciPy (detected version 1.26.4
+  warnings.warn(f"A NumPy version >={np_minversion} and <{np_maxversion}"
+2026-09-09 01:08:48,828 | INFO | [1/6] 4216/Lifting: 6.805 deg over 29 DoF, r=0.9999, 281.4 fps
+2026-09-09 01:08:55,201 | INFO | [2/6] 4216/Polishing: 8.051 deg over 29 DoF, r=0.9926, 310.2 fps
+2026-09-09 01:09:03,451 | INFO | [3/6] 4216/RobotPolishing: 8.716 deg over 29 DoF, r=0.9958, 294.8 fps
+2026-09-09 01:09:14,013 | INFO | [4/6] 4216/RobotWelding: 6.077 deg over 29 DoF, r=0.9978, 258.0 fps
+2026-09-09 01:09:22,751 | INFO | [5/6] 4216/Screwing: 7.227 deg over 29 DoF, r=0.9979, 263.2 fps
+2026-09-09 01:09:34,137 | INFO | [6/6] 4216/SideOverhead: 12.654 deg over 29 DoF, r=0.9971, 287.8 fps
+acados was compiled without OpenMP.
+acados was compiled without OpenMP.
+acados was compiled without OpenMP.
+acados was compiled without OpenMP.
+acados was compiled without OpenMP.
+acados was compiled without OpenMP.
+2026-09-09 01:09:35,064 | INFO | 6 trials; 66 already summarised; cameras 0; N=7; marker_set=mocap
+/usr/lib/python3/dist-packages/scipy/__init__.py:146: UserWarning: A NumPy version >=1.17.3 and <1.25.0 is required for this version of SciPy (detected version 1.26.4
+  warnings.warn(f"A NumPy version >={np_minversion} and <{np_maxversion}"
+2026-09-09 01:09:42,306 | INFO | [1/6] 4279/Lifting: 6.252 deg over 29 DoF, r=0.9994, 315.7 fps
+2026-09-09 01:09:48,978 | INFO | [2/6] 4279/Polishing: 8.016 deg over 29 DoF, r=0.9367, 280.1 fps
+2026-09-09 01:09:58,112 | INFO | [3/6] 4279/RobotPolishing: 6.881 deg over 29 DoF, r=0.9847, 342.3 fps
+2026-09-09 01:10:06,621 | INFO | [4/6] 4279/RobotWelding: 6.867 deg over 29 DoF, r=0.9968, 336.2 fps
+2026-09-09 01:10:15,353 | INFO | [5/6] 4279/Screwing: 6.687 deg over 29 DoF, r=0.996, 346.4 fps
+2026-09-09 01:10:25,028 | INFO | [6/6] 4279/SideOverhead: 9.026 deg over 29 DoF, r=0.9963, 310.0 fps
+acados was compiled without OpenMP.
+acados was compiled without OpenMP.
+acados was compiled without OpenMP.
+acados was compiled without OpenMP.
+acados was compiled without OpenMP.
+acados was compiled without OpenMP.
+2026-09-09 01:10:25,919 | INFO | 6 trials; 72 already summarised; cameras 0; N=7; marker_set=mocap
+/usr/lib/python3/dist-packages/scipy/__init__.py:146: UserWarning: A NumPy version >=1.17.3 and <1.25.0 is required for this version of SciPy (detected version 1.26.4
+  warnings.warn(f"A NumPy version >={np_minversion} and <{np_maxversion}"
+2026-09-09 01:10:31,265 | INFO | [1/6] 4509/Lifting: 8.956 deg over 29 DoF, r=0.9987, 292.8 fps
+2026-09-09 01:10:38,907 | INFO | [2/6] 4509/Polishing: 8.516 deg over 29 DoF, r=0.9751, 297.0 fps
+2026-09-09 01:10:50,227 | INFO | [3/6] 4509/RobotPolishing: 7.384 deg over 29 DoF, r=0.9879, 262.5 fps
+2026-09-09 01:11:00,748 | INFO | [4/6] 4509/RobotWelding: 6.987 deg over 29 DoF, r=0.9916, 277.8 fps
+2026-09-09 01:11:09,253 | INFO | [5/6] 4509/Screwing: 7.325 deg over 29 DoF, r=0.9873, 294.1 fps
+2026-09-09 01:11:16,922 | INFO | [6/6] 4509/SideOverhead: 11.517 deg over 29 DoF, r=0.9927, 283.6 fps
+acados was compiled without OpenMP.
+acados was compiled without OpenMP.
+acados was compiled without OpenMP.
+acados was compiled without OpenMP.
+acados was compiled without OpenMP.
+acados was compiled without OpenMP.
+2026-09-09 01:11:17,811 | INFO | 6 trials; 78 already summarised; cameras 0; N=7; marker_set=mocap
+/usr/lib/python3/dist-packages/scipy/__init__.py:146: UserWarning: A NumPy version >=1.17.3 and <1.25.0 is required for this version of SciPy (detected version 1.26.4
+  warnings.warn(f"A NumPy version >={np_minversion} and <{np_maxversion}"
+2026-09-09 01:11:25,182 | INFO | [1/6] 4612/Lifting: 6.771 deg over 29 DoF, r=0.9997, 291.9 fps
+2026-09-09 01:11:31,888 | INFO | [2/6] 4612/Polishing: 9.228 deg over 29 DoF, r=0.9641, 305.2 fps
+2026-09-09 01:11:41,341 | INFO | [3/6] 4612/RobotPolishing: 8.845 deg over 29 DoF, r=0.9912, 327.9 fps
+2026-09-09 01:11:48,938 | INFO | [4/6] 4612/RobotWelding: 8.115 deg over 29 DoF, r=0.991, 314.0 fps
+2026-09-09 01:11:56,832 | INFO | [5/6] 4612/Screwing: 5.873 deg over 29 DoF, r=0.9975, 303.0 fps
+2026-09-09 01:12:05,753 | INFO | [6/6] 4612/SideOverhead: 10.86 deg over 29 DoF, r=0.9846, 304.8 fps
+acados was compiled without OpenMP.
+acados was compiled without OpenMP.
+acados was compiled without OpenMP.
+acados was compiled without OpenMP.
+acados was compiled without OpenMP.
+acados was compiled without OpenMP.
+2026-09-09 01:12:06,662 | INFO | 6 trials; 84 already summarised; cameras 0; N=7; marker_set=mocap
+/usr/lib/python3/dist-packages/scipy/__init__.py:146: UserWarning: A NumPy version >=1.17.3 and <1.25.0 is required for this version of SciPy (detected version 1.26.4
+  warnings.warn(f"A NumPy version >={np_minversion} and <{np_maxversion}"
+2026-09-09 01:12:12,858 | INFO | [1/6] 4665/Lifting: 8.978 deg over 29 DoF, r=0.9998, 327.1 fps
+2026-09-09 01:12:23,037 | INFO | [2/6] 4665/Polishing: 9.075 deg over 29 DoF, r=0.9974, 330.7 fps
+2026-09-09 01:12:34,466 | INFO | [3/6] 4665/RobotPolishing: 11.315 deg over 29 DoF, r=0.9932, 338.2 fps
+2026-09-09 01:12:44,576 | INFO | [4/6] 4665/RobotWelding: 12.541 deg over 29 DoF, r=0.9958, 341.4 fps
+2026-09-09 01:12:54,551 | INFO | [5/6] 4665/Screwing: 8.601 deg over 29 DoF, r=0.9891, 361.9 fps
+2026-09-09 01:13:04,856 | INFO | [6/6] 4665/SideOverhead: 10.608 deg over 29 DoF, r=0.989, 330.5 fps
+acados was compiled without OpenMP.
+acados was compiled without OpenMP.
+acados was compiled without OpenMP.
+acados was compiled without OpenMP.
+acados was compiled without OpenMP.
+acados was compiled without OpenMP.
+2026-09-09 01:13:05,729 | INFO | 6 trials; 90 already summarised; cameras 0; N=7; marker_set=mocap
+/usr/lib/python3/dist-packages/scipy/__init__.py:146: UserWarning: A NumPy version >=1.17.3 and <1.25.0 is required for this version of SciPy (detected version 1.26.4
+  warnings.warn(f"A NumPy version >={np_minversion} and <{np_maxversion}"
+2026-09-09 01:13:11,791 | INFO | [1/6] 4687/Lifting: 7.223 deg over 29 DoF, r=0.9999, 303.4 fps
+2026-09-09 01:13:17,338 | INFO | [2/6] 4687/Polishing: 6.245 deg over 29 DoF, r=0.9905, 296.3 fps
+2026-09-09 01:13:24,042 | INFO | [3/6] 4687/RobotPolishing: 4.917 deg over 29 DoF, r=0.9964, 341.8 fps
+2026-09-09 01:13:29,991 | INFO | [4/6] 4687/RobotWelding: 5.06 deg over 29 DoF, r=0.9982, 338.4 fps
+2026-09-09 01:13:37,412 | INFO | [5/6] 4687/Screwing: 6.031 deg over 29 DoF, r=0.9985, 281.3 fps
+2026-09-09 01:13:42,931 | INFO | [6/6] 4687/SideOverhead: 7.77 deg over 29 DoF, r=0.9948, 299.0 fps
+acados was compiled without OpenMP.
+acados was compiled without OpenMP.
+acados was compiled without OpenMP.
+acados was compiled without OpenMP.
+acados was compiled without OpenMP.
+acados was compiled without OpenMP.
+2026-09-09 01:13:43,830 | INFO | 6 trials; 96 already summarised; cameras 0; N=7; marker_set=mocap
+/usr/lib/python3/dist-packages/scipy/__init__.py:146: UserWarning: A NumPy version >=1.17.3 and <1.25.0 is required for this version of SciPy (detected version 1.26.4
+  warnings.warn(f"A NumPy version >={np_minversion} and <{np_maxversion}"
+2026-09-09 01:13:48,168 | INFO | [1/6] 4801/Lifting: 5.79 deg over 29 DoF, r=0.9999, 292.9 fps
+2026-09-09 01:13:58,592 | INFO | [2/6] 4801/Polishing: 6.479 deg over 29 DoF, r=0.9943, 313.2 fps
+2026-09-09 01:14:10,850 | INFO | [3/6] 4801/RobotPolishing: 6.701 deg over 29 DoF, r=0.9966, 359.5 fps
+2026-09-09 01:14:18,925 | INFO | [4/6] 4801/RobotWelding: 7.661 deg over 29 DoF, r=0.9982, 330.7 fps
+2026-09-09 01:14:28,598 | INFO | [5/6] 4801/Screwing: 5.998 deg over 29 DoF, r=0.9984, 312.4 fps
+2026-09-09 01:14:43,344 | INFO | [6/6] 4801/SideOverhead: 19.973 deg over 29 DoF, r=0.9962, 316.3 fps
+acados was compiled without OpenMP.
+acados was compiled without OpenMP.
+acados was compiled without OpenMP.
+acados was compiled without OpenMP.
+acados was compiled without OpenMP.
+acados was compiled without OpenMP.
+2026-09-09 01:14:44,255 | INFO | 6 trials; 102 already summarised; cameras 0; N=7; marker_set=mocap
+/usr/lib/python3/dist-packages/scipy/__init__.py:146: UserWarning: A NumPy version >=1.17.3 and <1.25.0 is required for this version of SciPy (detected version 1.26.4
+  warnings.warn(f"A NumPy version >={np_minversion} and <{np_maxversion}"
+2026-09-09 01:14:49,528 | INFO | [1/6] 4827/Lifting: 7.549 deg over 29 DoF, r=0.9992, 276.3 fps
+2026-09-09 01:14:56,793 | INFO | [2/6] 4827/Polishing: 7.047 deg over 29 DoF, r=0.9985, 274.4 fps
+2026-09-09 01:15:05,794 | INFO | [3/6] 4827/RobotPolishing: 6.884 deg over 29 DoF, r=0.9928, 288.5 fps
+2026-09-09 01:15:14,062 | INFO | [4/6] 4827/RobotWelding: 6.131 deg over 29 DoF, r=0.9965, 289.7 fps
+2026-09-09 01:15:21,750 | INFO | [5/6] 4827/Screwing: 6.605 deg over 29 DoF, r=0.9953, 321.9 fps
+2026-09-09 01:15:31,226 | INFO | [6/6] 4827/SideOverhead: 8.052 deg over 29 DoF, r=0.9959, 296.3 fps
+acados was compiled without OpenMP.
+acados was compiled without OpenMP.
+acados was compiled without OpenMP.
+acados was compiled without OpenMP.
+acados was compiled without OpenMP.
+acados was compiled without OpenMP.

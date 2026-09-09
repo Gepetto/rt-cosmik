@@ -1,0 +1,37 @@
+=== 2026-09-09 00:42:49 sweep finished; re-running 3361 with the corrected labelling ===
+=== 00:42:49 mmpose_0-2-4-6: dropped 3361, re-running (108 rows before) ===
+    now 108 ok rows
+=== 00:44:19 mmpose_0-2: dropped 3361, re-running (108 rows before) ===
+    now 108 ok rows
+=== 00:45:49 nlf_0-2-4-6: dropped 3361, re-running (108 rows before) ===
+    now 108 ok rows
+=== 00:51:27 nlf_0-2: dropped 3361, re-running (108 rows before) ===
+    now 108 ok rows
+=== 00:56:11 nlf_0: dropped 3361, re-running (108 rows before) ===
+    now 108 ok rows
+=== 00:59:40 report rewritten ===
+=== 2026-09-09 00:59:40 mocap reference stage ===
+  01:00:37 1012 done (6 rows)
+  01:01:26 1118 done (12 rows)
+  01:02:22 1508 done (18 rows)
+  01:03:18 1602 done (24 rows)
+  01:04:21 1847 done (30 rows)
+  01:05:15 2112 done (36 rows)
+  01:06:06 2198 done (42 rows)
+  01:06:54 2307 done (48 rows)
+  01:07:49 3361 done (54 rows)
+  01:08:43 4162 done (60 rows)
+  01:09:34 4216 done (66 rows)
+  01:10:25 4279 done (72 rows)
+  01:11:17 4509 done (78 rows)
+  01:12:06 4612 done (84 rows)
+  01:13:05 4665 done (90 rows)
+  01:13:43 4687 done (96 rows)
+  01:14:43 4801 done (102 rows)
+  01:15:31 4827 done (108 rows)
+=== 2026-09-09 01:15:31 ALL STAGES COMPLETE ===
+=== 2026-09-09 01:16:17 corrective pass: NLF 3361 without the mmpose override ===
+  01:21:54 nlf_0-2-4-6 -> 108 rows
+  01:26:12 nlf_0-2 -> 108 rows
+  01:29:40 nlf_0 -> 108 rows
+=== 2026-09-09 01:29:40 CORRECTIVE PASS COMPLETE ===

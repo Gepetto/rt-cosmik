@@ -1,0 +1,11 @@
+=== 2026-09-09 17:46:10 starting nlf2d arms ===
+  19:36:05 nlf2d_0-2-4-6 -> 108 rows
+  21:00:23 nlf2d_0-2 -> 108 rows
+  mmpose_0-2-4-6: 108 trials -> /root/workspace/rt-cosmik/results/vs_mocap/mmpose_0-2-4-6.csv
+  mmpose_0-2: 108 trials -> /root/workspace/rt-cosmik/results/vs_mocap/mmpose_0-2.csv
+  nlf_0-2-4-6: 108 trials -> /root/workspace/rt-cosmik/results/vs_mocap/nlf_0-2-4-6.csv
+  nlf_0-2: 108 trials -> /root/workspace/rt-cosmik/results/vs_mocap/nlf_0-2.csv
+  nlf_0: 108 trials -> /root/workspace/rt-cosmik/results/vs_mocap/nlf_0.csv
+  nlf2d_0-2-4-6: 108 trials -> /root/workspace/rt-cosmik/results/vs_mocap/nlf2d_0-2-4-6.csv
+  nlf2d_0-2: 108 trials -> /root/workspace/rt-cosmik/results/vs_mocap/nlf2d_0-2.csv
+=== 2026-09-09 21:05:19 ALL ARMS COMPLETE ===

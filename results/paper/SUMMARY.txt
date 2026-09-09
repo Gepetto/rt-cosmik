@@ -1,0 +1,48 @@
+================================================================================================
+RT-COSMIK modality study -- 108 trials, 18 participants, 6 tasks, 29 scored DoF
+Reference: mocap markers through the same model and IK. Filter: order 4, cutoff 5 Hz.
+================================================================================================
+
+1. WHOLE-BODY JOINT RMSE (deg), mean (std) across participants
+
+arm                      Screwing    Polishing  SideOverhea  RobotPolish  RobotWeldin      Lifting       OVERALL       r
+mmpose 2 cams          12.84(1.5)   13.81(1.6)   17.72(3.9)   12.04(1.4)   12.48(1.3)   12.54(1.4)    13.57(1.0)   0.592
+mmpose 4 cams          12.13(1.2)   12.52(1.6)   16.73(3.3)   12.38(4.1)   11.83(2.7)   12.98(1.9)    13.10(1.3)   0.622
+NLF-2D tri 2 cams      13.19(1.4)   16.74(5.6)   17.03(3.3)   13.57(3.0)   13.68(2.0)   12.71(1.4)    14.49(1.6)   0.611
+NLF-2D tri 4 cams      11.55(1.2)   11.31(1.1)   12.96(2.3)   10.52(1.0)   10.52(1.4)   11.04(0.8)    11.32(0.9)   0.736
+NLF-3D 1 cam           11.32(1.0)   11.65(1.1)   14.63(4.6)   10.94(1.2)   10.78(1.5)   10.21(0.8)    11.59(1.0)   0.692
+NLF-3D 2 cams          11.04(1.1)   11.07(1.0)   13.40(2.9)   10.27(1.0)   10.29(1.2)    9.95(0.8)    11.00(0.7)   0.724
+NLF-3D 4 cams          11.10(1.1)   11.38(1.0)   12.68(2.5)   10.18(0.9)   10.19(1.6)    9.81(0.7)    10.89(0.8)   0.754
+
+2. SEGMENT GROUPS (deg / r)
+
+arm                            lower           trunk           upper             all
+mmpose 2 cams             9.35/0.65      12.00/0.63      18.45/0.52      13.57/0.59 
+mmpose 4 cams             9.33/0.67      11.25/0.70      17.63/0.54      13.10/0.62 
+NLF-2D tri 2 cams         8.30/0.65      13.03/0.65      21.28/0.56      14.49/0.61 
+NLF-2D tri 4 cams         6.94/0.77       9.65/0.81      16.38/0.67      11.32/0.74 
+NLF-3D 1 cam              7.17/0.70       9.20/0.80      17.00/0.64      11.59/0.69 
+NLF-3D 2 cams             6.64/0.74       9.01/0.83      16.20/0.67      11.00/0.72 
+NLF-3D 4 cams             6.17/0.77       8.88/0.85      16.45/0.69      10.89/0.75 
+
+3. MARKER ERROR STRUCTURE (mm)
+
+arm                        raw     depth   lateral   aniso     shape  transl.share
+mmpose 2 cams            104.8      83.7      52.1    1.61      59.6           43%
+mmpose 4 cams             76.3      61.1      37.0    1.65      54.5           29%
+NLF-2D tri 2 cams         96.0      76.2      48.0    1.59      58.1           39%
+NLF-2D tri 4 cams         73.4      58.4      35.9    1.63      51.6           30%
+NLF-3D 1 cam             121.5     103.8      49.4    2.10      54.1           55%
+NLF-3D 2 cams            110.3      92.7      47.3    1.96      52.1           53%
+NLF-3D 4 cams             56.6      34.9      38.5    0.91      47.6           16%
+
+4. THROUGHPUT AND SOLVER (from the sweep; see Table I for clean timings)
+
+arm                        fps     IK ms   marker mm  freeflyer mm
+mmpose 2 cams            167.1      3.54       104.8          54.0
+mmpose 4 cams            112.4      4.76        76.3          64.4
+NLF-2D tri 2 cams         54.9      3.79        96.0          46.4
+NLF-2D tri 4 cams         41.5      3.63        73.4          35.6
+NLF-3D 1 cam              70.6      3.49       121.5          87.9
+NLF-3D 2 cams             55.5      3.68       110.3          73.6
+NLF-3D 4 cams             36.1      3.74        56.6          35.8

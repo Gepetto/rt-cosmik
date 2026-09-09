@@ -1,0 +1,33 @@
+configurations: mmpose/2cam, mmpose/4cam, nlf/1cam, nlf/2cam, nlf/4cam, nlf2d/2cam, nlf2d/4cam
+trials: 108 seen, 108 completed by all configurations and used below
+
+coverage
+  mmpose/2cam       108 trials completed, own mean 13.57 deg
+  mmpose/4cam       108 trials completed, own mean 13.10 deg
+  nlf/1cam          108 trials completed, own mean 11.59 deg
+  nlf/2cam          108 trials completed, own mean 11.00 deg
+  nlf/4cam          108 trials completed, own mean 10.89 deg
+  nlf2d/2cam        108 trials completed, own mean 14.49 deg
+  nlf2d/4cam        108 trials completed, own mean 11.32 deg
+
+Accuracy and speed, over the trials every configuration completed
+                           mmpose/2cam     mmpose/4cam        nlf/1cam        nlf/2cam        nlf/4cam      nlf2d/2cam      nlf2d/4cam
+--------------------------------------------------------------------------------------------------------------------------------------
+joint RMSE mean                  13.57           13.10           11.59           11.00           10.89           14.49           11.32
+joint RMSE median                13.15           12.48           11.06           10.69           10.46           13.50           11.21
+marker error mm                 104.79           76.27          121.48          110.26           56.65           96.02           73.39
+free-flyer mm                    54.05           64.35           87.89           73.55           35.82           46.43           35.63
+pipeline fps                    167.12          112.41           70.56           55.47           36.07           54.87           41.50
+IK ms median                      3.54            4.76            3.49            3.68            3.74            3.79            3.63
+--------------------------------------------------------------------------------------------------------------------------------------  deg / mm / fps / ms
+
+Joint RMSE by task
+                           mmpose/2cam     mmpose/4cam        nlf/1cam        nlf/2cam        nlf/4cam      nlf2d/2cam      nlf2d/4cam
+--------------------------------------------------------------------------------------------------------------------------------------
+Lifting                          12.54           12.98           10.21            9.95            9.81           12.71           11.04
+Polishing                        13.81           12.52           11.65           11.07           11.38           16.74           11.31
+RobotPolishing                   12.04           12.38           10.94           10.27           10.18           13.57           10.52
+RobotWelding                     12.48           11.83           10.78           10.29           10.19           13.68           10.52
+Screwing                         12.84           12.13           11.32           11.04           11.10           13.19           11.55
+SideOverhead                     17.72           16.73           14.63           13.40           12.68           17.03           12.96
+--------------------------------------------------------------------------------------------------------------------------------------  deg

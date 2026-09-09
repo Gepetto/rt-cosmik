@@ -1,0 +1,146 @@
+=== 2026-09-08 17:33:57  NLF precheck ===
+  NLF PRECHECK FAILED -- running the mmpose arms only.
+  last lines of /root/workspace/rt-cosmik/results/logs/precheck.log:
+2026-09-08 17:33:58,071 | INFO | 1 trials; 0 already summarised; cameras 0-2-4-6; N=7; marker_set=parity
+/usr/lib/python3/dist-packages/scipy/__init__.py:146: UserWarning: A NumPy version >=1.17.3 and <1.25.0 is required for this version of SciPy (detected version 1.26.4
+  warnings.warn(f"A NumPy version >={np_minversion} and <{np_maxversion}"
+Loading /root/workspace/rt-cosmik/weights/yolo/yolov10n_b4.engine for TensorRT inference...
+[09/08/2026-17:34:06] [TRT] [I] Loaded engine size: 11 MiB
+[09/08/2026-17:34:06] [TRT] [I] [MemUsageChange] TensorRT-managed allocation in IExecutionContext creation: CPU +0, GPU +77, now: CPU 0, GPU 87 (MiB)
+2026-09-08 17:35:08,318 | INFO | [1/1] 1012/Lifting: 12.525 deg over 29 DoF, r=0.9987, 31.6 fps
+acados was compiled without OpenMP.
+=== 2026-09-08 17:35:08  stage mmpose_0-2-4-6  ===
+=== 2026-09-08 17:36:51  NLF precheck ===
+  NLF precheck passed
+=== 2026-09-08 17:36:52  stage mmpose_0-2-4-6  ===
+  17:38:47 participant 1012 rc=0, 6 rows so far
+  17:41:30 participant 1118 rc=0, 12 rows so far
+  17:44:26 participant 1508 rc=0, 18 rows so far
+  17:47:12 participant 1602 rc=0, 24 rows so far
+  17:51:00 participant 1847 rc=0, 30 rows so far
+  17:53:37 participant 2112 rc=0, 36 rows so far
+  17:56:12 participant 2198 rc=0, 42 rows so far
+  17:58:52 participant 2307 rc=0, 48 rows so far
+  18:01:59 participant 3361 rc=0, 54 rows so far
+  18:05:07 participant 4162 rc=0, 60 rows so far
+  18:07:57 participant 4216 rc=0, 66 rows so far
+  18:11:05 participant 4279 rc=0, 72 rows so far
+  18:13:46 participant 4509 rc=0, 78 rows so far
+  18:16:23 participant 4612 rc=0, 84 rows so far
+  18:19:57 participant 4665 rc=0, 90 rows so far
+  18:22:05 participant 4687 rc=0, 96 rows so far
+  18:25:26 participant 4801 rc=0, 102 rows so far
+  18:27:45 participant 4827 rc=0, 108 rows so far
+=== 2026-09-08 18:27:45  mmpose_0-2-4-6 finished ===
+=== 2026-09-08 18:27:45  stage nlf_0-2-4-6  ===
+  18:35:36 participant 1012 rc=0, 6 rows so far
+  18:42:07 participant 1118 rc=0, 12 rows so far
+  18:50:07 participant 1508 rc=0, 18 rows so far
+  18:58:57 participant 1602 rc=0, 24 rows so far
+  19:08:27 participant 1847 rc=0, 30 rows so far
+  19:15:59 participant 2112 rc=0, 36 rows so far
+  19:23:07 participant 2198 rc=0, 42 rows so far
+  19:30:46 participant 2307 rc=0, 48 rows so far
+  19:38:00 participant 3361 rc=0, 54 rows so far
+  19:46:31 participant 4162 rc=0, 60 rows so far
+  19:53:31 participant 4216 rc=0, 66 rows so far
+  20:01:22 participant 4279 rc=0, 72 rows so far
+  20:08:36 participant 4509 rc=0, 78 rows so far
+  20:15:48 participant 4612 rc=0, 84 rows so far
+  20:25:29 participant 4665 rc=0, 90 rows so far
+  20:31:08 participant 4687 rc=0, 96 rows so far
+  20:40:28 participant 4801 rc=0, 102 rows so far
+  20:47:15 participant 4827 rc=0, 108 rows so far
+=== 2026-09-08 20:47:15  nlf_0-2-4-6 finished ===
+=== 2026-09-08 20:47:15  stage mmpose_0-2  ===
+  20:50:14 participant 1012 rc=0, 6 rows so far
+  20:53:11 participant 1118 rc=0, 12 rows so far
+  20:56:12 participant 1508 rc=0, 18 rows so far
+  20:59:36 participant 1602 rc=0, 24 rows so far
+  21:02:59 participant 1847 rc=0, 30 rows so far
+  21:06:11 participant 2112 rc=0, 36 rows so far
+  21:08:46 participant 2198 rc=0, 42 rows so far
+  21:11:38 participant 2307 rc=0, 48 rows so far
+  21:14:15 participant 3361 rc=0, 54 rows so far
+  21:17:33 participant 4162 rc=0, 60 rows so far
+  21:20:00 participant 4216 rc=0, 66 rows so far
+  21:22:52 participant 4279 rc=0, 72 rows so far
+  21:25:20 participant 4509 rc=0, 78 rows so far
+  21:28:28 participant 4612 rc=0, 84 rows so far
+  21:32:02 participant 4665 rc=0, 90 rows so far
+  21:34:08 participant 4687 rc=0, 96 rows so far
+  21:37:45 participant 4801 rc=0, 102 rows so far
+  21:40:13 participant 4827 rc=0, 108 rows so far
+=== 2026-09-08 21:40:13  mmpose_0-2 finished ===
+=== 2026-09-08 21:40:13  stage nlf_0-2  ===
+  21:46:34 participant 1012 rc=0, 6 rows so far
+  21:51:49 participant 1118 rc=0, 12 rows so far
+  21:58:08 participant 1508 rc=0, 18 rows so far
+  22:04:38 participant 1602 rc=0, 24 rows so far
+  22:12:10 participant 1847 rc=0, 30 rows so far
+  22:18:07 participant 2112 rc=0, 36 rows so far
+  22:23:45 participant 2198 rc=0, 42 rows so far
+  22:29:41 participant 2307 rc=0, 48 rows so far
+  22:35:16 participant 3361 rc=0, 54 rows so far
+  22:42:02 participant 4162 rc=0, 60 rows so far
+  22:47:32 participant 4216 rc=0, 66 rows so far
+  22:53:40 participant 4279 rc=0, 72 rows so far
+  22:59:22 participant 4509 rc=0, 78 rows so far
+  23:05:10 participant 4612 rc=0, 84 rows so far
+  23:12:38 participant 4665 rc=0, 90 rows so far
+  23:17:08 participant 4687 rc=0, 96 rows so far
+  23:24:31 participant 4801 rc=0, 102 rows so far
+  23:29:59 participant 4827 rc=0, 108 rows so far
+=== 2026-09-08 23:29:59  nlf_0-2 finished ===
+=== 2026-09-08 23:29:59  stage nlf_0  ===
+  23:34:55 participant 1012 rc=0, 6 rows so far
+  23:38:57 participant 1118 rc=0, 12 rows so far
+  23:43:54 participant 1508 rc=0, 18 rows so far
+  23:48:57 participant 1602 rc=0, 24 rows so far
+  23:54:44 participant 1847 rc=0, 30 rows so far
+  23:58:24 participant 2112 rc=0, 36 rows so far
+  00:01:46 participant 2198 rc=0, 42 rows so far
+  00:05:24 participant 2307 rc=0, 48 rows so far
+  00:08:52 participant 3361 rc=0, 54 rows so far
+  00:12:57 participant 4162 rc=0, 60 rows so far
+  00:16:16 participant 4216 rc=0, 66 rows so far
+  00:20:03 participant 4279 rc=0, 72 rows so far
+  00:23:32 participant 4509 rc=0, 78 rows so far
+  00:27:01 participant 4612 rc=0, 84 rows so far
+  00:31:33 participant 4665 rc=0, 90 rows so far
+  00:34:17 participant 4687 rc=0, 96 rows so far
+  00:38:44 participant 4801 rc=0, 102 rows so far
+  00:42:03 participant 4827 rc=0, 108 rows so far
+=== 2026-09-09 00:42:03  nlf_0 finished ===
+=== 2026-09-09 00:42:03  all stages done, writing report ===
+configurations: mmpose/2cam, mmpose/4cam, nlf/1cam, nlf/2cam, nlf/4cam
+trials: 108 seen, 108 completed by all configurations and used below
+
+coverage
+  mmpose/2cam       108 trials completed, own mean 15.78 deg
+  mmpose/4cam       108 trials completed, own mean 17.09 deg
+  nlf/1cam          108 trials completed, own mean 14.36 deg
+  nlf/2cam          108 trials completed, own mean 14.03 deg
+  nlf/4cam          108 trials completed, own mean 14.12 deg
+
+Accuracy and speed, over the trials every configuration completed
+                           mmpose/2cam     mmpose/4cam        nlf/1cam        nlf/2cam        nlf/4cam
+------------------------------------------------------------------------------------------------------
+joint RMSE mean                  15.78           17.09           14.36           14.03           14.12
+joint RMSE median                15.27           14.36           13.84           13.46           13.62
+marker error mm                 102.64          158.30          197.65          178.10          124.70
+free-flyer mm                    54.57           90.11          120.61          100.50           62.80
+pipeline fps                     89.67           90.95           66.12           42.05           32.79
+IK ms median                      4.55            4.60            3.58            3.86            3.79
+------------------------------------------------------------------------------------------------------  deg / mm / fps / ms
+
+Joint RMSE by task
+                           mmpose/2cam     mmpose/4cam        nlf/1cam        nlf/2cam        nlf/4cam
+------------------------------------------------------------------------------------------------------
+Lifting                          14.52           16.69           12.75           12.45           12.43
+Polishing                        16.33           17.07           14.52           14.09           14.43
+RobotPolishing                   14.28           15.54           13.90           13.32           13.66
+RobotWelding                     14.42           15.98           13.39           13.02           13.40
+Screwing                         15.47           16.57           14.16           13.98           14.14
+SideOverhead                     19.68           20.70           17.44           17.32           16.69
+------------------------------------------------------------------------------------------------------  deg

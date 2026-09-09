@@ -1,0 +1,7 @@
+arm,participant,task,cameras,n_horizon,frames,lag,sync_r,joint_rmse_mean,joint_rmse_median,scored_dof,freeflyer_mm,marker_mm,root_orientation_deg,ik_ms_median,ik_ms_p95,fps,status
+mocap,1012,Lifting,0,7,1771,0,0.9999,7.114,4.302,29,3.04,0.0,5.246,3.46,4.44,243.4,ok
+mocap,1012,Polishing,0,7,1889,0,0.9982,7.722,4.264,29,2.85,0.0,3.727,3.3,4.29,248.7,ok
+mocap,1012,RobotPolishing,0,7,2795,0,0.9976,7.113,3.807,29,6.55,0.0,12.524,3.26,4.08,268.8,ok
+mocap,1012,RobotWelding,0,7,1976,0,0.9963,6.666,3.65,29,9.17,0.0,11.26,3.7,4.46,232.9,ok
+mocap,1012,Screwing,0,7,2808,0,0.9918,8.497,4.581,29,3.01,0.0,7.187,3.65,4.3,243.5,ok
+mocap,1012,SideOverhead,0,7,3992,0,0.9974,11.038,6.296,29,4.66,0.0,12.848,3.85,4.6,241.1,ok

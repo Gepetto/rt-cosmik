@@ -1,0 +1,354 @@
+2026-09-09 17:46:10,991 | INFO | 6 trials; 0 already summarised; cameras 0-2-4-6; N=7; marker_set=parity
+/usr/lib/python3/dist-packages/scipy/__init__.py:146: UserWarning: A NumPy version >=1.17.3 and <1.25.0 is required for this version of SciPy (detected version 1.26.4
+  warnings.warn(f"A NumPy version >={np_minversion} and <{np_maxversion}"
+Loading /root/workspace/rt-cosmik/weights/yolo/yolov10n_b4.engine for TensorRT inference...
+[09/09/2026-17:46:17] [TRT] [I] Loaded engine size: 11 MiB
+[09/09/2026-17:46:17] [TRT] [I] [MemUsageChange] TensorRT-managed allocation in IExecutionContext creation: CPU +0, GPU +77, now: CPU 0, GPU 87 (MiB)
+2026-09-09 17:47:05,293 | INFO | [1/6] 1012/Lifting: 13.646 deg over 29 DoF, r=0.9977, 42.0 fps
+2026-09-09 17:47:51,913 | INFO | [2/6] 1012/Polishing: 15.163 deg over 29 DoF, r=0.9519, 40.9 fps
+2026-09-09 17:48:59,283 | INFO | [3/6] 1012/RobotPolishing: 13.946 deg over 29 DoF, r=0.945, 41.8 fps
+2026-09-09 17:49:47,803 | INFO | [4/6] 1012/RobotWelding: 14.865 deg over 29 DoF, r=0.9055, 41.1 fps
+2026-09-09 17:50:54,429 | INFO | [5/6] 1012/Screwing: 16.494 deg over 29 DoF, r=0.8197, 42.4 fps
+2026-09-09 17:52:29,854 | INFO | [6/6] 1012/SideOverhead: 17.185 deg over 29 DoF, r=0.9489, 42.1 fps
+acados was compiled without OpenMP.
+acados was compiled without OpenMP.
+acados was compiled without OpenMP.
+acados was compiled without OpenMP.
+acados was compiled without OpenMP.
+acados was compiled without OpenMP.
+2026-09-09 17:52:31,046 | INFO | 6 trials; 6 already summarised; cameras 0-2-4-6; N=7; marker_set=parity
+/usr/lib/python3/dist-packages/scipy/__init__.py:146: UserWarning: A NumPy version >=1.17.3 and <1.25.0 is required for this version of SciPy (detected version 1.26.4
+  warnings.warn(f"A NumPy version >={np_minversion} and <{np_maxversion}"
+Loading /root/workspace/rt-cosmik/weights/yolo/yolov10n_b4.engine for TensorRT inference...
+[09/09/2026-17:52:37] [TRT] [I] Loaded engine size: 11 MiB
+[09/09/2026-17:52:37] [TRT] [I] [MemUsageChange] TensorRT-managed allocation in IExecutionContext creation: CPU +0, GPU +77, now: CPU 0, GPU 87 (MiB)
+2026-09-09 17:53:07,006 | INFO | [1/6] 1118/Lifting: 13.67 deg over 29 DoF, r=0.9947, 38.4 fps
+2026-09-09 17:54:20,154 | INFO | [2/6] 1118/Polishing: 15.2 deg over 29 DoF, r=0.8997, 40.9 fps
+2026-09-09 17:55:34,969 | INFO | [3/6] 1118/RobotPolishing: 13.63 deg over 29 DoF, r=0.8436, 41.1 fps
+2026-09-09 17:56:25,833 | INFO | [4/6] 1118/RobotWelding: 13.605 deg over 29 DoF, r=0.9299, 41.9 fps
+2026-09-09 17:56:37,759 | INFO | [5/6] 1118/Screwing: 13.63 deg over 29 DoF, r=0.7096, 32.4 fps
+2026-09-09 17:57:48,456 | INFO | [6/6] 1118/SideOverhead: 14.246 deg over 29 DoF, r=0.9494, 42.1 fps
+acados was compiled without OpenMP.
+acados was compiled without OpenMP.
+acados was compiled without OpenMP.
+acados was compiled without OpenMP.
+acados was compiled without OpenMP.
+acados was compiled without OpenMP.
+2026-09-09 17:57:49,700 | INFO | 6 trials; 12 already summarised; cameras 0-2-4-6; N=7; marker_set=parity
+/usr/lib/python3/dist-packages/scipy/__init__.py:146: UserWarning: A NumPy version >=1.17.3 and <1.25.0 is required for this version of SciPy (detected version 1.26.4
+  warnings.warn(f"A NumPy version >={np_minversion} and <{np_maxversion}"
+Loading /root/workspace/rt-cosmik/weights/yolo/yolov10n_b4.engine for TensorRT inference...
+[09/09/2026-17:57:56] [TRT] [I] Loaded engine size: 11 MiB
+[09/09/2026-17:57:56] [TRT] [I] [MemUsageChange] TensorRT-managed allocation in IExecutionContext creation: CPU +0, GPU +77, now: CPU 0, GPU 87 (MiB)
+2026-09-09 17:58:41,950 | INFO | [1/6] 1508/Lifting: 12.889 deg over 29 DoF, r=0.9987, 40.7 fps
+2026-09-09 17:59:31,825 | INFO | [2/6] 1508/Polishing: 14.76 deg over 29 DoF, r=0.8301, 41.1 fps
+2026-09-09 18:00:49,026 | INFO | [3/6] 1508/RobotPolishing: 13.419 deg over 29 DoF, r=0.9761, 40.8 fps
+2026-09-09 18:02:02,155 | INFO | [4/6] 1508/RobotWelding: 12.838 deg over 29 DoF, r=0.9922, 41.6 fps
+2026-09-09 18:02:58,113 | INFO | [5/6] 1508/Screwing: 14.079 deg over 29 DoF, r=0.9383, 42.4 fps
+2026-09-09 18:04:11,770 | INFO | [6/6] 1508/SideOverhead: 14.361 deg over 29 DoF, r=0.9428, 41.9 fps
+acados was compiled without OpenMP.
+acados was compiled without OpenMP.
+acados was compiled without OpenMP.
+acados was compiled without OpenMP.
+acados was compiled without OpenMP.
+acados was compiled without OpenMP.
+2026-09-09 18:04:13,016 | INFO | 6 trials; 18 already summarised; cameras 0-2-4-6; N=7; marker_set=parity
+/usr/lib/python3/dist-packages/scipy/__init__.py:146: UserWarning: A NumPy version >=1.17.3 and <1.25.0 is required for this version of SciPy (detected version 1.26.4
+  warnings.warn(f"A NumPy version >={np_minversion} and <{np_maxversion}"
+Loading /root/workspace/rt-cosmik/weights/yolo/yolov10n_b4.engine for TensorRT inference...
+[09/09/2026-18:04:19] [TRT] [I] Loaded engine size: 11 MiB
+[09/09/2026-18:04:19] [TRT] [I] [MemUsageChange] TensorRT-managed allocation in IExecutionContext creation: CPU +0, GPU +77, now: CPU 0, GPU 87 (MiB)
+2026-09-09 18:04:59,455 | INFO | [1/6] 1602/Lifting: 13.267 deg over 29 DoF, r=0.9889, 41.0 fps
+2026-09-09 18:05:45,782 | INFO | [2/6] 1602/Polishing: 15.954 deg over 29 DoF, r=0.9249, 41.7 fps
+2026-09-09 18:07:20,338 | INFO | [3/6] 1602/RobotPolishing: 16.917 deg over 29 DoF, r=0.6647, 41.0 fps
+2026-09-09 18:08:16,356 | INFO | [4/6] 1602/RobotWelding: 11.688 deg over 29 DoF, r=0.9087, 41.0 fps
+2026-09-09 18:09:17,117 | INFO | [5/6] 1602/Screwing: 13.535 deg over 29 DoF, r=0.9517, 42.6 fps
+2026-09-09 18:10:43,130 | INFO | [6/6] 1602/SideOverhead: 14.664 deg over 29 DoF, r=0.9717, 41.5 fps
+acados was compiled without OpenMP.
+acados was compiled without OpenMP.
+acados was compiled without OpenMP.
+acados was compiled without OpenMP.
+acados was compiled without OpenMP.
+acados was compiled without OpenMP.
+2026-09-09 18:10:44,361 | INFO | 6 trials; 24 already summarised; cameras 0-2-4-6; N=7; marker_set=parity
+/usr/lib/python3/dist-packages/scipy/__init__.py:146: UserWarning: A NumPy version >=1.17.3 and <1.25.0 is required for this version of SciPy (detected version 1.26.4
+  warnings.warn(f"A NumPy version >={np_minversion} and <{np_maxversion}"
+Loading /root/workspace/rt-cosmik/weights/yolo/yolov10n_b4.engine for TensorRT inference...
+[09/09/2026-18:10:51] [TRT] [I] Loaded engine size: 11 MiB
+[09/09/2026-18:10:51] [TRT] [I] [MemUsageChange] TensorRT-managed allocation in IExecutionContext creation: CPU +0, GPU +77, now: CPU 0, GPU 87 (MiB)
+2026-09-09 18:11:40,412 | INFO | [1/6] 1847/Lifting: 13.138 deg over 29 DoF, r=0.9971, 41.8 fps
+2026-09-09 18:12:41,073 | INFO | [2/6] 1847/Polishing: 15.132 deg over 29 DoF, r=0.9291, 41.4 fps
+2026-09-09 18:14:17,598 | INFO | [3/6] 1847/RobotPolishing: 14.078 deg over 29 DoF, r=0.9776, 42.7 fps
+2026-09-09 18:15:46,506 | INFO | [4/6] 1847/RobotWelding: 13.1 deg over 29 DoF, r=0.9432, 42.1 fps
+2026-09-09 18:16:44,501 | INFO | [5/6] 1847/Screwing: 17.946 deg over 29 DoF, r=0.9428, 41.5 fps
+2026-09-09 18:18:11,031 | INFO | [6/6] 1847/SideOverhead: 23.52 deg over 29 DoF, r=0.955, 41.7 fps
+acados was compiled without OpenMP.
+acados was compiled without OpenMP.
+acados was compiled without OpenMP.
+acados was compiled without OpenMP.
+acados was compiled without OpenMP.
+acados was compiled without OpenMP.
+2026-09-09 18:18:12,323 | INFO | 6 trials; 30 already summarised; cameras 0-2-4-6; N=7; marker_set=parity
+/usr/lib/python3/dist-packages/scipy/__init__.py:146: UserWarning: A NumPy version >=1.17.3 and <1.25.0 is required for this version of SciPy (detected version 1.26.4
+  warnings.warn(f"A NumPy version >={np_minversion} and <{np_maxversion}"
+Loading /root/workspace/rt-cosmik/weights/yolo/yolov10n_b4.engine for TensorRT inference...
+[09/09/2026-18:18:19] [TRT] [I] Loaded engine size: 11 MiB
+[09/09/2026-18:18:19] [TRT] [I] [MemUsageChange] TensorRT-managed allocation in IExecutionContext creation: CPU +0, GPU +77, now: CPU 0, GPU 87 (MiB)
+2026-09-09 18:19:04,121 | INFO | [1/6] 2112/Lifting: 14.299 deg over 29 DoF, r=0.9989, 40.2 fps
+2026-09-09 18:19:47,797 | INFO | [2/6] 2112/Polishing: 14.666 deg over 29 DoF, r=0.6, 40.9 fps
+2026-09-09 18:21:00,716 | INFO | [3/6] 2112/RobotPolishing: 13.46 deg over 29 DoF, r=0.8346, 42.7 fps
+2026-09-09 18:21:56,630 | INFO | [4/6] 2112/RobotWelding: 14.758 deg over 29 DoF, r=0.565, 42.2 fps
+2026-09-09 18:23:07,660 | INFO | [5/6] 2112/Screwing: 14.695 deg over 29 DoF, r=0.5645, 42.0 fps
+2026-09-09 18:24:04,653 | INFO | [6/6] 2112/SideOverhead: 14.42 deg over 29 DoF, r=0.9134, 41.5 fps
+acados was compiled without OpenMP.
+acados was compiled without OpenMP.
+acados was compiled without OpenMP.
+acados was compiled without OpenMP.
+acados was compiled without OpenMP.
+acados was compiled without OpenMP.
+2026-09-09 18:24:05,918 | INFO | 6 trials; 36 already summarised; cameras 0-2-4-6; N=7; marker_set=parity
+/usr/lib/python3/dist-packages/scipy/__init__.py:146: UserWarning: A NumPy version >=1.17.3 and <1.25.0 is required for this version of SciPy (detected version 1.26.4
+  warnings.warn(f"A NumPy version >={np_minversion} and <{np_maxversion}"
+Loading /root/workspace/rt-cosmik/weights/yolo/yolov10n_b4.engine for TensorRT inference...
+[09/09/2026-18:24:12] [TRT] [I] Loaded engine size: 11 MiB
+[09/09/2026-18:24:12] [TRT] [I] [MemUsageChange] TensorRT-managed allocation in IExecutionContext creation: CPU +0, GPU +77, now: CPU 0, GPU 87 (MiB)
+2026-09-09 18:25:01,380 | INFO | [1/6] 2198/Lifting: 10.899 deg over 29 DoF, r=0.9985, 40.8 fps
+2026-09-09 18:25:43,614 | INFO | [2/6] 2198/Polishing: 12.746 deg over 29 DoF, r=0.9829, 41.3 fps
+2026-09-09 18:26:27,225 | INFO | [3/6] 2198/RobotPolishing: 11.766 deg over 29 DoF, r=0.8184, 41.6 fps
+2026-09-09 18:27:26,341 | INFO | [4/6] 2198/RobotWelding: 14.218 deg over 29 DoF, r=0.8307, 41.7 fps
+2026-09-09 18:28:11,664 | INFO | [5/6] 2198/Screwing: 13.116 deg over 29 DoF, r=0.9624, 42.6 fps
+2026-09-09 18:29:36,488 | INFO | [6/6] 2198/SideOverhead: 16.971 deg over 29 DoF, r=0.9645, 41.9 fps
+acados was compiled without OpenMP.
+acados was compiled without OpenMP.
+acados was compiled without OpenMP.
+acados was compiled without OpenMP.
+acados was compiled without OpenMP.
+acados was compiled without OpenMP.
+2026-09-09 18:29:37,767 | INFO | 6 trials; 42 already summarised; cameras 0-2-4-6; N=7; marker_set=parity
+/usr/lib/python3/dist-packages/scipy/__init__.py:146: UserWarning: A NumPy version >=1.17.3 and <1.25.0 is required for this version of SciPy (detected version 1.26.4
+  warnings.warn(f"A NumPy version >={np_minversion} and <{np_maxversion}"
+Loading /root/workspace/rt-cosmik/weights/yolo/yolov10n_b4.engine for TensorRT inference...
+[09/09/2026-18:29:44] [TRT] [I] Loaded engine size: 11 MiB
+[09/09/2026-18:29:44] [TRT] [I] [MemUsageChange] TensorRT-managed allocation in IExecutionContext creation: CPU +0, GPU +77, now: CPU 0, GPU 87 (MiB)
+2026-09-09 18:30:26,720 | INFO | [1/6] 2307/Lifting: 11.538 deg over 29 DoF, r=0.9956, 40.9 fps
+2026-09-09 18:31:23,022 | INFO | [2/6] 2307/Polishing: 14.476 deg over 29 DoF, r=0.9324, 41.6 fps
+2026-09-09 18:32:41,528 | INFO | [3/6] 2307/RobotPolishing: 16.375 deg over 29 DoF, r=0.9808, 41.7 fps
+2026-09-09 18:33:41,949 | INFO | [4/6] 2307/RobotWelding: 11.302 deg over 29 DoF, r=0.9102, 41.5 fps
+2026-09-09 18:34:37,097 | INFO | [5/6] 2307/Screwing: 14.831 deg over 29 DoF, r=0.7795, 42.3 fps
+2026-09-09 18:35:38,549 | INFO | [6/6] 2307/SideOverhead: 13.915 deg over 29 DoF, r=0.9018, 42.1 fps
+acados was compiled without OpenMP.
+acados was compiled without OpenMP.
+acados was compiled without OpenMP.
+acados was compiled without OpenMP.
+acados was compiled without OpenMP.
+acados was compiled without OpenMP.
+2026-09-09 18:35:39,791 | INFO | 6 trials; 48 already summarised; cameras 0-2-4-6; N=7; marker_set=parity
+/usr/lib/python3/dist-packages/scipy/__init__.py:146: UserWarning: A NumPy version >=1.17.3 and <1.25.0 is required for this version of SciPy (detected version 1.26.4
+  warnings.warn(f"A NumPy version >={np_minversion} and <{np_maxversion}"
+Loading /root/workspace/rt-cosmik/weights/yolo/yolov10n_b4.engine for TensorRT inference...
+[09/09/2026-18:35:46] [TRT] [I] Loaded engine size: 11 MiB
+[09/09/2026-18:35:46] [TRT] [I] [MemUsageChange] TensorRT-managed allocation in IExecutionContext creation: CPU +0, GPU +77, now: CPU 0, GPU 87 (MiB)
+2026-09-09 18:36:09,674 | INFO | [1/6] 3361/Lifting: 12.131 deg over 29 DoF, r=0.9941, 40.2 fps
+2026-09-09 18:36:56,509 | INFO | [2/6] 3361/Polishing: 14.138 deg over 29 DoF, r=0.9366, 41.6 fps
+2026-09-09 18:38:14,245 | INFO | [3/6] 3361/RobotPolishing: 13.236 deg over 29 DoF, r=0.9489, 40.4 fps
+2026-09-09 18:39:17,929 | INFO | [4/6] 3361/RobotWelding: 13.175 deg over 29 DoF, r=0.9283, 40.7 fps
+2026-09-09 18:40:04,803 | INFO | [5/6] 3361/Screwing: 14.156 deg over 29 DoF, r=0.9685, 40.6 fps
+2026-09-09 18:41:17,837 | INFO | [6/6] 3361/SideOverhead: 13.684 deg over 29 DoF, r=0.9582, 42.2 fps
+acados was compiled without OpenMP.
+acados was compiled without OpenMP.
+acados was compiled without OpenMP.
+acados was compiled without OpenMP.
+acados was compiled without OpenMP.
+acados was compiled without OpenMP.
+2026-09-09 18:41:19,091 | INFO | 6 trials; 54 already summarised; cameras 0-2-4-6; N=7; marker_set=parity
+/usr/lib/python3/dist-packages/scipy/__init__.py:146: UserWarning: A NumPy version >=1.17.3 and <1.25.0 is required for this version of SciPy (detected version 1.26.4
+  warnings.warn(f"A NumPy version >={np_minversion} and <{np_maxversion}"
+2026-09-09 18:41:19,994 | WARNING | Camera 0 in /root/workspace/COMFI/cam_params/4162/extrinsics/cam_to_world/camera_0 has 2 calibration sessions (calib_1, calib_2); using calib_1. Pass calib_session to choose explicitly.
+2026-09-09 18:41:19,994 | WARNING | Camera 2 in /root/workspace/COMFI/cam_params/4162/extrinsics/cam_to_world/camera_2 has 2 calibration sessions (calib_1, calib_2); using calib_1. Pass calib_session to choose explicitly.
+2026-09-09 18:41:19,994 | WARNING | Camera 4 in /root/workspace/COMFI/cam_params/4162/extrinsics/cam_to_world/camera_4 has 2 calibration sessions (calib_1, calib_2); using calib_1. Pass calib_session to choose explicitly.
+2026-09-09 18:41:19,994 | WARNING | Camera 6 in /root/workspace/COMFI/cam_params/4162/extrinsics/cam_to_world/camera_6 has 2 calibration sessions (calib_1, calib_2); using calib_1. Pass calib_session to choose explicitly.
+2026-09-09 18:41:19,995 | WARNING | Camera 0 in /root/workspace/COMFI/cam_params/4162/extrinsics/cam_to_world/camera_0 has 2 calibration sessions (calib_1, calib_2); using calib_1. Pass calib_session to choose explicitly.
+Loading /root/workspace/rt-cosmik/weights/yolo/yolov10n_b4.engine for TensorRT inference...
+[09/09/2026-18:41:26] [TRT] [I] Loaded engine size: 11 MiB
+[09/09/2026-18:41:26] [TRT] [I] [MemUsageChange] TensorRT-managed allocation in IExecutionContext creation: CPU +0, GPU +77, now: CPU 0, GPU 87 (MiB)
+2026-09-09 18:42:15,191 | INFO | [1/6] 4162/Lifting: 13.319 deg over 29 DoF, r=0.9983, 41.8 fps
+2026-09-09 18:42:15,191 | WARNING | Camera 0 in /root/workspace/COMFI/cam_params/4162/extrinsics/cam_to_world/camera_0 has 2 calibration sessions (calib_1, calib_2); using calib_1. Pass calib_session to choose explicitly.
+2026-09-09 18:42:15,191 | WARNING | Camera 2 in /root/workspace/COMFI/cam_params/4162/extrinsics/cam_to_world/camera_2 has 2 calibration sessions (calib_1, calib_2); using calib_1. Pass calib_session to choose explicitly.
+2026-09-09 18:42:15,191 | WARNING | Camera 4 in /root/workspace/COMFI/cam_params/4162/extrinsics/cam_to_world/camera_4 has 2 calibration sessions (calib_1, calib_2); using calib_1. Pass calib_session to choose explicitly.
+2026-09-09 18:42:15,191 | WARNING | Camera 6 in /root/workspace/COMFI/cam_params/4162/extrinsics/cam_to_world/camera_6 has 2 calibration sessions (calib_1, calib_2); using calib_1. Pass calib_session to choose explicitly.
+2026-09-09 18:42:15,192 | WARNING | Camera 0 in /root/workspace/COMFI/cam_params/4162/extrinsics/cam_to_world/camera_0 has 2 calibration sessions (calib_1, calib_2); using calib_1. Pass calib_session to choose explicitly.
+2026-09-09 18:43:13,451 | INFO | [2/6] 4162/Polishing: 15.705 deg over 29 DoF, r=0.9529, 42.9 fps
+2026-09-09 18:43:13,452 | WARNING | Camera 0 in /root/workspace/COMFI/cam_params/4162/extrinsics/cam_to_world/camera_0 has 2 calibration sessions (calib_1, calib_2); using calib_1. Pass calib_session to choose explicitly.
+2026-09-09 18:43:13,452 | WARNING | Camera 2 in /root/workspace/COMFI/cam_params/4162/extrinsics/cam_to_world/camera_2 has 2 calibration sessions (calib_1, calib_2); using calib_1. Pass calib_session to choose explicitly.
+2026-09-09 18:43:13,452 | WARNING | Camera 4 in /root/workspace/COMFI/cam_params/4162/extrinsics/cam_to_world/camera_4 has 2 calibration sessions (calib_1, calib_2); using calib_1. Pass calib_session to choose explicitly.
+2026-09-09 18:43:13,452 | WARNING | Camera 6 in /root/workspace/COMFI/cam_params/4162/extrinsics/cam_to_world/camera_6 has 2 calibration sessions (calib_1, calib_2); using calib_1. Pass calib_session to choose explicitly.
+2026-09-09 18:43:13,452 | WARNING | Camera 0 in /root/workspace/COMFI/cam_params/4162/extrinsics/cam_to_world/camera_0 has 2 calibration sessions (calib_1, calib_2); using calib_1. Pass calib_session to choose explicitly.
+2026-09-09 18:44:26,017 | INFO | [3/6] 4162/RobotPolishing: 15.53 deg over 29 DoF, r=0.9462, 41.5 fps
+2026-09-09 18:44:26,017 | WARNING | Camera 0 in /root/workspace/COMFI/cam_params/4162/extrinsics/cam_to_world/camera_0 has 2 calibration sessions (calib_1, calib_2); using calib_1. Pass calib_session to choose explicitly.
+2026-09-09 18:44:26,017 | WARNING | Camera 2 in /root/workspace/COMFI/cam_params/4162/extrinsics/cam_to_world/camera_2 has 2 calibration sessions (calib_1, calib_2); using calib_1. Pass calib_session to choose explicitly.
+2026-09-09 18:44:26,017 | WARNING | Camera 4 in /root/workspace/COMFI/cam_params/4162/extrinsics/cam_to_world/camera_4 has 2 calibration sessions (calib_1, calib_2); using calib_1. Pass calib_session to choose explicitly.
+2026-09-09 18:44:26,017 | WARNING | Camera 6 in /root/workspace/COMFI/cam_params/4162/extrinsics/cam_to_world/camera_6 has 2 calibration sessions (calib_1, calib_2); using calib_1. Pass calib_session to choose explicitly.
+2026-09-09 18:44:26,018 | WARNING | Camera 0 in /root/workspace/COMFI/cam_params/4162/extrinsics/cam_to_world/camera_0 has 2 calibration sessions (calib_1, calib_2); using calib_1. Pass calib_session to choose explicitly.
+2026-09-09 18:45:30,619 | INFO | [4/6] 4162/RobotWelding: 15.434 deg over 29 DoF, r=0.9399, 42.2 fps
+2026-09-09 18:45:30,620 | WARNING | Camera 0 in /root/workspace/COMFI/cam_params/4162/extrinsics/cam_to_world/camera_0 has 2 calibration sessions (calib_1, calib_2); using calib_1. Pass calib_session to choose explicitly.
+2026-09-09 18:45:30,620 | WARNING | Camera 2 in /root/workspace/COMFI/cam_params/4162/extrinsics/cam_to_world/camera_2 has 2 calibration sessions (calib_1, calib_2); using calib_1. Pass calib_session to choose explicitly.
+2026-09-09 18:45:30,620 | WARNING | Camera 4 in /root/workspace/COMFI/cam_params/4162/extrinsics/cam_to_world/camera_4 has 2 calibration sessions (calib_1, calib_2); using calib_1. Pass calib_session to choose explicitly.
+2026-09-09 18:45:30,620 | WARNING | Camera 6 in /root/workspace/COMFI/cam_params/4162/extrinsics/cam_to_world/camera_6 has 2 calibration sessions (calib_1, calib_2); using calib_1. Pass calib_session to choose explicitly.
+2026-09-09 18:45:30,620 | WARNING | Camera 0 in /root/workspace/COMFI/cam_params/4162/extrinsics/cam_to_world/camera_0 has 2 calibration sessions (calib_1, calib_2); using calib_1. Pass calib_session to choose explicitly.
+2026-09-09 18:46:43,775 | INFO | [5/6] 4162/Screwing: 16.681 deg over 29 DoF, r=0.8304, 42.6 fps
+2026-09-09 18:46:43,776 | WARNING | Camera 0 in /root/workspace/COMFI/cam_params/4162/extrinsics/cam_to_world/camera_0 has 2 calibration sessions (calib_1, calib_2); using calib_1. Pass calib_session to choose explicitly.
+2026-09-09 18:46:43,776 | WARNING | Camera 2 in /root/workspace/COMFI/cam_params/4162/extrinsics/cam_to_world/camera_2 has 2 calibration sessions (calib_1, calib_2); using calib_1. Pass calib_session to choose explicitly.
+2026-09-09 18:46:43,776 | WARNING | Camera 4 in /root/workspace/COMFI/cam_params/4162/extrinsics/cam_to_world/camera_4 has 2 calibration sessions (calib_1, calib_2); using calib_1. Pass calib_session to choose explicitly.
+2026-09-09 18:46:43,776 | WARNING | Camera 6 in /root/workspace/COMFI/cam_params/4162/extrinsics/cam_to_world/camera_6 has 2 calibration sessions (calib_1, calib_2); using calib_1. Pass calib_session to choose explicitly.
+2026-09-09 18:46:43,777 | WARNING | Camera 0 in /root/workspace/COMFI/cam_params/4162/extrinsics/cam_to_world/camera_0 has 2 calibration sessions (calib_1, calib_2); using calib_1. Pass calib_session to choose explicitly.
+2026-09-09 18:48:06,197 | INFO | [6/6] 4162/SideOverhead: 23.724 deg over 29 DoF, r=0.9447, 42.4 fps
+acados was compiled without OpenMP.
+acados was compiled without OpenMP.
+acados was compiled without OpenMP.
+acados was compiled without OpenMP.
+acados was compiled without OpenMP.
+acados was compiled without OpenMP.
+2026-09-09 18:48:07,417 | INFO | 6 trials; 60 already summarised; cameras 0-2-4-6; N=7; marker_set=parity
+/usr/lib/python3/dist-packages/scipy/__init__.py:146: UserWarning: A NumPy version >=1.17.3 and <1.25.0 is required for this version of SciPy (detected version 1.26.4
+  warnings.warn(f"A NumPy version >={np_minversion} and <{np_maxversion}"
+Loading /root/workspace/rt-cosmik/weights/yolo/yolov10n_b4.engine for TensorRT inference...
+[09/09/2026-18:48:14] [TRT] [I] Loaded engine size: 11 MiB
+[09/09/2026-18:48:14] [TRT] [I] [MemUsageChange] TensorRT-managed allocation in IExecutionContext creation: CPU +0, GPU +77, now: CPU 0, GPU 87 (MiB)
+2026-09-09 18:48:43,138 | INFO | [1/6] 4216/Lifting: 13.923 deg over 29 DoF, r=0.9974, 41.2 fps
+2026-09-09 18:49:27,701 | INFO | [2/6] 4216/Polishing: 12.8 deg over 29 DoF, r=0.93, 41.6 fps
+2026-09-09 18:50:24,828 | INFO | [3/6] 4216/RobotPolishing: 13.159 deg over 29 DoF, r=0.8974, 40.2 fps
+2026-09-09 18:51:28,258 | INFO | [4/6] 4216/RobotWelding: 11.866 deg over 29 DoF, r=0.9283, 41.0 fps
+2026-09-09 18:52:22,015 | INFO | [5/6] 4216/Screwing: 14.664 deg over 29 DoF, r=0.9709, 40.7 fps
+2026-09-09 18:53:36,464 | INFO | [6/6] 4216/SideOverhead: 18.36 deg over 29 DoF, r=0.9763, 41.9 fps
+acados was compiled without OpenMP.
+acados was compiled without OpenMP.
+acados was compiled without OpenMP.
+acados was compiled without OpenMP.
+acados was compiled without OpenMP.
+acados was compiled without OpenMP.
+2026-09-09 18:53:37,705 | INFO | 6 trials; 66 already summarised; cameras 0-2-4-6; N=7; marker_set=parity
+/usr/lib/python3/dist-packages/scipy/__init__.py:146: UserWarning: A NumPy version >=1.17.3 and <1.25.0 is required for this version of SciPy (detected version 1.26.4
+  warnings.warn(f"A NumPy version >={np_minversion} and <{np_maxversion}"
+Loading /root/workspace/rt-cosmik/weights/yolo/yolov10n_b4.engine for TensorRT inference...
+[09/09/2026-18:53:44] [TRT] [I] Loaded engine size: 11 MiB
+[09/09/2026-18:53:44] [TRT] [I] [MemUsageChange] TensorRT-managed allocation in IExecutionContext creation: CPU +0, GPU +77, now: CPU 0, GPU 87 (MiB)
+2026-09-09 18:54:37,418 | INFO | [1/6] 4279/Lifting: 12.295 deg over 29 DoF, r=0.9606, 42.1 fps
+2026-09-09 18:55:19,586 | INFO | [2/6] 4279/Polishing: 12.723 deg over 29 DoF, r=0.8998, 41.8 fps
+2026-09-09 18:56:28,341 | INFO | [3/6] 4279/RobotPolishing: 11.564 deg over 29 DoF, r=0.678, 42.8 fps
+2026-09-09 18:57:32,293 | INFO | [4/6] 4279/RobotWelding: 12.301 deg over 29 DoF, r=0.6966, 41.9 fps
+2026-09-09 18:58:39,533 | INFO | [5/6] 4279/Screwing: 13.888 deg over 29 DoF, r=0.8228, 42.3 fps
+2026-09-09 18:59:46,555 | INFO | [6/6] 4279/SideOverhead: 14.268 deg over 29 DoF, r=0.9238, 42.4 fps
+acados was compiled without OpenMP.
+acados was compiled without OpenMP.
+acados was compiled without OpenMP.
+acados was compiled without OpenMP.
+acados was compiled without OpenMP.
+acados was compiled without OpenMP.
+2026-09-09 18:59:47,788 | INFO | 6 trials; 72 already summarised; cameras 0-2-4-6; N=7; marker_set=parity
+/usr/lib/python3/dist-packages/scipy/__init__.py:146: UserWarning: A NumPy version >=1.17.3 and <1.25.0 is required for this version of SciPy (detected version 1.26.4
+  warnings.warn(f"A NumPy version >={np_minversion} and <{np_maxversion}"
+Loading /root/workspace/rt-cosmik/weights/yolo/yolov10n_b4.engine for TensorRT inference...
+[09/09/2026-18:59:54] [TRT] [I] Loaded engine size: 11 MiB
+[09/09/2026-18:59:54] [TRT] [I] [MemUsageChange] TensorRT-managed allocation in IExecutionContext creation: CPU +0, GPU +77, now: CPU 0, GPU 87 (MiB)
+2026-09-09 19:00:31,668 | INFO | [1/6] 4509/Lifting: 14.594 deg over 29 DoF, r=0.9823, 41.6 fps
+2026-09-09 19:01:22,790 | INFO | [2/6] 4509/Polishing: 13.713 deg over 29 DoF, r=0.7758, 41.9 fps
+2026-09-09 19:02:30,874 | INFO | [3/6] 4509/RobotPolishing: 11.948 deg over 29 DoF, r=0.8814, 41.7 fps
+2026-09-09 19:03:36,906 | INFO | [4/6] 4509/RobotWelding: 12.278 deg over 29 DoF, r=0.8721, 42.1 fps
+2026-09-09 19:04:33,305 | INFO | [5/6] 4509/Screwing: 13.303 deg over 29 DoF, r=0.7798, 41.9 fps
+2026-09-09 19:05:22,339 | INFO | [6/6] 4509/SideOverhead: 13.687 deg over 29 DoF, r=0.9179, 41.9 fps
+acados was compiled without OpenMP.
+acados was compiled without OpenMP.
+acados was compiled without OpenMP.
+acados was compiled without OpenMP.
+acados was compiled without OpenMP.
+acados was compiled without OpenMP.
+2026-09-09 19:05:23,546 | INFO | 6 trials; 78 already summarised; cameras 0-2-4-6; N=7; marker_set=parity
+/usr/lib/python3/dist-packages/scipy/__init__.py:146: UserWarning: A NumPy version >=1.17.3 and <1.25.0 is required for this version of SciPy (detected version 1.26.4
+  warnings.warn(f"A NumPy version >={np_minversion} and <{np_maxversion}"
+Loading /root/workspace/rt-cosmik/weights/yolo/yolov10n_b4.engine for TensorRT inference...
+[09/09/2026-19:05:30] [TRT] [I] Loaded engine size: 11 MiB
+[09/09/2026-19:05:30] [TRT] [I] [MemUsageChange] TensorRT-managed allocation in IExecutionContext creation: CPU +0, GPU +77, now: CPU 0, GPU 87 (MiB)
+2026-09-09 19:06:21,552 | INFO | [1/6] 4612/Lifting: 9.712 deg over 29 DoF, r=0.996, 41.4 fps
+2026-09-09 19:07:07,890 | INFO | [2/6] 4612/Polishing: 11.975 deg over 29 DoF, r=0.8729, 41.5 fps
+2026-09-09 19:08:18,945 | INFO | [3/6] 4612/RobotPolishing: 13.223 deg over 29 DoF, r=0.9085, 41.2 fps
+2026-09-09 19:09:11,891 | INFO | [4/6] 4612/RobotWelding: 10.98 deg over 29 DoF, r=0.9206, 42.4 fps
+2026-09-09 19:10:04,936 | INFO | [5/6] 4612/Screwing: 11.089 deg over 29 DoF, r=0.9655, 42.5 fps
+2026-09-09 19:11:07,161 | INFO | [6/6] 4612/SideOverhead: 15.096 deg over 29 DoF, r=0.8872, 41.3 fps
+acados was compiled without OpenMP.
+acados was compiled without OpenMP.
+acados was compiled without OpenMP.
+acados was compiled without OpenMP.
+acados was compiled without OpenMP.
+acados was compiled without OpenMP.
+2026-09-09 19:11:08,417 | INFO | 6 trials; 84 already summarised; cameras 0-2-4-6; N=7; marker_set=parity
+/usr/lib/python3/dist-packages/scipy/__init__.py:146: UserWarning: A NumPy version >=1.17.3 and <1.25.0 is required for this version of SciPy (detected version 1.26.4
+  warnings.warn(f"A NumPy version >={np_minversion} and <{np_maxversion}"
+Loading /root/workspace/rt-cosmik/weights/yolo/yolov10n_b4.engine for TensorRT inference...
+[09/09/2026-19:11:15] [TRT] [I] Loaded engine size: 11 MiB
+[09/09/2026-19:11:15] [TRT] [I] [MemUsageChange] TensorRT-managed allocation in IExecutionContext creation: CPU +0, GPU +77, now: CPU 0, GPU 87 (MiB)
+2026-09-09 19:12:02,235 | INFO | [1/6] 4665/Lifting: 13.645 deg over 29 DoF, r=0.9953, 41.8 fps
+2026-09-09 19:13:17,590 | INFO | [2/6] 4665/Polishing: 16.1 deg over 29 DoF, r=0.9575, 42.2 fps
+2026-09-09 19:14:45,491 | INFO | [3/6] 4665/RobotPolishing: 14.878 deg over 29 DoF, r=0.9277, 41.5 fps
+2026-09-09 19:16:02,049 | INFO | [4/6] 4665/RobotWelding: 17.712 deg over 29 DoF, r=0.9786, 42.6 fps
+2026-09-09 19:17:21,752 | INFO | [5/6] 4665/Screwing: 15.322 deg over 29 DoF, r=0.9534, 42.6 fps
+2026-09-09 19:18:38,298 | INFO | [6/6] 4665/SideOverhead: 16.733 deg over 29 DoF, r=0.9204, 42.1 fps
+acados was compiled without OpenMP.
+acados was compiled without OpenMP.
+acados was compiled without OpenMP.
+acados was compiled without OpenMP.
+acados was compiled without OpenMP.
+acados was compiled without OpenMP.
+2026-09-09 19:18:39,536 | INFO | 6 trials; 90 already summarised; cameras 0-2-4-6; N=7; marker_set=parity
+/usr/lib/python3/dist-packages/scipy/__init__.py:146: UserWarning: A NumPy version >=1.17.3 and <1.25.0 is required for this version of SciPy (detected version 1.26.4
+  warnings.warn(f"A NumPy version >={np_minversion} and <{np_maxversion}"
+Loading /root/workspace/rt-cosmik/weights/yolo/yolov10n_b4.engine for TensorRT inference...
+[09/09/2026-19:18:46] [TRT] [I] Loaded engine size: 11 MiB
+[09/09/2026-19:18:46] [TRT] [I] [MemUsageChange] TensorRT-managed allocation in IExecutionContext creation: CPU +0, GPU +77, now: CPU 0, GPU 87 (MiB)
+2026-09-09 19:19:29,022 | INFO | [1/6] 4687/Lifting: 13.789 deg over 29 DoF, r=0.9984, 42.0 fps
+2026-09-09 19:20:06,366 | INFO | [2/6] 4687/Polishing: 14.778 deg over 29 DoF, r=0.9706, 41.2 fps
+2026-09-09 19:20:57,477 | INFO | [3/6] 4687/RobotPolishing: 13.947 deg over 29 DoF, r=0.9699, 41.9 fps
+2026-09-09 19:21:42,001 | INFO | [4/6] 4687/RobotWelding: 12.394 deg over 29 DoF, r=0.9769, 42.2 fps
+2026-09-09 19:22:29,877 | INFO | [5/6] 4687/Screwing: 13.434 deg over 29 DoF, r=0.9872, 41.2 fps
+2026-09-09 19:23:07,970 | INFO | [6/6] 4687/SideOverhead: 14.321 deg over 29 DoF, r=0.9761, 40.5 fps
+acados was compiled without OpenMP.
+acados was compiled without OpenMP.
+acados was compiled without OpenMP.
+acados was compiled without OpenMP.
+acados was compiled without OpenMP.
+acados was compiled without OpenMP.
+2026-09-09 19:23:09,239 | INFO | 6 trials; 96 already summarised; cameras 0-2-4-6; N=7; marker_set=parity
+/usr/lib/python3/dist-packages/scipy/__init__.py:146: UserWarning: A NumPy version >=1.17.3 and <1.25.0 is required for this version of SciPy (detected version 1.26.4
+  warnings.warn(f"A NumPy version >={np_minversion} and <{np_maxversion}"
+Loading /root/workspace/rt-cosmik/weights/yolo/yolov10n_b4.engine for TensorRT inference...
+[09/09/2026-19:23:16] [TRT] [I] Loaded engine size: 11 MiB
+[09/09/2026-19:23:16] [TRT] [I] [MemUsageChange] TensorRT-managed allocation in IExecutionContext creation: CPU +0, GPU +77, now: CPU 0, GPU 87 (MiB)
+2026-09-09 19:23:46,823 | INFO | [1/6] 4801/Lifting: 16.3 deg over 29 DoF, r=0.9959, 41.0 fps
+2026-09-09 19:25:02,019 | INFO | [2/6] 4801/Polishing: 14.976 deg over 29 DoF, r=0.9144, 41.1 fps
+2026-09-09 19:26:43,164 | INFO | [3/6] 4801/RobotPolishing: 14.294 deg over 29 DoF, r=0.8967, 41.1 fps
+2026-09-09 19:27:45,164 | INFO | [4/6] 4801/RobotWelding: 18.774 deg over 29 DoF, r=0.8596, 40.5 fps
+2026-09-09 19:28:54,620 | INFO | [5/6] 4801/Screwing: 14.909 deg over 29 DoF, r=0.8837, 41.2 fps
+2026-09-09 19:30:42,432 | INFO | [6/6] 4801/SideOverhead: 23.769 deg over 29 DoF, r=0.9415, 41.2 fps
+acados was compiled without OpenMP.
+acados was compiled without OpenMP.
+acados was compiled without OpenMP.
+acados was compiled without OpenMP.
+acados was compiled without OpenMP.
+acados was compiled without OpenMP.
+2026-09-09 19:30:43,705 | INFO | 6 trials; 102 already summarised; cameras 0-2-4-6; N=7; marker_set=parity
+/usr/lib/python3/dist-packages/scipy/__init__.py:146: UserWarning: A NumPy version >=1.17.3 and <1.25.0 is required for this version of SciPy (detected version 1.26.4
+  warnings.warn(f"A NumPy version >={np_minversion} and <{np_maxversion}"
+Loading /root/workspace/rt-cosmik/weights/yolo/yolov10n_b4.engine for TensorRT inference...
+[09/09/2026-19:30:50] [TRT] [I] Loaded engine size: 11 MiB
+[09/09/2026-19:30:50] [TRT] [I] [MemUsageChange] TensorRT-managed allocation in IExecutionContext creation: CPU +0, GPU +77, now: CPU 0, GPU 87 (MiB)
+2026-09-09 19:31:26,266 | INFO | [1/6] 4827/Lifting: 15.167 deg over 29 DoF, r=0.9896, 40.7 fps
+2026-09-09 19:32:12,361 | INFO | [2/6] 4827/Polishing: 14.44 deg over 29 DoF, r=0.9724, 40.8 fps
+2026-09-09 19:33:11,688 | INFO | [3/6] 4827/RobotPolishing: 12.815 deg over 29 DoF, r=0.5976, 41.5 fps
+2026-09-09 19:34:05,920 | INFO | [4/6] 4827/RobotWelding: 12.637 deg over 29 DoF, r=0.7239, 41.8 fps
+2026-09-09 19:35:01,387 | INFO | [5/6] 4827/Screwing: 13.779 deg over 29 DoF, r=0.8099, 41.9 fps
+2026-09-09 19:36:05,216 | INFO | [6/6] 4827/SideOverhead: 14.608 deg over 29 DoF, r=0.9107, 41.7 fps
+acados was compiled without OpenMP.
+acados was compiled without OpenMP.
+acados was compiled without OpenMP.
+acados was compiled without OpenMP.
+acados was compiled without OpenMP.
+acados was compiled without OpenMP.
