@@ -215,7 +215,8 @@ class MmposeMarkerSource:
 
     def __init__(self, keypoints, confidences, mtxs, dists, projections,
                  world_R, world_T, models, augmenter_dir, height, mass,
-                 iir=None, buffer_len=10, logger=None, depth_aware=False):
+                 iir=None, buffer_len=10, logger=None, depth_aware=False,
+                 triangulation="dlt"):
         self.keypoints = keypoints
         self.confidences = confidences
         self.mtxs = mtxs
@@ -231,6 +232,7 @@ class MmposeMarkerSource:
         self.buffer_len = buffer_len
         self.logger = logger or LOGGER
         self.depth_aware = depth_aware
+        self.triangulation = triangulation
         self._centres = None
         self._previous = None   # last frame's points, reference frame
 
@@ -261,8 +263,24 @@ class MmposeMarkerSource:
             sigma = distance_scaled_uncertainties(sigma, self._previous,
                                                   self._centres)
 
-        p3d = triangulate_points(views, self.mtxs, self.dists, self.projections,
-                                 uncertainties=sigma)
+        if self.triangulation == "dlt":
+            p3d = triangulate_points(views, self.mtxs, self.dists, self.projections,
+                                     uncertainties=sigma)
+        else:
+            from rtcosmik.paper import triangulation_variants as tv
+            points, weights = tv.prepare(views, self.mtxs, self.dists,
+                                         self.confidences[frame])
+            if self.triangulation.startswith("pairfuse"):
+                # Two stereo pairs, fused by inverse covariance, rather than one
+                # joint solve over four nearly opposed rays.
+                inner = self.triangulation.split(":", 1)[-1] if ":" in self.triangulation else "iterative"
+                half = len(views) // 2
+                pairs = (tuple(range(half)), tuple(range(half, len(views))))
+                p3d = tv.triangulate_pair_fused(points, self.projections, weights,
+                                                pairs=pairs, method=inner)
+            else:
+                p3d = tv.triangulate(points, self.projections, weights,
+                                     method=self.triangulation)
         self._previous = p3d
         return p3d @ self.world_R.T + self.world_T
 
@@ -310,7 +328,7 @@ class MmposeMarkerSource:
 
 
 def build_source(dataset, participant, task, cameras, settings, logger=None,
-                 depth_aware=False):
+                 depth_aware=False, triangulation="dlt"):
     """Assemble the marker source for one trial, with its subject metadata.
 
     Returns ``(source, meta)``. Split out from the driver so a sweep can reuse
@@ -341,7 +359,8 @@ def build_source(dataset, participant, task, cameras, settings, logger=None,
     source = MmposeMarkerSource(
         keypoints, confidences, mtxs, dists, projections, world_R, world_T,
         load_models(), augmenter_dir(), meta["height"], meta["weight"],
-        iir=iir, buffer_len=settings.N, logger=logger, depth_aware=depth_aware)
+        iir=iir, buffer_len=settings.N, logger=logger, depth_aware=depth_aware,
+        triangulation=triangulation)
     return source, meta
 
 
