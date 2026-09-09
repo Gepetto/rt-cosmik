@@ -116,25 +116,31 @@ def trial_stem(mmpose_dir):
     return stems.pop()
 
 
-#: Participants whose camera files are not labelled the way their calibration is.
-#: COMFI's 3361 has its two stereo pairs the other way round: the data in
-#: camera_0.csv comes from the camera calibrated as camera_4, and so on. Detected
-#: without any ground truth, by reprojection error -- 68 px as labelled against
-#: 7 px swapped, where every other participant is 8 to 10 px as labelled. Left
-#: uncorrected it put the whole body about a metre from where mocap says it was,
-#: at 54 to 61 deg joint error across all six tasks, while still reconstructing a
-#: correctly sized person, which is why it looked like a pose failure rather than
-#: a labelling one.
+#: Participants whose *mmpose 2D export* is not labelled the way the rig is.
+#: COMFI's 3361 has its two stereo pairs the other way round in that export: the
+#: keypoints in camera_0.csv were detected in the camera calibrated as camera_4,
+#: and so on. Detected without any ground truth, by reprojection error -- 68 px as
+#: labelled against 7 px swapped, where every other participant is 8 to 10 px as
+#: labelled. Left uncorrected it put the whole body about a metre from where
+#: mocap says it was, at 54 to 61 deg across all six tasks, while still
+#: reconstructing a correctly sized person -- which is why it read as a pose
+#: failure rather than a labelling one.
+#:
+#: THE VIDEOS ARE NOT AFFECTED. This is a defect in the 2D export alone: NLF
+#: reads the videos and is correct with the labelling as it stands (12.23 deg,
+#: 56 mm on 3361/Lifting), and applying this correction to it instead breaks it
+#: (14.78 deg, 595 mm). So only the mmpose arm may use this.
 CAMERA_ID_OVERRIDES = {
     "3361": {0: 4, 2: 6, 4: 0, 6: 2},
 }
 
 
 def calibration_cameras(participant, cameras):
-    """Calibration ids to pair with each requested camera's data.
+    """Calibration ids to pair with each requested camera's *mmpose* data.
 
-    Returns ``cameras`` unchanged for every participant but the mislabelled ones.
-    Works on subsets too, so a two-camera run picks up the same correction.
+    For the mmpose arm only -- see CAMERA_ID_OVERRIDES. Returns ``cameras``
+    unchanged for every participant but the mislabelled ones. Works on subsets
+    too, so a two-camera run picks up the same correction.
     """
     mapping = CAMERA_ID_OVERRIDES.get(str(participant))
     if not mapping:

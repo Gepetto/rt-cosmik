@@ -165,17 +165,16 @@ def run_nlf(dataset, participant, task, cameras, out_dir, settings,
     from rtcosmik.triangulation.triangulation import reconstruct_3d
     from rtcosmik.utils.VideoReader import OfflineVideoSource
 
-    from rtcosmik.paper.mmpose_baseline import calibration_cameras
-
     root = Path(dataset)
     meta = yaml.safe_load((root / "metadata" / f"{participant}.yaml").read_text())
     cam_dir = root / "cam_params" / participant
-    # Same correction as the mmpose arm: a mislabelled rig is a property of the
-    # dataset, not of the pose estimator, so both arms must apply it or they
-    # would no longer be running on the same geometry.
-    calib = calibration_cameras(participant, cameras)
-    mtxs, dists, projections, _, _ = load_camera_parameters(cam_dir, calib)
-    world_R, world_T = load_world_transformation(cam_dir, calib[0])
+    # No camera-id correction here. 3361's swap is a defect in COMFI's mmpose 2D
+    # export, not in the rig: the videos this arm reads are labelled correctly,
+    # and applying the mmpose correction to them breaks the reconstruction
+    # (12.23 -> 14.78 deg, 56 -> 595 mm on 3361/Lifting). Verified by running
+    # both ways rather than assumed, after assuming wrongly once.
+    mtxs, dists, projections, _, _ = load_camera_parameters(cam_dir, cameras)
+    world_R, world_T = load_world_transformation(cam_dir, cameras[0])
 
     paths = [root / "videos" / participant / task / f"camera_{c}.mp4" for c in cameras]
     missing = [p for p in paths if not p.exists()]
