@@ -73,7 +73,7 @@ class Settings:
     ### FILTER PARAMS ###
     order: int = 4
     system_freq: int = 40 
-    cutoff_freq: float = 10
+    cutoff_freq: float = 5
     filter_type: str = "lowpass"
 
     ### NLF ###
