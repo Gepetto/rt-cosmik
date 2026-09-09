@@ -152,8 +152,15 @@ def _nlf_estimator(mtxs, num_cameras, settings):
 
 
 def run_nlf(dataset, participant, task, cameras, out_dir, settings,
-            depth_aware=False):
-    """One NLF trial, mirroring run_pipeline's offline path. Returns (frames, ik_ms, seconds)."""
+            depth_aware=False, reconstruction="fuse3d"):
+    """One NLF trial, mirroring run_pipeline's offline path. Returns (frames, ik_ms, seconds).
+
+    ``reconstruction`` selects what is done with NLF's output. "fuse3d" is the
+    shipped path: inverse-variance fusion of the metric 3D pose each view
+    regresses. "tri2d" instead triangulates NLF's own 2D keypoints with the same
+    weighted DLT the mmpose arm uses, which holds the reconstruction fixed and
+    leaves the detector as the only difference between the two arms.
+    """
     from collections import OrderedDict, deque
     import yaml
     from rtcosmik.camera.cam_utils import (load_camera_parameters,
@@ -162,7 +169,8 @@ def run_nlf(dataset, participant, task, cameras, out_dir, settings,
     from rtcosmik.nlf.nlf import extract_views
     from rtcosmik.pipeline.solver import HumanSolver
     from rtcosmik.saver.csv_saver import CSVSaver
-    from rtcosmik.triangulation.triangulation import reconstruct_3d
+    from rtcosmik.triangulation.triangulation import (reconstruct_3d,
+                                                      triangulate_points)
     from rtcosmik.utils.VideoReader import OfflineVideoSource
 
     root = Path(dataset)
@@ -206,7 +214,14 @@ def run_nlf(dataset, participant, task, cameras, out_dir, settings,
             break
         read += 1
         nlf_out, _, _, _ = estimator.estimate_from_frames(frames)
-        p3d = reconstruct_3d(extract_views(nlf_out, len(cameras)), projections)
+        views = extract_views(nlf_out, len(cameras))
+        if reconstruction == "tri2d":
+            if any(k is None for k in views.keypoints) or len(cameras) < 2:
+                continue
+            p3d = triangulate_points(views.keypoints, mtxs, dists, projections,
+                                     uncertainties=views.uncertainties)
+        else:
+            p3d = reconstruct_3d(views, projections)
         if len(p3d) == 0:
             continue
         p3d = np.asarray(p3d) @ np.asarray(world_R).T + np.asarray(world_T)
@@ -285,7 +300,15 @@ def run_mocap(dataset, participant, task, cameras, out_dir, settings,
     return rows, np.asarray(ik_ms), time.perf_counter() - started
 
 
-ARMS = {"mmpose": run_mmpose, "nlf": run_nlf, "mocap": run_mocap}
+def run_nlf2d(dataset, participant, task, cameras, out_dir, settings,
+              depth_aware=False):
+    """NLF's 2D keypoints through the same weighted DLT the mmpose arm uses."""
+    return run_nlf(dataset, participant, task, cameras, out_dir, settings,
+                   depth_aware=depth_aware, reconstruction="tri2d")
+
+
+ARMS = {"mmpose": run_mmpose, "nlf": run_nlf, "nlf2d": run_nlf2d,
+        "mocap": run_mocap}
 
 
 def discover(dataset, participants, tasks, arm="mmpose"):
@@ -314,7 +337,8 @@ def discover(dataset, participants, tasks, arm="mmpose"):
 def main():
     ap = argparse.ArgumentParser(description=__doc__,
                                  formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument("--arm", choices=["mmpose", "nlf", "mocap"], default="mmpose")
+    ap.add_argument("--arm", choices=["mmpose", "nlf", "nlf2d", "mocap"],
+                    default="mmpose")
     ap.add_argument("--dataset", required=True)
     ap.add_argument("--cameras", type=int, nargs="+", required=True)
     ap.add_argument("--summary", required=True, help="CSV to append results to")
