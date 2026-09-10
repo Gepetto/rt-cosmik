@@ -45,8 +45,23 @@ DATASET = "/root/workspace/COMFI"
 #: 3361 stays in every other table; the depth and translation columns are not
 #: invariant, and one participant at 2.6 m would otherwise set them for the whole
 #: arm. Dropped for *all* arms so the comparison stays paired.
-#: The same participant carries an unrelated camera-labelling defect in COMFI's
-#: mmpose 2D export, corrected separately in mmpose_baseline.CAMERA_ID_OVERRIDES.
+#:
+#: It is *not* the camera-labelling defect the same participant carries in
+#: COMFI's mmpose 2D export, and the two must not be conflated. That one is real
+#: -- re-triangulating 3361/Lifting under each candidate labelling scores 101 mm
+#: for the pair swap already applied in mmpose_baseline.CAMERA_ID_OVERRIDES
+#: (0<->4, 2<->6), against 743 mm for a within-pair swap and 1301 mm as shipped
+#: -- but it does not extend to FastSAM. Anchoring the FastSAM export on each of
+#: the four cameras gives 2645 / 2679 / 2876 / 2744 mm, and even after fitting a
+#: depth scale to absorb the 2x, camera 0 still wins by a wide margin (102 mm
+#: against 827 mm for camera 4). The body-centroid bearing, immune to range
+#: error, agrees: 3.7 deg for camera 0 against 11.7 for camera 4. The videos are
+#: labelled correctly, which is why NLF needs no correction here either.
+#:
+#: Dividing the camera-frame depth by one scalar (1.93-1.99) restores 3361 to
+#: 82-104 mm, which pins the defect to range alone. That correction is NOT
+#: applied: the scalar was fitted against mocap, and fitting to the reference
+#: would contaminate the result it exists to judge.
 MARKER_EXCLUDED_PARTICIPANTS = ("3361",)
 
 ARMS = [
