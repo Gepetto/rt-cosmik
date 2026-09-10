@@ -9,8 +9,15 @@ Writes results/paper/SUMMARY.txt (readable) and results/paper/summary.json
   - marker error split into depth and lateral, and into translation and shape
   - marker, free-flyer and throughput figures
 
-Everything is scored against the MoCap modality: the dataset's published joint
-angles come from a different biomechanical model and are not used anywhere.
+Joint angles are scored against the MoCap modality -- the same markers through
+the same model and the same IK -- so the comparison is a clean ablation in which
+only the input changes. The dataset's published joint angles come from a
+different biomechanical model and are not used anywhere, not even to synchronise.
+
+Marker error is scored against the raw Vicon markers, and every component of it
+is an RMS, so that the two decompositions are exact: depth and lateral add in
+quadrature to raw, and so do translation and shape. Averaging magnitudes instead
+would break both identities and understate the dominant term.
 
     python3 scripts/python/paper/pack_results.py
 """
@@ -26,6 +33,22 @@ sys.path.insert(0, str(REPO / "src"))
 
 import numpy as np
 
+DATASET = "/root/workspace/COMFI"
+
+#: Participants dropped from the *marker geometry* section only, never from the
+#: joint-angle sections. COMFI's FastSAM export places 3361 at almost exactly
+#: twice its true range on all six trials -- depth ratio 1.93 to 1.99, while the
+#: image-plane position (43-67 mm) and the body's own size are normal. The error
+#: is 2648 mm of pure translation with a 59 mm shape error, so it is a defect in
+#: that export's root placement, not something an estimator did. Joint angles are
+#: invariant to a per-frame rigid translation and are unaffected, which is why
+#: 3361 stays in every other table; the depth and translation columns are not
+#: invariant, and one participant at 2.6 m would otherwise set them for the whole
+#: arm. Dropped for *all* arms so the comparison stays paired.
+#: The same participant carries an unrelated camera-labelling defect in COMFI's
+#: mmpose 2D export, corrected separately in mmpose_baseline.CAMERA_ID_OVERRIDES.
+MARKER_EXCLUDED_PARTICIPANTS = ("3361",)
+
 ARMS = [
     ("mmpose_0-2", "mmpose 2 cams"),
     ("mmpose_0-2-4-6", "mmpose 4 cams"),
@@ -34,6 +57,7 @@ ARMS = [
     ("nlf_0", "NLF-3D 1 cam"),
     ("nlf_0-2", "NLF-3D 2 cams"),
     ("nlf_0-2-4-6", "NLF-3D 4 cams"),
+    ("fastsam_0", "FastSAM-3D 1 cam"),
 ]
 TASKS = ["Screwing", "Polishing", "SideOverhead", "RobotPolishing",
          "RobotWelding", "Lifting"]
@@ -49,6 +73,10 @@ def load_eval():
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
     return module
+
+
+class _SkipMarkers(Exception):
+    """Raised to skip the marker-geometry block while keeping the joint work."""
 
 
 def group_of(name):
@@ -89,7 +117,7 @@ def main():
     for tag, label in present:
         per_task = defaultdict(lambda: defaultdict(list))
         groups = defaultdict(lambda: defaultdict(list))
-        depth, lateral, shape, raw = [], [], [], []
+        depth, lateral, shape, raw, shift = [], [], [], [], []
         for participant, task in trials:
             run_dir = out_root / participant / task / tag
             ref_dir = out_root / participant / task / "mocap_reference"
@@ -123,27 +151,40 @@ def main():
                     groups[g][participant].append((rmse, r))
                     groups["ALL"][participant].append((rmse, r))
 
-                # marker geometry
+                # Marker geometry, against the raw Vicon markers rather than the
+                # mocap_reference run. They are the same markers -- that run is
+                # driven by them -- but it also carries Head, REar and LEar,
+                # which are stand-ins derived from the Vicon head band and would
+                # contribute a definitional offset, not estimation error.
+                # Frame indices are shared, so the lag found above applies.
+                if participant in MARKER_EXCLUDED_PARTICIPANTS:
+                    raise _SkipMarkers
                 if participant not in axes:
                     R, _ = load_world_transformation(
-                        f"/root/workspace/COMFI/cam_params/{participant}", 0)
+                        f"{DATASET}/cam_params/{participant}", 0)
                     axes[participant] = np.asarray(R) @ np.array([0., 0., 1.])
-                names = sorted(set(a["markers"]) & set(b["markers"]))
+                truth = ev.load_run(f"{DATASET}/mocap/aligned/{participant}/{task}")
+                names = sorted(set(run["markers"]) & set(truth["markers"]))
                 if names:
-                    P = np.stack([a["markers"][m] for m in names], 1)
-                    Q = np.stack([b["markers"][m] for m in names], 1)
+                    start, ref_start = max(0, lag), max(0, -lag)
+                    P = np.stack([run["markers"][m][start:] for m in names], 1)
+                    Q = np.stack([truth["markers"][m][ref_start:] for m in names], 1)
                     k = min(len(P), len(Q))
                     e = P[:k] - Q[:k]
-                    ok = np.isfinite(e).all(2).all(1)
-                    e = e[ok]
+                    e = e[np.isfinite(e).all(2).all(1)]
                     if len(e):
                         ax = axes[participant]
-                        depth.append(np.abs(e @ ax).mean() * 1000)
-                        lateral.append(np.linalg.norm(
-                            e - (e @ ax)[..., None] * ax, axis=2).mean() * 1000)
-                        raw.append(np.linalg.norm(e, axis=2).mean() * 1000)
-                        shape.append(np.linalg.norm(
-                            e - e.mean(axis=1, keepdims=True), axis=2).mean() * 1000)
+                        along = e @ ax
+                        perpendicular = e - along[..., None] * ax
+                        translation = e.mean(axis=1, keepdims=True)
+                        rms = lambda v: float(np.sqrt((v ** 2).sum(-1).mean()) * 1000)
+                        raw.append(rms(e))
+                        depth.append(float(np.sqrt((along ** 2).mean()) * 1000))
+                        lateral.append(rms(perpendicular))
+                        shift.append(rms(translation))
+                        shape.append(rms(e - translation))
+            except _SkipMarkers:
+                continue
             except Exception:
                 continue
 
@@ -157,6 +198,8 @@ def main():
             rr = [np.nanmean([v[1] for v in vals]) for vals in groups[g].values()]
             entry["groups"][g] = {"rmse": stat(per), "r": stat(rr)}
         entry["depth"] = stat(depth)
+        entry["translation"] = stat(shift)
+        entry["marker_trials"] = len(raw)
         entry["lateral"] = stat(lateral)
         entry["raw_marker"] = stat(raw)
         entry["shape"] = stat(shape)
@@ -196,15 +239,28 @@ def main():
             line += f"{e['groups'][g]['rmse'][0]:>10.2f}/{e['groups'][g]['r'][0]:<5.2f}"
         add(line)
 
-    add("\n3. MARKER ERROR STRUCTURE (mm)\n")
-    add(f"{'arm':<20}{'raw':>10}{'depth':>10}{'lateral':>10}{'aniso':>8}"
-        f"{'shape':>10}{'transl.share':>14}")
+    add("\n3. MARKER ERROR STRUCTURE (RMS mm, mean (std) across trials)\n")
+    add("Two independent splits of the same error. By direction: depth is the")
+    add("component along camera 0's optical axis, lateral the rest. By what moves:")
+    add("translation is the whole-body shift, shape what is left after removing it.")
+    add("Each pair adds in quadrature to raw. Scored against the raw Vicon markers.")
+    add(f"Excludes participant(s) {', '.join(MARKER_EXCLUDED_PARTICIPANTS)} from every arm: "
+        f"COMFI's FastSAM export")
+    add("places that subject at twice its true range, which is a defect in the export's")
+    add("root placement, not an estimate. Joint angles are invariant to it and keep all")
+    add(f"108 trials; these columns are not, and use "
+        f"{data[present[0][0]]['marker_trials']}.\n")
+    add(f"{'arm':<20}{'raw':>12}{'depth':>12}{'lateral':>12}{'aniso':>8}"
+        f"{'translation':>13}{'shape':>12}")
     for tag, _ in present:
         e = data[tag]
-        share = (1 - e["shape"][0] / e["raw_marker"][0]) * 100 if e["raw_marker"][0] else np.nan
-        add(f"{e['label']:<20}{e['raw_marker'][0]:>10.1f}{e['depth'][0]:>10.1f}"
-            f"{e['lateral'][0]:>10.1f}{e['anisotropy']:>8.2f}{e['shape'][0]:>10.1f}"
-            f"{share:>13.0f}%")
+        line = f"{e['label']:<20}"
+        for field in ("raw_marker", "depth", "lateral"):
+            line += f"{e[field][0]:>7.1f}({e[field][1]:>3.0f})"
+        line += f"{e['anisotropy']:>8.2f}"
+        for field in ("translation", "shape"):
+            line += f"{e[field][0]:>8.1f}({e[field][1]:>3.0f})"
+        add(line)
 
     add("\n4. THROUGHPUT AND SOLVER (from the sweep; see Table I for clean timings)\n")
     add(f"{'arm':<20}{'fps':>10}{'IK ms':>10}{'marker mm':>12}{'freeflyer mm':>14}")

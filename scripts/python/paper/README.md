@@ -1,4 +1,4 @@
-# Paper comparison: mmpose/LSTM vs NLF
+# Paper comparison: mmpose/LSTM vs NLF vs FastSAM
 
 Everything here exists to produce one number per architecture on equal terms.
 None of it is part of the live toolbox.
@@ -30,6 +30,39 @@ QP -- see `apply_joint_locks`.
 
 Artefact paths carry a non-default marker set (`ocp/acados/realtime_parity`), so
 the parity and ordinary OCPs coexist.
+
+## The FastSAM arm
+
+COMFI also ships a FastSAM-based metric 3D export, one CSV per trial under
+`fastsam/<participant>/<task>/cosmik_mhr_markers_cam.csv`, **already in the
+reference camera's frame** and for camera 0 only. So this arm runs no network:
+`src/rtcosmik/paper/fastsam_source.py` reads the file, applies the same
+`p_world = R p_cam + T` anchor every arm applies, low-passes with the same IIR,
+and hands the markers to the same solver.
+
+Its marker set is a near-exact parity match, which is what makes the comparison
+fair without tuning. 34 of the 35 parity markers are present under identical
+names; `TV8` and `TV12` are extra and dropped, since parity already drops `T11`
+and `T6` and locks the thoracic DoF. The one genuine gap is `Head`, which cannot
+just be omitted -- `construct_segments_frames` only builds the head segment when
+Head, REar and LEar are all present, so dropping it would silently give this arm
+a structurally different model.
+
+`Head` is therefore reconstructed from the facial landmarks FastSAM does export,
+at an offset **measured** from the NLF runs rather than guessed, and taken from
+NLF rather than from mocap so that nothing is tuned toward the reference. It is
+not a load-bearing choice: deliberately wrong placements move the whole-body
+RMSE by at most 0.18 deg, against a ~2 deg spread between arms.
+
+```bash
+python3 scripts/python/paper/study_head_offset.py measure       # where Head sits
+python3 scripts/python/paper/study_head_offset.py sensitivity   # does it matter
+bash    scripts/bash/run_fastsam_sweep.sh /root/workspace/COMFI
+```
+
+**Its fps column is not comparable with the others.** FastSAM's own inference is
+not run here -- the 3D arrives precomputed -- so the figure covers the IK and
+nothing else. It is an IK throughput number, not a pipeline one.
 
 ## Running it
 

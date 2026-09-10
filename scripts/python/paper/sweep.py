@@ -307,8 +307,51 @@ def run_nlf2d(dataset, participant, task, cameras, out_dir, settings,
                    depth_aware=depth_aware, reconstruction="tri2d")
 
 
+def run_fastsam(dataset, participant, task, cameras, out_dir, settings,
+                depth_aware=False):
+    """One FastSAM-3D trial. Returns (frames, ik_ms, seconds).
+
+    COMFI exports this modality as metric 3D markers in the reference camera's
+    frame, so the arm reads a file rather than running a network: the timings it
+    reports are the IK's alone and are not comparable with the end-to-end fps of
+    the arms that include a detector.
+    """
+    from collections import OrderedDict
+    from rtcosmik.paper.fastsam_source import build_source
+    from rtcosmik.pipeline.solver import HumanSolver
+    from rtcosmik.saver.csv_saver import CSVSaver
+
+    source, meta = build_source(dataset, participant, task, cameras, settings)
+    solver = HumanSolver(settings, gender=meta["gender"][0], height=meta["height"],
+                         weight=meta["weight"], logger=logging.getLogger("solve"))
+    out_dir.mkdir(parents=True, exist_ok=True)
+    saver = CSVSaver(str(out_dir),
+                     markers_header=["Frame_0"] + list(settings.marker_names),
+                     joint_angles_header=list(settings.joint_angles_names))
+
+    ik_ms, rows = [], 0
+    started = time.perf_counter()
+    for frame, mks in source:
+        t0 = time.perf_counter()
+        q = solver.solve(mks)
+        if rows:                      # the first call also builds the model
+            ik_ms.append((time.perf_counter() - t0) * 1e3)
+        markers = OrderedDict([("Frame_0", frame)])
+        for name in settings.marker_names:
+            position = mks[name]
+            markers[f"{name}_x"] = float(position[0])
+            markers[f"{name}_y"] = float(position[1])
+            markers[f"{name}_z"] = float(position[2])
+        saver.save_markers(markers)
+        saver.save_joint_angles(
+            OrderedDict(zip(settings.joint_angles_names, (float(v) for v in q))))
+        rows += 1
+    saver.close()
+    return rows, np.asarray(ik_ms), time.perf_counter() - started
+
+
 ARMS = {"mmpose": run_mmpose, "nlf": run_nlf, "nlf2d": run_nlf2d,
-        "mocap": run_mocap}
+        "fastsam": run_fastsam, "mocap": run_mocap}
 
 
 def discover(dataset, participants, tasks, arm="mmpose"):
@@ -337,7 +380,8 @@ def discover(dataset, participants, tasks, arm="mmpose"):
 def main():
     ap = argparse.ArgumentParser(description=__doc__,
                                  formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument("--arm", choices=["mmpose", "nlf", "nlf2d", "mocap"],
+    ap.add_argument("--arm",
+                    choices=["mmpose", "nlf", "nlf2d", "fastsam", "mocap"],
                     default="mmpose")
     ap.add_argument("--dataset", required=True)
     ap.add_argument("--cameras", type=int, nargs="+", required=True)
