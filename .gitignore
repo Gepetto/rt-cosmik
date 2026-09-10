@@ -21,3 +21,6 @@ data/
 *.egg-info/
 build/
 dist/
+output/**
+logs/
+weights/
