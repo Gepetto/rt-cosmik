@@ -51,7 +51,8 @@ timeout 1800 python3 "$REPO/scripts/python/paper/sweep.py" \
     --arm nlf --dataset "$DATASET" --cameras 0 2 4 6 \
     --summary "$LOGS/precheck.csv" --participants 1012 --tasks Lifting \
     --tag precheck_nlf > "$LOGS/precheck.log" 2>&1
-if grep -q ",ok$" "$LOGS/precheck.csv" 2>/dev/null; then
+# Python's csv writer terminates lines with CRLF, so anchor past the \r.
+if grep -qE ",ok[[:space:]]*$" "$LOGS/precheck.csv" 2>/dev/null; then
     NLF_OK=1; echo "  NLF precheck passed"
 else
     NLF_OK=0
