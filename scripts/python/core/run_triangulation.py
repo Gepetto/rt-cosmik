@@ -136,61 +136,64 @@ def main(args):
         NUM_CAMERAS = len(paths)
 
         src = OfflineVideoSource(paths=paths, size_wh=(W, H), loop=False)
+        try:
 
-        est = NLFEstimator(
-            yolo_path=resolve_detector_engine(settings.yolo_path, len(paths)),
-            nlf_path=settings.nlf_path,
-            cano_path=settings.cano_path,
-            image_size=(W, H),
-            cam_Ks=mtxs,
-            indices=settings.nlf_indices,
-            conf=settings.yolo_conf,
-            imgsz=settings.yolo_imgsz,
-            device=settings.device,
-        )
+            est = NLFEstimator(
+                yolo_path=resolve_detector_engine(settings.yolo_path, len(paths)),
+                nlf_path=settings.nlf_path,
+                cano_path=settings.cano_path,
+                image_size=(W, H),
+                cam_Ks=mtxs,
+                indices=settings.nlf_indices,
+                conf=settings.yolo_conf,
+                imgsz=settings.yolo_imgsz,
+                device=settings.device,
+            )
 
-        while True:
-            frames = src.read()
-            if frames is None:
-                break
+            while True:
+                frames = src.read()
+                if frames is None:
+                    break
 
-            nlf_out, infer_ms, yres, boxes = est.estimate_from_frames(frames)
+                nlf_out, infer_ms, yres, boxes = est.estimate_from_frames(frames)
 
-            views = extract_views(nlf_out, NUM_CAMERAS)
-            p3d = reconstruct_3d(views, projections)
-            if len(p3d) == 0:
-                continue
+                views = extract_views(nlf_out, NUM_CAMERAS)
+                p3d = reconstruct_3d(views, projections)
+                if len(p3d) == 0:
+                    continue
 
-            poses_triangul = torch.from_numpy(p3d).to(dtype=torch.float32)
-            poses_cam0=nlf_out['poses3d'][0]/1000
+                poses_triangul = torch.from_numpy(p3d).to(dtype=torch.float32)
+                poses_cam0=nlf_out['poses3d'][0]/1000
 
-            if nlf_out['poses3d'][0].shape[0] > 0:
-                points_all = poses_cam0.view(-1, 3).cpu().numpy().T
+                if nlf_out['poses3d'][0].shape[0] > 0:
+                    points_all = poses_cam0.view(-1, 3).cpu().numpy().T
                 
-                colors = np.zeros_like(points_all)
-                colors[0, :] = 1.0  # R
-                colors[1, :] = 0.0  # G
-                colors[2, :] = 0.0  # B
+                    colors = np.zeros_like(points_all)
+                    colors[0, :] = 1.0  # R
+                    colors[1, :] = 0.0  # G
+                    colors[2, :] = 0.0  # B
 
-                vis_markers.set_object(
-                    g.PointCloud(position=points_all, color=colors, size=0.02)
-                )
+                    vis_markers.set_object(
+                        g.PointCloud(position=points_all, color=colors, size=0.02)
+                    )
 
-                points_all2 = poses_triangul.view(-1, 3).cpu().numpy().T
-                colors2 = np.zeros_like(points_all2)
-                colors2[0, :] = 0.0  # R
-                colors2[1, :] = 0.0  # G
-                colors2[2, :] = 1.0  # B
+                    points_all2 = poses_triangul.view(-1, 3).cpu().numpy().T
+                    colors2 = np.zeros_like(points_all2)
+                    colors2[0, :] = 0.0  # R
+                    colors2[1, :] = 0.0  # G
+                    colors2[2, :] = 1.0  # B
 
-                vis_markers2.set_object(
-                    g.PointCloud(position=points_all2, color=colors2, size=0.02)
-                )
+                    vis_markers2.set_object(
+                        g.PointCloud(position=points_all2, color=colors2, size=0.02)
+                    )
 
-            else:
-                vis_markers.delete()
-                vis_markers2.delete()
-
-        src.release()
+                else:
+                    vis_markers.delete()
+                    vis_markers2.delete()
+        finally:
+            # Explicit teardown: an unreleased decoder never exits on
+            # its own, it blocks on a full pipe holding GPU memory.
+            src.release()
 
 if __name__ == "__main__":
     p = argparse.ArgumentParser(
