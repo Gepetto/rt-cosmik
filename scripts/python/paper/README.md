@@ -64,56 +64,39 @@ bash    scripts/bash/run_fastsam_sweep.sh /root/workspace/COMFI
 not run here -- the 3D arrives precomputed -- so the figure covers the IK and
 nothing else. It is an IK throughput number, not a pipeline one.
 
-## The SMPL-refinement arm (`nlfsmpl`)
+## SMPL refinement: tested and rejected
 
-NLF regresses each canonical SMPL-X vertex independently, so nothing forces its
-output to be a body a human could have. `docs/smplfitter.md` covers fitting the
-SMPL model back to those points; this arm puts that between NLF and the IK.
+Fitting a SMPL body to NLF's dense vertex output, between NLF and the IK, was
+built and measured, then removed. Keeping the numbers so nobody repeats it; the
+implementation is in git history if it is ever wanted.
 
-The correspondence is free -- NLF's canonical vertices *are* SMPL-X vertices,
-index for index -- so the arm asks NLF for all 10475 instead of the 35 markers,
-fuses the views as usual, fits the body, and reads the same
-`settings.nlf_indices` rows off the **fitted** vertices. Only the fit differs
-from the `nlf` arm.
+Joint RMSE against the mocap reference, 6 trials:
 
-Measured cost of the dense output on an RTX 4500 Ada, before any fitting:
-
-| cameras | 35 markers | 10475 vertices |
+| configuration | 1 camera | 4 cameras |
 |---|---|---|
-| 1 | 9.40 ms | 10.15 ms |
-| 4 | 18.60 ms | 22.95 ms |
+| NLF, no fit | **11.76** | **10.92** |
+| fit fused cloud, beta per frame | 11.79 | 11.28 |
+| fit fused cloud, beta calibrated | 11.60 | 11.17 |
+| fit each view then fuse, calibrated | — | 11.24 |
 
-**Fitting only the vertices we need does not work**, though it is the obvious
-saving. Against an exact synthetic target the full model converges to 0.65 mm;
-a 1024-vertex decimated subset plus the 35 markers reaches 148.9 mm at 4
-iterations, 81.3 at 8 and 65.6 at 16, and smplfitter's own `vertex_subset_size`
-path is no better (109.3 mm at 512). The distributed models omit the
-`vertex_subset_joint_regr_post_lbs_N.npy` that path expects, so the joint
-regressor gets sliced column-wise and the LBS joints -- which drive the fit --
-land in the wrong place. Renormalising the slice makes it worse. Requires
-`pip install trimesh fast_simplification` to reproduce.
+It helps only at one camera, by 0.16 deg, for 13.1 ms a frame -- 73 to 37 fps.
+Adding three cameras instead costs 9.0 ms and gains 0.84 deg, roughly five times
+the accuracy per millisecond. At four cameras every variant is worse than not
+fitting.
 
-Three shape policies, via `--beta-mode`: `free` refits the shape every frame,
-`calibrated` fits it once over the first `smpl_calibration_frames` and then holds
-it with `fit_with_known_shape` (causal, and how a real session would run), and
-`shared` fits one shape over the whole trial offline as an upper bound that
-cannot ship.
+The mechanism: the fit cuts segment-length wander 25-34% (10.4 -> 7.8 mm at four
+cameras, against mocap's own 7.1) but moves segment-length *bias* by under 2 mm.
+Wander is what fusion and the IK already handle -- the solver fixes segment
+lengths at calibration -- while bias is what actually costs joint accuracy. So it
+re-imposes a constraint that is already satisfied and leaves the error that is
+not. NLF's output already sits within 6-8.6 mm of a valid SMPL-X body, which is
+why there was so little for the fit to change.
 
-```bash
-bash    scripts/bash/setup_smplfitter.sh          # one-off, needs registration
-python3 scripts/python/paper/check_smplfitter.py  # verifies every silent trap
-python3 scripts/python/paper/study_smpl_fit.py    # baseline vs the shape policies
-```
+That also rules out swapping in a more expressive body model: expressiveness is
+not the limit. The lever is a better regressor -- see the FastSAM arm, the only
+modality with both low wander (6.4 mm) and low bias (6.3 mm).
 
-**Body models are licence-gated.** smplfitter needs SMPL-X files that require a
-free registration at `smpl-x.is.tue.mpg.de` (plus smpl, mano and agora, same
-email and password); the downloader authenticates as you. There is no
-redistributable copy, so this arm cannot run in a fresh container until
-`SMPLFITTER_BODY_MODELS` points at a downloaded copy.
-
-This container runs torch 2.4.1, and smplfitter 0.5 needs `torch.nn.Buffer` from
-torch 2.5. `rtcosmik.smpl.torch_shim` supplies it and must be imported first;
-`rtcosmik.smpl.fitter` does that for you.
+`docs/smplfitter.md` is kept: it is a standalone guide, useful independently.
 
 ## Running it
 

@@ -78,7 +78,6 @@ class Settings:
 
     ### NLF ###
     cano_path: str = field(init=False)
-    body_models_path: str = field(init=False)
     nlf_path: str = field(init=False)
     nlf_indices = [             # For SMPLX model
         8421, 5727, 8371, 5677, # pelvis: RASI, LASI, RPSI, LPSI 
@@ -179,38 +178,6 @@ class Settings:
     # T11, T6 and the six hand markers. Nothing else changes.
     marker_set: str = "parity"
 
-    # --- SMPL refinement (the nlfsmpl arm) -------------------------------
-    #: Canonical vertices NLF is asked for when the SMPL fit is in the loop.
-    #: Must match the canonical_verts file: SMPL-X is 10475, SMPL/SMPL-H 6890.
-    smpl_num_vertices: int = 10475
-    #: Shape components to solve for. Explicit on purpose: the model exposes
-    #: ~400, and letting the regulariser see all of them silently returns the
-    #: average body. 10-16 is the working range.
-    smpl_num_betas: int = 16
-    #: Fitter iterations per *online* frame. The shape is already known and the
-    #: previous frame's pose is a warm start, so one is usually enough -- and it
-    #: is the cheapest thing in the loop to get wrong.
-    smpl_num_iter: int = 1
-    #: Iterations for the one-off shape calibration. Paid once per subject, then
-    #: held for the whole trial, so it can afford to be generous.
-    smpl_calibration_iter: int = 8
-    #: Start each frame's pose solve from the previous frame's. At 40 Hz the body
-    #: moves millimetres, so this lets one iteration do the work of several.
-    smpl_warm_start: bool = True
-    #: "fuse_then_fit" fits the one fused cloud (batch 1, cheapest);
-    #: "fit_then_fuse" fits every view in one batched call and fuses the results,
-    #: correcting each camera before averaging rather than after.
-    smpl_fit_order: str = "fuse_then_fit"
-    #: "free" refits the shape every frame, "calibrated" fits it once over the
-    #: first smpl_calibration_frames and then holds it (causal, and how a real
-    #: session would run), "shared" fits one shape over the whole trial offline.
-    smpl_beta_mode: str = "calibrated"
-    smpl_calibration_frames: int = 30
-    #: Compile the batch-1 online fit. ~18 s once at startup, paid like every
-    #: other engine here; the fit's cost is per-call overhead, so this is where
-    #: it pays. CUDA graphs are not used -- capture fails on this code.
-    smpl_compile: bool = True
-
     # Filled in by __post_init__ from marker_set; do not edit by hand.
     locked_joints: list = field(init=False)
 
@@ -223,10 +190,6 @@ class Settings:
         self.output_dir = str(Path(self.cosmik_path) / "output")
         self.SAVE_DIR = str(Path(self.output_dir) / self.no_trial)
         self.cano_path = str(Path(self.cosmik_path) / "weights/canonical_verts/smplx.npy")
-        # Licence-gated and git-ignored; fetched per machine by
-        # scripts/bash/setup_smplfitter.sh. Kept beside the other weights rather
-        # than in smplfitter's platformdirs default, so one repo is self-contained.
-        self.body_models_path = str(Path(self.cosmik_path) / "weights/body_models")
         self.nlf_path = str(Path(self.cosmik_path) / "weights/nlf/nlf_s_multi_0.2.2.torchscript")
         self.yolo_path = str(Path(self.cosmik_path) / "weights" / "yolo"
                              / f"{self.yolo_model}.engine")

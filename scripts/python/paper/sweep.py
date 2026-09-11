@@ -317,176 +317,6 @@ def run_nlf2d(dataset, participant, task, cameras, out_dir, settings,
                    depth_aware=depth_aware, reconstruction="tri2d")
 
 
-_REFINERS = {}
-
-
-def _smpl_refiner(settings, gender, num_iter, beta_mode):
-    """One compiled SmplRefiner per (gender, iterations), reused across trials.
-
-    torch.compile costs ~18 s and recompiles per input shape, so it must happen
-    once per configuration rather than once per trial. The shape estimate is
-    per-subject, so the refiner is reset between trials rather than rebuilt.
-    """
-    from rtcosmik.smpl.fitter import SmplRefiner
-
-    key = (str(gender)[:1].lower(), num_iter)
-    if key not in _REFINERS:
-        _REFINERS.clear()
-        refiner = SmplRefiner(
-            gender=gender, num_betas=settings.smpl_num_betas, num_iter=num_iter,
-            beta_mode=beta_mode,
-            calibration_frames=settings.smpl_calibration_frames,
-            calibration_iter=settings.smpl_calibration_iter,
-            warm_start=settings.smpl_warm_start,
-            model_root=settings.body_models_path, device=settings.device,
-            compile_online=settings.smpl_compile,
-            logger=logging.getLogger("smpl"))
-        refiner.warmup()
-        _REFINERS[key] = refiner
-    refiner = _REFINERS[key]
-    refiner.reset(beta_mode=beta_mode)
-    return refiner
-
-
-def run_nlfsmpl(dataset, participant, task, cameras, out_dir, settings,
-                depth_aware=False, beta_mode=None, num_iter=None,
-                fit_order=None):
-    """NLF's dense vertices, fitted back to a SMPL body, then the usual IK.
-
-    Identical to the NLF arm up to the point where 3D exists, except that NLF is
-    asked for all its canonical vertices rather than the 35 the model tracks.
-    Those are fused across views as usual, the SMPL model is fitted to the fused
-    cloud, and the 35 markers are read off the *fitted* vertices at the same
-    indices. So the only difference from ``nlf`` is the fit.
-
-    The guide's measurement decides the order of operations: fusing the views
-    first and fitting once costs 4.8 ms against 12.2 ms for fitting each view and
-    averaging, for identical accuracy, because the multi-view information is
-    already in the fused cloud.
-    """
-    from collections import OrderedDict, deque
-    import yaml
-    from rtcosmik.camera.cam_utils import (load_camera_parameters,
-                                           load_world_transformation)
-    from rtcosmik.filtering.iir import IIR
-    from rtcosmik.nlf.nlf import extract_views
-    from rtcosmik.pipeline.solver import HumanSolver
-    from rtcosmik.saver.csv_saver import CSVSaver
-    from rtcosmik.smpl.fitter import SmplRefiner
-    from rtcosmik.triangulation.triangulation import (fuse_camera_poses3d,
-                                                      reconstruct_3d)
-    from rtcosmik.utils.VideoReader import OfflineVideoSource
-
-    root = Path(dataset)
-    meta = yaml.safe_load((root / "metadata" / f"{participant}.yaml").read_text())
-    cam_dir = root / "cam_params" / participant
-    mtxs, dists, projections, _, _ = load_camera_parameters(cam_dir, cameras)
-    world_R, world_T = load_world_transformation(cam_dir, cameras[0])
-
-    paths = [root / "videos" / participant / task / f"camera_{c}.mp4" for c in cameras]
-    missing = [p for p in paths if not p.exists()]
-    if missing:
-        raise FileNotFoundError(f"missing video(s): {missing}")
-
-    source = OfflineVideoSource(paths=[str(p) for p in paths],
-                                size_wh=(settings.width, settings.height), loop=False)
-    # All canonical vertices, not the 35-marker subset: the fitter needs the
-    # dense cloud, and the markers come back out of the fitted body afterwards.
-    estimator = _nlf_estimator(mtxs, len(cameras), settings,
-                               indices=list(range(settings.smpl_num_vertices)))
-    refiner = _smpl_refiner(
-        settings, gender=meta["gender"][0],
-        num_iter=num_iter if num_iter is not None else settings.smpl_num_iter,
-        beta_mode=beta_mode or settings.smpl_beta_mode)
-    solver = HumanSolver(settings, gender=meta["gender"][0], height=meta["height"],
-                         weight=meta["weight"], logger=logging.getLogger("solve"))
-
-    fit_order = fit_order or settings.smpl_fit_order
-    marker_rows = np.asarray(settings.nlf_indices)
-    channels = 3 * len(settings.marker_names)
-    iir = IIR(num_channel=channels, sampling_frequency=settings.fs)
-    iir.add_filter(order=settings.order, cutoff=settings.cutoff_freq,
-                   filter_type=settings.filter_type)
-
-    out_dir.mkdir(parents=True, exist_ok=True)
-    saver = CSVSaver(str(out_dir),
-                     markers_header=["Frame_0"] + list(settings.marker_names),
-                     joint_angles_header=list(settings.joint_angles_names))
-
-    buffer = deque(maxlen=settings.N)
-    ik_ms, fit_ms, rows, read = [], [], 0, 0
-    started = time.perf_counter()
-    try:
-        while True:
-            frames = source.read()
-            if frames is None:
-                break
-            read += 1
-            nlf_out, _, _, _ = estimator.estimate_from_frames(frames)
-            views = extract_views(nlf_out, len(cameras))
-
-            if fit_order == "fit_then_fuse":
-                # Correct each view before averaging rather than after. One
-                # batched fit over the views, not one call per view: the cost is
-                # per-call overhead, so N views in one call is far cheaper.
-                if not views.valid_cam_ids:
-                    continue
-                t0 = time.perf_counter()
-                refined = refiner.refine_views(list(views.poses3d))
-                fit_ms.append((time.perf_counter() - t0) * 1e3)
-                dense = fuse_camera_poses3d(refined, projections,
-                                            uncertainties=views.uncertainties)
-                if len(dense) == 0:
-                    continue
-            else:
-                dense = reconstruct_3d(views, projections)
-                if len(dense) == 0:
-                    continue
-                t0 = time.perf_counter()
-                dense = refiner.refine(np.asarray(dense))
-                fit_ms.append((time.perf_counter() - t0) * 1e3)
-
-            p3d = dense[marker_rows]
-            p3d = np.asarray(p3d) @ np.asarray(world_R).T + np.asarray(world_T)
-
-            if not buffer:
-                for _ in range(settings.N):
-                    buffer.append(p3d)
-            else:
-                buffer.append(p3d)
-            block = np.asarray(buffer).reshape(settings.N, channels)
-            markers_xyz = iir.filter(block).reshape(
-                settings.N, len(settings.marker_names), 3)[-1]
-            mks = dict(zip(settings.marker_names, markers_xyz))
-
-            t0 = time.perf_counter()
-            q = solver.solve(mks)
-            if rows:
-                ik_ms.append((time.perf_counter() - t0) * 1e3)
-
-            markers = OrderedDict([("Frame_0", read - 1)])
-            for name in settings.marker_names:
-                position = mks[name]
-                markers[f"{name}_x"] = float(position[0])
-                markers[f"{name}_y"] = float(position[1])
-                markers[f"{name}_z"] = float(position[2])
-            saver.save_markers(markers)
-            saver.save_joint_angles(
-                OrderedDict(zip(settings.joint_angles_names, (float(v) for v in q))))
-            rows += 1
-        saver.close()
-    finally:
-        # ffmpeg keeps running if nobody tears it down: the reader
-        # thread blocks on a full queue rather than reaching EOF, so
-        # the decoder sits holding GPU memory for the life of the
-        # process. Four cameras a trial adds up fast.
-        source.release()
-    if fit_ms:
-        LOGGER.info(f"  SMPL fit: median {np.median(fit_ms):.2f} ms/frame, "
-                    f"residual {refiner.last_residual_mm:.1f} mm")
-    return rows, np.asarray(ik_ms), time.perf_counter() - started
-
-
 def run_fastsam(dataset, participant, task, cameras, out_dir, settings,
                 depth_aware=False):
     """One FastSAM-3D trial. Returns (frames, ik_ms, seconds).
@@ -531,7 +361,7 @@ def run_fastsam(dataset, participant, task, cameras, out_dir, settings,
 
 
 ARMS = {"mmpose": run_mmpose, "nlf": run_nlf, "nlf2d": run_nlf2d,
-        "nlfsmpl": run_nlfsmpl, "fastsam": run_fastsam, "mocap": run_mocap}
+        "fastsam": run_fastsam, "mocap": run_mocap}
 
 
 def discover(dataset, participants, tasks, arm="mmpose"):
@@ -561,23 +391,13 @@ def main():
     ap = argparse.ArgumentParser(description=__doc__,
                                  formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--arm",
-                    choices=["mmpose", "nlf", "nlf2d", "nlfsmpl", "fastsam",
-                             "mocap"],
+                    choices=["mmpose", "nlf", "nlf2d", "fastsam", "mocap"],
                     default="mmpose")
     ap.add_argument("--dataset", required=True)
     ap.add_argument("--cameras", type=int, nargs="+", required=True)
     ap.add_argument("--summary", required=True, help="CSV to append results to")
     ap.add_argument("--participants", nargs="*", default=None)
     ap.add_argument("--tasks", nargs="*", default=None)
-    ap.add_argument("--beta-mode", default=None,
-                    choices=["free", "calibrated", "shared"],
-                    help="nlfsmpl only: how the SMPL shape is handled")
-    ap.add_argument("--fit-order", default=None,
-                    choices=["fuse_then_fit", "fit_then_fuse"],
-                    help="nlfsmpl only: fit the fused cloud, or fit each view "
-                         "and fuse the results")
-    ap.add_argument("--smpl-iter", type=int, default=None,
-                    help="nlfsmpl only: fitter iterations per frame")
     ap.add_argument("--tag", default=None,
                     help="Run directory name; defaults to <n>cam_<arm>")
     args = ap.parse_args()
@@ -622,13 +442,8 @@ def main():
         row.update(arm=args.arm, participant=participant, task=task,
                    cameras=cameras_key, n_horizon=settings.N)
         try:
-            extra = {}
-            if args.arm == "nlfsmpl":
-                extra = {"beta_mode": args.beta_mode, "num_iter": args.smpl_iter,
-                         "fit_order": args.fit_order}
             frames, ik_ms, seconds = ARMS[args.arm](
-                args.dataset, participant, task, args.cameras, out_dir, settings,
-                **extra)
+                args.dataset, participant, task, args.cameras, out_dir, settings)
             row.update(frames=frames,
                        ik_ms_median=round(float(np.median(ik_ms)), 2) if len(ik_ms) else "",
                        ik_ms_p95=round(float(np.percentile(ik_ms, 95)), 2) if len(ik_ms) else "",
