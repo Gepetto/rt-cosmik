@@ -64,6 +64,47 @@ bash    scripts/bash/run_fastsam_sweep.sh /root/workspace/COMFI
 not run here -- the 3D arrives precomputed -- so the figure covers the IK and
 nothing else. It is an IK throughput number, not a pipeline one.
 
+## The SMPL-refinement arm (`nlfsmpl`)
+
+NLF regresses each canonical SMPL-X vertex independently, so nothing forces its
+output to be a body a human could have. `docs/smplfitter.md` covers fitting the
+SMPL model back to those points; this arm puts that between NLF and the IK.
+
+The correspondence is free -- NLF's canonical vertices *are* SMPL-X vertices,
+index for index -- so the arm asks NLF for all 10475 instead of the 35 markers,
+fuses the views as usual, fits the body, and reads the same
+`settings.nlf_indices` rows off the **fitted** vertices. Only the fit differs
+from the `nlf` arm.
+
+Measured cost of the dense output on an RTX 4500 Ada, before any fitting:
+
+| cameras | 35 markers | 10475 vertices |
+|---|---|---|
+| 1 | 9.40 ms | 10.15 ms |
+| 4 | 18.60 ms | 22.95 ms |
+
+Three shape policies, via `--beta-mode`: `free` refits the shape every frame,
+`calibrated` fits it once over the first `smpl_calibration_frames` and then holds
+it with `fit_with_known_shape` (causal, and how a real session would run), and
+`shared` fits one shape over the whole trial offline as an upper bound that
+cannot ship.
+
+```bash
+bash    scripts/bash/setup_smplfitter.sh          # one-off, needs registration
+python3 scripts/python/paper/check_smplfitter.py  # verifies every silent trap
+python3 scripts/python/paper/study_smpl_fit.py    # baseline vs the shape policies
+```
+
+**Body models are licence-gated.** smplfitter needs SMPL-X files that require a
+free registration at `smpl-x.is.tue.mpg.de` (plus smpl, mano and agora, same
+email and password); the downloader authenticates as you. There is no
+redistributable copy, so this arm cannot run in a fresh container until
+`SMPLFITTER_BODY_MODELS` points at a downloaded copy.
+
+This container runs torch 2.4.1, and smplfitter 0.5 needs `torch.nn.Buffer` from
+torch 2.5. `rtcosmik.smpl.torch_shim` supplies it and must be imported first;
+`rtcosmik.smpl.fitter` does that for you.
+
 ## Running it
 
 ```bash

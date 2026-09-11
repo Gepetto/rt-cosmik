@@ -178,6 +178,22 @@ class Settings:
     # T11, T6 and the six hand markers. Nothing else changes.
     marker_set: str = "parity"
 
+    # --- SMPL refinement (the nlfsmpl arm) -------------------------------
+    #: Canonical vertices NLF is asked for when the SMPL fit is in the loop.
+    #: Must match the canonical_verts file: SMPL-X is 10475, SMPL/SMPL-H 6890.
+    smpl_num_vertices: int = 10475
+    #: Shape components to solve for. Explicit on purpose: the model exposes
+    #: ~400, and letting the regulariser see all of them silently returns the
+    #: average body. 10-16 is the working range.
+    smpl_num_betas: int = 16
+    #: Fitter iterations per frame. 4 is the practical online maximum.
+    smpl_num_iter: int = 4
+    #: "free" refits the shape every frame, "calibrated" fits it once over the
+    #: first smpl_calibration_frames and then holds it (causal, and how a real
+    #: session would run), "shared" fits one shape over the whole trial offline.
+    smpl_beta_mode: str = "calibrated"
+    smpl_calibration_frames: int = 30
+
     # Filled in by __post_init__ from marker_set; do not edit by hand.
     locked_joints: list = field(init=False)
 
