@@ -4,9 +4,10 @@ import pinocchio.casadi as cpin
 import quadprog
 from typing import Dict, List
 import numpy as np
-import time
 import os
-from os import system
+import subprocess
+
+from rtcosmik.ik import ocp_model
 
 # acados is an optional backend: keep ik.py importable (e.g. for the fatrop path)
 # even when acados_template is not installed. A clear error is raised only if the
@@ -329,7 +330,14 @@ class RT_IK:
         return q
 
 class RT_SWIKA_FATROP:
-    def __init__(self, pin_model: pin.Model, keys_to_track: List, N: int, dict_dof_to_keypoints: Dict=None, with_freeflyer=True, code: str ='c', max_iter: int = None):
+    #: fatrop settings baked into the generated function. Overridable so
+    #: speed/accuracy profiles can be generated and compared.
+    DEFAULT_SOLVER_OPTIONS = {"print_level": 0, "mu_init": 1e-1, "tol": 1e-4}
+
+    def __init__(self, pin_model: pin.Model, keys_to_track: List, N: int,
+                 dict_dof_to_keypoints: Dict=None, with_freeflyer=True,
+                 code: str = 'python', max_iter: int = None, export_dir: str = None,
+                 solver_options: Dict = None):
         # Initialize the Pinocchio model
         self._pin_model = pin_model
         self._nq = self._pin_model.nq
@@ -337,8 +345,7 @@ class RT_SWIKA_FATROP:
         self._nx = self._nq + self._nv
         self._nu = self._nv
         self._with_freeflyer = with_freeflyer
-        self._code = code 
-        self._max_iter = max_iter  # shared MHE knob (settings.mhe_max_iter): None=fatrop default; caps fatrop iterations
+        self._max_iter = max_iter  # folded into _solver_options below, so it is fingerprinted
 
         self._N = N
 
@@ -347,11 +354,73 @@ class RT_SWIKA_FATROP:
         # Ensure dict_dof_to_keypoints is either a valid dictionary or None
         self._dict_dof_to_keypoints = dict_dof_to_keypoints if dict_dof_to_keypoints is not None else None
 
-        self._ocp_func = self.create_ocp()
-    
+        self._code = code
+        self._compiled = None
+        self._solver_options = dict(self.DEFAULT_SOLVER_OPTIONS)
+        if solver_options:
+            self._solver_options.update(solver_options)
+        # Baked into the generated code, so it belongs in the fingerprint.
+        if max_iter is not None:
+            self._solver_options["nlp_solver_max_iter"] = max_iter
+        # max_iter is baked into the generated function, so it must live in the
+        # fingerprinted option set. Kept out of it, a change to the iteration
+        # budget silently reused an artefact built for a different one.
+        if max_iter is not None:
+            self._solver_options["max_iter"] = max_iter
+        self._export_dir = export_dir or ocp_model.backend_dir("fatrop")
+
+        # Subject-dependent geometry becomes a solver input, so one generated
+        # artefact serves every person. Defaults come from the model passed in,
+        # so constructing on a calibrated model behaves exactly as before.
+        (self._cmodel, self._p_sym, self._p_value,
+         self._joint_ids, self._frame_ids) = ocp_model.parameterize(
+            self._pin_model, self._keys_to_track)
+
+        self._ocp_func_cache = None
+        if code != 'c':
+            self._ocp_func_cache = self.create_ocp()
+
+    @property
+    def _ocp_func(self):
+        """The CasADi OCP, built on first use.
+
+        In ``code='c'`` mode the compiled library is used instead, so building
+        this would be seconds of wasted work at every startup.
+        """
+        if self._ocp_func_cache is None:
+            self._ocp_func_cache = self.create_ocp()
+        return self._ocp_func_cache
+
+    @property
+    def n_params(self):
+        """Size of the geometry parameter vector."""
+        return int(self._p_sym.shape[0])
+
+    def set_model_params(self, calibrated_model):
+        """Point the solver at a newly calibrated subject, with no regeneration.
+
+        Extraction order is fixed by the id lists produced when the OCP was
+        parameterized, so this cannot drift from what was generated.
+        """
+        self._p_value = ocp_model.extract_params(
+            calibrated_model, self._joint_ids, self._frame_ids)
+        return self._p_value
+
+    def describe(self, dt=None):
+        """What this OCP bakes in, for the manifest.
+
+        ``dt`` is deliberately not recorded: it is an ``opti.parameter()`` handed
+        to ``to_function``, so the compiled artefact is valid at any timestep.
+        The argument is accepted and ignored so both backends share a signature.
+        """
+        return ocp_model.describe(self._pin_model, self._keys_to_track, self._N,
+                                  None, self._with_freeflyer,
+                                  self._joint_ids, self._frame_ids,
+                                  solver_options=self._solver_options)
+
     def create_ocp(self):
         ##### CASADI SYMBOLICS #####
-        cmodel = cpin.Model(self._pin_model)
+        cmodel = self._cmodel
         cdata = cmodel.createData()
 
         cx = casadi.SX.sym('cx', self._nq+self._nv) # States
@@ -380,8 +449,10 @@ class RT_SWIKA_FATROP:
         for index_mk in frame_indices:
             if index_mk < len(self._pin_model.frames.tolist()):  # Check that the frame is in the model
                 markers_est = casadi.horzcat(markers_est, cdata.oMf[index_mk].translation)  # Concatenate the markers positions, size (3 x Nb of markers)
-        # Create a CasADi function for the estimated markers
-        fmarkers_est = casadi.Function('markers_est', [cx], [casadi.reshape(markers_est, len(self._keys_to_track) * 3, 1)])  # reorganize the markers as [x0, y0, z0, ..., xi, yi, zi, ..., xN, yN, zN]^T, size (3*Nb x 1 of markers)
+        # Create a CasADi function for the estimated markers. It takes the
+        # geometry parameters as a second input, which is what makes the
+        # generated code reusable across subjects.
+        fmarkers_est = casadi.Function('markers_est', [cx, self._p_sym], [casadi.reshape(markers_est, len(self._keys_to_track) * 3, 1)])  # reorganize the markers as [x0, y0, z0, ..., xi, yi, zi, ..., xN, yN, zN]^T, size (3*Nb x 1 of markers)
 
         ##### OPTI FRAMEWORK #####
         opti = casadi.Opti()
@@ -396,6 +467,10 @@ class RT_SWIKA_FATROP:
         # Cost parameters
         X0 = opti.parameter(self._nx)
         cost_weights =  opti.parameter(3)
+
+        # Subject geometry (segment lengths + marker offsets), constant over the
+        # horizon: one column per node so it maps alongside the states.
+        geom = opti.parameter(self.n_params)
 
         X = []
         U = []
@@ -427,7 +502,7 @@ class RT_SWIKA_FATROP:
         # Cost function 
         cost = 0
         # Markers tracking
-        cost+=cost_weights[0]*casadi.sumsqr(marker_meas-fmarkers_est.map(self._N)(X))
+        cost+=cost_weights[0]*casadi.sumsqr(marker_meas-fmarkers_est.map(self._N)(X, casadi.repmat(geom, 1, self._N)))
         # State regul
         cost += cost_weights[1]*casadi.sumsqr(X-X0)
         # Control regul
@@ -441,38 +516,72 @@ class RT_SWIKA_FATROP:
         options["verbose"] = False
         options["print_time"] = False
         options["expand"] = True
-        options["fatrop"] = {"print_level":0, "mu_init": 1e-1, "tol":1e-4}#'warm_start_mult_bound_push' : 1e-7, "linsol_iterative_refinement":False, "warm_start_init_point":True}
-        if self._max_iter is not None:
-            options["fatrop"]["max_iter"] = self._max_iter
+        # Baked into the generated function, so a change means rebuilding.
+        options["fatrop"] = dict(self._solver_options)
         options["structure_detection"] = "auto"
         options["debug"] = False
 
         opti.solver('fatrop', options)
 
-        ocp_func = opti.to_function('ocp', [X,U,marker_meas, X0, cost_weights, dt], [X,U], ['Xin','Uin', 'marker_meas', 'X0', 'cost_weights', 'dt'],['Xout','Uout'])
+        ocp_func = opti.to_function('ocp', [X,U,marker_meas, X0, cost_weights, dt, geom], [X,U], ['Xin','Uin', 'marker_meas', 'X0', 'cost_weights', 'dt', 'geom'],['Xout','Uout'])
         return ocp_func
         
-    def compile_Ccode(self):
-        cname = self._ocp_func.generate('ocp.c', {"with_header": False, "main":True})
-        oname_O3 = 'ocp_O3.so'
-        print('Compiling with O3 optimization: ', oname_O3)
-        t1 = time.time()
-        system('gcc -fPIC -shared -O3 ' + cname + ' -o ' + oname_O3 + ' -lfatrop -lblasfeo -lm')
-        t2 = time.time()
-        print('Compilation time = ', (t2-t1), ' s')
+    # Generated-code artefact names, inside the backend's artifact directory.
+    C_SOURCE = "ocp.c"
+    C_LIBRARY = "ocp_O3.so"
+
+    def library_path(self):
+        """Where the compiled OCP for this backend lives."""
+        return os.path.join(self._export_dir, self.C_LIBRARY)
+
+    def compile_Ccode(self, export_dir: str = None):
+        """Generate and compile the OCP to a shared library.
+
+        Written into the backend artifact directory rather than the working
+        directory: the previous behaviour emitted ``ocp_O3.so`` wherever the
+        process happened to be launched, so the compiled solver was found or not
+        depending on the caller's cwd.
+        """
+        target_dir = export_dir or self._export_dir
+        os.makedirs(target_dir, exist_ok=True)
+        cwd = os.getcwd()
+        try:
+            # casadi's generate() writes relative to the working directory.
+            os.chdir(target_dir)
+            cname = self._ocp_func.generate(
+                self.C_SOURCE, {"with_header": False, "main": True})
+        finally:
+            os.chdir(cwd)
+
+        source = os.path.join(target_dir, cname)
+        library = os.path.join(target_dir, self.C_LIBRARY)
+        cmd = ["gcc", "-fPIC", "-shared", "-O3", source, "-o", library,
+               "-lfatrop", "-lblasfeo", "-lm"]
+        # Checked, unlike the previous os.system call: a failed compile used to
+        # print a timing and carry on, failing later inside casadi.external.
+        result = subprocess.run(cmd, capture_output=True, text=True)
+        if result.returncode != 0:
+            raise RuntimeError(
+                "Compiling the fatrop OCP failed:\n"
+                f"  {' '.join(cmd)}\n{result.stderr.strip()}")
+        return library
 
     def solve(self, X: np.ndarray, U: np.ndarray, marker_meas: np.ndarray, X0: np.ndarray, cost_weights: np.ndarray, dt: float):
-        if self._code == 'c': # Use codegen 
-            ocp_fun = casadi.external('ocp','./ocp_O3.so')
-        elif self._code == 'python': 
+        if self._code == 'c':
+            if self._compiled is None:
+                library = self.library_path()
+                if not os.path.isfile(library):
+                    raise FileNotFoundError(
+                        f"No compiled fatrop OCP at {library}. Generate it with:\n"
+                        "  python3 scripts/python/core/run_ocp_codegen.py --backend fatrop")
+                self._compiled = casadi.external('ocp', library)
+            ocp_fun = self._compiled
+        elif self._code == 'python':
             ocp_fun = self._ocp_func
-        else : 
-            raise ValueError('Code should be either c or python')
+        else:
+            raise ValueError(f"ik_code should be 'c' or 'python', got {self._code!r}")
 
-        # print(X.shape, U.shape, marker_meas.shape, X0.shape, cost_weights.shape, dt)
-        # print(ocp_fun)
-
-        X, U = ocp_fun(X, U, marker_meas, X0, cost_weights, dt)
+        X, U = ocp_fun(X, U, marker_meas, X0, cost_weights, dt, self._p_value)
         return X, U
 
 
@@ -507,11 +616,26 @@ class RT_SWIKA_ACADOS:
         environment, or pass ``acados_source_dir=...``).
     """
 
+    #: Solver settings baked into the generated code. Overridable so different
+    #: speed/accuracy profiles can be generated and compared; whatever is used
+    #: goes into the artefact's fingerprint, so a profile change is caught rather
+    #: than silently reusing the wrong .so.
+    DEFAULT_SOLVER_OPTIONS = {
+        "qp_solver": "PARTIAL_CONDENSING_HPIPM",
+        "hessian_approx": "GAUSS_NEWTON",
+        "integrator_type": "DISCRETE",
+        "nlp_solver_type": "SQP",
+        "nlp_solver_max_iter": 50,
+        "qp_solver_iter_max": 100,
+        "tol": 1e-4,
+        "globalization": "MERIT_BACKTRACKING",
+    }
+
     def __init__(self, pin_model: pin.Model, keys_to_track: List, N: int, dt: float,
                  dict_dof_to_keypoints: Dict = None, with_freeflyer: bool = True,
-                 code: str = 'c', build: bool = True,
+                 build: bool = True,
                  export_dir: str = None, acados_source_dir: str = None,
-                 max_iter: int = None) -> None:
+                 max_iter: int = None, solver_options: Dict = None) -> None:
         if AcadosOcpSolver is None:
             raise ImportError(
                 "The acados MHE backend was selected but 'acados_template' is not "
@@ -531,33 +655,79 @@ class RT_SWIKA_ACADOS:
         self._keys_to_track = keys_to_track
         self._n_markers = len(keys_to_track)
         self._nmc = 3 * self._n_markers
-        self._code = code
-        self._max_iter = max_iter  # shared MHE knob (settings.mhe_max_iter): None=acados default 50; caps SQP iterations
+        self._max_iter = max_iter  # folded into _solver_options below, so it is fingerprinted
         self._dict_dof_to_keypoints = dict_dof_to_keypoints
 
-        # CasADi symbolic model -- FK is baked from THIS (calibrated) model.
-        self._cmodel = cpin.Model(self._pin_model)
+        # Subject-dependent geometry becomes a solver parameter, so one generated
+        # artefact serves every person. Defaults come from the model passed in, so
+        # constructing on a calibrated model behaves exactly as before.
+        (self._cmodel, self._p_sym, self._p_value,
+         self._joint_ids, self._frame_ids) = ocp_model.parameterize(
+            self._pin_model, self._keys_to_track)
         self._cdata = self._cmodel.createData()
+        self._prebuilt = not build
+        self._params_set = False
+        self._solver_options = dict(self.DEFAULT_SOLVER_OPTIONS)
+        if solver_options:
+            self._solver_options.update(solver_options)
+        # Baked into the generated code, so it belongs in the fingerprint.
+        if max_iter is not None:
+            self._solver_options["nlp_solver_max_iter"] = max_iter
 
         if acados_source_dir:
             os.environ["ACADOS_SOURCE_DIR"] = str(acados_source_dir)
-        self._export_dir = export_dir or os.path.join(os.getcwd(), "acados_codegen")
+        self._export_dir = export_dir or ocp_model.backend_dir("acados")
         os.makedirs(self._export_dir, exist_ok=True)
-        self._json_path = os.path.join(self._export_dir, f"acados_ocp_ik_N{N}.json")
+
+        # The generated identity must cover everything baked in. It previously
+        # keyed on nq and N only, so changing dt or the tracked marker set reused
+        # an artefact built for something else -- silently, since solve()'s dt
+        # guard compares against the constructor argument, never against what was
+        # generated.
+        self._description = ocp_model.describe(
+            self._pin_model, self._keys_to_track, N, self._dt, with_freeflyer,
+            self._joint_ids, self._frame_ids,
+            solver_options=self._solver_options)
+        self._fingerprint = ocp_model.fingerprint(self._description)
+        self._json_path = os.path.join(
+            self._export_dir, f"acados_ocp_ik_{self._fingerprint[:12]}.json")
+        if self._prebuilt:
+            ocp_model.check_manifest(self._export_dir, self._description, "acados")
 
         self._w_cache = None   # last cost_weights, to skip redundant W updates
         self._ocp_solver = self._create_ocp_solver(build=build)
 
+    @property
+    def n_params(self):
+        """Size of the geometry parameter vector."""
+        return int(self._p_sym.shape[0])
+
+    def set_model_params(self, calibrated_model):
+        """Point the solver at a newly calibrated subject, with no recompile.
+
+        Geometry is constant over the horizon, so the same vector goes to every
+        stage. Costs ~0.04 ms against the 20-40 s a regeneration would take.
+        """
+        self._p_value = ocp_model.extract_params(
+            calibrated_model, self._joint_ids, self._frame_ids)
+        for k in range(self._N):
+            self._ocp_solver.set(k, "p", self._p_value)
+        # Clear the iterate and the duals. acados carries internal state between
+        # solves (that is what makes warm starting work), so without this the
+        # first frames after a subject change are pulled by the previous
+        # subject's solution -- measured as up to 6e-2 rad of disagreement
+        # against a freshly built solver.
+        self._ocp_solver.reset()
+        self._params_set = True
+        return self._p_value
+
+    def describe(self, dt=None):
+        """What this OCP bakes in, for the manifest."""
+        return dict(self._description)
+
     def _build_marker_fk_expr(self, cq):
         """CasADi expression of stacked marker positions [x0,y0,z0, x1,...] for q."""
-        cpin.framesForwardKinematics(self._cmodel, self._cdata, cq)
-        n_frames = len(self._pin_model.frames.tolist())
-        cols = []
-        for key in self._keys_to_track:
-            idx = self._cmodel.getFrameId(key)
-            if idx < n_frames:  # frame exists in the model
-                cols.append(self._cdata.oMf[idx].translation)
-        return casadi.vertcat(*cols)
+        return ocp_model.marker_fk_expr(self._cmodel, cq, self._frame_ids)
 
     @staticmethod
     def _build_block_weight(w_markers, w_state, w_control, nmc, nx, nu, terminal=False):
@@ -606,13 +776,16 @@ class RT_SWIKA_ACADOS:
 
         # ── Acados model ──
         model = AcadosModel()
-        model.name = f"rt_swika_acados_nq{self._nq}_N{self._N}"
+        model.name = f"rt_swika_acados_{self._fingerprint[:12]}"
         model.x = cx
         model.u = cu
         model.disc_dyn_expr = x_next
         # NONLINEAR_LS residuals: stage [markers(q), x, u], terminal [markers(q), x]
         model.cost_y_expr = casadi.vertcat(markers_expr, cx, cu)
         model.cost_y_expr_e = casadi.vertcat(markers_expr, cx)
+        # Geometry parameters. They are constants, not decision variables, so
+        # they add no QP work: measured +2.2% on solve time.
+        model.p = self._p_sym
 
         # ── Acados OCP ──
         ocp = AcadosOcp()
@@ -649,18 +822,27 @@ class RT_SWIKA_ACADOS:
         # NOTE: ocp.constraints.x0 is intentionally NOT set -> the arrival cost
         # stays soft (w1 ||x_0 - X0||^2), matching RT_SWIKA_FATROP (no hard clamp).
 
-        ocp.solver_options.qp_solver = "PARTIAL_CONDENSING_HPIPM"
-        ocp.solver_options.hessian_approx = "GAUSS_NEWTON"
-        ocp.solver_options.integrator_type = "DISCRETE"
-        ocp.solver_options.nlp_solver_type = "SQP"
-        ocp.solver_options.nlp_solver_max_iter = self._max_iter if self._max_iter is not None else 50
-        ocp.solver_options.qp_solver_iter_max = 100
-        ocp.solver_options.tol = 1e-4
-        ocp.solver_options.globalization = "MERIT_BACKTRACKING"
+        # Baked at code generation: nlp_solver_type, qp_solver and globalization
+        # all shape the generated C, so changing them means regenerating. They
+        # are therefore part of the artefact's identity (see _description).
+        for name, value in self._solver_options.items():
+            setattr(ocp.solver_options, name, value)
 
+        ocp.parameter_values = self._p_value
         ocp.code_export_directory = self._export_dir
-        return AcadosOcpSolver(ocp, json_file=self._json_path,
-                               generate=build, build=build)
+        # acados' own reuse check is bypassed when loading: in this version
+        # compare_ocp_formulations() crashes on a None field (the JSON round-trip
+        # drops `tol`, `qp_tol`, `qp_solver_tol_*`), the crash is swallowed by a
+        # bare `except Exception: return False`, and it silently regenerates every
+        # time -- which would defeat the whole point of pre-generating. The
+        # manifest checked in __init__ already verifies compatibility, and does it
+        # against the fields that actually matter.
+        solver = AcadosOcpSolver(ocp, json_file=self._json_path,
+                                 generate=build, build=build,
+                                 check_reuse_possible=build)
+        if build:
+            ocp_model.write_manifest(self._export_dir, self._description, "acados")
+        return solver
 
     def solve(self, X: np.ndarray, U: np.ndarray, marker_meas: np.ndarray,
               X0: np.ndarray, cost_weights, dt: float):
@@ -682,6 +864,13 @@ class RT_SWIKA_ACADOS:
         U = np.asarray(U, dtype=float)
         marker_meas = np.asarray(marker_meas, dtype=float)
         X0 = np.asarray(X0, dtype=float).flatten()
+
+        if self._prebuilt and not self._params_set:
+            raise RuntimeError(
+                "This acados solver was loaded from generated code, so its "
+                "parameters still hold the structural seed's geometry. Call "
+                "set_model_params(calibrated_model) after calibration -- "
+                "otherwise it silently solves for another skeleton.")
 
         if abs(float(dt) - self._dt) > 1e-9:
             raise ValueError(

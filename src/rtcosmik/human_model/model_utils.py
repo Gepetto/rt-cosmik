@@ -993,6 +993,63 @@ def construct_segments_frames(mks_positions, gender='m', subject_height=1.80):
     return sgts_poses
 
 
+#: Which joint each marker frame hangs off. Module level so the OCP
+#: generator can register the same frames without needing a capture.
+MKS_COSMIK_2_JOINTS = {
+    "RASI":  "root_joint",
+    "LASI":  "root_joint",
+    "RPSI":  "root_joint",
+    "LPSI":  "root_joint",
+
+    "C7":    "middle_thoracic_Y",
+    "T11":   "middle_lumbar_X",
+    "T6":    "middle_thoracic_Y",
+    "RSHO":  "right_clavicle_joint_X",
+    "LSHO":  "left_clavicle_joint_X",
+
+    "RELB":  "right_shoulder_Y",
+    "LELB":  "left_shoulder_Y",
+    "RMELB": "right_shoulder_Y",
+    "LMELB": "left_shoulder_Y",
+
+    "RWRI":  "right_elbow_Y",
+    "LWRI":  "left_elbow_Y",
+    "RMWRI": "right_elbow_Y",
+    "LMWRI": "left_elbow_Y",
+
+    "RTHU": "right_wrist_X",
+    "LTHU": "left_wrist_X",
+    "RMID": "right_wrist_X",
+    "LMID": "left_wrist_X",
+    "RPIN": "right_wrist_X",
+    "LPIN": "left_wrist_X",
+
+    "RKNE":   "right_hip_Y",
+    "LKNE":   "left_hip_Y",
+    "RMKNE":  "right_hip_Y",
+    "LMKNE":  "left_hip_Y",
+
+    "RANK":   "right_knee_Z",
+    "LANK":   "left_knee_Z",
+    "RMANK":  "right_knee_Z",
+    "LMANK":  "left_knee_Z",
+
+    "R5MHD":  "right_ankle_X",
+    "L5MHD":  "left_ankle_X",
+    "RTOE":   "right_ankle_X",
+    "LTOE":   "left_ankle_X",
+    "RHEE":   "right_ankle_X",
+    "LHEE":   "left_ankle_X",
+
+    "Nose": "middle_cervical_Y",
+    "Head": "middle_cervical_Y",
+    "REar": "middle_cervical_Y",
+    "LEar": "middle_cervical_Y",
+    "REye": "middle_cervical_Y",
+    "LEye": "middle_cervical_Y",
+}
+
+
 def scale_human_model(model, mks_dict, gender='m', subject_height=1.80):
     """
     Scales the segment lenghts a human Pinocchio model only.
@@ -1076,59 +1133,7 @@ def mks_registration(model, mks_dict, gender='m', subject_height=1.80):
     
 
     # Hardcoded mapping: marker_name -> joint_name_in_model
-    MKS_COSMIK_2_JOINTS = {
-        "RASI":  "root_joint",
-        "LASI":  "root_joint",
-        "RPSI":  "root_joint",
-        "LPSI":  "root_joint",
-
-        "C7":    "middle_thoracic_Y",
-        "T11":   "middle_lumbar_X",
-        "T6":    "middle_thoracic_Y",
-        "RSHO":  "right_clavicle_joint_X",
-        "LSHO":  "left_clavicle_joint_X",
-
-        "RELB":  "right_shoulder_Y",
-        "LELB":  "left_shoulder_Y",
-        "RMELB": "right_shoulder_Y",
-        "LMELB": "left_shoulder_Y",
-
-        "RWRI":  "right_elbow_Y",
-        "LWRI":  "left_elbow_Y",
-        "RMWRI": "right_elbow_Y",
-        "LMWRI": "left_elbow_Y",
-
-        "RTHU": "right_wrist_X",
-        "LTHU": "left_wrist_X",
-        "RMID": "right_wrist_X",
-        "LMID": "left_wrist_X",
-        "RPIN": "right_wrist_X",
-        "LPIN": "left_wrist_X",
-
-        "RKNE":   "right_hip_Y",
-        "LKNE":   "left_hip_Y",
-        "RMKNE":  "right_hip_Y",
-        "LMKNE":  "left_hip_Y",
-
-        "RANK":   "right_knee_Z",
-        "LANK":   "left_knee_Z",
-        "RMANK":  "right_knee_Z",
-        "LMANK":  "left_knee_Z",
-
-        "R5MHD":  "right_ankle_X",
-        "L5MHD":  "left_ankle_X",
-        "RTOE":   "right_ankle_X",
-        "LTOE":   "left_ankle_X",
-        "RHEE":   "right_ankle_X",
-        "LHEE":   "left_ankle_X",
-
-        "Nose": "middle_cervical_Y",
-        "Head": "middle_cervical_Y",
-        "REar": "middle_cervical_Y",
-        "LEar": "middle_cervical_Y",
-        "REye": "middle_cervical_Y",
-        "LEye": "middle_cervical_Y",
-    }
+    # (hoisted to module scope: MKS_COSMIK_2_JOINTS)
 
     inertia = pin.Inertia.Zero()
 

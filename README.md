@@ -11,10 +11,425 @@ To generate the appropriate models, use:
 ./scripts/bash/fetch_models.sh 
 ```
 
+To generate the inverse-kinematics solvers (only needed for `ik_type = "mhe"`):
+
+```bash
+python3 scripts/python/core/run_ocp_codegen.py
+```
+
 To install the toolbox and use the scripts files: 
 ```bash 
 pip install -e .
 ```
+
+## Quick start: offline evaluation on a recorded dataset
+
+Run the pipeline over recorded video and compare the result against reference
+mocap. The example below uses participant `1012`, task `Lifting`.
+
+### 1. Install and fetch the models
+
+```bash
+pip install -e .
+./scripts/bash/fetch_models.sh
+```
+
+The human model comes from `example-robot-data`. Its thorax visual is misplaced
+upstream (the chest renders below the thoracic joint and overlaps the abdomen,
+increasingly so for taller subjects); the fix lives on the
+`fix/thorax-visual-scale-and-origin` branch of the fork. Kinematics are
+unaffected either way, so this only matters for how the model looks in the
+viewer.
+
+`fetch_models.sh` downloads the NLF and YOLO weights and exports one TensorRT
+detector engine per supported camera count (2 to 6). Engines are built
+non-dynamic, so the batch size is fixed at export time and the pipeline picks the
+engine matching the cameras in use. Build a subset with `BATCHES="2 4"`.
+
+### 1b. Generate the IK solvers
+
+Only for `ik_type = "mhe"`. Like the detector engines, these are compiled
+artefacts: generated once, gitignored, never committed.
+
+```bash
+python3 scripts/python/core/run_ocp_codegen.py                 # everything
+python3 scripts/python/core/run_ocp_codegen.py --backend acados --profile realtime
+python3 scripts/python/core/run_ocp_codegen.py --check         # up to date?
+```
+
+Output goes to `ocp/<backend>/<profile>/`. Expect ~55 s per acados artefact and
+~4 min per fatrop one, which compiles a 26 MB C file.
+
+#### Speed/accuracy profile
+
+`settings.mhe_profile` picks the solver configuration:
+
+| | per-frame solve (median / p95 / max) | marker RMSE |
+|---|---|---|
+| `realtime` (acados `SQP_RTI`) | 4.9 / 5.9 / 8.7 ms | 1.02 mm |
+| `accurate` (acados `SQP`, 10 iterations, tol 1e-6) | 12.3 / 43.2 / 45.8 ms | 1.03 mm |
+
+Measured over 120 frames of real data, 43 dof, N=10. `realtime` bounds the
+per-frame cost: plain `SQP` has the same median but a 130-210 ms tail on hard
+frames, which breaks a 40 fps budget. The two agree on marker fit to 0.01 mm, and
+`realtime` is marginally *smoother* frame to frame, so it is the default.
+
+The profile is baked into the generated code, so switching it needs a
+regeneration -- `--check` will say so.
+
+The optimal control problem is parameterized by the subject's geometry (segment
+lengths and marker offsets), so **one generated solver serves every person** —
+calibrating a new subject sets parameters in under a millisecond instead of
+recompiling for 20-40 s mid-session. Generation needs no subject data at all --
+only the model's topology, which is the same for everybody.
+
+Each artefact carries an `ocp_manifest.json` recording what it was built from.
+The pipeline refuses to load one that no longer matches your configuration, and
+names what changed. Re-run after changing the tracked marker set, `N`, the model,
+or the marker-to-joint mapping — plus `fs` for acados, which bakes the timestep
+into its dynamics (fatrop takes it at runtime). `--check` answers this and is
+what CI should call.
+
+### 2. Data layout
+
+Any dataset in this layout works, not one in particular:
+
+```
+<dataset>/cam_params/<participant>/                      calibration
+          ├── intrinsics/camera_<i>_intrinsics.yaml      K, D (OpenCV FileStorage)
+          └── extrinsics/                                either source, see below
+              ├── cam_to_world/camera_<i>/camera_<i>_extrinsics.yaml
+              └── cam_to_cam/camera_<a>_to_camera_<b>.yaml
+<dataset>/videos/<participant>/<task>/camera_<i>.mp4     synchronised video
+<dataset>/metadata/<participant>.yaml                    id, height, weight, gender
+```
+
+#### Camera pose convention
+
+**RT-COSMIK expects the pose of the camera in the world frame.** One convention,
+everywhere, for every entry point:
+
+```
+R  3x3  the camera's orientation in world coordinates
+        (its columns are the camera's x, y, z axes expressed in the world frame)
+T  3x1  the camera's position in world coordinates, in metres
+```
+
+Equivalently, the pair maps a point from camera coordinates into world
+coordinates:
+
+```
+p_world = R @ p_cam + T
+```
+
+**How to check you have it the right way round.** `T` is the camera's physical
+position in the room, so read it back and see whether it describes where the
+camera actually is. A correct 4-camera rig looks like this:
+
+```
+camera_0: T = [-0.82 -3.02  1.11]     all four at 1.11 m height,
+camera_2: T = [-0.00 -2.96  1.11]     two at y ~ -3, two at y ~ +2.3,
+camera_4: T = [-0.61  2.31  1.11]     i.e. facing each other across
+camera_6: T = [ 0.19  2.32  1.11]     a capture volume ~5 m deep
+```
+
+Those are metres from the world origin, and they match the room. If instead `T`
+comes out near zero, or at an implausible height, the transform is inverted.
+Getting this backwards raises no error: the skeleton is simply reconstructed in
+the wrong place and orientation.
+
+Read your own back with:
+
+```python
+from rtcosmik.camera.cam_utils import describe_camera_placement
+describe_camera_placement("<dataset>/cam_params/<participant>")
+```
+
+**Converting from OpenCV.** `cv2.solvePnP` and most aruco helpers give you the
+*opposite* transform — the world/marker expressed in camera coordinates
+(`p_cam = R_cv @ p_world + t_cv`). Invert it before saving:
+
+```python
+R = R_cv.T
+T = -R_cv.T @ t_cv
+```
+
+#### Providing extrinsics
+
+Poses come from either of two sources, whichever the calibration produced. The
+loader picks automatically, and `load_camera_parameters(..., extrinsics_source=)`
+forces one.
+
+**A world pose per camera** — what a fit against shared motion-capture markers
+produces. Each camera is placed independently, so error does not accumulate.
+This is preferred when available.
+
+```
+extrinsics/cam_to_world/camera_<i>/camera_<i>_extrinsics.yaml
+```
+```yaml
+camera_extrinsics:
+  frame_from: camera_0
+  frame_to: world
+  rotation_matrix: [[...], [...], [...]]   # R, camera orientation in world
+  translation_vector: [tx, ty, tz]         # T, camera position in world, metres
+```
+
+**Stereo pairs plus one anchor** — what a checkerboard calibration produces, and
+the usual online case: a checkerboard gives intrinsics and pairwise poses, and a
+single aruco marker fixes one camera in the world.
+
+```
+extrinsics/cam_to_cam/camera_<a>_to_camera_<b>.yaml   OpenCV stereoCalibrate output
+extrinsics/cam_to_world/camera_<ref>/...              the anchor, reference camera only
+```
+
+Pairs hold `R`, `T` in `cv2.stereoCalibrate`'s own convention (`p_b = R @ p_a + T`),
+so they are saved exactly as OpenCV writes them — no inversion. They are chained
+from the reference camera, in either direction, by the shortest path. Only the
+**reference** camera needs a world pose; every other camera is placed relative to
+it.
+
+Without any anchor the reference camera's own frame becomes the world frame, with
+a warning. Joint angles are unaffected, since they depend only on relative
+geometry, but positions are then in camera coordinates rather than room
+coordinates.
+
+#### Calibrating a rig
+
+[cams_calibration](https://gitlab.laas.fr/msabbah/cams_calibration) produces this
+layout directly, and installs it here:
+
+```bash
+python3 scripts/calibrate_cameras.py --cameras 0 2 4 6 --install
+python3 scripts/set_world_frame.py   --cameras 0 2 4 6 --install
+```
+
+It may also record a `cameras.yaml` naming the USB port behind each camera id.
+Where present, RT-COSMIK matches on it instead of trusting the v4l2 index, so a
+recabled rig is remapped rather than silently paired with the wrong calibration.
+
+### 3. Run one trial
+
+```bash
+python3 scripts/python/core/run_pipeline.py \
+    --dataset /path/to/COMFI --participant 1012 --task Lifting
+```
+
+Results land in `output/1012/Lifting/<variant>/`, mirroring the dataset layout.
+The variant names the settings that distinguish one run from another - the
+camera count and the IK method - so switching solver or cameras writes a new
+directory instead of overwriting the previous run:
+
+```
+output/1012/Lifting/4cam_mhe_fatrop/     # settings.ik_type = "mhe", mhe_backend = "fatrop"
+output/1012/Lifting/4cam_sbs/            # settings.ik_type = "sbs"
+output/1012/Lifting/1cam_mhe_fatrop/     # --cameras 0
+```
+
+Each directory holds:
+
+| file | contents |
+|---|---|
+| `joint_angles.csv` | 43 DoF per frame, using the standard RT-COSMIK column names |
+| `markers.csv`      | triangulated 3D markers per frame, in metres, world frame |
+
+Alongside them, `run_info.json` records the full configuration (cameras,
+subject, IK type and solver settings, filter, frame counts, model root frame),
+which the evaluation tools read. Only the discriminating knobs go in the
+directory name; everything else is recorded there.
+
+Useful flags:
+
+```bash
+--cameras 0 2          # use a subset; the first is the triangulation reference frame
+                       # a single camera works too (NLF's monocular 3D is used)
+--out DIR              # write somewhere other than output/<participant>/<task>
+--no-save              # visualise only
+```
+
+Meshcat prints a viewer URL at startup for live 3D inspection.
+
+Fully explicit paths work for data outside the shorthand layout:
+
+```bash
+python3 scripts/python/core/run_pipeline.py \
+    --cam-params CAL/S03 --trial-dir VIDEO/S03/Lifting --subject META/S03.yaml
+```
+
+### 4. Compare against mocap
+
+One script does the whole evaluation: error tables, figures, and a 3D replay.
+A single camera is supported - there is nothing to triangulate, so the metric
+3D pose NLF regresses from that view is used directly.
+
+```bash
+# produce one run per setup (variant directories keep them apart)
+for cams in "0" "0 2" "0 2 4 6"; do
+  python3 scripts/python/core/run_pipeline.py --dataset /path/to/COMFI \
+      --participant 1012 --task Lifting --cameras $cams
+done
+
+# compare them all against mocap: tables, figures and the 3D view
+python3 scripts/python/eval/compare_to_mocap.py \
+    --reference /path/to/COMFI/mocap/aligned/1012/Lifting \
+    1cam=output/1012/Lifting/1cam_mhe_fatrop \
+    2cam=output/1012/Lifting/2cam_mhe_fatrop \
+    4cam=output/1012/Lifting/4cam_mhe_fatrop \
+    --plots output/1012/eval_Lifting --meshcat
+```
+
+Any labels work, so the same command compares IK methods instead of camera
+counts:
+
+```bash
+python3 scripts/python/eval/compare_to_mocap.py \
+    --reference /path/to/COMFI/mocap/aligned/1012/Lifting \
+    sbs=output/1012/Lifting/4cam_sbs \
+    mhe=output/1012/Lifting/4cam_mhe_fatrop \
+    --plots output/1012/eval_ik --meshcat
+```
+
+Before anything is compared, the runs are **time-aligned** to the mocap. The
+cameras are synchronised with each other but not with the mocap, so a single
+offset covers them all: it is estimated per run by correlating knee flexion
+against the reference, and the median is applied to every modality. The
+estimates and the applied lag are printed.
+
+**Tables** print per-joint and per-marker error with one column per run, each
+ending with the mean and median across all joints or all markers.
+
+**Figures** (`--plots DIR`, which also receives `errors.csv` with the same
+numbers for a spreadsheet):
+
+| figure | shows |
+|---|---|
+| `joint_angle_rmse.png`            | error per degree of freedom, plus the mean over all joints |
+| `marker_error.png`                | 3D error per marker, plus the mean over all markers |
+| `joint_angle_trajectories.png`    | every joint angle over time, each panel captioned with its own RMSE |
+| `marker_error_distribution.png`   | spread of marker error per modality |
+
+The bar charts carry a bold `MEAN (all …)` row at the top, so a modality can be
+judged as a whole before reading the per-item breakdown.
+
+**3D replay** (`--meshcat`) shows every modality at once, each drawn as the
+human model it solved on, tinted with the colour it has in the tables and
+figures. Each run records its calibrated model in `run_info.json`, so the body
+shown is the one the IK used - no external model file is needed. The reference
+contributes its markers, the ground truth being compared against. Models are
+semi-transparent so overlapping bodies stay readable. Open the printed URL in a
+browser. Playback is stepped by hand from the terminal so you can stop on any
+instant:
+
+| key | action |
+|---|---|
+| `space` | play / pause |
+| `n` / `p` | one frame forward / back |
+| `f` / `b` | jump 25 frames forward / back |
+| `[` / `]` | slower / faster |
+| `r` | back to the first frame |
+| `q` | quit |
+
+Every modality keeps the same colour and label across the tables, the figures
+and the 3D view, so a colour means the same thing everywhere.
+
+`joint_angles.csv` uses the same column names and ordering as the reference, so
+the two line up without renaming. The free-flyer needs one extra step:
+RT-COSMIK's human model carries a fixed rotation on its root joint while the
+reference URDF does not, so the two base frames differ. Each run records its
+root placement in `run_info.json` and the comparison removes it before
+reporting, so the free-flyer is compared like for like.
+
+### 5. Sweep several trials
+
+There is no batch script; a shell loop does the job.
+
+```bash
+for p in $(ls /path/to/COMFI/videos); do
+  for t in $(ls /path/to/COMFI/videos/$p); do
+    python3 scripts/python/core/run_pipeline.py \
+        --dataset /path/to/COMFI --participant $p --task $t || echo "FAILED $p/$t"
+  done
+done
+```
+
+## Running live, on cameras
+
+```bash
+python3 scripts/python/core/run_pipeline.py --online --cameras 0 2 4 6
+```
+
+Cameras are opened through **ffmpeg**, not OpenCV: `cv2.VideoCapture` ignores
+`CAP_PROP_BUFFERSIZE` on the V4L2 backend, so frames queue in the driver and
+arrive late, and it cannot record without a decode/re-encode cycle. ffmpeg needs
+to be on `PATH`.
+
+Camera calibration comes from `settings.cam_calib_path`, or `--cam-params`.
+
+### Recording
+
+Set in `settings.py`:
+
+| | |
+|---|---|
+| `SAVE_CSV` | markers and joint angles, with a frame counter per camera |
+| `SAVE_VID` | one `camera_<id>.mkv` per camera |
+| `record_on_start` | begin recording immediately, for headless or scripted runs |
+| `SAVE_DIR` | where they go (`output/<no_trial>`) |
+
+Video is a **stream copy of the camera's own MJPEG**: no decode, no re-encode,
+so recording is nearly free and the file is what the sensor produced.
+
+With `record_on_start = False`, press **`s`** to start and **`q`** to stop. The
+listener reads the terminal, so it works over SSH — unlike a keyboard hook,
+which needs an X display and fails on a headless or remote session.
+
+### Testing it without a rig
+
+Recordings can be replayed through the *live* path — the same camera processes,
+barrier, shared buffers and pipeline, with files standing in for devices:
+
+```bash
+python3 scripts/python/core/run_pipeline.py --online \
+  --replay     <dataset>/videos/<participant>/<task> \
+  --cam-params <dataset>/cam_params/<participant> \
+  --subject    <dataset>/metadata/<participant>.yaml \
+  --cameras 0 2 4 6
+```
+
+Playback is paced at the recording's own frame rate, so this shows whether the
+pipeline *keeps up* rather than just how fast it can consume a file. The sources
+also hold their first frame until the model is calibrated, because a real
+subject stands still for that — without it the trial runs on during calibration,
+and the model gets scaled from whatever pose it lands on.
+
+It exercises the software path, not the capture hardware: every file source is
+always ready, so the barrier never actually waits and real inter-camera skew
+stays invisible.
+
+### Reading the timings
+
+The pipeline prints a line every couple of seconds while it runs:
+
+```
+[TIME]  37.2 turns/s | loop  26.9 ms (pose 18.9, ik  5.1) | kept  93% of camera frames
+```
+
+and a per-stage summary on exit. `wait` is time blocked waiting for every camera
+to publish a new frame, so a late camera shows up there rather than in `pose`.
+
+`kept %` is how many camera frames were processed. To see *where* frames were
+lost — a warm-up cost, or a recurring stall:
+
+```bash
+python3 scripts/python/eval/frame_drops.py output/<run>/markers.csv
+```
+
+### Related entry points
+
+`run_nlf_inference.py` (pose estimation only) and `run_triangulation.py`
+(through triangulation) accept the same trial arguments, which is handy for
+isolating a stage.
 
 ## Citing RT-COSMIK
 

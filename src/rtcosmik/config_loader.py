@@ -87,7 +87,10 @@ class DefaultSettings:
     no_trial: str = "default"
     SAVE_VID: bool = False
     SAVE_CSV: bool = False
-    SAVE_DIR: str = field(init=False)
+    record_hotkeys: bool = True
+    record_on_start: bool = False
+    output_dir: str = field(init=False)  # <repo>/output
+    SAVE_DIR: str = field(init=False)    # online trial directory
 
     # CAMERA
     fs: int = 40
@@ -95,6 +98,7 @@ class DefaultSettings:
     width: int = 1280
     height: int = 720
     fourcc: str = "MJPG"
+    cameras: tuple = (0, 2, 4, 6)
 
     # HUMAN
     human_height: float = 1.81
@@ -115,17 +119,18 @@ class DefaultSettings:
     # MODELS
     cano_path: str = field(init=False)
     nlf_path: str = field(init=False)
+    yolo_model: str = "yolov10n"
     yolo_path: str = field(init=False)
     yolo_conf: float = 0.2
     yolo_imgsz: int = 640
 
     # IK
     ik_type: str = "sbs"
-    mhe_backend: str = "fatrop"  # "fatrop" (validated reference) or "acados"
     ik_code: str = "python"
+    mhe_backend: str = "fatrop"  # "fatrop" (validated reference) or "acados"
+    mhe_profile: str = "realtime"  # "realtime" or "accurate"
     cost_weights: list = field(default_factory=lambda: [1, 1e-3, 1e-5])
     N: int = 10
-    mhe_max_iter: int = None  # cap solver iterations (both backends); None = solver default
     acados_export_dir: str = None  # default: <repo>/output/acados
     acados_source_dir: str = None  # default: read from ACADOS_SOURCE_DIR env var
 
@@ -155,16 +160,41 @@ class DefaultSettings:
         9120, 9002, 616, 6, 9929, 9448,
     ])
 
+    joint_angles_names: list = field(default_factory=lambda: [
+        'Freeflyer_X[m]', 'Freeflyer_Y[m]', 'Freeflyer_Z[m]', 'Freeflyer_quaternion_X',
+        'Freeflyer_quaternion_Y', 'Freeflyer_quaternion_Z', 'Freeflyer_quaternion_W',
+        'Left_Hip_Flexion_Extension[rad]', 'Left_Hip_Abduction_Adduction[rad]',
+        'Left_Hip_Internal_External_Rotation[rad]', 'Left_Knee_Flexion_Extension[rad]',
+        'Left_Ankle_Plantarflexion_Dorsiflexion[rad]', 'Left_Ankle_Inversion_Eversion[rad]',
+        'Lumbar_Flexion_Extension[rad]', 'Lumbar_Lateral_Bending[rad]',
+        'Thoracic_Flexion_Extension[rad]', 'Thoracic_Lateral_Bending[rad]',
+        'Thoracic_Internal_External_Rotation[rad]', 'Left_Clavicle_Elevation_Depression[rad]',
+        'Left_Shoulder_Flexion_Extension[rad]', 'Left_Shoulder_Abduction_Adduction[rad]',
+        'Left_Shoulder_Internal_External_Rotation[rad]', 'Left_Elbow_Flexion_Extension[rad]',
+        'Left_Elbow_Pronation_Supination[rad]', 'Left_Wrist_Flexion_Extension[rad]',
+        'Left_Wrist_Radial_Ulnar_Deviation[rad]', 'Cervical_Flexion_Extension[rad]',
+        'Cervical_Lateral_Bending[rad]', 'Cervical_Internal_External_Rotation[rad]',
+        'Right_Clavicle_Elevation_Depression[rad]', 'Right_Shoulder_Flexion_Extension[rad]',
+        'Right_Shoulder_Abduction_Adduction[rad]',
+        'Right_Shoulder_Internal_External_Rotation[rad]', 'Right_Elbow_Flexion_Extension[rad]',
+        'Right_Elbow_Pronation_Supination[rad]', 'Right_Wrist_Flexion_Extension[rad]',
+        'Right_Wrist_Radial_Ulnar_Deviation[rad]', 'Right_Hip_Flexion_Extension[rad]',
+        'Right_Hip_Abduction_Adduction[rad]', 'Right_Hip_Internal_External_Rotation[rad]',
+        'Right_Knee_Flexion_Extension[rad]', 'Right_Ankle_Plantarflexion_Dorsiflexion[rad]',
+        'Right_Ankle_Inversion_Eversion[rad]',
+    ])
+
     def __post_init__(self):
         root = _guess_project_root()
         self.cosmik_path = str(root)
-        self.SAVE_DIR = str(root / "output" / self.no_trial)
+        self.output_dir = str(root / "output")
+        self.SAVE_DIR = str(Path(self.output_dir) / self.no_trial)
         self.cam_calib_path = str(root / "config" / "cam_params")
         self.human_calib_path = str(root / "config" / "human_params")
         self.robot_calib_path = str(root / "config" / "robot_params")
         self.cano_path = str(root / "weights" / "canonical_verts" / "smplx.npy")
         self.nlf_path = str(root / "weights" / "nlf" / "nlf_s_multi_0.2.2.torchscript")
-        self.yolo_path = str(root / "weights" / "yolo" / "yolov10n.engine")
+        self.yolo_path = str(root / "weights" / "yolo" / f"{self.yolo_model}.engine")
         self.dt = 1 / self.fs
 
 

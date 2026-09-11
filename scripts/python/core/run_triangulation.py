@@ -9,22 +9,21 @@ import argparse
 
 import time
 from pathlib import Path
-from dataclasses import dataclass
-from typing import List, Optional, Sequence, Tuple
 
 import meshcat
 import meshcat.geometry as g
-import meshcat.transformations as tf
 
-import cv2
 import numpy as np
 import torch
-from rtcosmik.nlf.nlf import NLFEstimator, DisplayConsumerNLF
+from rtcosmik.nlf.nlf import NLFEstimator, DisplayConsumerNLF, extract_views
 from rtcosmik.config_loader import settings
 from rtcosmik.camera.cam_utils import list_cameras, load_camera_parameters, load_world_transformation
 from rtcosmik.camera.camera import Camera
 from rtcosmik.utils.mp_utils import create_camera_shared_ressources
-from rtcosmik.triangulation.triangulation import triangulate_points
+from rtcosmik.utils.VideoReader import OfflineVideoSource
+from rtcosmik.utils.dataset import TRIAL_CLI_EPILOG, add_trial_arguments, resolve_trial
+from rtcosmik.model_weights import resolve_detector_engine
+from rtcosmik.triangulation.triangulation import reconstruct_3d
 
 from multiprocessing import set_start_method
 
@@ -38,42 +37,6 @@ logging.basicConfig(
 
 LOGGER = logging.getLogger(__name__)
 
-def list_videos(data_dir: Path) -> List[Path]:
-    if not data_dir.exists():
-        raise FileNotFoundError(f"data dir does not exist: {data_dir}")
-    vids = [p for p in sorted(data_dir.iterdir()) if p.suffix.lower() in [".mp4"]]
-    return vids
-
-@dataclass
-class OfflineVideoSource:
-    paths: List[Path]
-    size_wh: Tuple[int, int]
-
-    def __post_init__(self):
-        self.caps = [cv2.VideoCapture(str(p)) for p in self.paths]
-        for p, cap in zip(self.paths, self.caps):
-            if not cap.isOpened():
-                raise RuntimeError(f"Could not open video: {p}")
-
-    def read(self) -> Optional[List[np.ndarray]]:
-        frames: List[np.ndarray] = []
-        for cap in self.caps:
-            ok, frame = cap.read()
-            if not ok:
-                cap.set(cv2.CAP_PROP_POS_FRAMES, 0)
-                ok, frame = cap.read()
-                if not ok:
-                    return None
-            W, H = self.size_wh
-            if frame.shape[1] != W or frame.shape[0] != H:
-                frame = cv2.resize(frame, (W, H), interpolation=cv2.INTER_LINEAR)
-            frames.append(frame)
-        return frames
-
-    def release(self):
-        for cap in self.caps:
-            cap.release()
-
 def main(args):
     torch.backends.cudnn.benchmark = False
     torch.backends.cuda.matmul.allow_tf32 = True
@@ -82,8 +45,21 @@ def main(args):
     # Determine size
     W = settings.width
     H = settings.height
-    mtxs, dists, projections, rotations, translations = load_camera_parameters(settings.cam_calib_path)
-    world_R1_cam, world_T1_cam = load_world_transformation(settings.cam_calib_path)
+    if args.online:
+        cam_params_path = settings.cam_calib_path
+        video_paths = None
+    else:
+        cam_params_path, video_paths, _, _ = resolve_trial(args)
+        if len(video_paths) != len(args.cameras):
+            raise ValueError(
+                f"{len(video_paths)} videos but {len(args.cameras)} cameras requested; "
+                "pass --cameras matching the videos, in the same order"
+            )
+
+    mtxs, dists, projections, rotations, translations = load_camera_parameters(
+        cam_params_path, args.cameras
+    )
+    world_R1_cam, world_T1_cam = load_world_transformation(cam_params_path, args.cameras[0])
 
     if args.online:
         cameras = list_cameras()
@@ -155,100 +131,79 @@ def main(args):
         vis_markers.set_transform(world_M_cam)
         vis_markers2.set_transform(world_M_cam)
 
-        if args.videos and len(args.videos) > 0:
-            paths = [Path(v) for v in args.videos]
-        else:
-            paths = list_videos(Path(args.data_dir))
-        if len(paths) == 0:
-            raise RuntimeError(f"No videos found in {args.data_dir}")
+        paths = video_paths
 
         NUM_CAMERAS = len(paths)
 
-        src = OfflineVideoSource(paths=paths, size_wh=(W, H))
+        src = OfflineVideoSource(paths=paths, size_wh=(W, H), loop=False)
+        try:
 
-        est = NLFEstimator(
-            yolo_path=settings.yolo_path,
-            nlf_path=settings.nlf_path,
-            cano_path=settings.cano_path,
-            image_size=(W, H),
-            cam_Ks=mtxs,
-            indices=settings.nlf_indices,
-            conf=settings.yolo_conf,
-            imgsz=settings.yolo_imgsz,
-            device=settings.device,
-        )
-
-        while True:
-            frames = src.read()
-            if frames is None:
-                break
-
-            nlf_out, infer_ms, yres, boxes = est.estimate_from_frames(frames)
-
-            nlf_out_2d = nlf_out["poses2d"]
-
-            if nlf_out_2d is None or len(nlf_out_2d) < NUM_CAMERAS:
-                continue
-
-            keypoints_list = [None] * NUM_CAMERAS
-            valid_cam_ids = []
-
-            for ii in range(NUM_CAMERAS):
-                poses2d = nlf_out_2d[ii]
-                
-                if poses2d is None or len(poses2d) == 0 or poses2d[0] is None:
-                    continue
-
-                keypoints_list[ii] = poses2d[0].detach().float().cpu().numpy()
-                valid_cam_ids.append(ii)
-
-            if len(valid_cam_ids) < 2:
-                continue
-
-
-            p3d = triangulate_points(
-                keypoints_list=keypoints_list,
-                mtxs=mtxs,
-                dists=dists,
-                projections=projections,
+            est = NLFEstimator(
+                yolo_path=resolve_detector_engine(settings.yolo_path, len(paths)),
+                nlf_path=settings.nlf_path,
+                cano_path=settings.cano_path,
+                image_size=(W, H),
+                cam_Ks=mtxs,
+                indices=settings.nlf_indices,
+                conf=settings.yolo_conf,
+                imgsz=settings.yolo_imgsz,
+                device=settings.device,
             )
 
-            poses_triangul = torch.from_numpy(p3d).to(dtype=torch.float32)
-            poses_cam0=nlf_out['poses3d'][0]/1000
+            while True:
+                frames = src.read()
+                if frames is None:
+                    break
 
-            if nlf_out['poses3d'][0].shape[0] > 0:
-                points_all = poses_cam0.view(-1, 3).cpu().numpy().T
+                nlf_out, infer_ms, yres, boxes = est.estimate_from_frames(frames)
+
+                views = extract_views(nlf_out, NUM_CAMERAS)
+                p3d = reconstruct_3d(views, projections)
+                if len(p3d) == 0:
+                    continue
+
+                poses_triangul = torch.from_numpy(p3d).to(dtype=torch.float32)
+                poses_cam0=nlf_out['poses3d'][0]/1000
+
+                if nlf_out['poses3d'][0].shape[0] > 0:
+                    points_all = poses_cam0.view(-1, 3).cpu().numpy().T
                 
-                colors = np.zeros_like(points_all)
-                colors[0, :] = 1.0  # R
-                colors[1, :] = 0.0  # G
-                colors[2, :] = 0.0  # B
+                    colors = np.zeros_like(points_all)
+                    colors[0, :] = 1.0  # R
+                    colors[1, :] = 0.0  # G
+                    colors[2, :] = 0.0  # B
 
-                vis_markers.set_object(
-                    g.PointCloud(position=points_all, color=colors, size=0.02)
-                )
+                    vis_markers.set_object(
+                        g.PointCloud(position=points_all, color=colors, size=0.02)
+                    )
 
-                points_all2 = poses_triangul.view(-1, 3).cpu().numpy().T
-                colors2 = np.zeros_like(points_all2)
-                colors2[0, :] = 0.0  # R
-                colors2[1, :] = 0.0  # G
-                colors2[2, :] = 1.0  # B
+                    points_all2 = poses_triangul.view(-1, 3).cpu().numpy().T
+                    colors2 = np.zeros_like(points_all2)
+                    colors2[0, :] = 0.0  # R
+                    colors2[1, :] = 0.0  # G
+                    colors2[2, :] = 1.0  # B
 
-                vis_markers2.set_object(
-                    g.PointCloud(position=points_all2, color=colors2, size=0.02)
-                )
+                    vis_markers2.set_object(
+                        g.PointCloud(position=points_all2, color=colors2, size=0.02)
+                    )
 
-            else:
-                vis_markers.delete()
-                vis_markers2.delete()
-
-        src.release()
+                else:
+                    vis_markers.delete()
+                    vis_markers2.delete()
+        finally:
+            # Explicit teardown: an unreleased decoder never exits on
+            # its own, it blocks on a full pipe holding GPU memory.
+            src.release()
 
 if __name__ == "__main__":
-    p = argparse.ArgumentParser()
-    p.add_argument("--online", action="store_true")
-    p.add_argument("--data-dir", type=str, default="data", help="Folder containing input videos")
-    p.add_argument("--videos", nargs="*", default=None, help="Optional explicit list of input videos")
+    p = argparse.ArgumentParser(
+        description="Run triangulation live, or offline over one recorded trial.",
+        epilog=TRIAL_CLI_EPILOG,
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+    )
+    p.add_argument("--online", action="store_true",
+                   help="Capture from live cameras instead of video files")
+    add_trial_arguments(p)
     args = p.parse_args()
 
     if args.online:
