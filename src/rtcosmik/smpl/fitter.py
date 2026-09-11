@@ -83,9 +83,10 @@ class SmplRefiner:
     consistent.
     """
 
-    def __init__(self, gender="n", num_betas=DEFAULT_NUM_BETAS, num_iter=4,
+    def __init__(self, gender="n", num_betas=DEFAULT_NUM_BETAS, num_iter=1,
                  beta_regularizer=1.0, beta_mode="calibrated",
-                 calibration_frames=30, model_name="smplx", device="cuda",
+                 calibration_frames=30, calibration_iter=8, warm_start=True,
+                 model_name="smplx", device="cuda",
                  zero_hands=True, hand_weight=0.05, model_root=None,
                  compile_online=True, logger=None):
         import smplfitter.pt as smpl_pt
@@ -99,6 +100,11 @@ class SmplRefiner:
         self.beta_mode = beta_mode
         self.calibration_frames = calibration_frames
         self.num_iter = num_iter
+        # Calibration happens once per subject, so it can afford iterations the
+        # per-frame path cannot: a better shape there is paid for once and then
+        # held for the whole trial.
+        self.calibration_iter = calibration_iter
+        self.warm_start = warm_start
         self.beta_regularizer = beta_regularizer
         self.zero_hands = zero_hands
 
@@ -121,6 +127,7 @@ class SmplRefiner:
         self.betas = None
         self._calibration = []
         self._frames_seen = 0
+        self._previous_pose = None
         self.last_residual_mm = float("nan")
 
         # The fit's cost is per-call overhead rather than the solve, so the
@@ -181,10 +188,19 @@ class SmplRefiner:
             weights = self.vertex_weights.expand(len(target), -1)
         if self.betas is not None:
             fit = self._fit_one_known if compiled else self.fitter.fit_with_known_shape
+            # At 40 Hz the body moves millimetres between frames, so the previous
+            # pose is a good start and lets a single iteration do the work of
+            # several. Always a tensor, never None: torch.compile traces a
+            # separate graph per signature, and one graph is the point.
+            initial = self._previous_pose
+            if initial is None or len(initial) != len(target):
+                initial = torch.zeros((len(target), self.body_model.num_joints * 3),
+                                      dtype=torch.float32, device=self.device)
             return fit(
                 shape_betas=self.betas.expand(len(target), -1),
                 target_vertices=target, vertex_weights=weights,
                 num_iter=self.num_iter, final_adjust_rots=True,
+                initial_pose_rotvecs=(initial if self.warm_start else None),
                 requested_keys=keys)
         fit = self._fit_one if compiled else self.fitter.fit
         return fit(
@@ -216,9 +232,11 @@ class SmplRefiner:
         self._forward(self._fit(dummy, share_beta=False, compiled=True),
                       compiled=True)
         self.betas = zeros
+        self._previous_pose = None
         self._forward(self._fit(dummy, share_beta=False, compiled=True),
                       compiled=True)
         self.betas = saved
+        self._previous_pose = None
         self.logger.info(
             f"SMPL fitter compiled in {time.perf_counter() - started:.1f} s")
 
@@ -228,7 +246,7 @@ class SmplRefiner:
                                  device=self.device)
         with torch.inference_mode():
             result = self.fitter.fit(
-                target, num_iter=self.num_iter,
+                target, num_iter=self.calibration_iter,
                 beta_regularizer=self.beta_regularizer, share_beta=True,
                 final_adjust_rots=True,
                 requested_keys=["pose_rotvecs", "shape_betas", "trans"])
@@ -239,7 +257,8 @@ class SmplRefiner:
                 "regulariser (see docs/smplfitter.md, trap 2)")
         self.betas = betas
         self.logger.info(
-            f"SMPL shape calibrated on {len(frames)} frames: "
+            f"SMPL shape calibrated on {len(frames)} frames, "
+            f"{self.calibration_iter} iters: "
             f"betas[:6] = {np.round(betas[0, :6].cpu().numpy(), 2)}")
         return betas
 
@@ -252,6 +271,7 @@ class SmplRefiner:
         self.betas = None
         self._calibration = []
         self._frames_seen = 0
+        self._previous_pose = None
         if beta_mode is not None:
             if beta_mode not in ("free", "calibrated", "shared"):
                 raise ValueError(f"unknown beta_mode {beta_mode!r}")
@@ -274,6 +294,8 @@ class SmplRefiner:
                 self.calibrate(stack)
 
         result = self._fit(target, share_beta=False, compiled=True)
+        if self.warm_start:
+            self._previous_pose = result["pose_rotvecs"].detach()
         fitted = self._forward(result, compiled=True)
         self.last_residual_mm = float(
             (fitted - target).norm(dim=-1).median() * 1000)

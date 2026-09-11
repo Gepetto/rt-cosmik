@@ -329,6 +329,8 @@ def _smpl_refiner(settings, gender, num_iter, beta_mode):
             gender=gender, num_betas=settings.smpl_num_betas, num_iter=num_iter,
             beta_mode=beta_mode,
             calibration_frames=settings.smpl_calibration_frames,
+            calibration_iter=settings.smpl_calibration_iter,
+            warm_start=settings.smpl_warm_start,
             model_root=settings.body_models_path, device=settings.device,
             compile_online=settings.smpl_compile,
             logger=logging.getLogger("smpl"))

@@ -187,8 +187,16 @@ class Settings:
     #: ~400, and letting the regulariser see all of them silently returns the
     #: average body. 10-16 is the working range.
     smpl_num_betas: int = 16
-    #: Fitter iterations per frame. 4 is the practical online maximum.
-    smpl_num_iter: int = 4
+    #: Fitter iterations per *online* frame. The shape is already known and the
+    #: previous frame's pose is a warm start, so one is usually enough -- and it
+    #: is the cheapest thing in the loop to get wrong.
+    smpl_num_iter: int = 1
+    #: Iterations for the one-off shape calibration. Paid once per subject, then
+    #: held for the whole trial, so it can afford to be generous.
+    smpl_calibration_iter: int = 8
+    #: Start each frame's pose solve from the previous frame's. At 40 Hz the body
+    #: moves millimetres, so this lets one iteration do the work of several.
+    smpl_warm_start: bool = True
     #: "free" refits the shape every frame, "calibrated" fits it once over the
     #: first smpl_calibration_frames and then holds it (causal, and how a real
     #: session would run), "shared" fits one shape over the whole trial offline.

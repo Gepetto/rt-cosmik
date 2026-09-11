@@ -21,3 +21,4 @@ data/
 *.egg-info/
 build/
 dist/
+results/
