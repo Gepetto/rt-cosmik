@@ -43,6 +43,10 @@ CONFIGS = [
     ("SMPL, beta per frame",   "nlfsmpl", {"beta_mode": "free"}),
     ("SMPL, beta calibrated",  "nlfsmpl", {"beta_mode": "calibrated"}),
     ("SMPL, calibrated, 1 it", "nlfsmpl", {"beta_mode": "calibrated", "num_iter": 1}),
+    ("SMPL per view then fuse", "nlfsmpl", {"beta_mode": "calibrated",
+                                            "fit_order": "fit_then_fuse"}),
+    ("SMPL per view, free beta", "nlfsmpl", {"beta_mode": "free",
+                                             "fit_order": "fit_then_fuse"}),
 ]
 
 # "shared" is not here: fitting one shape over a whole trial needs two passes,

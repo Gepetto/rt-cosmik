@@ -110,48 +110,51 @@ def main(args):
         paths = video_paths
 
         src = OfflineVideoSource(paths=paths, size_wh=(W, H), loop=False)
+        try:
 
 
-        est = NLFEstimator(
-            yolo_path=resolve_detector_engine(settings.yolo_path, len(paths)),
-            nlf_path=settings.nlf_path,
-            cano_path=settings.cano_path,
-            image_size=(W, H),
-            cam_Ks=mtxs,
-            indices=settings.nlf_indices,
-            conf=settings.yolo_conf,
-            imgsz=settings.yolo_imgsz,
-            device=settings.device,
-        )
-
-        cv2.namedWindow("Visualization", cv2.WINDOW_NORMAL)
-
-        while True:
-            frames = src.read()
-            if frames is None:
-                break
-
-            nlf_out, infer_ms, yres, boxes = est.estimate_from_frames(frames)
-
-            print(f"Timings to perform inference = {infer_ms}")
-
-            vis_frames = est.visualize_frames(
-                frames,
-                nlf_out,
-                boxes=boxes,
-                draw_boxes=True,
-                put_text=True,
-                text_prefix="cam",
+            est = NLFEstimator(
+                yolo_path=resolve_detector_engine(settings.yolo_path, len(paths)),
+                nlf_path=settings.nlf_path,
+                cano_path=settings.cano_path,
+                image_size=(W, H),
+                cam_Ks=mtxs,
+                indices=settings.nlf_indices,
+                conf=settings.yolo_conf,
+                imgsz=settings.yolo_imgsz,
+                device=settings.device,
             )
-            vis = np.hstack(vis_frames)
 
-            cv2.imshow("Visualization", vis)
+            cv2.namedWindow("Visualization", cv2.WINDOW_NORMAL)
 
-            key = cv2.waitKey(1) & 0xFF
-            if key in (27, ord('q')):
-                break
+            while True:
+                frames = src.read()
+                if frames is None:
+                    break
 
-        src.release()
+                nlf_out, infer_ms, yres, boxes = est.estimate_from_frames(frames)
+
+                print(f"Timings to perform inference = {infer_ms}")
+
+                vis_frames = est.visualize_frames(
+                    frames,
+                    nlf_out,
+                    boxes=boxes,
+                    draw_boxes=True,
+                    put_text=True,
+                    text_prefix="cam",
+                )
+                vis = np.hstack(vis_frames)
+
+                cv2.imshow("Visualization", vis)
+
+                key = cv2.waitKey(1) & 0xFF
+                if key in (27, ord('q')):
+                    break
+        finally:
+            # Explicit teardown: an unreleased decoder never exits on
+            # its own, it blocks on a full pipe holding GPU memory.
+            src.release()
         cv2.destroyAllWindows()
 
 

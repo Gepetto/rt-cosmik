@@ -349,7 +349,8 @@ def _smpl_refiner(settings, gender, num_iter, beta_mode):
 
 
 def run_nlfsmpl(dataset, participant, task, cameras, out_dir, settings,
-                depth_aware=False, beta_mode=None, num_iter=None):
+                depth_aware=False, beta_mode=None, num_iter=None,
+                fit_order=None):
     """NLF's dense vertices, fitted back to a SMPL body, then the usual IK.
 
     Identical to the NLF arm up to the point where 3D exists, except that NLF is
@@ -372,7 +373,8 @@ def run_nlfsmpl(dataset, participant, task, cameras, out_dir, settings,
     from rtcosmik.pipeline.solver import HumanSolver
     from rtcosmik.saver.csv_saver import CSVSaver
     from rtcosmik.smpl.fitter import SmplRefiner
-    from rtcosmik.triangulation.triangulation import reconstruct_3d
+    from rtcosmik.triangulation.triangulation import (fuse_camera_poses3d,
+                                                      reconstruct_3d)
     from rtcosmik.utils.VideoReader import OfflineVideoSource
 
     root = Path(dataset)
@@ -399,6 +401,7 @@ def run_nlfsmpl(dataset, participant, task, cameras, out_dir, settings,
     solver = HumanSolver(settings, gender=meta["gender"][0], height=meta["height"],
                          weight=meta["weight"], logger=logging.getLogger("solve"))
 
+    fit_order = fit_order or settings.smpl_fit_order
     marker_rows = np.asarray(settings.nlf_indices)
     channels = 3 * len(settings.marker_names)
     iir = IIR(num_channel=channels, sampling_frequency=settings.fs)
@@ -421,13 +424,27 @@ def run_nlfsmpl(dataset, participant, task, cameras, out_dir, settings,
             read += 1
             nlf_out, _, _, _ = estimator.estimate_from_frames(frames)
             views = extract_views(nlf_out, len(cameras))
-            dense = reconstruct_3d(views, projections)
-            if len(dense) == 0:
-                continue
 
-            t0 = time.perf_counter()
-            dense = refiner.refine(np.asarray(dense))
-            fit_ms.append((time.perf_counter() - t0) * 1e3)
+            if fit_order == "fit_then_fuse":
+                # Correct each view before averaging rather than after. One
+                # batched fit over the views, not one call per view: the cost is
+                # per-call overhead, so N views in one call is far cheaper.
+                if not views.valid_cam_ids:
+                    continue
+                t0 = time.perf_counter()
+                refined = refiner.refine_views(list(views.poses3d))
+                fit_ms.append((time.perf_counter() - t0) * 1e3)
+                dense = fuse_camera_poses3d(refined, projections,
+                                            uncertainties=views.uncertainties)
+                if len(dense) == 0:
+                    continue
+            else:
+                dense = reconstruct_3d(views, projections)
+                if len(dense) == 0:
+                    continue
+                t0 = time.perf_counter()
+                dense = refiner.refine(np.asarray(dense))
+                fit_ms.append((time.perf_counter() - t0) * 1e3)
 
             p3d = dense[marker_rows]
             p3d = np.asarray(p3d) @ np.asarray(world_R).T + np.asarray(world_T)
@@ -555,6 +572,10 @@ def main():
     ap.add_argument("--beta-mode", default=None,
                     choices=["free", "calibrated", "shared"],
                     help="nlfsmpl only: how the SMPL shape is handled")
+    ap.add_argument("--fit-order", default=None,
+                    choices=["fuse_then_fit", "fit_then_fuse"],
+                    help="nlfsmpl only: fit the fused cloud, or fit each view "
+                         "and fuse the results")
     ap.add_argument("--smpl-iter", type=int, default=None,
                     help="nlfsmpl only: fitter iterations per frame")
     ap.add_argument("--tag", default=None,
@@ -603,7 +624,8 @@ def main():
         try:
             extra = {}
             if args.arm == "nlfsmpl":
-                extra = {"beta_mode": args.beta_mode, "num_iter": args.smpl_iter}
+                extra = {"beta_mode": args.beta_mode, "num_iter": args.smpl_iter,
+                         "fit_order": args.fit_order}
             frames, ik_ms, seconds = ARMS[args.arm](
                 args.dataset, participant, task, args.cameras, out_dir, settings,
                 **extra)

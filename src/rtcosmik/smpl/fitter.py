@@ -302,6 +302,40 @@ class SmplRefiner:
         return fitted[0].cpu().numpy()
 
     @torch.inference_mode()
+    def refine_views(self, poses):
+        """Fit every camera's own cloud, in one batched call.
+
+        ``poses`` is a list with one ``(V, 3)`` array per camera, each in that
+        camera's own frame, or None where a camera saw nothing. Returns a list of
+        the same shape, refined, for the caller to fuse as usual.
+
+        The alternative to fusing first and fitting once. Fitting per view lets
+        each camera's cloud be corrected before the averaging rather than after,
+        which is the more natural order if the fit is what makes a single view
+        better -- and the fit is equivariant to rigid motion, so working in each
+        camera's own frame is legitimate.
+
+        One batched call rather than a loop: the fit's cost is per-call overhead,
+        so four views in one call is far cheaper than four calls. When the shape
+        is held it is shared across views by construction, which is also correct
+        -- the cameras are looking at one subject.
+        """
+        valid = [i for i, p in enumerate(poses) if p is not None]
+        if not valid:
+            return list(poses)
+        target = torch.as_tensor(np.stack([np.asarray(poses[i]) for i in valid]),
+                                 dtype=torch.float32, device=self.device)
+        result = self._fit(target, share_beta=True, compiled=False)
+        fitted = self._forward(result).cpu().numpy()
+        self.last_residual_mm = float(
+            np.median(np.linalg.norm(
+                fitted - target.cpu().numpy(), axis=-1)) * 1000)
+        out = list(poses)
+        for k, i in enumerate(valid):
+            out[i] = fitted[k]
+        return out
+
+    @torch.inference_mode()
     def refine_batch(self, frames, share_beta=True):
         """Offline path: fit a whole ``(T, V, 3)`` stack at once.
 

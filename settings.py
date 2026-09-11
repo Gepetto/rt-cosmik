@@ -197,6 +197,10 @@ class Settings:
     #: Start each frame's pose solve from the previous frame's. At 40 Hz the body
     #: moves millimetres, so this lets one iteration do the work of several.
     smpl_warm_start: bool = True
+    #: "fuse_then_fit" fits the one fused cloud (batch 1, cheapest);
+    #: "fit_then_fuse" fits every view in one batched call and fuses the results,
+    #: correcting each camera before averaging rather than after.
+    smpl_fit_order: str = "fuse_then_fit"
     #: "free" refits the shape every frame, "calibrated" fits it once over the
     #: first smpl_calibration_frames and then holds it (causal, and how a real
     #: session would run), "shared" fits one shape over the whole trial offline.

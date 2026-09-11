@@ -88,47 +88,49 @@ def run(dataset, participant, task, cameras, use_fit, num_iter, warm, frames,
     buffer = deque(maxlen=settings.N)
     nlf_ms, fit_ms, ik_ms, total_ms = [], [], [], []
     seen = 0
-    while seen < frames:
-        images = source.read()
-        if images is None:
-            break
-        t_start = time.perf_counter()
+    try:
+        while seen < frames:
+            images = source.read()
+            if images is None:
+                break
+            t_start = time.perf_counter()
 
-        t0 = time.perf_counter()
-        out, _, _, _ = estimator.estimate_from_frames(images)
-        views = extract_views(out, len(cameras))
-        p3d = reconstruct_3d(views, projections)
-        t_nlf = (time.perf_counter() - t0) * 1e3
-        if len(p3d) == 0:
-            continue
-
-        t_fit = 0.0
-        if refiner is not None:
             t0 = time.perf_counter()
-            p3d = refiner.refine(np.asarray(p3d))
-            t_fit = (time.perf_counter() - t0) * 1e3
-            p3d = p3d[rows]
+            out, _, _, _ = estimator.estimate_from_frames(images)
+            views = extract_views(out, len(cameras))
+            p3d = reconstruct_3d(views, projections)
+            t_nlf = (time.perf_counter() - t0) * 1e3
+            if len(p3d) == 0:
+                continue
 
-        p3d = np.asarray(p3d) @ np.asarray(world_R).T + np.asarray(world_T)
-        if not buffer:
-            for _ in range(settings.N):
+            t_fit = 0.0
+            if refiner is not None:
+                t0 = time.perf_counter()
+                p3d = refiner.refine(np.asarray(p3d))
+                t_fit = (time.perf_counter() - t0) * 1e3
+                p3d = p3d[rows]
+
+            p3d = np.asarray(p3d) @ np.asarray(world_R).T + np.asarray(world_T)
+            if not buffer:
+                for _ in range(settings.N):
+                    buffer.append(p3d)
+            else:
                 buffer.append(p3d)
-        else:
-            buffer.append(p3d)
-        block = np.asarray(buffer).reshape(settings.N, 3 * len(names))
-        xyz = iir.filter(block).reshape(settings.N, len(names), 3)[-1]
+            block = np.asarray(buffer).reshape(settings.N, 3 * len(names))
+            xyz = iir.filter(block).reshape(settings.N, len(names), 3)[-1]
 
-        t0 = time.perf_counter()
-        solver.solve(dict(zip(names, xyz)))
-        t_ik = (time.perf_counter() - t0) * 1e3
+            t0 = time.perf_counter()
+            solver.solve(dict(zip(names, xyz)))
+            t_ik = (time.perf_counter() - t0) * 1e3
 
-        seen += 1
-        if seen > settings.smpl_calibration_frames + 10:   # past warm-up
-            nlf_ms.append(t_nlf)
-            fit_ms.append(t_fit)
-            ik_ms.append(t_ik)
-            total_ms.append((time.perf_counter() - t_start) * 1e3)
-    source.release()          # or ffmpeg lives on holding GPU memory
+            seen += 1
+            if seen > settings.smpl_calibration_frames + 10:   # past warm-up
+                nlf_ms.append(t_nlf)
+                fit_ms.append(t_fit)
+                ik_ms.append(t_ik)
+                total_ms.append((time.perf_counter() - t_start) * 1e3)
+    finally:
+        source.release()      # or ffmpeg lives on holding GPU memory
     del estimator, refiner
     torch.cuda.empty_cache()
     return (np.median(nlf_ms), np.median(fit_ms), np.median(ik_ms),

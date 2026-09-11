@@ -212,192 +212,195 @@ def main(args):
         # loop=False so the run ends at the end of the videos instead of
         # restarting them, which is what makes sweeping over trials possible.
         src = OfflineVideoSource(paths=paths, size_wh=(W, H), loop=False)
+        try:
 
-        # joint_angles.csv uses the reference mocap's column names so a trial's
-        # estimate lines up with its ground truth without renaming anything.
-        saver = None
-        if not args.no_save:
-            saver = CSVSaver(
-                str(out_dir),
-                markers_header=['Frame'] + list(settings.marker_names),
-                joint_angles_header=list(settings.joint_angles_names),
+            # joint_angles.csv uses the reference mocap's column names so a trial's
+            # estimate lines up with its ground truth without renaming anything.
+            saver = None
+            if not args.no_save:
+                saver = CSVSaver(
+                    str(out_dir),
+                    markers_header=['Frame'] + list(settings.marker_names),
+                    joint_angles_header=list(settings.joint_angles_names),
+                )
+                LOGGER.info("Writing markers.csv and joint_angles.csv to %s", out_dir)
+            frames_read = 0
+            frames_written = 0
+
+            est = NLFEstimator(
+                yolo_path=resolve_detector_engine(settings.yolo_path, NUM_CAMERAS),
+                nlf_path=settings.nlf_path,
+                cano_path=settings.cano_path,
+                image_size=(W, H),
+                cam_Ks=mtxs,
+                indices=settings.nlf_indices,
+                conf=settings.yolo_conf,
+                imgsz=settings.yolo_imgsz,
+                device=settings.device,
             )
-            LOGGER.info("Writing markers.csv and joint_angles.csv to %s", out_dir)
-        frames_read = 0
-        frames_written = 0
 
-        est = NLFEstimator(
-            yolo_path=resolve_detector_engine(settings.yolo_path, NUM_CAMERAS),
-            nlf_path=settings.nlf_path,
-            cano_path=settings.cano_path,
-            image_size=(W, H),
-            cam_Ks=mtxs,
-            indices=settings.nlf_indices,
-            conf=settings.yolo_conf,
-            imgsz=settings.yolo_imgsz,
-            device=settings.device,
-        )
+            # Init for the rest
+            solver = HumanSolver(settings, gender=subject_gender, height=subject_height,
+                                 weight=subject_weight, logger=LOGGER)
+            first_sample = True
+            p3d_buffer = deque(maxlen=settings.N)
 
-        # Init for the rest
-        solver = HumanSolver(settings, gender=subject_gender, height=subject_height,
-                             weight=subject_weight, logger=LOGGER)
-        first_sample = True
-        p3d_buffer = deque(maxlen=settings.N)
+            # Filter
+            num_channel = 3*len(settings.marker_names)
+            iir_filter = IIR(
+                num_channel=num_channel,
+                sampling_frequency=settings.fs
+            )
+            iir_filter.add_filter(order=settings.order, cutoff=settings.cutoff_freq, filter_type=settings.filter_type)
 
-        # Filter
-        num_channel = 3*len(settings.marker_names)
-        iir_filter = IIR(
-            num_channel=num_channel,
-            sampling_frequency=settings.fs
-        )
-        iir_filter.add_filter(order=settings.order, cutoff=settings.cutoff_freq, filter_type=settings.filter_type)
+            display = AsyncDisplay(logger=LOGGER)
+            display.__enter__()
 
-        display = AsyncDisplay(logger=LOGGER)
-        display.__enter__()
+            stage_ms = {"read": [], "pose": [], "reconstruct": [], "ik": [],
+                        "display": [], "save": [], "frame": []}
+            # NLFEstimator already reports its own split; it was being discarded.
+            pose_parts = {"yolo": [], "h2d+pre": [], "nlf": []}
+            calibration_ms = None
+            viewer_setup_ms = 0.0   # subtracted from the frame it occurs in
+            viewer_total_ms = 0.0   # kept for the summary
+            first_frame_calibration_ms = 0.0  # subtracted from frame 0
 
-        stage_ms = {"read": [], "pose": [], "reconstruct": [], "ik": [],
-                    "display": [], "save": [], "frame": []}
-        # NLFEstimator already reports its own split; it was being discarded.
-        pose_parts = {"yolo": [], "h2d+pre": [], "nlf": []}
-        calibration_ms = None
-        viewer_setup_ms = 0.0   # subtracted from the frame it occurs in
-        viewer_total_ms = 0.0   # kept for the summary
-        first_frame_calibration_ms = 0.0  # subtracted from frame 0
+            while True:
+                t0=time.perf_counter()
+                frames = src.read()
+                t_read=time.perf_counter()
+                if frames is None:
+                    break
+                frames_read += 1
 
-        while True:
-            t0=time.perf_counter()
-            frames = src.read()
-            t_read=time.perf_counter()
-            if frames is None:
-                break
-            frames_read += 1
+                nlf_out, infer_ms, yres, boxes = est.estimate_from_frames(frames)
+                t_pose=time.perf_counter()
+                pose_parts["yolo"].append(infer_ms.get("yolo_ms", float("nan")))
+                pose_parts["h2d+pre"].append(infer_ms.get("h2d+pre_ms", float("nan")))
+                pose_parts["nlf"].append(infer_ms.get("nlf_ms", float("nan")))
 
-            nlf_out, infer_ms, yres, boxes = est.estimate_from_frames(frames)
-            t_pose=time.perf_counter()
-            pose_parts["yolo"].append(infer_ms.get("yolo_ms", float("nan")))
-            pose_parts["h2d+pre"].append(infer_ms.get("h2d+pre_ms", float("nan")))
-            pose_parts["nlf"].append(infer_ms.get("nlf_ms", float("nan")))
+                views = extract_views(nlf_out, NUM_CAMERAS)
+                p3d = reconstruct_3d(views, projections)
+                t_rec=time.perf_counter()
+                if len(p3d) == 0:
+                    continue
 
-            views = extract_views(nlf_out, NUM_CAMERAS)
-            p3d = reconstruct_3d(views, projections)
-            t_rec=time.perf_counter()
-            if len(p3d) == 0:
-                continue
-
-            p3d_in_world=np.array([np.dot(world_R1_cam,point) + world_T1_cam for point in p3d])
-
-            if first_sample:
-                for k in range(settings.N):
-                    p3d_buffer.append(p3d_in_world)  # add the 1st frame 30 times
-            else:
-                p3d_buffer.append(p3d_in_world) # add the keypoints to the buffer normally
-            
-            if len(p3d_buffer) == settings.N:
-                p3d_buffer_array = np.array(p3d_buffer)
-
-                # Filter keypoints in world to remove noisy artefacts 
-                filtered_p3d_buffer = iir_filter.filter(np.reshape(p3d_buffer_array,(settings.N, 3*len(settings.marker_names))))
-                filtered_p3d_buffer = np.reshape(filtered_p3d_buffer,(settings.N, len(settings.marker_names), 3))
-
-                augmented_markers=filtered_p3d_buffer[-1]
-
-                # VISUALISATION OF AUGMENTED MARKERS in RED
-                colors = np.zeros_like(augmented_markers.T)
-                colors[0, :] = 1.0  # R
-                colors[1, :] = 0.0  # G
-                colors[2, :] = 0.0  # B
-
-                t_disp0=time.perf_counter()
-                display.submit(
-                    lambda pts=augmented_markers.T.copy(), col=colors.copy():
-                    vis_markers.set_object(g.PointCloud(position=pts, color=col,
-                                                        size=0.02)))
-                display_ms = (time.perf_counter()-t_disp0)*1e3
-
-                mks_dict = dict(zip(settings.marker_names, augmented_markers))
+                p3d_in_world=np.array([np.dot(world_R1_cam,point) + world_T1_cam for point in p3d])
 
                 if first_sample:
-                    # Kept OUT of the per-frame IK statistics: this call builds
-                    # and scales the model, registers the markers, runs an IPOPT
-                    # solve and loads the OCP. It is seconds, happens once, and
-                    # would otherwise sit in the same distribution as the
-                    # millisecond steady-state solves.
-                    t_ik0=time.perf_counter()
-                    q = solver.calibrate(mks_dict)
-                    calibration_ms = (time.perf_counter()-t_ik0)*1e3
-                    first_frame_calibration_ms = calibration_ms
-                    human_model, human_data = solver.model, solver.data
-
-                    # Also one-off, and also excluded: loadViewerModel uploads
-                    # the whole human mesh to the meshcat server over a
-                    # websocket, which is ~1 s. Left in, it lands in the frame
-                    # statistics as a single ~1000 ms outlier that looks like a
-                    # solver stall.
-                    t_viz0=time.perf_counter()
-                    # Init meshcat viewer for human
-                    viz_human = MeshcatVisualizer(
-                        human_model, solver.collision_model, solver.visual_model)
-                    viz_human.initViewer(vis, open=True)
-
-                    # Don't delete the whole Meshcat tree: keep '/markers' etc.
-                    try:
-                        vis["ref"].delete()
-                    except Exception:
-                        pass
-                    viz_human.loadViewerModel("ref")
-
-                    viz_human.viewer["/Background"].set_property("top_color", [1, 1, 1])
-                    viz_human.viewer["/Background"].set_property("bottom_color", [0.65, 0.65, 0.65])
-                    viewer_setup_ms = (time.perf_counter()-t_viz0)*1e3
-                    viewer_total_ms = viewer_setup_ms
-
-                    first_sample = False
+                    for k in range(settings.N):
+                        p3d_buffer.append(p3d_in_world)  # add the 1st frame 30 times
                 else:
-                    t_ik0=time.perf_counter()
-                    q = solver.step(mks_dict)
-                    stage_ms["ik"].append((time.perf_counter()-t_ik0)*1e3)
+                    p3d_buffer.append(p3d_in_world) # add the keypoints to the buffer normally
+            
+                if len(p3d_buffer) == settings.N:
+                    p3d_buffer_array = np.array(p3d_buffer)
 
-                t_disp1=time.perf_counter()
-                display.submit(lambda qq=np.array(q, copy=True): viz_human.display(qq))
-                display_ms += (time.perf_counter()-t_disp1)*1e3
-                stage_ms["display"].append(display_ms)
-                t_save0=time.perf_counter()
+                    # Filter keypoints in world to remove noisy artefacts 
+                    filtered_p3d_buffer = iir_filter.filter(np.reshape(p3d_buffer_array,(settings.N, 3*len(settings.marker_names))))
+                    filtered_p3d_buffer = np.reshape(filtered_p3d_buffer,(settings.N, len(settings.marker_names), 3))
 
-                if saver is not None:
-                    marker_row = OrderedDict(Frame=frames_read)
-                    for name, position in mks_dict.items():
-                        marker_row[name + '_x'] = float(position[0])
-                        marker_row[name + '_y'] = float(position[1])
-                        marker_row[name + '_z'] = float(position[2])
-                    saver.save_markers(marker_row)
+                    augmented_markers=filtered_p3d_buffer[-1]
 
-                    if len(q) != len(settings.joint_angles_names):
-                        raise ValueError(
-                            f"Model has {len(q)} configuration variables but "
-                            f"{len(settings.joint_angles_names)} joint angle names are defined"
+                    # VISUALISATION OF AUGMENTED MARKERS in RED
+                    colors = np.zeros_like(augmented_markers.T)
+                    colors[0, :] = 1.0  # R
+                    colors[1, :] = 0.0  # G
+                    colors[2, :] = 0.0  # B
+
+                    t_disp0=time.perf_counter()
+                    display.submit(
+                        lambda pts=augmented_markers.T.copy(), col=colors.copy():
+                        vis_markers.set_object(g.PointCloud(position=pts, color=col,
+                                                            size=0.02)))
+                    display_ms = (time.perf_counter()-t_disp0)*1e3
+
+                    mks_dict = dict(zip(settings.marker_names, augmented_markers))
+
+                    if first_sample:
+                        # Kept OUT of the per-frame IK statistics: this call builds
+                        # and scales the model, registers the markers, runs an IPOPT
+                        # solve and loads the OCP. It is seconds, happens once, and
+                        # would otherwise sit in the same distribution as the
+                        # millisecond steady-state solves.
+                        t_ik0=time.perf_counter()
+                        q = solver.calibrate(mks_dict)
+                        calibration_ms = (time.perf_counter()-t_ik0)*1e3
+                        first_frame_calibration_ms = calibration_ms
+                        human_model, human_data = solver.model, solver.data
+
+                        # Also one-off, and also excluded: loadViewerModel uploads
+                        # the whole human mesh to the meshcat server over a
+                        # websocket, which is ~1 s. Left in, it lands in the frame
+                        # statistics as a single ~1000 ms outlier that looks like a
+                        # solver stall.
+                        t_viz0=time.perf_counter()
+                        # Init meshcat viewer for human
+                        viz_human = MeshcatVisualizer(
+                            human_model, solver.collision_model, solver.visual_model)
+                        viz_human.initViewer(vis, open=True)
+
+                        # Don't delete the whole Meshcat tree: keep '/markers' etc.
+                        try:
+                            vis["ref"].delete()
+                        except Exception:
+                            pass
+                        viz_human.loadViewerModel("ref")
+
+                        viz_human.viewer["/Background"].set_property("top_color", [1, 1, 1])
+                        viz_human.viewer["/Background"].set_property("bottom_color", [0.65, 0.65, 0.65])
+                        viewer_setup_ms = (time.perf_counter()-t_viz0)*1e3
+                        viewer_total_ms = viewer_setup_ms
+
+                        first_sample = False
+                    else:
+                        t_ik0=time.perf_counter()
+                        q = solver.step(mks_dict)
+                        stage_ms["ik"].append((time.perf_counter()-t_ik0)*1e3)
+
+                    t_disp1=time.perf_counter()
+                    display.submit(lambda qq=np.array(q, copy=True): viz_human.display(qq))
+                    display_ms += (time.perf_counter()-t_disp1)*1e3
+                    stage_ms["display"].append(display_ms)
+                    t_save0=time.perf_counter()
+
+                    if saver is not None:
+                        marker_row = OrderedDict(Frame=frames_read)
+                        for name, position in mks_dict.items():
+                            marker_row[name + '_x'] = float(position[0])
+                            marker_row[name + '_y'] = float(position[1])
+                            marker_row[name + '_z'] = float(position[2])
+                        saver.save_markers(marker_row)
+
+                        if len(q) != len(settings.joint_angles_names):
+                            raise ValueError(
+                                f"Model has {len(q)} configuration variables but "
+                                f"{len(settings.joint_angles_names)} joint angle names are defined"
+                            )
+                        saver.save_joint_angles(
+                            OrderedDict(zip(settings.joint_angles_names, (float(v) for v in q)))
                         )
-                    saver.save_joint_angles(
-                        OrderedDict(zip(settings.joint_angles_names, (float(v) for v in q)))
-                    )
-                    frames_written += 1
-                stage_ms["save"].append((time.perf_counter()-t_save0)*1e3)
-            t1=time.perf_counter()
-            # perf_counter is in SECONDS; this used to be printed as "ms",
-            # understating every timing by a factor of 1000.
-            stage_ms["read"].append((t_read-t0)*1e3)
-            stage_ms["pose"].append((t_pose-t_read)*1e3)
-            stage_ms["reconstruct"].append((t_rec-t_pose)*1e3)
-            # One-off setup is charged to its own line, not to this frame. Both
-            # of them: the model build and the viewer upload happen on frame 0
-            # and together were showing up as a ~1000 ms "frame" outlier.
-            one_off = viewer_setup_ms + first_frame_calibration_ms
-            stage_ms["frame"].append((t1-t0)*1e3 - one_off)
-            viewer_setup_ms = 0.0
-            first_frame_calibration_ms = 0.0
-            if frames_read % 100 == 0:
-                print(f"  {frames_read} frames, last {(t1-t0)*1e3:.1f} ms", flush=True)
-
-        src.release()
+                        frames_written += 1
+                    stage_ms["save"].append((time.perf_counter()-t_save0)*1e3)
+                t1=time.perf_counter()
+                # perf_counter is in SECONDS; this used to be printed as "ms",
+                # understating every timing by a factor of 1000.
+                stage_ms["read"].append((t_read-t0)*1e3)
+                stage_ms["pose"].append((t_pose-t_read)*1e3)
+                stage_ms["reconstruct"].append((t_rec-t_pose)*1e3)
+                # One-off setup is charged to its own line, not to this frame. Both
+                # of them: the model build and the viewer upload happen on frame 0
+                # and together were showing up as a ~1000 ms "frame" outlier.
+                one_off = viewer_setup_ms + first_frame_calibration_ms
+                stage_ms["frame"].append((t1-t0)*1e3 - one_off)
+                viewer_setup_ms = 0.0
+                first_frame_calibration_ms = 0.0
+                if frames_read % 100 == 0:
+                    print(f"  {frames_read} frames, last {(t1-t0)*1e3:.1f} ms", flush=True)
+        finally:
+            # Explicit teardown: an unreleased decoder never exits on
+            # its own, it blocks on a full pipe holding GPU memory.
+            src.release()
         display.close()
 
         # Timing summary. Medians, because the first frames include model

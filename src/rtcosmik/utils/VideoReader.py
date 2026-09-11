@@ -13,6 +13,7 @@ class OfflineVideoSource:
     # Sentinel pushed onto a stream's queue when that stream reaches its end.
     _EOF = object()
 
+
     paths: List[Path]
     size_wh: Tuple[int, int]
     queue_size: int = 2  # Keeps 2 frames in flight per stream to maintain speed
@@ -166,9 +167,36 @@ class OfflineVideoSource:
 
         return assembled_frames if self._running else None
  
+    # Teardown must be explicit: use ``with OfflineVideoSource(...) as src`` or
+    # a try/finally. There is deliberately no ``__del__`` fallback, because it
+    # cannot work here -- the daemon reader threads are bound methods holding a
+    # reference to self, so a leaked source is never collected and ``__del__``
+    # would only ever fire on sources that had already been released. Measured:
+    # with the source garbage-collected but never released, 2 of 2 ffmpeg
+    # processes survived; with release() in a finally, 0 of 2.
+    #
+    # An unreleased decoder does not exit on its own. Its reader thread blocks
+    # putting into a full queue, so ffmpeg blocks writing and never reaches EOF,
+    # and it sits holding ~288 MiB of GPU for the life of the process. Four
+    # cameras a trial adds up fast: a sweep once accumulated 16 of them, 4.6 GB.
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *exc):
+        self.release()
+        return False
+
     def release(self):
         """Thread-safe teardown sequence that safely cleans up pipes 
-        and filters out annoying OS shutdown artifacts."""
+        and filters out annoying OS shutdown artifacts.
+
+        Idempotent: calling it twice, or after __del__ has already run, is a
+        no-op rather than an error.
+        """
+        if not self._procs and not self._threads:
+            self._running = False
+            return
         self._running = False
         
         # Ask each process to exit gracefully first.
