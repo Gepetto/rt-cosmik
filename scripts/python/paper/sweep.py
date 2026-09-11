@@ -211,50 +211,57 @@ def run_nlf(dataset, participant, task, cameras, out_dir, settings,
     buffer = deque(maxlen=settings.N)
     ik_ms, rows, read = [], 0, 0
     started = time.perf_counter()
-    while True:
-        frames = source.read()
-        if frames is None:
-            break
-        read += 1
-        nlf_out, _, _, _ = estimator.estimate_from_frames(frames)
-        views = extract_views(nlf_out, len(cameras))
-        if reconstruction == "tri2d":
-            if any(k is None for k in views.keypoints) or len(cameras) < 2:
+    try:
+        while True:
+            frames = source.read()
+            if frames is None:
+                break
+            read += 1
+            nlf_out, _, _, _ = estimator.estimate_from_frames(frames)
+            views = extract_views(nlf_out, len(cameras))
+            if reconstruction == "tri2d":
+                if any(k is None for k in views.keypoints) or len(cameras) < 2:
+                    continue
+                p3d = triangulate_points(views.keypoints, mtxs, dists, projections,
+                                         uncertainties=views.uncertainties)
+            else:
+                p3d = reconstruct_3d(views, projections)
+            if len(p3d) == 0:
                 continue
-            p3d = triangulate_points(views.keypoints, mtxs, dists, projections,
-                                     uncertainties=views.uncertainties)
-        else:
-            p3d = reconstruct_3d(views, projections)
-        if len(p3d) == 0:
-            continue
-        p3d = np.asarray(p3d) @ np.asarray(world_R).T + np.asarray(world_T)
+            p3d = np.asarray(p3d) @ np.asarray(world_R).T + np.asarray(world_T)
 
-        if not buffer:
-            for _ in range(settings.N):
+            if not buffer:
+                for _ in range(settings.N):
+                    buffer.append(p3d)
+            else:
                 buffer.append(p3d)
-        else:
-            buffer.append(p3d)
-        block = np.asarray(buffer).reshape(settings.N, channels)
-        markers_xyz = iir.filter(block).reshape(
-            settings.N, len(settings.marker_names), 3)[-1]
-        mks = dict(zip(settings.marker_names, markers_xyz))
+            block = np.asarray(buffer).reshape(settings.N, channels)
+            markers_xyz = iir.filter(block).reshape(
+                settings.N, len(settings.marker_names), 3)[-1]
+            mks = dict(zip(settings.marker_names, markers_xyz))
 
-        t0 = time.perf_counter()
-        q = solver.solve(mks)
-        if rows:
-            ik_ms.append((time.perf_counter() - t0) * 1e3)
+            t0 = time.perf_counter()
+            q = solver.solve(mks)
+            if rows:
+                ik_ms.append((time.perf_counter() - t0) * 1e3)
 
-        markers = OrderedDict([("Frame_0", read - 1)])
-        for name in settings.marker_names:
-            position = mks[name]
-            markers[f"{name}_x"] = float(position[0])
-            markers[f"{name}_y"] = float(position[1])
-            markers[f"{name}_z"] = float(position[2])
-        saver.save_markers(markers)
-        saver.save_joint_angles(
-            OrderedDict(zip(settings.joint_angles_names, (float(v) for v in q))))
-        rows += 1
-    saver.close()
+            markers = OrderedDict([("Frame_0", read - 1)])
+            for name in settings.marker_names:
+                position = mks[name]
+                markers[f"{name}_x"] = float(position[0])
+                markers[f"{name}_y"] = float(position[1])
+                markers[f"{name}_z"] = float(position[2])
+            saver.save_markers(markers)
+            saver.save_joint_angles(
+                OrderedDict(zip(settings.joint_angles_names, (float(v) for v in q))))
+            rows += 1
+        saver.close()
+    finally:
+        # ffmpeg keeps running if nobody tears it down: the reader
+        # thread blocks on a full queue rather than reaching EOF, so
+        # the decoder sits holding GPU memory for the life of the
+        # process. Four cameras a trial adds up fast.
+        source.release()
     return rows, np.asarray(ik_ms), time.perf_counter() - started
 
 
@@ -406,50 +413,57 @@ def run_nlfsmpl(dataset, participant, task, cameras, out_dir, settings,
     buffer = deque(maxlen=settings.N)
     ik_ms, fit_ms, rows, read = [], [], 0, 0
     started = time.perf_counter()
-    while True:
-        frames = source.read()
-        if frames is None:
-            break
-        read += 1
-        nlf_out, _, _, _ = estimator.estimate_from_frames(frames)
-        views = extract_views(nlf_out, len(cameras))
-        dense = reconstruct_3d(views, projections)
-        if len(dense) == 0:
-            continue
+    try:
+        while True:
+            frames = source.read()
+            if frames is None:
+                break
+            read += 1
+            nlf_out, _, _, _ = estimator.estimate_from_frames(frames)
+            views = extract_views(nlf_out, len(cameras))
+            dense = reconstruct_3d(views, projections)
+            if len(dense) == 0:
+                continue
 
-        t0 = time.perf_counter()
-        dense = refiner.refine(np.asarray(dense))
-        fit_ms.append((time.perf_counter() - t0) * 1e3)
+            t0 = time.perf_counter()
+            dense = refiner.refine(np.asarray(dense))
+            fit_ms.append((time.perf_counter() - t0) * 1e3)
 
-        p3d = dense[marker_rows]
-        p3d = np.asarray(p3d) @ np.asarray(world_R).T + np.asarray(world_T)
+            p3d = dense[marker_rows]
+            p3d = np.asarray(p3d) @ np.asarray(world_R).T + np.asarray(world_T)
 
-        if not buffer:
-            for _ in range(settings.N):
+            if not buffer:
+                for _ in range(settings.N):
+                    buffer.append(p3d)
+            else:
                 buffer.append(p3d)
-        else:
-            buffer.append(p3d)
-        block = np.asarray(buffer).reshape(settings.N, channels)
-        markers_xyz = iir.filter(block).reshape(
-            settings.N, len(settings.marker_names), 3)[-1]
-        mks = dict(zip(settings.marker_names, markers_xyz))
+            block = np.asarray(buffer).reshape(settings.N, channels)
+            markers_xyz = iir.filter(block).reshape(
+                settings.N, len(settings.marker_names), 3)[-1]
+            mks = dict(zip(settings.marker_names, markers_xyz))
 
-        t0 = time.perf_counter()
-        q = solver.solve(mks)
-        if rows:
-            ik_ms.append((time.perf_counter() - t0) * 1e3)
+            t0 = time.perf_counter()
+            q = solver.solve(mks)
+            if rows:
+                ik_ms.append((time.perf_counter() - t0) * 1e3)
 
-        markers = OrderedDict([("Frame_0", read - 1)])
-        for name in settings.marker_names:
-            position = mks[name]
-            markers[f"{name}_x"] = float(position[0])
-            markers[f"{name}_y"] = float(position[1])
-            markers[f"{name}_z"] = float(position[2])
-        saver.save_markers(markers)
-        saver.save_joint_angles(
-            OrderedDict(zip(settings.joint_angles_names, (float(v) for v in q))))
-        rows += 1
-    saver.close()
+            markers = OrderedDict([("Frame_0", read - 1)])
+            for name in settings.marker_names:
+                position = mks[name]
+                markers[f"{name}_x"] = float(position[0])
+                markers[f"{name}_y"] = float(position[1])
+                markers[f"{name}_z"] = float(position[2])
+            saver.save_markers(markers)
+            saver.save_joint_angles(
+                OrderedDict(zip(settings.joint_angles_names, (float(v) for v in q))))
+            rows += 1
+        saver.close()
+    finally:
+        # ffmpeg keeps running if nobody tears it down: the reader
+        # thread blocks on a full queue rather than reaching EOF, so
+        # the decoder sits holding GPU memory for the life of the
+        # process. Four cameras a trial adds up fast.
+        source.release()
     if fit_ms:
         LOGGER.info(f"  SMPL fit: median {np.median(fit_ms):.2f} ms/frame, "
                     f"residual {refiner.last_residual_mm:.1f} mm")
