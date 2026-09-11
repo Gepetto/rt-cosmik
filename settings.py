@@ -78,6 +78,7 @@ class Settings:
 
     ### NLF ###
     cano_path: str = field(init=False)
+    body_models_path: str = field(init=False)
     nlf_path: str = field(init=False)
     nlf_indices = [             # For SMPLX model
         8421, 5727, 8371, 5677, # pelvis: RASI, LASI, RPSI, LPSI 
@@ -193,6 +194,10 @@ class Settings:
     #: session would run), "shared" fits one shape over the whole trial offline.
     smpl_beta_mode: str = "calibrated"
     smpl_calibration_frames: int = 30
+    #: Compile the batch-1 online fit. ~18 s once at startup, paid like every
+    #: other engine here; the fit's cost is per-call overhead, so this is where
+    #: it pays. CUDA graphs are not used -- capture fails on this code.
+    smpl_compile: bool = True
 
     # Filled in by __post_init__ from marker_set; do not edit by hand.
     locked_joints: list = field(init=False)
@@ -206,6 +211,10 @@ class Settings:
         self.output_dir = str(Path(self.cosmik_path) / "output")
         self.SAVE_DIR = str(Path(self.output_dir) / self.no_trial)
         self.cano_path = str(Path(self.cosmik_path) / "weights/canonical_verts/smplx.npy")
+        # Licence-gated and git-ignored; fetched per machine by
+        # scripts/bash/setup_smplfitter.sh. Kept beside the other weights rather
+        # than in smplfitter's platformdirs default, so one repo is self-contained.
+        self.body_models_path = str(Path(self.cosmik_path) / "weights/body_models")
         self.nlf_path = str(Path(self.cosmik_path) / "weights/nlf/nlf_s_multi_0.2.2.torchscript")
         self.yolo_path = str(Path(self.cosmik_path) / "weights" / "yolo"
                              / f"{self.yolo_model}.engine")

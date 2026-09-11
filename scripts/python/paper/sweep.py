@@ -310,6 +310,35 @@ def run_nlf2d(dataset, participant, task, cameras, out_dir, settings,
                    depth_aware=depth_aware, reconstruction="tri2d")
 
 
+_REFINERS = {}
+
+
+def _smpl_refiner(settings, gender, num_iter, beta_mode):
+    """One compiled SmplRefiner per (gender, iterations), reused across trials.
+
+    torch.compile costs ~18 s and recompiles per input shape, so it must happen
+    once per configuration rather than once per trial. The shape estimate is
+    per-subject, so the refiner is reset between trials rather than rebuilt.
+    """
+    from rtcosmik.smpl.fitter import SmplRefiner
+
+    key = (str(gender)[:1].lower(), num_iter)
+    if key not in _REFINERS:
+        _REFINERS.clear()
+        refiner = SmplRefiner(
+            gender=gender, num_betas=settings.smpl_num_betas, num_iter=num_iter,
+            beta_mode=beta_mode,
+            calibration_frames=settings.smpl_calibration_frames,
+            model_root=settings.body_models_path, device=settings.device,
+            compile_online=settings.smpl_compile,
+            logger=logging.getLogger("smpl"))
+        refiner.warmup()
+        _REFINERS[key] = refiner
+    refiner = _REFINERS[key]
+    refiner.reset(beta_mode=beta_mode)
+    return refiner
+
+
 def run_nlfsmpl(dataset, participant, task, cameras, out_dir, settings,
                 depth_aware=False, beta_mode=None, num_iter=None):
     """NLF's dense vertices, fitted back to a SMPL body, then the usual IK.
@@ -354,13 +383,10 @@ def run_nlfsmpl(dataset, participant, task, cameras, out_dir, settings,
     # dense cloud, and the markers come back out of the fitted body afterwards.
     estimator = _nlf_estimator(mtxs, len(cameras), settings,
                                indices=list(range(settings.smpl_num_vertices)))
-    refiner = SmplRefiner(
-        gender=meta["gender"][0],
-        num_betas=settings.smpl_num_betas,
+    refiner = _smpl_refiner(
+        settings, gender=meta["gender"][0],
         num_iter=num_iter if num_iter is not None else settings.smpl_num_iter,
-        beta_mode=beta_mode or settings.smpl_beta_mode,
-        calibration_frames=settings.smpl_calibration_frames,
-        device=settings.device, logger=logging.getLogger("smpl"))
+        beta_mode=beta_mode or settings.smpl_beta_mode)
     solver = HumanSolver(settings, gender=meta["gender"][0], height=meta["height"],
                          weight=meta["weight"], logger=logging.getLogger("solve"))
 

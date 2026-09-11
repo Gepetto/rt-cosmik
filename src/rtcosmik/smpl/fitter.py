@@ -38,6 +38,8 @@ least reliable region mangles them.
 """
 
 import logging
+import time
+from pathlib import Path
 
 import numpy as np
 import torch
@@ -69,7 +71,8 @@ class SmplRefiner:
     def __init__(self, gender="n", num_betas=DEFAULT_NUM_BETAS, num_iter=4,
                  beta_regularizer=1.0, beta_mode="calibrated",
                  calibration_frames=30, model_name="smplx", device="cuda",
-                 zero_hands=True, hand_weight=0.05, logger=None):
+                 zero_hands=True, hand_weight=0.05, model_root=None,
+                 compile_online=True, logger=None):
         import smplfitter.pt as smpl_pt
         from smplfitter.pt.bodyfitter import BodyFitter
 
@@ -85,7 +88,9 @@ class SmplRefiner:
         self.zero_hands = zero_hands
 
         gender_name = GENDERS.get(str(gender)[:1].lower(), "neutral")
+        root = None if model_root is None else str(Path(model_root) / model_name)
         self.body_model = smpl_pt.BodyModel(model_name, gender_name,
+                                            model_root=root,
                                             num_betas=num_betas).to(device)
         self.fitter = BodyFitter(self.body_model).to(device)
         self.num_vertices = self.body_model.num_vertices
@@ -103,6 +108,22 @@ class SmplRefiner:
         self._frames_seen = 0
         self.last_residual_mm = float("nan")
 
+        # The fit's cost is per-call overhead rather than the solve, so the
+        # online path -- one fused cloud, batch 1 -- is exactly where compiling
+        # pays: 3.53 ms to 1.96 ms in the guide's measurement. Compile only the
+        # batch-1 shapes; torch.compile recompiles per input shape, and the
+        # calibration batch runs once and would cost a second 18 s compile for
+        # nothing. CUDA graphs are deliberately not used: capture fails on this
+        # code (see docs/smplfitter.md).
+        self._fit_one = self.fitter.fit
+        self._fit_one_known = self.fitter.fit_with_known_shape
+        self._forward_one = self.body_model
+        if compile_online:
+            self._fit_one = torch.compile(self.fitter.fit, dynamic=False)
+            self._fit_one_known = torch.compile(self.fitter.fit_with_known_shape,
+                                                dynamic=False)
+            self._forward_one = torch.compile(self.body_model, dynamic=False)
+
     def _hand_downweights(self, weight):
         """Per-vertex weights with the hand vertices reduced.
 
@@ -119,33 +140,72 @@ class SmplRefiner:
         w[is_hand.to(self.device)] = weight
         return w
 
-    def _forward(self, result):
-        """Run the body model on fitted parameters; ``fit`` will not return vertices."""
+    def _forward(self, result, compiled=False):
+        """Run the body model on fitted parameters; ``fit`` will not return vertices.
+
+        ``fit_with_known_shape`` omits ``shape_betas`` from its result -- it was
+        given one -- so the held shape is substituted rather than looked up.
+        """
         pose = result["pose_rotvecs"]
         if self.zero_hands:
             pose = pose.clone().reshape(len(pose), -1, 3)
             pose[:, HAND_JOINTS] = 0.0
             pose = pose.reshape(len(pose), -1)
-        out = self.body_model(pose_rotvecs=pose,
-                              shape_betas=result["shape_betas"],
-                              trans=result["trans"], return_vertices=True)
+        betas = result.get("shape_betas")
+        if betas is None:
+            betas = self.betas.expand(len(pose), -1)
+        forward = self._forward_one if compiled else self.body_model
+        out = forward(pose_rotvecs=pose, shape_betas=betas,
+                      trans=result["trans"], return_vertices=True)
         return out["vertices"]
 
-    def _fit(self, target, share_beta):
+    def _fit(self, target, share_beta, compiled=False):
         keys = ["pose_rotvecs", "shape_betas", "trans"]
         weights = None
         if self.vertex_weights is not None:
             weights = self.vertex_weights.expand(len(target), -1)
         if self.betas is not None:
-            return self.fitter.fit_with_known_shape(
+            fit = self._fit_one_known if compiled else self.fitter.fit_with_known_shape
+            return fit(
                 shape_betas=self.betas.expand(len(target), -1),
                 target_vertices=target, vertex_weights=weights,
                 num_iter=self.num_iter, final_adjust_rots=True,
                 requested_keys=keys)
-        return self.fitter.fit(
+        fit = self._fit_one if compiled else self.fitter.fit
+        return fit(
             target, vertex_weights=weights, num_iter=self.num_iter,
             beta_regularizer=self.beta_regularizer, share_beta=share_beta,
             final_adjust_rots=True, requested_keys=keys)
+
+    @torch.inference_mode()
+    def warmup(self):
+        """Pay the compile up front, like every other engine in this pipeline.
+
+        Both batch-1 graphs are traced: the free fit used before the shape is
+        known, and the known-shape fit used after. Doing this lazily instead
+        would put an 18 s stall in the middle of a trial and poison the timings.
+        """
+        if self._fit_one is self.fitter.fit:
+            return
+        started = time.perf_counter()
+        # A real body rather than a synthetic cloud: the fit's control flow
+        # depends on the input being something it can actually converge on.
+        zeros = torch.zeros((1, self.body_model.num_betas), dtype=torch.float32,
+                            device=self.device)
+        dummy = self.body_model(
+            shape_betas=zeros,
+            pose_rotvecs=torch.zeros((1, self.body_model.num_joints * 3),
+                                     dtype=torch.float32, device=self.device),
+            return_vertices=True)["vertices"]
+        saved, self.betas = self.betas, None
+        self._forward(self._fit(dummy, share_beta=False, compiled=True),
+                      compiled=True)
+        self.betas = zeros
+        self._forward(self._fit(dummy, share_beta=False, compiled=True),
+                      compiled=True)
+        self.betas = saved
+        self.logger.info(
+            f"SMPL fitter compiled in {time.perf_counter() - started:.1f} s")
 
     def calibrate(self, frames):
         """Fit one shape over a stack of ``(T, V, 3)`` frames and hold it."""
@@ -168,6 +228,20 @@ class SmplRefiner:
             f"betas[:6] = {np.round(betas[0, :6].cpu().numpy(), 2)}")
         return betas
 
+    def reset(self, beta_mode=None):
+        """Forget the fitted shape, keeping the compiled graphs.
+
+        The shape belongs to the subject, so it must not carry across trials --
+        but recompiling between trials would cost 18 s each time for nothing.
+        """
+        self.betas = None
+        self._calibration = []
+        self._frames_seen = 0
+        if beta_mode is not None:
+            if beta_mode not in ("free", "calibrated", "shared"):
+                raise ValueError(f"unknown beta_mode {beta_mode!r}")
+            self.beta_mode = beta_mode
+
     @torch.inference_mode()
     def refine(self, vertices):
         """One frame in, one frame out: ``(V, 3)`` metres to ``(V, 3)`` metres."""
@@ -184,8 +258,8 @@ class SmplRefiner:
                 self._calibration = []
                 self.calibrate(stack)
 
-        result = self._fit(target, share_beta=False)
-        fitted = self._forward(result)
+        result = self._fit(target, share_beta=False, compiled=True)
+        fitted = self._forward(result, compiled=True)
         self.last_residual_mm = float(
             (fitted - target).norm(dim=-1).median() * 1000)
         return fitted[0].cpu().numpy()

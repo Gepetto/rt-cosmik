@@ -1,0 +1,6 @@
+# SMPL-family body models are licence-gated: they require a free registration at
+# smpl.is.tue.mpg.de, smpl-x.is.tue.mpg.de, mano.is.tue.mpg.de and
+# agora.is.tue.mpg.de, and may not be redistributed. Fetch them per machine with
+# scripts/bash/setup_smplfitter.sh; never commit them.
+*
+!.gitignore

@@ -25,7 +25,7 @@
 
 set -euo pipefail
 REPO="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
-TARGET="${SMPLFITTER_BODY_MODELS:-$HOME/.local/share/smplfitter/body_models}"
+TARGET="${SMPLFITTER_BODY_MODELS:-$REPO/weights/body_models}"
 
 python3 -c "import smplfitter" 2>/dev/null || pip install smplfitter
 
@@ -42,9 +42,8 @@ else
     fi
 fi
 
-export SMPLFITTER_BODY_MODELS="$TARGET"
 echo
-echo "SMPLFITTER_BODY_MODELS=$TARGET"
-echo "Add that to your shell profile to make it stick."
+echo "Body models at $TARGET (git-ignored)."
+echo "settings.body_models_path points here, so no environment variable is needed."
 echo
 python3 "$REPO/scripts/python/paper/check_smplfitter.py"

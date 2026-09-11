@@ -49,8 +49,10 @@ def main():
 
     device = "cuda" if torch.cuda.is_available() else "cpu"
     num_betas = settings.smpl_num_betas
+    root = str(Path(settings.body_models_path) / "smplx")
+    print(f"body models: {root}")
     try:
-        body = smpl_pt.BodyModel("smplx", "neutral",
+        body = smpl_pt.BodyModel("smplx", "neutral", model_root=root,
                                  num_betas=num_betas).to(device)
     except FileNotFoundError as exc:
         print(f"[{FAIL}] body models missing.\n")
@@ -105,7 +107,9 @@ def main():
     from rtcosmik.smpl.fitter import SmplRefiner
     refiner = SmplRefiner(gender="n", num_betas=num_betas,
                           num_iter=settings.smpl_num_iter, device=device,
-                          beta_mode="free")
+                          beta_mode="free", model_root=settings.body_models_path,
+                          compile_online=settings.smpl_compile)
+    refiner.warmup()
     single = truth[0].cpu().numpy()
     for _ in range(3):
         refiner.refine(single)
@@ -119,7 +123,8 @@ def main():
             torch.cuda.synchronize()
         times.append((time.perf_counter() - t0) * 1e3)
     print(f"[{PASS}] online fit: {np.median(times):.2f} ms/frame "
-          f"({settings.smpl_num_iter} iters, batch 1), "
+          f"({settings.smpl_num_iter} iters, batch 1, "
+          f"{'compiled' if settings.smpl_compile else 'eager'}), "
           f"residual {refiner.last_residual_mm:.1f} mm")
     print("\nAll checks passed. The nlfsmpl arm can run.")
     return 0
