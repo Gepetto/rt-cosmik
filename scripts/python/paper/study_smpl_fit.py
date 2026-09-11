@@ -42,9 +42,12 @@ CONFIGS = [
     ("NLF, no fit",            "nlf",     {}),
     ("SMPL, beta per frame",   "nlfsmpl", {"beta_mode": "free"}),
     ("SMPL, beta calibrated",  "nlfsmpl", {"beta_mode": "calibrated"}),
-    ("SMPL, beta shared",      "nlfsmpl", {"beta_mode": "shared"}),
     ("SMPL, calibrated, 1 it", "nlfsmpl", {"beta_mode": "calibrated", "num_iter": 1}),
 ]
+
+# "shared" is not here: fitting one shape over a whole trial needs two passes,
+# which the streaming sweep cannot express, and it could not ship anyway. The
+# calibrated mode is the causal version of the same idea.
 
 
 def main():
@@ -75,9 +78,12 @@ def main():
                 frames, _, seconds = sweep_mod.ARMS[arm](
                     args.dataset, participant, task, args.cameras, out, settings,
                     **kwargs)
+                # Scored against our own mocap reference -- the same markers
+                # through the same model and IK -- not the dataset's published
+                # angles, which come from a different biomechanical model.
                 scores.append(sweep_mod.score(
-                    out, Path(args.dataset) / "mocap" / "aligned" / participant / task,
-                    ev)["joint_rmse_mean"])
+                    out, Path(settings.output_dir) / participant / task /
+                    "mocap_reference", ev)["joint_rmse_mean"])
                 fps.append(frames / seconds)
                 seen += 1
             except Exception as exc:

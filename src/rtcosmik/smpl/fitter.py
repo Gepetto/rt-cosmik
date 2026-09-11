@@ -29,6 +29,21 @@ Three shape policies, because which one is right is an empirical question:
     causal, so it cannot ship -- it exists as the upper bound the calibrated mode
     is trying to approach.
 
+**Fitting a vertex subset does not work here, and was measured rather than
+assumed.** smplfitter can build a body model over a subset of vertices, which
+would cut both the fit and NLF's output cost, and it looks like the obvious
+saving: only 35 of the 10475 vertices are ever used downstream. But the fit
+collapses. Against an exact synthetic target the full model converges to 0.65 mm
+while a 1024-vertex decimated subset plus the markers reaches only 148.9 mm at 4
+iterations, 81.3 at 8 and 65.6 at 16 -- so it is not a convergence or
+regularisation problem. smplfitter's own ``vertex_subset_size`` path is no better
+(109.3 mm at 512): it wants a precomputed
+``vertex_subset_joint_regr_post_lbs_N.npy`` that the distributed models do not
+carry, and without it the joint regressor is sliced column-wise, which puts the
+LBS joints -- what actually drives the fit -- in the wrong place. Renormalising
+the sliced rows makes it worse, not better. The full-vertex fit costs 5.4 ms
+compiled with a held shape, so there is little to buy and a great deal to lose.
+
 Traps handled here, all from ``docs/smplfitter.md`` and all silent if missed:
 ``num_betas`` must be given explicitly or the regulariser drives ~400 components
 to zero and returns the average body; ``fit()`` ignores a request for vertices,
