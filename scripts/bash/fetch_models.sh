@@ -52,6 +52,23 @@ ASSET_L="nlf_l_multi_0.3.2.torchscript"
 download_release_asset "${NLF_OWNER}" "${NLF_REPO}" "${TAG_S}" "${ASSET_S}" "${NLF_DIR}/${ASSET_S}"
 download_release_asset "${NLF_OWNER}" "${NLF_REPO}" "${TAG_L}" "${ASSET_L}" "${NLF_DIR}/${ASSET_L}"
 
+# -------- ContactVision (settings.foot_contact, MIT) --------
+# Repository file, not a release asset: pinned commit + hash.
+CV_DIR="${CV_DIR:-${WEIGHTS_DIR}/contactvision}"
+CV_COMMIT="2b27a18842cf02b8ec8086691b24eac72cdc6329"
+CV_SHA256="813a1f1e2f013f08251b5555a895f0098f2410fad5cddd43211f0a34e907727f"
+CV_PATH="${CV_DIR}/best_model.pth"
+if [[ -f "${CV_PATH}" ]] && echo "${CV_SHA256}  ${CV_PATH}" | sha256sum -c --quiet - >/dev/null 2>&1; then
+  echo "[OK] ContactVision checkpoint already present"
+else
+  echo "[DL] DaeeYong/ContactVision@${CV_COMMIT:0:7} :: checkpoints/best_model.pth"
+  mkdir -p "${CV_DIR}"
+  curl -L --retry 5 --retry-delay 2 -o "${CV_PATH}" \
+    "https://github.com/DaeeYong/ContactVision/raw/${CV_COMMIT}/checkpoints/best_model.pth"
+  echo "${CV_SHA256}  ${CV_PATH}" | sha256sum -c --quiet - \
+    || { echo "[ERR] ContactVision checkpoint does not match its expected hash" >&2; exit 2; }
+fi
+
 # -------- Detector weights download --------
 # All supported detectors are fetched so settings.yolo_model can be changed
 # without re-running a download. Measured on real 4-camera frames (batch 4,

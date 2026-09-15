@@ -143,6 +143,15 @@ class Settings:
     acados_export_dir: str = None
     acados_source_dir: str = None
 
+    ### FOOT CONTACT ###
+    # Keeps the feet from sliding while they touch the ground, detected from the
+    # video (see rtcosmik.contact). Costs ~1 ms per frame; turn it off if it
+    # hurts the pipeline's fluency. acados MHE only; run run_ocp_codegen.py once
+    # after turning it on. Assumes the subject stands on the floor for the first
+    # frames and that the floor stays at that height.
+    foot_contact: bool = False
+    contactvision_path: str = field(init=False)
+
     # MARKER SET 
     marker_names: list = field(default_factory=lambda: [
            "RASI", "LASI", "RPSI", "LPSI",
@@ -172,6 +181,7 @@ class Settings:
         self.SAVE_DIR = str(Path(self.output_dir) / self.no_trial)
         self.cano_path = str(Path(self.cosmik_path) / "weights/canonical_verts/smplx.npy")
         self.nlf_path = str(Path(self.cosmik_path) / "weights/nlf/nlf_s_multi_0.2.2.torchscript")
+        self.contactvision_path = str(Path(self.cosmik_path) / "weights/contactvision/best_model.pth")
         self.yolo_path = str(Path(self.cosmik_path) / "weights" / "yolo"
                              / f"{self.yolo_model}.engine")
         self.dt = 1 / self.fs

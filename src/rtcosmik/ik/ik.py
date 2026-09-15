@@ -603,6 +603,9 @@ class RT_SWIKA_ACADOS:
         bounds    : lower <= q_k[7:] <= upper          (freeflyer skipped)
         output    : q at the most-recent node (k = N-1)
 
+    ``contact_frames`` adds foot contact rows with runtime weights and anchors
+    (:func:`ocp_model.contact_residual_expr`).
+
     Notes:
       * Arrival cost is *soft* (``w1 ||x_k - X0||^2`` with ``X0`` = previous newest
         estimate), exactly as RT_SWIKA_FATROP -- there is NO hard clamp on ``x_0``.
@@ -635,7 +638,8 @@ class RT_SWIKA_ACADOS:
                  dict_dof_to_keypoints: Dict = None, with_freeflyer: bool = True,
                  build: bool = True,
                  export_dir: str = None, acados_source_dir: str = None,
-                 max_iter: int = None, solver_options: Dict = None) -> None:
+                 max_iter: int = None, solver_options: Dict = None,
+                 contact_frames: List[str] = None) -> None:
         if AcadosOcpSolver is None:
             raise ImportError(
                 "The acados MHE backend was selected but 'acados_template' is not "
@@ -665,6 +669,19 @@ class RT_SWIKA_ACADOS:
          self._joint_ids, self._frame_ids) = ocp_model.parameterize(
             self._pin_model, self._keys_to_track)
         self._cdata = self._cmodel.createData()
+
+        # Tracked markers only: their offsets are already geometry parameters.
+        self._contact_frames = list(contact_frames) if contact_frames else []
+        untracked = [f for f in self._contact_frames if f not in keys_to_track]
+        if untracked:
+            raise ValueError(f"contact frames {untracked} are not tracked markers")
+        self._n_contact = len(self._contact_frames)
+        self._contact_ids = [int(self._pin_model.getFrameId(f)) for f in self._contact_frames]
+        n_geometry = int(self._p_sym.shape[0])
+        # Stage parameters after the geometry: [w_slip, w_anchor, anchors].
+        self._contact_index = np.arange(n_geometry, n_geometry + 5 * self._n_contact)
+        self._contact_values = np.zeros((N, 5 * self._n_contact))
+
         self._prebuilt = not build
         self._params_set = False
         self._solver_options = dict(self.DEFAULT_SOLVER_OPTIONS)
@@ -676,7 +693,8 @@ class RT_SWIKA_ACADOS:
 
         if acados_source_dir:
             os.environ["ACADOS_SOURCE_DIR"] = str(acados_source_dir)
-        self._export_dir = export_dir or ocp_model.backend_dir("acados")
+        self._export_dir = export_dir or ocp_model.backend_dir(
+            "acados", contact=bool(self._contact_frames))
         os.makedirs(self._export_dir, exist_ok=True)
 
         # The generated identity must cover everything baked in. It previously
@@ -687,7 +705,8 @@ class RT_SWIKA_ACADOS:
         self._description = ocp_model.describe(
             self._pin_model, self._keys_to_track, N, self._dt, with_freeflyer,
             self._joint_ids, self._frame_ids,
-            solver_options=self._solver_options)
+            solver_options=self._solver_options,
+            contact_frames=self._contact_frames or None)
         self._fingerprint = ocp_model.fingerprint(self._description)
         self._json_path = os.path.join(
             self._export_dir, f"acados_ocp_ik_{self._fingerprint[:12]}.json")
@@ -711,7 +730,8 @@ class RT_SWIKA_ACADOS:
         self._p_value = ocp_model.extract_params(
             calibrated_model, self._joint_ids, self._frame_ids)
         for k in range(self._N):
-            self._ocp_solver.set(k, "p", self._p_value)
+            self._ocp_solver.set(k, "p", np.concatenate([self._p_value,
+                                                         self._contact_values[k]]))
         # Clear the iterate and the duals. acados carries internal state between
         # solves (that is what makes warm starting work), so without this the
         # first frames after a subject change are pulled by the previous
@@ -730,7 +750,8 @@ class RT_SWIKA_ACADOS:
         return ocp_model.marker_fk_expr(self._cmodel, cq, self._frame_ids)
 
     @staticmethod
-    def _build_block_weight(w_markers, w_state, w_control, nmc, nx, nu, terminal=False):
+    def _build_block_weight(w_markers, w_state, w_control, nmc, nx, nu, terminal=False,
+                            n_contact_rows=0):
         """Block-diagonal NONLINEAR_LS weight reproducing RT_SWIKA_FATROP's cost.
 
         Residual ordering is [markers, state, control] (no control at terminal),
@@ -738,18 +759,21 @@ class RT_SWIKA_ACADOS:
           - w_markers (w0): ``||markers(q) - meas||^2``
           - w_state   (w1): ``||x - X0||^2``  (full state, q and dq)
           - w_control (w2): ``||u||^2``
+        Contact rows come last with weight 1 (their weights are parameters).
         """
         if terminal:
             ny = nmc + nx
-            W = np.zeros((ny, ny))
+            W = np.zeros((ny + n_contact_rows, ny + n_contact_rows))
             W[:nmc, :nmc] = w_markers * np.eye(nmc)
             W[nmc:nmc + nx, nmc:nmc + nx] = w_state * np.eye(nx)
+            W[ny:, ny:] = np.eye(n_contact_rows)
             return W
         ny = nmc + nx + nu
-        W = np.zeros((ny, ny))
+        W = np.zeros((ny + n_contact_rows, ny + n_contact_rows))
         W[:nmc, :nmc] = w_markers * np.eye(nmc)
         W[nmc:nmc + nx, nmc:nmc + nx] = w_state * np.eye(nx)
-        W[nmc + nx:, nmc + nx:] = w_control * np.eye(nu)
+        W[nmc + nx:ny, nmc + nx:ny] = w_control * np.eye(nu)
+        W[ny:, ny:] = np.eye(n_contact_rows)
         return W
 
     def _create_ocp_solver(self, build: bool):
@@ -773,6 +797,9 @@ class RT_SWIKA_ACADOS:
         x_next = casadi.vertcat(q_next, dq_next)
 
         markers_expr = self._build_marker_fk_expr(cq)
+        contact_expr, contact_p = ocp_model.contact_residual_expr(
+            self._cmodel, cq, cdq, self._contact_ids)
+        n_contact_rows = int(contact_expr.shape[0])
 
         # ── Acados model ──
         model = AcadosModel()
@@ -780,12 +807,11 @@ class RT_SWIKA_ACADOS:
         model.x = cx
         model.u = cu
         model.disc_dyn_expr = x_next
-        # NONLINEAR_LS residuals: stage [markers(q), x, u], terminal [markers(q), x]
-        model.cost_y_expr = casadi.vertcat(markers_expr, cx, cu)
-        model.cost_y_expr_e = casadi.vertcat(markers_expr, cx)
-        # Geometry parameters. They are constants, not decision variables, so
-        # they add no QP work: measured +2.2% on solve time.
-        model.p = self._p_sym
+        # NONLINEAR_LS residuals: stage [markers(q), x, u, contact], terminal [markers(q), x, contact]
+        model.cost_y_expr = casadi.vertcat(markers_expr, cx, cu, contact_expr)
+        model.cost_y_expr_e = casadi.vertcat(markers_expr, cx, contact_expr)
+        # Geometry parameters (measured +2.2% on solve time), then contact weights and anchors.
+        model.p = casadi.vertcat(self._p_sym, contact_p)
 
         # ── Acados OCP ──
         ocp = AcadosOcp()
@@ -797,10 +823,12 @@ class RT_SWIKA_ACADOS:
         # cost_weights so the runtime interface matches RT_SWIKA_FATROP.solve().
         ocp.cost.cost_type = "NONLINEAR_LS"
         ocp.cost.cost_type_e = "NONLINEAR_LS"
-        ocp.cost.W = self._build_block_weight(1.0, 1e-3, 1e-5, nmc, nx, nu)
-        ocp.cost.W_e = self._build_block_weight(1.0, 1e-3, 1e-5, nmc, nx, nu, terminal=True)
-        ocp.cost.yref = np.zeros(nmc + nx + nu)
-        ocp.cost.yref_e = np.zeros(nmc + nx)
+        ocp.cost.W = self._build_block_weight(1.0, 1e-3, 1e-5, nmc, nx, nu,
+                                              n_contact_rows=n_contact_rows)
+        ocp.cost.W_e = self._build_block_weight(1.0, 1e-3, 1e-5, nmc, nx, nu, terminal=True,
+                                                n_contact_rows=n_contact_rows)
+        ocp.cost.yref = np.zeros(nmc + nx + nu + n_contact_rows)
+        ocp.cost.yref_e = np.zeros(nmc + nx + n_contact_rows)
 
         # Joint limits on q (freeflyer 0..6 skipped), at stage and terminal nodes.
         if self._with_freeflyer:
@@ -828,7 +856,7 @@ class RT_SWIKA_ACADOS:
         for name, value in self._solver_options.items():
             setattr(ocp.solver_options, name, value)
 
-        ocp.parameter_values = self._p_value
+        ocp.parameter_values = np.concatenate([self._p_value, self._contact_values[0]])
         ocp.code_export_directory = self._export_dir
         # acados' own reuse check is bypassed when loading: in this version
         # compare_ocp_formulations() crashes on a None field (the JSON round-trip
@@ -845,7 +873,8 @@ class RT_SWIKA_ACADOS:
         return solver
 
     def solve(self, X: np.ndarray, U: np.ndarray, marker_meas: np.ndarray,
-              X0: np.ndarray, cost_weights, dt: float):
+              X0: np.ndarray, cost_weights, dt: float,
+              contact_weights: np.ndarray = None, anchors: np.ndarray = None):
         """Drop-in replacement for ``RT_SWIKA_FATROP.solve`` (identical I/O).
 
         Args:
@@ -855,6 +884,9 @@ class RT_SWIKA_ACADOS:
             X0: arrival/regularization anchor (previous newest estimate), shape (nx,).
             cost_weights: [w_markers, w_state, w_control].
             dt: must equal the dt the solver was generated with (baked at codegen).
+            contact_weights: (N, 2*n_contact) per node, no-slip then anchor weights;
+                None keeps the previous ones.
+            anchors: (n_contact, 3), shared by all nodes.
 
         Returns:
             (X_out, U_out): optimized trajectory, shapes (nx, N) and (nu, N).
@@ -882,14 +914,25 @@ class RT_SWIKA_ACADOS:
         w0, w1, w2 = w[0], w[1], w[2]
 
         # Update cost weights only when they change (constant in the pipeline).
+        n_contact_rows = 6 * self._n_contact
         if self._w_cache is None or not np.array_equal(w, self._w_cache):
-            W = self._build_block_weight(w0, w1, w2, self._nmc, self._nx, self._nu)
+            W = self._build_block_weight(w0, w1, w2, self._nmc, self._nx, self._nu,
+                                         n_contact_rows=n_contact_rows)
             W_e = self._build_block_weight(w0, w1, w2, self._nmc, self._nx, self._nu,
-                                           terminal=True)
+                                           terminal=True, n_contact_rows=n_contact_rows)
             for k in range(self._Nh):
                 self._ocp_solver.cost_set(k, "W", W)
             self._ocp_solver.cost_set(self._Nh, "W", W_e)
             self._w_cache = w.copy()
+
+        if self._n_contact and (contact_weights is not None or anchors is not None):
+            if contact_weights is not None:
+                self._contact_values[:, :2 * self._n_contact] = contact_weights
+            if anchors is not None:
+                self._contact_values[:, 2 * self._n_contact:] = np.ravel(anchors)
+            for k in range(self._N):
+                self._ocp_solver.set_params_sparse(k, self._contact_index,
+                                                   self._contact_values[k])
 
         # Warm start from the incoming trajectory (pipeline carries previous solution).
         for k in range(self._N):
@@ -897,12 +940,13 @@ class RT_SWIKA_ACADOS:
         for k in range(self._Nh):
             self._ocp_solver.set(k, "u", np.ascontiguousarray(U[:, k]))
 
-        # References: per-node marker target + soft state anchor X0 (+ zero ctrl ref).
+        # References: per-node marker target + soft state anchor X0 (+ zero ctrl ref, zero contact).
         zeros_u = np.zeros(self._nu)
+        zeros_contact = np.zeros(n_contact_rows)
         for k in range(self._Nh):
-            yref_k = np.concatenate([marker_meas[:, k], X0, zeros_u])
+            yref_k = np.concatenate([marker_meas[:, k], X0, zeros_u, zeros_contact])
             self._ocp_solver.cost_set(k, "yref", yref_k)
-        yref_e = np.concatenate([marker_meas[:, self._N - 1], X0])
+        yref_e = np.concatenate([marker_meas[:, self._N - 1], X0, zeros_contact])
         self._ocp_solver.cost_set(self._Nh, "yref", yref_e)
 
         self._ocp_solver.solve()  # status 0=success, 2=max_iter (best iterate usable)

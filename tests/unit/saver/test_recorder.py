@@ -73,6 +73,24 @@ def test_csv_carries_a_frame_counter_per_camera():
         assert row.startswith("7,8,9,")
 
 
+def test_contact_probabilities_are_written_when_foot_contact_is_on():
+    with tempfile.TemporaryDirectory() as d:
+        with Recorder(make_settings(d, record_on_start=True, foot_contact=True),
+                      num_cameras=2) as rec:
+            rec.record([3, 4], frame(), [0.1, 0.2, 0.3], [0.9, 0.0, 1.0, 0.25])
+        lines = open(os.path.join(d, "foot_contact.csv")).read().splitlines()
+        assert lines[0] == ("Frame_0,Frame_1,p_contact_LTOE,p_contact_RTOE,"
+                            "p_contact_LHEE,p_contact_RHEE")
+        assert lines[1] == "3,4,0.9,0.0,1.0,0.25"
+
+
+def test_no_contact_file_without_foot_contact():
+    with tempfile.TemporaryDirectory() as d:
+        with Recorder(make_settings(d, record_on_start=True), num_cameras=1) as rec:
+            rec.record([0], frame(), [0.1, 0.2, 0.3])
+        assert not os.path.exists(os.path.join(d, "foot_contact.csv"))
+
+
 def test_no_csv_when_saving_is_off():
     with tempfile.TemporaryDirectory() as d:
         with Recorder(make_settings(d, SAVE_CSV=False, record_on_start=True),

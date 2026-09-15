@@ -3,7 +3,8 @@ from collections import OrderedDict
 import os
 
 class CSVSaver:
-    def __init__(self, save_dir, keypoints_header=None, markers_header=None, joint_angles_header=None):
+    def __init__(self, save_dir, keypoints_header=None, markers_header=None, joint_angles_header=None,
+                 contact_header=None):
         """Initialize CSV files and headers.
 
         Each stream is optional: pass None for a header to skip that file. A
@@ -17,6 +18,7 @@ class CSVSaver:
         self.keypoints_path = os.path.join(self._save_dir, "keypoints.csv")
         self.markers_path = os.path.join(self._save_dir, "markers.csv")
         self.joint_angles_path = os.path.join(self._save_dir, "joint_angles.csv")
+        self.contact_path = os.path.join(self._save_dir, "foot_contact.csv")
 
         # Ensure headers are immutable and ordered
         self.keypoints_header = self._expand_xyz(keypoints_header)
@@ -24,9 +26,11 @@ class CSVSaver:
         self.joint_angles_header = (
             list(joint_angles_header) if joint_angles_header is not None else None
         )
+        self.contact_header = list(contact_header) if contact_header is not None else None
 
         self.keypoints_file = self.markers_file = self.joint_angles_file = None
         self.keypoints_writer = self.markers_writer = self.joint_angles_writer = None
+        self.contact_file = self.contact_writer = None
 
         # Initialize files and writers with error handling
         try:
@@ -36,6 +40,8 @@ class CSVSaver:
                 self.markers_path, self.markers_header)
             self.joint_angles_file, self.joint_angles_writer = self._open(
                 self.joint_angles_path, self.joint_angles_header)
+            self.contact_file, self.contact_writer = self._open(
+                self.contact_path, self.contact_header)
         except IOError as e:
             self.close()
             raise RuntimeError(f"Failed to open CSV files: {e}")
@@ -91,9 +97,19 @@ class CSVSaver:
         self.joint_angles_writer.writerow(list(joint_angles_dict.values()))
         self.joint_angles_file.flush()
 
+    def save_contact(self, contact_dict):
+        """One row of foot contact probabilities."""
+        if not isinstance(contact_dict, OrderedDict):
+            raise ValueError("contact_dict must be an OrderedDict")
+        if self.contact_writer is None:
+            raise RuntimeError("CSVSaver was created without a contact header")
+        self.contact_writer.writerow(list(contact_dict.values()))
+        self.contact_file.flush()
+
     def close(self):
         """Close all open CSV files."""
-        for file in [self.keypoints_file, self.markers_file, self.joint_angles_file]:
+        for file in [self.keypoints_file, self.markers_file, self.joint_angles_file,
+                     self.contact_file]:
             if file and not file.closed:
                 file.close()
 

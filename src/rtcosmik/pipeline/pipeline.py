@@ -11,6 +11,7 @@ from rtcosmik.nlf.nlf import NLFEstimator, extract_views
 from rtcosmik.triangulation.triangulation import reconstruct_3d
 from rtcosmik.filtering.iir import IIR
 from rtcosmik.pipeline.solver import HumanSolver
+from rtcosmik.contact.foot_contact import FootContact
 from rtcosmik.saver.recorder import Recorder
 from rtcosmik.viewer.async_display import AsyncDisplay
 from rtcosmik.viewer.viewer import Viewer
@@ -91,8 +92,8 @@ class PipelineProcess(Process):
             return
         self.logger.info("[TIME] over %d turns (median / p95 / max, ms):",
                          len(stage_ms["loop"]))
-        for name in ("wait", "pose", "reconstruct", "ik", "record", "display",
-                     "loop"):
+        for name in ("wait", "pose", "reconstruct", "contact", "ik", "record",
+                     "display", "loop"):
             vals = np.asarray(stage_ms[name], dtype=float)
             if vals.size:
                 self.logger.info(
@@ -121,8 +122,8 @@ class PipelineProcess(Process):
         # calibrated results.
         # Same stage breakdown as the offline script, plus what only matters
         # online: how many camera frames went by between the ones processed.
-        stage_ms = {"wait": [], "pose": [], "reconstruct": [], "ik": [],
-                    "record": [], "display": [], "loop": []}
+        stage_ms = {"wait": [], "pose": [], "reconstruct": [], "contact": [],
+                    "ik": [], "record": [], "display": [], "loop": []}
         skipped = []
         # Rolling window for the live line: a summary printed only at the end
         # cannot show *when* a stall happened, which is the thing worth seeing
@@ -136,6 +137,11 @@ class PipelineProcess(Process):
         display.__enter__()
         viewer = None
 
+        contact = None
+        if self.settings.foot_contact:
+            contact = FootContact(self.settings, self.num_cameras,
+                                  (self.frame_shape[1], self.frame_shape[0]))
+
         est = NLFEstimator(
             yolo_path=resolve_detector_engine(self.settings.yolo_path, self.num_cameras),
             nlf_path=self.settings.nlf_path,
@@ -143,6 +149,7 @@ class PipelineProcess(Process):
             image_size=(self.frame_shape[1], self.frame_shape[0]),
             cam_Ks=self.mtxs,
             indices=self.settings.nlf_indices,
+            extra_points=contact.extra_canonical_points if contact else None,
             conf=self.settings.yolo_conf,
             imgsz=self.settings.yolo_imgsz,
             device=self.settings.device,
@@ -190,7 +197,8 @@ class PipelineProcess(Process):
                     t_pose = time.perf_counter()
 
                     views = extract_views(nlf_out, self.num_cameras)
-                    p3d = reconstruct_3d(views, self.projections)
+                    # Markers only; foot contact points come after them.
+                    p3d =reconstruct_3d(views, self.projections)[:len(self.settings.marker_names)]
                     t_rec = time.perf_counter()
                     if len(p3d) == 0:
                         continue
@@ -216,6 +224,14 @@ class PipelineProcess(Process):
 
                         mks_dict = dict(zip(self.settings.marker_names, augmented_markers))
 
+                        t_contact0 = time.perf_counter()
+                        contact_probability = None
+                        if contact is not None:
+                            contact_probability = contact.update(
+                                new_counters[0] / self.settings.fs,
+                                views.keypoints, augmented_markers)
+                        contact_ms = (time.perf_counter() - t_contact0) * 1e3
+
                         if self.first_sample:
                             q = self.solver.calibrate(mks_dict)
                             self.first_sample = False
@@ -232,11 +248,13 @@ class PipelineProcess(Process):
                                             self.settings.marker_names)
                         else:
                             t_ik0 = time.perf_counter()
-                            q = self.solver.step(mks_dict)
+                            q = self.solver.step(mks_dict, contact_probability)
                             stage_ms["ik"].append((time.perf_counter()-t_ik0)*1e3)
+                            stage_ms["contact"].append(contact_ms)
 
                             t_rec0 = time.perf_counter()
-                            recorder.record(new_counters, mks_dict, q)
+                            recorder.record(new_counters, mks_dict, q,
+                                            None if contact is None else contact.latest)
                             stage_ms["record"].append((time.perf_counter()-t_rec0)*1e3)
 
                             t_disp0 = time.perf_counter()

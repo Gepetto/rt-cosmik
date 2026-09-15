@@ -22,6 +22,9 @@ the URDF, or the marker-to-joint mapping -- plus dt for acados, which bakes it
 into the discrete dynamics (fatrop takes dt as a runtime input, so its artefact
 survives a framerate change). ``--check`` tells you whether you need to, and is
 what CI should call.
+
+acados also generates the foot-contact OCP into ``<profile>_contact``;
+``settings.foot_contact`` only selects which one the pipeline loads.
 """
 import argparse
 import os
@@ -34,8 +37,25 @@ if str(SRC_ROOT) not in sys.path:
     sys.path.insert(0, str(SRC_ROOT))
 
 from rtcosmik.config_loader import settings
+from rtcosmik.contact import points as contact_points
 from rtcosmik.ik import ocp_model
 from rtcosmik.ik.ik import RT_SWIKA_ACADOS, RT_SWIKA_FATROP
+
+
+def targets(backends, profiles):
+    """(backend, profile, contact) of every artefact: acados with and without contact."""
+    for backend in backends:
+        for profile in profiles:
+            for contact in ((False, True) if backend == "acados" else (False,)):
+                yield backend, profile, contact
+
+
+def label(backend, profile, contact):
+    return f"{backend}/{profile}" + ("_contact" if contact else "")
+
+
+def contact_frames(contact):
+    return list(contact_points.CONTACT_POINTS) if contact else None
 
 
 def structural_model():
@@ -52,7 +72,7 @@ def structural_model():
     return model, keys
 
 
-def current_description(model, keys, backend, profile):
+def current_description(model, keys, backend, profile, contact=False):
     """What this backend bakes in.
 
     fatrop takes dt as a runtime input, so its artefact stays valid across a
@@ -64,30 +84,31 @@ def current_description(model, keys, backend, profile):
     options = {**cls.DEFAULT_SOLVER_OPTIONS,
                **ocp_model.profile_options(backend, profile)}
     return ocp_model.describe(model, keys, settings.N, dt, True,
-                              joint_ids, frame_ids, solver_options=options)
+                              joint_ids, frame_ids, solver_options=options,
+                              contact_frames=contact_frames(contact))
 
 
 def do_check(backends, profiles, model, keys):
-    """Report whether each backend/profile artefact matches the configuration."""
+    """Report whether each artefact matches the configuration."""
     stale = []
-    for backend in backends:
-        for profile in profiles:
-            directory = ocp_model.backend_dir(backend, settings, profile)
-            try:
-                ocp_model.check_manifest(
-                    directory, current_description(model, keys, backend, profile),
-                    backend)
-                print(f"  {backend}/{profile}: up to date")
-            except RuntimeError as exc:
-                stale.append(f"{backend}/{profile}")
-                print(f"  {backend}/{profile}: STALE")
-                for line in str(exc).splitlines()[1:]:
-                    print(f"  {line}")
+    for backend, profile, contact in targets(backends, profiles):
+        name = label(backend, profile, contact)
+        directory = ocp_model.backend_dir(backend, settings, profile, contact=contact)
+        try:
+            ocp_model.check_manifest(
+                directory, current_description(model, keys, backend, profile, contact),
+                backend)
+            print(f"  {name}: up to date")
+        except RuntimeError as exc:
+            stale.append(name)
+            print(f"  {name}: STALE")
+            for line in str(exc).splitlines()[1:]:
+                print(f"  {line}")
     return stale
 
 
 def generate_fatrop(model, keys, profile):
-    directory = ocp_model.backend_dir("fatrop", settings, profile)
+    directory = ocp_model.backend_dir("fatrop", settings, profile, contact=False)
     options = {**RT_SWIKA_FATROP.DEFAULT_SOLVER_OPTIONS,
                **ocp_model.profile_options("fatrop", profile)}
     os.makedirs(directory, exist_ok=True)
@@ -107,8 +128,8 @@ def generate_fatrop(model, keys, profile):
     return directory
 
 
-def generate_acados(model, keys, profile):
-    directory = ocp_model.backend_dir("acados", settings, profile)
+def generate_acados(model, keys, profile, contact):
+    directory = ocp_model.backend_dir("acados", settings, profile, contact=contact)
     options = {**RT_SWIKA_ACADOS.DEFAULT_SOLVER_OPTIONS,
                **ocp_model.profile_options("acados", profile)}
     os.makedirs(directory, exist_ok=True)
@@ -118,7 +139,8 @@ def generate_acados(model, keys, profile):
     solver = RT_SWIKA_ACADOS(model, keys, settings.N, settings.dt, build=True,
                              export_dir=directory,
                              acados_source_dir=settings.acados_source_dir,
-                             solver_options=options)
+                             solver_options=options,
+                             contact_frames=contact_frames(contact))
     print(f"    {solver.n_params} geometry parameters, {time.time()-started:.1f} s")
     return directory
 
@@ -143,12 +165,11 @@ def main():
 
     print("Structural model: topology only, no subject data needed")
     model, keys = structural_model()
-    for backend in backends:
-        for profile in profiles:
-            digest = ocp_model.fingerprint(
-                current_description(model, keys, backend, profile))
-            print(f"  {backend}/{profile}: {digest[:16]}... "
-                  f"{ocp_model.profile_options(backend, profile)}")
+    for backend, profile, contact in targets(backends, profiles):
+        digest = ocp_model.fingerprint(
+            current_description(model, keys, backend, profile, contact))
+        print(f"  {label(backend, profile, contact)}: {digest[:16]}... "
+              f"{ocp_model.profile_options(backend, profile)}")
     print(f"  artefacts under {ocp_model.artifact_root(settings)}\n")
 
     if args.check:
@@ -160,17 +181,16 @@ def main():
         print("\nAll generated OCPs match the current configuration.")
         return 0
 
-    for backend in backends:
-        for profile in profiles:
-            print(f"{backend}/{profile}:")
-            try:
-                directory = (generate_fatrop(model, keys, profile)
-                             if backend == "fatrop"
-                             else generate_acados(model, keys, profile))
-            except ImportError as exc:
-                print(f"  skipped: {exc}")
-                continue
-            print(f"  manifest written to {directory}\n")
+    for backend, profile, contact in targets(backends, profiles):
+        print(f"{label(backend, profile, contact)}:")
+        try:
+            directory = (generate_fatrop(model, keys, profile)
+                         if backend == "fatrop"
+                         else generate_acados(model, keys, profile, contact))
+        except ImportError as exc:
+            print(f"  skipped: {exc}")
+            continue
+        print(f"  manifest written to {directory}\n")
 
     print("Done. The pipeline will reuse these; it refuses to load one whose "
           "manifest\nno longer matches the configuration, so re-run this after "

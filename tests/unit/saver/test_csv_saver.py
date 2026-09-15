@@ -89,6 +89,23 @@ class TestCSVSaver(unittest.TestCase):
             self.assertEqual(len(lines), 2)  # Header + 1 data row
             self.assertEqual(lines[1].strip(), "1,0.1,0.2,0.3")
 
+    def test_save_contact(self):
+        saver = CSVSaver(self.save_dir, markers_header=self.markers_header,
+                         contact_header=["Frame", "p_contact_LTOE"])
+        saver.save_contact(OrderedDict([("Frame", 1), ("p_contact_LTOE", 0.75)]))
+        saver.close()
+
+        with open(saver.contact_path, 'r') as f:
+            self.assertEqual(f.read().splitlines(), ["Frame,p_contact_LTOE", "1,0.75"])
+        self.assertTrue(saver.contact_file.closed)
+
+    def test_no_contact_file_without_a_contact_header(self):
+        saver = CSVSaver(self.save_dir, markers_header=self.markers_header)
+        saver.close()
+        self.assertFalse(os.path.exists(saver.contact_path))
+        with self.assertRaises(RuntimeError):
+            saver.save_contact(OrderedDict([("Frame", 1)]))
+
     def test_file_closing(self):
         saver = CSVSaver(self.save_dir, self.keypoints_header, self.markers_header, self.joint_angles_header)
         saver.close()

@@ -163,11 +163,36 @@ def marker_fk_expr(cmodel, cq, frame_ids):
     return casadi.vertcat(*[cdata.oMf[fid].translation for fid in frame_ids])
 
 
+def contact_residual_expr(cmodel, cq, cdq, frame_ids):
+    """Contact rows ``sqrt(w_slip_i) v_i`` and ``sqrt(w_anchor_i) (x_i - a_i)``.
+
+    Returns ``(residual, parameters)``, parameters stacked as
+    ``[w_slip (n), w_anchor (n), anchors (3n)]``. Zero weights give the plain MHE.
+    """
+    count = len(frame_ids)
+    w_slip = casadi.SX.sym("w_slip", count)
+    w_anchor = casadi.SX.sym("w_anchor", count)
+    anchors = casadi.SX.sym("anchor", 3 * count)
+    cdata = cmodel.createData()
+    cpin.forwardKinematics(cmodel, cdata, cq, cdq)
+    cpin.updateFramePlacements(cmodel, cdata)
+    slip, drift = [], []
+    for i, fid in enumerate(frame_ids):
+        velocity = cpin.getFrameVelocity(cmodel, cdata, fid, pin.LOCAL_WORLD_ALIGNED).linear
+        slip.append(casadi.sqrt(w_slip[i]) * velocity)
+        drift.append(casadi.sqrt(w_anchor[i])
+                     * (cdata.oMf[fid].translation - anchors[3 * i:3 * i + 3]))
+    return (casadi.vertcat(*slip, *drift),
+            casadi.vertcat(w_slip, w_anchor, anchors))
+
+
 def describe(pin_model, keys_to_track, N, dt, with_freeflyer, joint_ids, frame_ids,
-             solver_options=None):
+             solver_options=None, contact_frames=None):
     """Everything baked into generated code, as a comparable dict.
 
     Args:
+        contact_frames: frames with contact rows; recorded only when set, so
+            the plain OCP keeps its fingerprint.
         dt: the timestep, or **None** when the backend takes it as a runtime
             input. acados bakes dt into ``disc_dyn_expr`` via
             ``cpin.integrate(cm, cq, cdq*dt)``, so a dt change invalidates its
@@ -177,7 +202,7 @@ def describe(pin_model, keys_to_track, N, dt, with_freeflyer, joint_ids, frame_i
             dt=0.025 and dt=0.100. Putting dt in fatrop's fingerprint would throw
             away a valid 200 s build every time the framerate changed.
     """
-    return {
+    description = {
         "joint_names": [str(n) for n in pin_model.names],
         "joint_types": [pin_model.joints[j].shortname()
                         for j in range(pin_model.njoints)],
@@ -199,6 +224,9 @@ def describe(pin_model, keys_to_track, N, dt, with_freeflyer, joint_ids, frame_i
         "lower_limit": np.asarray(pin_model.lowerPositionLimit, float).round(12).tolist(),
         "upper_limit": np.asarray(pin_model.upperPositionLimit, float).round(12).tolist(),
     }
+    if contact_frames is not None:
+        description["contact_frames"] = [str(f) for f in contact_frames]
+    return description
 
 
 def fingerprint(description):
@@ -227,16 +255,22 @@ def artifact_root(settings=None):
     return os.path.join(base, "ocp")
 
 
-def backend_dir(backend, settings=None, profile=None):
+def backend_dir(backend, settings=None, profile=None, contact=None):
     """Artefact directory for one backend and speed/accuracy profile.
 
     The profile is part of the path because ``nlp_solver_type``, ``qp_solver``
     and ``globalization`` are baked into the generated C -- switching profiles is
     a different artefact, not a runtime option.
+
+    The acados foot-contact OCP goes to ``<profile>_contact``, beside the plain
+    one; ``contact`` defaults to ``settings.foot_contact``.
     """
     if profile is None and settings is not None:
         profile = getattr(settings, "mhe_profile", "realtime")
-    return os.path.join(artifact_root(settings), backend, profile or "realtime")
+    if contact is None:
+        contact = backend == "acados" and bool(getattr(settings, "foot_contact", False))
+    variant = (profile or "realtime") + ("_contact" if contact else "")
+    return os.path.join(artifact_root(settings), backend, variant)
 
 
 def write_manifest(directory, description, backend, extra=None):

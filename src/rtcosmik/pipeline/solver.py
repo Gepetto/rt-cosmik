@@ -20,6 +20,7 @@ from rtcosmik.human_model.model_utils import (
     scale_human_model, mks_registration, recalibrate_marker_frames_in_joint_space)
 from rtcosmik.ik.ik import RT_IK, RT_SWIKA_FATROP, RT_SWIKA_ACADOS
 from rtcosmik.ik import ocp_model
+from rtcosmik.contact import points as contact_points
 
 LOGGER = logging.getLogger(__name__)
 
@@ -68,6 +69,19 @@ class HumanSolver:
         self._u = None
         self._window = None
 
+        self._contact_frames = []
+        if getattr(settings, "foot_contact", False):
+            if settings.ik_type != "mhe" or settings.mhe_backend != "acados":
+                raise ValueError(
+                    "foot_contact needs ik_type='mhe' with mhe_backend='acados' "
+                    f"(got ik_type={settings.ik_type!r}, "
+                    f"mhe_backend={settings.mhe_backend!r})")
+            self._contact_frames = list(contact_points.CONTACT_POINTS)
+        self._contact_source = np.array([
+            contact_points.PROBABILITY_MARKERS.index(source)
+            for source in contact_points.CONTACT_POINTS.values()])
+        self._anchors = None
+
     # -- properties -------------------------------------------------------
 
     @property
@@ -110,12 +124,14 @@ class HumanSolver:
                 "(moving horizon estimation)")
 
         self.data = self.model.createData()
+        if self._contact_frames:
+            self._anchors = self._contact_positions(q)
         self.calibrated = True
         self.logger.info("[INFO] Model calibration finished, ready to process...")
         return q
 
-    def step(self, mks_dict):
-        """Solve one frame against the calibrated model."""
+    def step(self, mks_dict, contact_probability=None):
+        """Solve one frame; ``contact_probability`` is FootContact.update's (N, 4) output."""
         if not self.calibrated:
             raise RuntimeError("HumanSolver.step called before calibrate")
         if self.settings.ik_type == "sbs":
@@ -123,7 +139,32 @@ class HumanSolver:
             q = self._ik.solve_ik_sample_quadprog()
             self._ik._q0 = q
             return q
-        return self._solve_mhe(mks_dict)
+        if not self._contact_frames:
+            return self._solve_mhe(mks_dict)
+
+        if contact_probability is None:
+            contact_probability = np.zeros((self.settings.N,
+                                            len(contact_points.PROBABILITY_MARKERS)))
+        probability =np.asarray(contact_probability, dtype=float)[:, self._contact_source]
+        weights = np.hstack([contact_points.W_SLIP * probability,
+                             contact_points.W_ANCHOR * probability])
+        q = self._solve_mhe(mks_dict, contact_weights=weights, anchors=self._anchors)
+        self._anchors = self.update_anchors(
+            self._anchors, self._contact_positions(q), probability[-1],
+            contact_points.ANCHOR_FOLLOW)
+        return q
+
+    @staticmethod
+    def update_anchors(anchors, positions, probability, follow):
+        """Lifted points jump to the estimate; planted ones follow it by ``follow`` per frame."""
+        probability = np.asarray(probability, dtype=float)
+        gain = 1.0 - probability + probability * follow
+        return anchors + gain[:, None] * (positions - anchors)
+
+    def _contact_positions(self, q):
+        pin.framesForwardKinematics(self.model, self.data, q)
+        return np.array([self.data.oMf[self.model.getFrameId(name)].translation
+                         for name in self._contact_frames])
 
     # -- calibration internals -------------------------------------------
 
@@ -193,7 +234,8 @@ class HumanSolver:
                     self.model, keys, settings.N, settings.dt, build=False,
                     export_dir=directory,
                     acados_source_dir=settings.acados_source_dir,
-                    solver_options=options)
+                    solver_options=options,
+                    contact_frames=self._contact_frames)
                 solver.set_model_params(self.model)
                 return solver, f"pre-generated, reused from {directory}"
             except (RuntimeError, FileNotFoundError, OSError) as exc:
@@ -204,7 +246,8 @@ class HumanSolver:
                 self.model, keys, settings.N, settings.dt,
                 export_dir=directory,
                 acados_source_dir=settings.acados_source_dir,
-                solver_options=options)
+                solver_options=options,
+                contact_frames=self._contact_frames)
             return solver, f"COMPILED FOR THIS SUBJECT into {directory}"
 
         if settings.ik_code == "c":
@@ -280,13 +323,18 @@ class HumanSolver:
             f"{getattr(solver, 'n_params', '?')} geometry parameters",
             f"cost      : markers={weights[0]:g} state={weights[1]:g} "
             f"control={weights[2]:g}",
+            ("contact   : " + (
+                f"on, {' '.join(self._contact_frames)}  no-slip={contact_points.W_SLIP:g} "
+                f"anchor={contact_points.W_ANCHOR:g} (x probability), "
+                f"anchor follow={contact_points.ANCHOR_FOLLOW:g}/frame"
+                if self._contact_frames else "off")),
             f"subject   : height={self.height:.2f} m weight={self.weight:.1f} kg "
             f"gender={self.gender}",
         ]
         for line in lines:
             self.logger.info(f"[IK] {line}")
 
-    def _solve_mhe(self, mks_dict, append=True):
+    def _solve_mhe(self, mks_dict, append=True, **contact):
         settings = self.settings
         if append:
             self._window.append(mks_dict)
@@ -296,7 +344,7 @@ class HumanSolver:
 
         self._x, self._u = self._ik.solve(
             self._x, self._u, measurements, self._x[:, -1],
-            settings.cost_weights, settings.dt)
+            settings.cost_weights, settings.dt, **contact)
 
         q = pin.neutral(self.model)
         q[:] = np.array(self._x[:self.model.nq, -1]).flatten()

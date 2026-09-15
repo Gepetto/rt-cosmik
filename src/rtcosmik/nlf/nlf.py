@@ -93,7 +93,8 @@ class NLFEstimator:
         image_size,
         cam_Ks,
         indices,
-        all_in_one=False, # performs detection + nlf all in one or not 
+        extra_points=None, # (K, 3) canonical points queried after the indexed vertices
+        all_in_one=False, # performs detection + nlf all in one or not
         conf=0.75,
         imgsz=640,
         device="cuda:0",
@@ -119,7 +120,10 @@ class NLFEstimator:
 
         self.logger.info(f"[INFO] Loading canonical vertices at {cano_path}")
         cano = np.load(cano_path)
-        pts = torch.from_numpy(cano[self.indices]).float().to(self.device)
+        cano = cano[self.indices]
+        if extra_points is not None:
+            cano =np.concatenate([cano, np.asarray(extra_points, dtype=cano.dtype)])
+        pts = torch.from_numpy(cano).float().to(self.device)
         with torch.inference_mode():
             self.weights = self.nlf0.get_weights_for_canonical_points(pts)
 

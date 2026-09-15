@@ -179,9 +179,9 @@ def test_artifact_root_is_absolute_and_overridable(monkeypatch):
     monkeypatch.setenv("RTCOSMIK_OCP_DIR", "/tmp/some_ocp_dir")
     assert ocp_model.artifact_root(settings) == "/tmp/some_ocp_dir"
     # The profile is part of the path: each is a separate generated artefact.
-    assert ocp_model.backend_dir("acados", settings, "realtime") == \
+    assert ocp_model.backend_dir("acados", settings, "realtime", contact=False) == \
         "/tmp/some_ocp_dir/acados/realtime"
-    assert ocp_model.backend_dir("acados", settings, "accurate") == \
+    assert ocp_model.backend_dir("acados", settings, "accurate", contact=False) == \
         "/tmp/some_ocp_dir/acados/accurate"
 
 
@@ -208,3 +208,100 @@ def test_profile_changes_the_fingerprint(structural_model, keys):
             solver_options=ocp_model.profile_options("acados", profile))
         digests.add(ocp_model.fingerprint(description))
     assert len(digests) == 2
+
+
+# --- foot contact ----------------------------------------------------------------
+
+CONTACT_FRAMES = ["RHEE", "R5MHD", "RTOE", "LHEE", "L5MHD", "LTOE"]
+
+
+@pytest.fixture(scope="module")
+def contact_function(structural_model, parameterized):
+    """Contact residual as a numeric function of (q, dq, geometry, contact parameters)."""
+    import casadi
+    cmodel, p_sym, _, _, _ = parameterized
+    q = casadi.SX.sym("q", cmodel.nq)
+    dq = casadi.SX.sym("dq", cmodel.nv)
+    ids = [structural_model.getFrameId(f) for f in CONTACT_FRAMES]
+    residual, contact_p = ocp_model.contact_residual_expr(cmodel, q, dq, ids)
+    return casadi.Function("contact", [q, dq, p_sym, contact_p], [residual]), ids
+
+
+def _random_state(model, seed=0):
+    import pinocchio as pin
+    rng = np.random.default_rng(seed)
+    q = pin.randomConfiguration(model, -np.ones(model.nq), np.ones(model.nq))
+    return q, rng.normal(size=model.nv)
+
+
+def test_contact_rows_and_parameters_have_the_documented_layout(contact_function):
+    function, ids = contact_function
+    n = len(ids)
+    assert function.size1_out(0) == 6 * n              # 3 no-slip + 3 anchor rows per point
+    assert function.size1_in(3) == 5 * n               # w_slip, w_anchor, anchors
+
+
+def test_contact_rows_vanish_at_zero_weight(structural_model, parameterized, contact_function):
+    """Probability 0 must leave the plain MHE, whatever the anchors hold."""
+    _, _, p_default, _, _ = parameterized
+    function, ids = contact_function
+    q, dq = _random_state(structural_model)
+    contact_p = np.r_[np.zeros(2 * len(ids)), np.random.default_rng(1).normal(size=3 * len(ids))]
+    assert np.all(np.asarray(function(q, dq, p_default, contact_p)) == 0.0)
+
+
+def test_contact_rows_are_weighted_velocity_and_anchor_error(structural_model, parameterized,
+                                                             contact_function):
+    """Against pinocchio's own numeric kinematics, on the model's geometry."""
+    import pinocchio as pin
+    _, _, p_default, _, _ = parameterized
+    function, ids = contact_function
+    n = len(ids)
+    q, dq = _random_state(structural_model, seed=3)
+    w_slip, w_anchor = np.linspace(0.1, 0.6, n), np.linspace(1.0, 2.0, n)
+    anchors = np.random.default_rng(2).normal(size=(n, 3))
+    residual = np.asarray(function(q, dq, p_default, np.r_[w_slip, w_anchor, anchors.ravel()])).ravel()
+
+    data = structural_model.createData()
+    pin.forwardKinematics(structural_model, data, q, dq)
+    pin.updateFramePlacements(structural_model, data)
+    for i, fid in enumerate(ids):
+        velocity = pin.getFrameVelocity(structural_model, data, fid,
+                                        pin.LOCAL_WORLD_ALIGNED).linear
+        np.testing.assert_allclose(residual[3 * i:3 * i + 3],
+                                   np.sqrt(w_slip[i]) * velocity, atol=1e-9)
+        drift = data.oMf[fid].translation - anchors[i]
+        np.testing.assert_allclose(residual[3 * n + 3 * i:3 * n + 3 * i + 3],
+                                   np.sqrt(w_anchor[i]) * drift, atol=1e-9)
+
+
+def test_contact_points_follow_the_subject_geometry(parameterized, contact_function):
+    """Contact frames are tracked markers, so a calibrated subject moves them too."""
+    import casadi
+    cmodel, p_sym, _, _, _ = parameterized
+    q = casadi.SX.sym("q", cmodel.nq)
+    dq = casadi.SX.sym("dq", cmodel.nv)
+    residual, _ = ocp_model.contact_residual_expr(cmodel, q, dq, contact_function[1])
+    assert casadi.depends_on(residual, p_sym)
+
+
+def test_plain_ocp_keeps_its_fingerprint(structural_model, keys):
+    """Contact off must not invalidate artefacts generated before contact existed."""
+    _, _, _, joint_ids, frame_ids = ocp_model.parameterize(structural_model, keys)
+    plain = ocp_model.describe(structural_model, keys, settings.N, settings.dt, True,
+                               joint_ids, frame_ids)
+    assert "contact_frames" not in plain
+    contact = ocp_model.describe(structural_model, keys, settings.N, settings.dt, True,
+                                 joint_ids, frame_ids, contact_frames=CONTACT_FRAMES)
+    assert ocp_model.fingerprint(plain) != ocp_model.fingerprint(contact)
+
+
+def test_contact_ocp_is_generated_beside_the_plain_one(monkeypatch):
+    monkeypatch.setenv("RTCOSMIK_OCP_DIR", "/tmp/some_ocp_dir")
+    assert ocp_model.backend_dir("acados", profile="realtime", contact=True) == \
+        "/tmp/some_ocp_dir/acados/realtime_contact"
+    with_contact = type("S", (), {"foot_contact": True, "mhe_profile": "realtime",
+                                  "acados_export_dir": None})()
+    assert ocp_model.backend_dir("acados", with_contact).endswith("acados/realtime_contact")
+    # Foot contact is acados-only: fatrop keeps its plain artefact.
+    assert ocp_model.backend_dir("fatrop", with_contact).endswith("fatrop/realtime")

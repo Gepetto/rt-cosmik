@@ -24,6 +24,8 @@ from rtcosmik.nlf.nlf import NLFEstimator, extract_views
 from rtcosmik.triangulation.triangulation import reconstruct_3d
 from rtcosmik.filtering.iir import IIR
 from rtcosmik.pipeline.solver import HumanSolver
+from rtcosmik.contact.foot_contact import FootContact
+from rtcosmik.contact.points import PROBABILITY_MARKERS
 from rtcosmik.camera.cam_utils import list_cameras, load_camera_parameters, load_world_transformation
 from rtcosmik.camera.camera import Camera
 from rtcosmik.utils.mp_utils import create_camera_shared_ressources
@@ -222,10 +224,14 @@ def main(args):
                     str(out_dir),
                     markers_header=['Frame'] + list(settings.marker_names),
                     joint_angles_header=list(settings.joint_angles_names),
+                    contact_header=(['Frame'] + [f"p_contact_{name}" for name in PROBABILITY_MARKERS]
+                                    if settings.foot_contact else None),
                 )
                 LOGGER.info("Writing markers.csv and joint_angles.csv to %s", out_dir)
             frames_read = 0
             frames_written = 0
+
+            contact = FootContact(settings, NUM_CAMERAS, (W, H)) if settings.foot_contact else None
 
             est = NLFEstimator(
                 yolo_path=resolve_detector_engine(settings.yolo_path, NUM_CAMERAS),
@@ -234,6 +240,7 @@ def main(args):
                 image_size=(W, H),
                 cam_Ks=mtxs,
                 indices=settings.nlf_indices,
+                extra_points=contact.extra_canonical_points if contact else None,
                 conf=settings.yolo_conf,
                 imgsz=settings.yolo_imgsz,
                 device=settings.device,
@@ -256,7 +263,7 @@ def main(args):
             display = AsyncDisplay(logger=LOGGER)
             display.__enter__()
 
-            stage_ms = {"read": [], "pose": [], "reconstruct": [], "ik": [],
+            stage_ms = {"read": [], "pose": [], "reconstruct": [], "contact": [], "ik": [],
                         "display": [], "save": [], "frame": []}
             # NLFEstimator already reports its own split; it was being discarded.
             pose_parts = {"yolo": [], "h2d+pre": [], "nlf": []}
@@ -280,7 +287,8 @@ def main(args):
                 pose_parts["nlf"].append(infer_ms.get("nlf_ms", float("nan")))
 
                 views = extract_views(nlf_out, NUM_CAMERAS)
-                p3d = reconstruct_3d(views, projections)
+                # Markers only; foot contact points come after them.
+                p3d =reconstruct_3d(views, projections)[:len(settings.marker_names)]
                 t_rec=time.perf_counter()
                 if len(p3d) == 0:
                     continue
@@ -316,6 +324,13 @@ def main(args):
                     display_ms = (time.perf_counter()-t_disp0)*1e3
 
                     mks_dict = dict(zip(settings.marker_names, augmented_markers))
+
+                    contact_probability = None
+                    if contact is not None:
+                        t_contact0 = time.perf_counter()
+                        contact_probability = contact.update(
+                            frames_read / settings.fs, views.keypoints, augmented_markers)
+                        stage_ms["contact"].append((time.perf_counter()-t_contact0)*1e3)
 
                     if first_sample:
                         # Kept OUT of the per-frame IK statistics: this call builds
@@ -355,7 +370,7 @@ def main(args):
                         first_sample = False
                     else:
                         t_ik0=time.perf_counter()
-                        q = solver.step(mks_dict)
+                        q = solver.step(mks_dict, contact_probability)
                         stage_ms["ik"].append((time.perf_counter()-t_ik0)*1e3)
 
                     t_disp1=time.perf_counter()
@@ -380,6 +395,12 @@ def main(args):
                         saver.save_joint_angles(
                             OrderedDict(zip(settings.joint_angles_names, (float(v) for v in q)))
                         )
+                        if contact is not None:
+                            contact_row = OrderedDict(Frame=frames_read)
+                            contact_row.update(
+                                (f"p_contact_{name}", float(p))
+                                for name, p in zip(PROBABILITY_MARKERS, contact.latest))
+                            saver.save_contact(contact_row)
                         frames_written += 1
                     stage_ms["save"].append((time.perf_counter()-t_save0)*1e3)
                 t1=time.perf_counter()
@@ -411,7 +432,7 @@ def main(args):
                       f"{calibration_ms/1000:.1f} s, viewer {viewer_total_ms/1000:.1f} s")
             print(f"Timing over {len(stage_ms['frame'])} frames "
                   f"(median / p95 / max, ms; @ = frame of the max):")
-            for name in ("read", "pose", "reconstruct", "ik", "display",
+            for name in ("read", "pose", "reconstruct", "contact", "ik", "display",
                          "save", "frame"):
                 vals = np.asarray(stage_ms[name], dtype=float)
                 if vals.size:
@@ -456,6 +477,7 @@ def main(args):
                     "cost_weights": list(settings.cost_weights) if settings.ik_type == "mhe" else None,
                     "mhe_profile": settings.mhe_profile if settings.ik_type == "mhe" else None,
                 },
+                "foot_contact": bool(settings.foot_contact),
                 "filter": {
                     "order": settings.order,
                     "cutoff_hz": settings.cutoff_freq,

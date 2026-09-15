@@ -18,6 +18,7 @@ import logging
 from collections import OrderedDict
 
 from rtcosmik.saver.csv_saver import CSVSaver
+from rtcosmik.contact.points import PROBABILITY_MARKERS
 
 LOGGER = logging.getLogger(__name__)
 
@@ -63,6 +64,9 @@ class Recorder:
                 markers_header=self._counter_names + list(self.settings.marker_names),
                 joint_angles_header=self._counter_names
                 + list(self.settings.joint_angles_names),
+                contact_header=(self._counter_names + [f"p_contact_{name}"
+                                                       for name in PROBABILITY_MARKERS]
+                                if getattr(self.settings, "foot_contact", False) else None),
             )
             self.logger.info(f"[REC] writing CSV to {self.settings.SAVE_DIR}")
 
@@ -150,7 +154,7 @@ class Recorder:
                 f"[REC] recording {'started' if wanted else 'stopped'}")
         return self.enabled
 
-    def record(self, frame_counters, mks_dict, q):
+    def record(self, frame_counters, mks_dict, q, contact_probability=None):
         """Write one frame, if recording is on and CSV output is configured."""
         self.poll()
         if not (self.enabled and self._csv is not None):
@@ -173,5 +177,10 @@ class Recorder:
                           (float(v) for v in q)))
         self._csv.save_markers(markers)
         self._csv.save_joint_angles(angles)
+        if contact_probability is not None and self._csv.contact_writer is not None:
+            contact = OrderedDict(counters)
+            contact.update(zip(self._csv.contact_header[len(counters):],
+                               (float(p) for p in contact_probability)))
+            self._csv.save_contact(contact)
         self.rows += 1
         return True
