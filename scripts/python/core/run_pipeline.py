@@ -22,7 +22,7 @@ from pinocchio.visualize import MeshcatVisualizer
 from rtcosmik.config_loader import settings
 from rtcosmik.nlf.nlf import NLFEstimator, extract_views
 from rtcosmik.triangulation.triangulation import reconstruct_3d
-from rtcosmik.filtering.iir import IIR
+from rtcosmik.filtering.iir import MarkerFilter
 from rtcosmik.pipeline.solver import HumanSolver
 from rtcosmik.camera.cam_utils import list_cameras, load_camera_parameters, load_world_transformation
 from rtcosmik.camera.camera import Camera
@@ -243,15 +243,10 @@ def main(args):
             solver = HumanSolver(settings, gender=subject_gender, height=subject_height,
                                  weight=subject_weight, logger=LOGGER)
             first_sample = True
-            p3d_buffer = deque(maxlen=settings.N)
 
             # Filter
             num_channel = 3*len(settings.marker_names)
-            iir_filter = IIR(
-                num_channel=num_channel,
-                sampling_frequency=settings.fs
-            )
-            iir_filter.add_filter(order=settings.order, cutoff=settings.cutoff_freq, filter_type=settings.filter_type)
+            marker_filter = MarkerFilter(len(settings.marker_names), settings)
 
             display = AsyncDisplay(logger=LOGGER)
             display.__enter__()
@@ -287,101 +282,90 @@ def main(args):
 
                 p3d_in_world=np.array([np.dot(world_R1_cam,point) + world_T1_cam for point in p3d])
 
+                # One frame in, one filtered frame out. IIR.filter is stateful,
+                # so it must see each sample exactly once.
+                augmented_markers = marker_filter(p3d_in_world)
+
+                # VISUALISATION OF AUGMENTED MARKERS in RED
+                colors = np.zeros_like(augmented_markers.T)
+                colors[0, :] = 1.0  # R
+                colors[1, :] = 0.0  # G
+                colors[2, :] = 0.0  # B
+
+                t_disp0=time.perf_counter()
+                display.submit(
+                    lambda pts=augmented_markers.T.copy(), col=colors.copy():
+                    vis_markers.set_object(g.PointCloud(position=pts, color=col,
+                                                        size=0.02)))
+                display_ms = (time.perf_counter()-t_disp0)*1e3
+
+                mks_dict = dict(zip(settings.marker_names, augmented_markers))
+
                 if first_sample:
-                    for k in range(settings.N):
-                        p3d_buffer.append(p3d_in_world)  # add the 1st frame 30 times
+                    # Kept OUT of the per-frame IK statistics: this call builds
+                    # and scales the model, registers the markers, runs an IPOPT
+                    # solve and loads the OCP. It is seconds, happens once, and
+                    # would otherwise sit in the same distribution as the
+                    # millisecond steady-state solves.
+                    t_ik0=time.perf_counter()
+                    q = solver.calibrate(mks_dict)
+                    calibration_ms = (time.perf_counter()-t_ik0)*1e3
+                    first_frame_calibration_ms = calibration_ms
+                    human_model, human_data = solver.model, solver.data
+
+                    # Also one-off, and also excluded: loadViewerModel uploads
+                    # the whole human mesh to the meshcat server over a
+                    # websocket, which is ~1 s. Left in, it lands in the frame
+                    # statistics as a single ~1000 ms outlier that looks like a
+                    # solver stall.
+                    t_viz0=time.perf_counter()
+                    # Init meshcat viewer for human
+                    viz_human = MeshcatVisualizer(
+                        human_model, solver.collision_model, solver.visual_model)
+                    viz_human.initViewer(vis, open=True)
+
+                    # Don't delete the whole Meshcat tree: keep '/markers' etc.
+                    try:
+                        vis["ref"].delete()
+                    except Exception:
+                        pass
+                    viz_human.loadViewerModel("ref")
+
+                    viz_human.viewer["/Background"].set_property("top_color", [1, 1, 1])
+                    viz_human.viewer["/Background"].set_property("bottom_color", [0.65, 0.65, 0.65])
+                    viewer_setup_ms = (time.perf_counter()-t_viz0)*1e3
+                    viewer_total_ms = viewer_setup_ms
+
+                    first_sample = False
                 else:
-                    p3d_buffer.append(p3d_in_world) # add the keypoints to the buffer normally
-            
-                if len(p3d_buffer) == settings.N:
-                    p3d_buffer_array = np.array(p3d_buffer)
+                    t_ik0=time.perf_counter()
+                    q = solver.step(mks_dict)
+                    stage_ms["ik"].append((time.perf_counter()-t_ik0)*1e3)
 
-                    # Filter keypoints in world to remove noisy artefacts 
-                    filtered_p3d_buffer = iir_filter.filter(np.reshape(p3d_buffer_array,(settings.N, 3*len(settings.marker_names))))
-                    filtered_p3d_buffer = np.reshape(filtered_p3d_buffer,(settings.N, len(settings.marker_names), 3))
+                t_disp1=time.perf_counter()
+                display.submit(lambda qq=np.array(q, copy=True): viz_human.display(qq))
+                display_ms += (time.perf_counter()-t_disp1)*1e3
+                stage_ms["display"].append(display_ms)
+                t_save0=time.perf_counter()
 
-                    augmented_markers=filtered_p3d_buffer[-1]
+                if saver is not None:
+                    marker_row = OrderedDict(Frame=frames_read)
+                    for name, position in mks_dict.items():
+                        marker_row[name + '_x'] = float(position[0])
+                        marker_row[name + '_y'] = float(position[1])
+                        marker_row[name + '_z'] = float(position[2])
+                    saver.save_markers(marker_row)
 
-                    # VISUALISATION OF AUGMENTED MARKERS in RED
-                    colors = np.zeros_like(augmented_markers.T)
-                    colors[0, :] = 1.0  # R
-                    colors[1, :] = 0.0  # G
-                    colors[2, :] = 0.0  # B
-
-                    t_disp0=time.perf_counter()
-                    display.submit(
-                        lambda pts=augmented_markers.T.copy(), col=colors.copy():
-                        vis_markers.set_object(g.PointCloud(position=pts, color=col,
-                                                            size=0.02)))
-                    display_ms = (time.perf_counter()-t_disp0)*1e3
-
-                    mks_dict = dict(zip(settings.marker_names, augmented_markers))
-
-                    if first_sample:
-                        # Kept OUT of the per-frame IK statistics: this call builds
-                        # and scales the model, registers the markers, runs an IPOPT
-                        # solve and loads the OCP. It is seconds, happens once, and
-                        # would otherwise sit in the same distribution as the
-                        # millisecond steady-state solves.
-                        t_ik0=time.perf_counter()
-                        q = solver.calibrate(mks_dict)
-                        calibration_ms = (time.perf_counter()-t_ik0)*1e3
-                        first_frame_calibration_ms = calibration_ms
-                        human_model, human_data = solver.model, solver.data
-
-                        # Also one-off, and also excluded: loadViewerModel uploads
-                        # the whole human mesh to the meshcat server over a
-                        # websocket, which is ~1 s. Left in, it lands in the frame
-                        # statistics as a single ~1000 ms outlier that looks like a
-                        # solver stall.
-                        t_viz0=time.perf_counter()
-                        # Init meshcat viewer for human
-                        viz_human = MeshcatVisualizer(
-                            human_model, solver.collision_model, solver.visual_model)
-                        viz_human.initViewer(vis, open=True)
-
-                        # Don't delete the whole Meshcat tree: keep '/markers' etc.
-                        try:
-                            vis["ref"].delete()
-                        except Exception:
-                            pass
-                        viz_human.loadViewerModel("ref")
-
-                        viz_human.viewer["/Background"].set_property("top_color", [1, 1, 1])
-                        viz_human.viewer["/Background"].set_property("bottom_color", [0.65, 0.65, 0.65])
-                        viewer_setup_ms = (time.perf_counter()-t_viz0)*1e3
-                        viewer_total_ms = viewer_setup_ms
-
-                        first_sample = False
-                    else:
-                        t_ik0=time.perf_counter()
-                        q = solver.step(mks_dict)
-                        stage_ms["ik"].append((time.perf_counter()-t_ik0)*1e3)
-
-                    t_disp1=time.perf_counter()
-                    display.submit(lambda qq=np.array(q, copy=True): viz_human.display(qq))
-                    display_ms += (time.perf_counter()-t_disp1)*1e3
-                    stage_ms["display"].append(display_ms)
-                    t_save0=time.perf_counter()
-
-                    if saver is not None:
-                        marker_row = OrderedDict(Frame=frames_read)
-                        for name, position in mks_dict.items():
-                            marker_row[name + '_x'] = float(position[0])
-                            marker_row[name + '_y'] = float(position[1])
-                            marker_row[name + '_z'] = float(position[2])
-                        saver.save_markers(marker_row)
-
-                        if len(q) != len(settings.joint_angles_names):
-                            raise ValueError(
-                                f"Model has {len(q)} configuration variables but "
-                                f"{len(settings.joint_angles_names)} joint angle names are defined"
-                            )
-                        saver.save_joint_angles(
-                            OrderedDict(zip(settings.joint_angles_names, (float(v) for v in q)))
+                    if len(q) != len(settings.joint_angles_names):
+                        raise ValueError(
+                            f"Model has {len(q)} configuration variables but "
+                            f"{len(settings.joint_angles_names)} joint angle names are defined"
                         )
-                        frames_written += 1
-                    stage_ms["save"].append((time.perf_counter()-t_save0)*1e3)
+                    saver.save_joint_angles(
+                        OrderedDict(zip(settings.joint_angles_names, (float(v) for v in q)))
+                    )
+                    frames_written += 1
+                stage_ms["save"].append((time.perf_counter()-t_save0)*1e3)
                 t1=time.perf_counter()
                 # perf_counter is in SECONDS; this used to be printed as "ms",
                 # understating every timing by a factor of 1000.

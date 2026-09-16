@@ -103,3 +103,40 @@ class IIR:
 
         filtered = filt_signal.T
         return filtered
+
+class MarkerFilter:
+    """Low-pass a stream of marker frames, one frame at a time.
+
+    :class:`IIR` is stateful -- every call advances ``past_zi`` by as many
+    samples as it is handed -- so it must be fed exactly one new sample per
+    frame. Handing it a buffer of the last N frames instead, as this pipeline
+    once did, re-feeds N-1 samples it has already consumed and advances its
+    state N steps per real sample. That is not the filter the settings describe:
+    at N = 7 the gain at 3 Hz was 0.78 where a true 4th-order 5 Hz Butterworth
+    gives 0.99, and the response moved non-monotonically with N (0.97, 0.88,
+    0.78, 1.02 at N = 3, 5, 7, 10) -- a response that depends on the horizon
+    length is not a response at all.
+
+    Driven one frame at a time, ``settings.order`` and ``settings.cutoff_freq``
+    mean what they say.
+
+    No frame buffer is needed here: ``HumanSolver.solve`` takes a single frame
+    and the moving-horizon IK keeps its own window internally.
+    """
+
+    def __init__(self, marker_count, settings):
+        self.marker_count = marker_count
+        self.channels = 3 * marker_count
+        self.iir = IIR(num_channel=self.channels,
+                       sampling_frequency=settings.fs)
+        self.iir.add_filter(order=settings.order, cutoff=settings.cutoff_freq,
+                            filter_type=settings.filter_type)
+
+    def __call__(self, frame):
+        """One ``(marker_count, 3)`` frame in, one filtered frame out.
+
+        The first call seeds the filter state from that frame, so the output
+        starts at the signal rather than ramping up from zero.
+        """
+        flat = np.asarray(frame, dtype=float).reshape(1, self.channels)
+        return self.iir.filter(flat).reshape(self.marker_count, 3)
