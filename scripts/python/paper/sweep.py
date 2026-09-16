@@ -141,7 +141,7 @@ def _nlf_estimator(mtxs, num_cameras, settings, indices=None):
 
     if indices is None:
         indices = settings.nlf_indices
-    key = (num_cameras, len(indices),
+    key = (num_cameras, tuple(indices),
            tuple(np.asarray(m).round(4).tobytes() for m in mtxs))
     if key not in _ESTIMATORS:
         _ESTIMATORS.clear()          # only ever keep one on the GPU
@@ -155,7 +155,7 @@ def _nlf_estimator(mtxs, num_cameras, settings, indices=None):
 
 
 def run_nlf(dataset, participant, task, cameras, out_dir, settings,
-            depth_aware=False, reconstruction="fuse3d"):
+            depth_aware=False, reconstruction="fuse3d", views_cache=None):
     """One NLF trial, mirroring run_pipeline's offline path. Returns (frames, ik_ms, seconds).
 
     ``reconstruction`` selects what is done with NLF's output. "fuse3d" is the
@@ -163,6 +163,12 @@ def run_nlf(dataset, participant, task, cameras, out_dir, settings,
     regresses. "tri2d" instead triangulates NLF's own 2D keypoints with the same
     weighted DLT the mmpose arm uses, which holds the reconstruction fixed and
     leaves the detector as the only difference between the two arms.
+
+    With ``views_cache``, every frame's per-camera NLF output (2D keypoints,
+    metric 3D pose, uncertainty) is also saved to ``<views_cache>/<participant>/
+    <task>.npz``, so studies that only change what happens after NLF -- IK type,
+    horizon, filter -- can replay it without the GPU. Saving happens after the
+    timed loop.
     """
     from collections import OrderedDict
     import yaml
@@ -206,6 +212,7 @@ def run_nlf(dataset, participant, task, cameras, out_dir, settings,
                      joint_angles_header=list(settings.joint_angles_names))
 
     ik_ms, rows, read = [], 0, 0
+    cached = {"keypoints": [], "poses3d": [], "uncertainties": []}
     started = time.perf_counter()
     try:
         while True:
@@ -215,6 +222,8 @@ def run_nlf(dataset, participant, task, cameras, out_dir, settings,
             read += 1
             nlf_out, _, _, _ = estimator.estimate_from_frames(frames)
             views = extract_views(nlf_out, len(cameras))
+            if views_cache is not None:
+                _cache_views(cached, views, len(cameras), len(settings.marker_names))
             if reconstruction == "tri2d":
                 if any(k is None for k in views.keypoints) or len(cameras) < 2:
                     continue
@@ -250,7 +259,29 @@ def run_nlf(dataset, participant, task, cameras, out_dir, settings,
         # the decoder sits holding GPU memory for the life of the
         # process. Four cameras a trial adds up fast.
         source.release()
-    return rows, np.asarray(ik_ms), time.perf_counter() - started
+    seconds = time.perf_counter() - started
+    if views_cache is not None:
+        target = Path(views_cache) / participant / f"{task}.npz"
+        target.parent.mkdir(parents=True, exist_ok=True)
+        np.savez_compressed(target, cameras=np.asarray(cameras),
+                            **{k: np.asarray(v, dtype=np.float32) for k, v in cached.items()})
+    return rows, np.asarray(ik_ms), seconds
+
+
+def _cache_views(cached, views, cameras, markers):
+    """Append one frame of per-camera NLF output; NaN where a camera saw no one."""
+    keypoints = np.full((cameras, markers, 2), np.nan, np.float32)
+    poses = np.full((cameras, markers, 3), np.nan, np.float32)
+    sigma = np.full((cameras, markers), np.nan, np.float32)
+    for c in views.valid_cam_ids:
+        keypoints[c] = views.keypoints[c]
+        if views.poses3d[c] is not None:
+            poses[c] = views.poses3d[c]
+    if views.uncertainties is not None:
+        sigma[:] = views.uncertainties
+    cached["keypoints"].append(keypoints)
+    cached["poses3d"].append(poses)
+    cached["uncertainties"].append(sigma)
 
 
 def run_mocap(dataset, participant, task, cameras, out_dir, settings,
@@ -388,6 +419,10 @@ def main():
     ap.add_argument("--tasks", nargs="*", default=None)
     ap.add_argument("--tag", default=None,
                     help="Run directory name; defaults to <n>cam_<arm>")
+    ap.add_argument("--output-dir", type=Path, default=None,
+                    help="where run folders go; defaults to settings.output_dir")
+    ap.add_argument("--views-cache", type=Path, default=None,
+                    help="nlf arm only: also save per-frame NLF views here, for replay studies")
     args = ap.parse_args()
 
     from rtcosmik.config_loader import settings
@@ -425,13 +460,14 @@ def main():
         key = (args.arm, participant, task, cameras_key, str(settings.N))
         if key in done:
             continue
-        out_dir = Path(settings.output_dir) / participant / task / tag
+        out_dir = (args.output_dir or Path(settings.output_dir)) / participant / task / tag
         row = dict.fromkeys(FIELDS, "")
         row.update(arm=args.arm, participant=participant, task=task,
                    cameras=cameras_key, n_horizon=settings.N)
         try:
+            extra = {"views_cache": args.views_cache} if args.views_cache and args.arm == "nlf" else {}
             frames, ik_ms, seconds = ARMS[args.arm](
-                args.dataset, participant, task, args.cameras, out_dir, settings)
+                args.dataset, participant, task, args.cameras, out_dir, settings, **extra)
             row.update(frames=frames,
                        ik_ms_median=round(float(np.median(ik_ms)), 2) if len(ik_ms) else "",
                        ik_ms_p95=round(float(np.percentile(ik_ms, 95)), 2) if len(ik_ms) else "",

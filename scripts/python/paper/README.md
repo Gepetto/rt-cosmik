@@ -33,12 +33,17 @@ the parity and ordinary OCPs coexist.
 
 ## The FastSAM arm
 
-COMFI also ships a FastSAM-based metric 3D export, one CSV per trial under
-`fastsam/<participant>/<task>/cosmik_mhr_markers_cam.csv`, **already in the
-reference camera's frame** and for camera 0 only. So this arm runs no network:
-`src/rtcosmik/paper/fastsam_source.py` reads the file, applies the same
+COMFI also ships a FastSAM-based metric 3D export, one CSV per trial and camera
+under `fastsam/<participant>/<task>/cosmik_mhr_markers_cam{0,2,4,6}.csv`, each
+**in its own camera's frame** (cameras 2/4/6 are exported from
+`fastsam/results_multicam` by `export_fastsam_multicam.py`). So this arm runs no
+network: `src/rtcosmik/paper/fastsam_source.py` reads the files, fuses the views
+in the reference camera's frame the way NLF fuses its per-view 3D (a plain mean,
+since FastSAM gives no per-point uncertainty), applies the same
 `p_world = R p_cam + T` anchor every arm applies, low-passes with the same IIR,
-and hands the markers to the same solver.
+and hands the markers to the same solver. It runs with 1, 2 and 4 cameras.
+Participant 3361 is excluded: its FastSAM export does not match COMFI's
+calibration.
 
 Its marker set is a near-exact parity match, which is what makes the comparison
 fair without tuning. 34 of the 35 parity markers are present under identical
@@ -57,12 +62,26 @@ RMSE by at most 0.18 deg, against a ~2 deg spread between arms.
 ```bash
 python3 scripts/python/paper/study_head_offset.py measure       # where Head sits
 python3 scripts/python/paper/study_head_offset.py sensitivity   # does it matter
-bash    scripts/bash/run_fastsam_sweep.sh /root/workspace/COMFI
 ```
 
 **Its fps column is not comparable with the others.** FastSAM's own inference is
-not run here -- the 3D arrives precomputed -- so the figure covers the IK and
-nothing else. It is an IK throughput number, not a pipeline one.
+not run here -- the 3D arrives precomputed -- so the figure covers fusion and IK
+and nothing else. Its inference time is read from the export logs instead
+(`fastsam_timing.py`): about 390 ms per view.
+
+## NLF marker vertices
+
+NLF is queried at SMPL-X canonical vertices, one per marker. They were first
+picked by hand; `settings.nlf_indices` now holds vertices fitted to mocap with
+the method that produced FastSAM's marker map (`fit_nlf_marker_map.py`: dense
+NLF samples, per-frame similarity alignment to the Vicon markers, balanced
+median over frames, tasks and participants, then a one-to-one assignment; fit on
+14 participants, checked on 3 held out, refit on all 17). Hands and face are not
+fitted, and the pelvis keeps its hand-picked vertices: the fitted posterior
+markers tilt the pelvis frame about 8 deg against mocap, and with the thoracic
+joints locked the thorax follows, which cost up to 3 deg of whole-body RMSE and
+added shoulder flips in overhead work (details in the script's docstring). The
+hand-picked values are kept as comments in `settings.py`.
 
 ## SMPL refinement: tested and rejected
 
@@ -116,7 +135,18 @@ python3 scripts/python/paper/sweep.py --arm nlf --cameras 0 2 4 6 \
 
 # the comparison tables
 python3 scripts/python/paper/report.py results/*.csv --by-task
+
+# the whole campaign: every arm, one after another, then every metric
+bash scripts/bash/run_campaign.sh validation 1012     # one participant first
+bash scripts/bash/run_campaign.sh campaign            # everyone
 ```
+
+`run_campaign.sh` writes runs to `output/<campaign>/` and everything else to
+`results/<campaign>/`: the sweep summaries, `vs_mocap/` (rescored against the
+mocap reference), and `paper/`, which holds per-trial tables (`trial_metrics.py`,
+`reba_agreement.py`, `robot_distance.py`, `fastsam_timing.py`) and the aggregated
+tables and statistics (`aggregate_results.py`: participant means, mean (SD),
+Friedman then Wilcoxon with Holm correction).
 
 `sweep.py` skips trials already in the summary, so it can be stopped and
 restarted, and one failing trial does not lose the batch.
@@ -129,8 +159,8 @@ restarted, and one failing trial does not lose the batch.
   frame by frame.
 - **Weighted.** mmpose confidence enters the DLT as `1/score`, so the baseline
   gets the same uncertainty-weighted multi-view fusion NLF gets.
-- **Same filter.** The codebase's own IIR, with `settings` values, applied by the
-  same buffer procedure in both arms.
+- **Same filter.** The codebase's own IIR, with `settings` values, fed one frame
+  at a time (`MarkerFilter`) in every arm.
 - **Same everything downstream.** Model, calibration, IK, evaluation.
 
 One asymmetry is real and worth stating rather than hiding: the mmpose arm needs
@@ -145,15 +175,36 @@ that trial (mean confidence 0.59/0.64 against 0.83/0.85 for cameras 0 and 2), so
 effective coverage drops to ~3.7 of 4 cameras. It is unfavourable rig geometry
 for that walk direction, and it applies to both arms equally.
 
+## REBA and human-robot distance
+
+**Posture REBA** (`reba_agreement.py`, `rtcosmik/ergonomics/reba_posture.py`) is
+computed per frame for the arm and for the reference and compared: score error,
+risk-level agreement and weighted kappa, time-in-level error, per-component
+agreement. Angles are taken relative to a neutral posture: every COMFI trial
+starts with the participant in the calibration pose, so the neutral is the
+median over each trial's first 0.5 s -- either the reference's (offsets of the
+arm count as error) or the arm's own (what a deployed system would do).
+
+**Human-robot distance** (`robot_distance.py`) uses COMFI's Panda joint states,
+which carry camera 0's timestamps and so match video frames exactly. In both
+robot tasks the participant hand-guides the robot, so a whole-body minimum
+distance is mostly zero; the script also reports the distance of the body
+without forearms and hands (usually the head) and each hand's distance to the
+robot's hand frame. The human is the model's joint-centre skeleton, rebuilt per
+run exactly as the IK scaled it.
+
 ## Reading the timing columns
 
 **The sweep's mmpose fps column is post-2D only.** That arm reads COMFI's
 precomputed 2D keypoints, so its figure covers triangulation, the LSTM and the
-IK, and excludes running mmpose. NLF's figure is end to end: YOLO, NLF, video
-decode and IK. The two must not be printed side by side without adding mmpose's
-own inference cost, which is measured separately and held outside this repo.
+IK, and excludes running RTMPose. `aggregate_results.py` adds RTMPose's own
+cost from Table I of the RT-COSMIK draft (7.1 ms for 2 cameras, 13.2 ms for 4,
+same machine) before quoting a rate. NLF's figure is end to end: YOLO, NLF,
+video decode and IK. FastSAM's rate is its logged inference time per view times
+the number of views, plus the IK.
 
-**The NLF timings in this sweep are lower bounds.** They were measured with
-another job sharing the GPU: about 2.9 GB of the 5.07 GB in use was outside this
-container. Accuracy is unaffected, timing is not. Re-benchmark on a free GPU
-before quoting any throughput number.
+These are offline throughputs over the dataset, good enough to separate what
+runs at 30 Hz or more from what can only run offline; they are not a latency
+benchmark of the live pipeline. Arms run one at a time on a GPU nothing else is
+using -- an earlier sweep shared the GPU with another job and its NLF timings
+were lower bounds.

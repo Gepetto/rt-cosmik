@@ -1,16 +1,24 @@
 """Drive the pipeline's IK from COMFI's FastSAM-3D marker export.
 
 This is the third estimation modality in the study, and the second that
-regresses metric 3D directly rather than triangulating image landmarks. COMFI
-ships it as one CSV per trial holding 36 named markers per frame, already in
-metres and **already in the reference camera's frame** -- the ``_cam`` in the
-file name. So unlike the other arms there is no detector to run and no
-reconstruction to choose: the only thing between the file and the solver is the
-camera-to-world anchor, the same ``p_world = R p_cam + T`` every arm applies to
-whatever it reconstructs.
+regresses metric 3D directly rather than triangulating image landmarks. FastSAM
+was run once per camera, and each run is exported as its own CSV of 36 named
+markers per frame, in metres, **in that camera's own frame**::
 
-Only camera 0 is exported for now, so this arm is single-view by construction
-and its natural comparison is ``nlf_0``.
+    <dataset>/fastsam/<participant>/<task>/cosmik_mhr_markers_cam{0,2,4,6}.csv
+
+So there is no detector to run here, but there is a reconstruction, and it is
+the NLF arm's, step for step: each view stays in its camera's frame, the views
+are fused into the reference camera's frame by the same
+:func:`fuse_camera_poses3d`, the result is mapped into the world with the
+reference camera's pose, and it is low-passed one frame at a time. The one
+unavoidable difference is the fusion weights: NLF reports a per-point
+uncertainty and its views are combined by inverse variance, while FastSAM
+reports none, so its views are averaged with equal weight.
+
+A single camera goes through the same fusion. The reference camera's projection
+is the identity, so one view comes out unchanged, and ``cameras=[0]`` reproduces
+the earlier single-camera arm.
 
 The marker set is a near-exact match for parity, which is what makes the
 comparison fair without any tuning:
@@ -59,8 +67,15 @@ import numpy as np
 
 LOGGER = logging.getLogger(__name__)
 
-#: One CSV per trial, under ``<dataset>/fastsam/<participant>/<task>/``.
-FASTSAM_FILE = "cosmik_mhr_markers_cam.csv"
+#: One CSV per camera, under ``<dataset>/fastsam/<participant>/<task>/``.
+FASTSAM_FILE = "cosmik_mhr_markers_cam{camera}.csv"
+
+#: Participants left out of every FastSAM arm. 3361's results come from a
+#: different FastSAM inference script and do not line up with COMFI's
+#: calibration: its camera-0 range is scaled by about 2, and cameras 2/4/6 land
+#: 0.5-0.9 m from the mocap markers whichever camera pose is used. Being
+#: investigated upstream; until then it is reported as excluded, not run.
+EXCLUDED_PARTICIPANTS = ("3361",)
 
 #: Columns that carry no marker.
 META_COLUMNS = ("frame_id", "person_id", "valid")
@@ -79,13 +94,18 @@ HEAD_OFFSET = (-0.216, 0.881, -0.058)
 HEAD_ANCHORS = ("REar", "LEar", "Nose")
 
 
-def load_fastsam_markers(trial_dir):
-    """Read one trial's export. Returns ``(names, xyz, valid)``.
+def fastsam_csv(trial_dir, camera):
+    """Path of one camera's export for one trial."""
+    return Path(trial_dir) / FASTSAM_FILE.format(camera=camera)
 
-    ``xyz`` is ``(frames, markers, 3)`` in metres, in the reference camera's
-    frame. ``valid`` is the exporter's own per-frame flag.
+
+def load_fastsam_markers(path):
+    """Read one camera's export. Returns ``(names, xyz, valid)``.
+
+    ``xyz`` is ``(frames, markers, 3)`` in metres, in that camera's own frame.
+    ``valid`` is the exporter's per-frame flag; invalid frames hold NaN.
     """
-    path = Path(trial_dir) / FASTSAM_FILE
+    path = Path(path)
     if not path.exists():
         raise FileNotFoundError(f"no FastSAM export at {path}")
     with open(path) as handle:
@@ -134,76 +154,101 @@ def derive_head(markers):
 class FastsamMarkerSource:
     """Iterate one trial as ``(frame, {marker: xyz})`` in the world frame.
 
-    Mirrors the NLF arm's offline path exactly: transform into the world frame,
-    then low-pass one frame at a time.
+    Mirrors the NLF arm's offline path exactly: per-view markers in each
+    camera's frame, fused into the reference camera's frame, mapped into the
+    world with the reference camera's pose, then low-passed one frame at a time.
     """
 
-    def __init__(self, trial_dir, marker_names, world_R, world_T,
-                 iir=None):
+    def __init__(self, trial_dir, cameras, marker_names, projections,
+                 world_R, world_T, iir=None):
+        from rtcosmik.triangulation.triangulation import fuse_camera_poses3d
+
+        self._fuse = fuse_camera_poses3d
+        self.cameras = list(cameras)
         self.marker_names = list(marker_names)
+        self.projections = projections
         self.world_R = np.asarray(world_R, dtype=float)
         self.world_T = np.asarray(world_T, dtype=float)
         self.iir = iir
 
-        names, xyz, valid = load_fastsam_markers(trial_dir)
-        self.valid = valid
-        keep = [name for name in names if name not in DROPPED_MARKERS]
-        missing = (set(self.marker_names) - set(keep)) - {"Head"}
-        if missing:
-            raise ValueError(f"FastSAM export is missing {sorted(missing)}")
-        index = {name: i for i, name in enumerate(names)}
-        self.columns = {name: index[name] for name in keep}
-        self.xyz = xyz
-        self.needs_head = "Head" in self.marker_names and "Head" not in index
+        self.views = []
+        for camera in self.cameras:
+            path = fastsam_csv(trial_dir, camera)
+            names, xyz, valid = load_fastsam_markers(path)
+            keep = [name for name in names if name not in DROPPED_MARKERS]
+            missing = (set(self.marker_names) - set(keep)) - {"Head"}
+            if missing:
+                raise ValueError(f"{path} is missing {sorted(missing)}")
+            index = {name: i for i, name in enumerate(names)}
+            columns = {name: index[name] for name in keep}
+            needs_head = "Head" in self.marker_names and "Head" not in index
+            self.views.append((columns, xyz, valid.astype(bool), needs_head))
+
+        # The cameras can disagree on length by a frame. Like the NLF arm's video
+        # reader, which stops when any stream ends, keep only frames every view has.
+        self.length = min(len(xyz) for _, xyz, _, _ in self.views)
 
     def __len__(self):
-        return len(self.xyz)
+        return self.length
+
+    def view_pose(self, view, frame):
+        """One camera's parity markers for one frame, in its own frame, or None."""
+        columns, xyz, valid, needs_head = self.views[view]
+        if not valid[frame]:
+            return None
+        markers = {name: xyz[frame, column] for name, column in columns.items()}
+        if needs_head:
+            markers["Head"] = derive_head(markers)
+        pose = np.stack([markers[name] for name in self.marker_names])
+        return pose if np.isfinite(pose).all() else None
 
     def world_markers(self, frame):
-        """One frame's parity markers, in the world frame, unfiltered."""
-        points = self.xyz[frame] @ self.world_R.T + self.world_T
-        markers = {name: points[column] for name, column in self.columns.items()}
-        if self.needs_head:
-            markers["Head"] = derive_head(markers)
-        return markers
+        """One frame's fused parity markers in the world frame, unfiltered, or None."""
+        poses = [self.view_pose(view, frame) for view in range(len(self.views))]
+        fused = self._fuse(poses, self.projections)
+        if len(fused) == 0:
+            return None
+        return fused @ self.world_R.T + self.world_T
 
     def __iter__(self):
         for frame in range(len(self)):
-            if not self.valid[frame]:
+            points = self.world_markers(frame)
+            if points is None:
                 continue
-            markers = self.world_markers(frame)
-            stacked = np.stack([markers[name] for name in self.marker_names])
             if self.iir is not None:
-                stacked = self.iir(stacked)
-            yield frame, dict(zip(self.marker_names, stacked))
+                points = self.iir(points)
+            yield frame, dict(zip(self.marker_names, points))
 
 
 def build_source(dataset, participant, task, cameras, settings, logger=None):
     """Assemble the marker source for one trial, with its subject metadata.
 
-    ``cameras`` selects the world anchor. FastSAM is exported from camera 0
-    only, so anything else is refused rather than silently anchored wrong.
+    Calibration is loaded exactly as the NLF arm loads it: projections for the
+    requested cameras, and the world pose of the first one, which is the
+    reference frame the views are fused into.
     """
     import yaml
 
-    from rtcosmik.camera.cam_utils import load_world_transformation
+    from rtcosmik.camera.cam_utils import (load_camera_parameters,
+                                           load_world_transformation)
     from rtcosmik.filtering.iir import MarkerFilter
 
-    if tuple(cameras) != (0,):
-        raise ValueError(
-            f"FastSAM is exported from camera 0 only, got cameras={list(cameras)}")
+    if participant in EXCLUDED_PARTICIPANTS:
+        raise ValueError(f"participant {participant} is excluded from the FastSAM "
+                         f"arms (see EXCLUDED_PARTICIPANTS)")
 
     root = Path(dataset)
     meta = yaml.safe_load((root / "metadata" / f"{participant}.yaml").read_text())
-    world_R, world_T = load_world_transformation(
-        root / "cam_params" / participant, cameras[0])
+    cam_dir = root / "cam_params" / participant
+    _, _, projections, _, _ = load_camera_parameters(cam_dir, cameras)
+    world_R, world_T = load_world_transformation(cam_dir, cameras[0])
 
     iir = MarkerFilter(len(settings.marker_names), settings)
 
     source = FastsamMarkerSource(
-        root / "fastsam" / participant / task, settings.marker_names,
-        world_R, world_T, iir=iir)
+        root / "fastsam" / participant / task, cameras, settings.marker_names,
+        projections, world_R, world_T, iir=iir)
     (logger or LOGGER).info(
-        f"FastSAM {participant}/{task}: {len(source)} frames, camera "
-        f"{cameras[0]}, {len(settings.marker_names)} markers")
+        f"FastSAM {participant}/{task}: {len(source)} frames, cameras "
+        f"{list(cameras)}, {len(settings.marker_names)} markers")
     return source, meta

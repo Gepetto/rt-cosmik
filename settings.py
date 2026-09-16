@@ -79,12 +79,14 @@ class Settings:
     ### NLF ###
     cano_path: str = field(init=False)
     nlf_path: str = field(init=False)
+    # Fitted to mocap (scripts/python/paper/fit_nlf_marker_map.py), the method
+    # that produced FastSAM's marker map. Pelvis, hands and face stay hand-picked.
     nlf_indices = [             # For SMPLX model
         8421, 5727, 8371, 5677, # pelvis: RASI, LASI, RPSI, LPSI 
-        5484, 5489, 5500, 6629, 3878, 7040, 4302, 7105, 4369, 7584, 4848, 7457, 4721, # upper: C7, T11, T6,  RSHO, LSHO, RELB, LELB, RMELB, LMELB, RWRI, LWRI, RMWRI, LMWRI
+        3353, 5489, 5500, 6629, 3878, 7075, 4524, 7035, 4370, 7423, 4687, 7409, 4721, # upper: C7, T11, T6,  RSHO, LSHO, RELB, LELB, RMELB, LMELB, RWRI, LWRI, RMWRI, LMWRI    (was 5484, 5489, 5500, 6629, 3878, 7040, 4302, 7105, 4369, 7584, 4848, 7457, 4721)
         8079, 5361, 7794, 5058, 8022, 5286,  # hands:  RTHU, LTHU, RMID, LMID, RPIN, LPIN
-        6401, 3640, 6407, 3646, 8576, 5882, 8680, 8892, # legs: RKNE, LKNE, RMKNE, LMKNE, RANK, LANK, RMANK, LMANK,
-        8474,5780,8463,5770,8635,8846, # feet: R5MHD, L5MHD, RTOE, LTOE, RHEE, LHEE,
+        6403, 3639, 6539, 3781, 8629, 8896, 8680, 5753, # legs: RKNE, LKNE, RMKNE, LMKNE, RANK, LANK, RMANK, LMANK    (was 6401, 3640, 6407, 3646, 8576, 5882, 8680, 8892)
+        8610, 5898, 8584, 5890, 8634, 8848, # feet: R5MHD, L5MHD, RTOE, LTOE, RHEE, LHEE    (was 8474, 5780, 8463, 5770, 8635, 8846)
         9120,9002,616,6,9929,9448,  # face: Nose, Head, REar, LEar, REye, LEye
     ]
 

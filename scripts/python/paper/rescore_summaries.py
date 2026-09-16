@@ -14,6 +14,7 @@ No pipeline is re-run; every modality is already on disk.
 
     python3 scripts/python/paper/rescore_summaries.py
 """
+import argparse
 import csv
 import sys
 from pathlib import Path
@@ -25,19 +26,27 @@ sys.path.insert(0, str(REPO / "scripts" / "python" / "paper"))
 import sweep as sweep_mod
 
 CONFIGS = ["mmpose_0-2-4-6", "mmpose_0-2", "nlf_0-2-4-6", "nlf_0-2", "nlf_0",
-           "nlf2d_0-2-4-6", "nlf2d_0-2", "fastsam_0"]
+           "nlf2d_0-2-4-6", "nlf2d_0-2", "fastsam_0", "fastsam_0-2", "fastsam_0-2-4-6"]
 REFERENCE_TAG = "mocap_reference"
 
 
 def main():
+    ap = argparse.ArgumentParser(description=__doc__,
+                                 formatter_class=argparse.RawDescriptionHelpFormatter)
+    ap.add_argument("--results", type=Path, default=REPO / "results",
+                    help="folder holding the sweep summaries <config>.csv")
+    ap.add_argument("--output-dir", type=Path, default=None,
+                    help="where run folders live; defaults to settings.output_dir")
+    args = ap.parse_args()
+
     from rtcosmik.config_loader import settings
     ev = sweep_mod._load_eval()
-    root = Path(settings.output_dir)
-    out_dir = REPO / "results" / "vs_mocap"
+    root = args.output_dir or Path(settings.output_dir)
+    out_dir = args.results / "vs_mocap"
     out_dir.mkdir(parents=True, exist_ok=True)
 
     for name in CONFIGS:
-        source = REPO / "results" / f"{name}.csv"
+        source = args.results / f"{name}.csv"
         if not source.exists():
             print(f"  {name}: no summary, skipped")
             continue
