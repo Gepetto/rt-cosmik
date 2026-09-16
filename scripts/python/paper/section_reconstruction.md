@@ -124,9 +124,14 @@ geometry and its detector allow.
 
 ### 5) Temporal filtering
 
-Reconstructed landmarks pass through a fourth-order zero-latency Butterworth
-low-pass at 5 Hz (sampling 40 Hz) before inverse kinematics. Both modalities use
-the same filter with the same parameters.
+Reconstructed landmarks pass through a causal fourth-order Butterworth low-pass
+at 5 Hz (sampling 40 Hz), applied one frame at a time, before inverse
+kinematics. Every modality uses the same filter with the same parameters.
+
+Being causal, the filter is not zero-lag: its group delay is 79 ms at 0.5 Hz,
+81 ms at 1 Hz and 101 ms at 3 Hz, the band where most task motion lies. A
+zero-lag Butterworth requires forward-backward filtering, which needs future
+samples and cannot run online.
 
 ---
 
