@@ -53,7 +53,6 @@ tilt) -- against a roughly 2 deg spread between the arms being compared. See
 """
 
 import logging
-from collections import deque
 from pathlib import Path
 
 import numpy as np
@@ -136,18 +135,15 @@ class FastsamMarkerSource:
     """Iterate one trial as ``(frame, {marker: xyz})`` in the world frame.
 
     Mirrors the NLF arm's offline path exactly: transform into the world frame,
-    hold a buffer of ``N`` frames seeded from the first sample so filtering
-    starts immediately rather than after a silent warm-up, low-pass the buffer,
-    and keep its last sample.
+    then low-pass one frame at a time.
     """
 
     def __init__(self, trial_dir, marker_names, world_R, world_T,
-                 iir=None, buffer_len=1):
+                 iir=None):
         self.marker_names = list(marker_names)
         self.world_R = np.asarray(world_R, dtype=float)
         self.world_T = np.asarray(world_T, dtype=float)
         self.iir = iir
-        self.buffer_len = buffer_len
 
         names, xyz, valid = load_fastsam_markers(trial_dir)
         self.valid = valid
@@ -172,23 +168,13 @@ class FastsamMarkerSource:
         return markers
 
     def __iter__(self):
-        channels = 3 * len(self.marker_names)
-        buffer = deque(maxlen=self.buffer_len)
         for frame in range(len(self)):
             if not self.valid[frame]:
                 continue
             markers = self.world_markers(frame)
             stacked = np.stack([markers[name] for name in self.marker_names])
-
-            if not buffer:
-                for _ in range(self.buffer_len):
-                    buffer.append(stacked)
-            else:
-                buffer.append(stacked)
             if self.iir is not None:
-                block = np.asarray(buffer).reshape(self.buffer_len, channels)
-                stacked = self.iir.filter(block).reshape(
-                    self.buffer_len, len(self.marker_names), 3)[-1]
+                stacked = self.iir(stacked)
             yield frame, dict(zip(self.marker_names, stacked))
 
 
@@ -201,7 +187,7 @@ def build_source(dataset, participant, task, cameras, settings, logger=None):
     import yaml
 
     from rtcosmik.camera.cam_utils import load_world_transformation
-    from rtcosmik.filtering.iir import IIR
+    from rtcosmik.filtering.iir import MarkerFilter
 
     if tuple(cameras) != (0,):
         raise ValueError(
@@ -212,14 +198,11 @@ def build_source(dataset, participant, task, cameras, settings, logger=None):
     world_R, world_T = load_world_transformation(
         root / "cam_params" / participant, cameras[0])
 
-    iir = IIR(num_channel=3 * len(settings.marker_names),
-              sampling_frequency=settings.fs)
-    iir.add_filter(order=settings.order, cutoff=settings.cutoff_freq,
-                   filter_type=settings.filter_type)
+    iir = MarkerFilter(len(settings.marker_names), settings)
 
     source = FastsamMarkerSource(
         root / "fastsam" / participant / task, settings.marker_names,
-        world_R, world_T, iir=iir, buffer_len=settings.N)
+        world_R, world_T, iir=iir)
     (logger or LOGGER).info(
         f"FastSAM {participant}/{task}: {len(source)} frames, camera "
         f"{cameras[0]}, {len(settings.marker_names)} markers")

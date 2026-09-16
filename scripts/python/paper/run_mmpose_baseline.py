@@ -29,7 +29,7 @@ import yaml
 
 from rtcosmik.config_loader import settings
 from rtcosmik.camera.cam_utils import load_camera_parameters, load_world_transformation
-from rtcosmik.filtering.iir import IIR
+from rtcosmik.filtering.iir import MarkerFilter
 from rtcosmik.paper.mmpose_baseline import HALPE26, MmposeMarkerSource, load_trial
 from rtcosmik.pipeline.solver import HumanSolver
 from rtcosmik.saver.csv_saver import CSVSaver
@@ -84,14 +84,12 @@ def main():
                        augmenter_model="v0.3")
     LOGGER.info(f"loaded OpenCap v0.3 LSTM augmenter from {augmenter_dir}")
 
-    iir = IIR(num_channel=3 * len(HALPE26), sampling_frequency=settings.fs)
-    iir.add_filter(order=settings.order, cutoff=settings.cutoff_freq,
-                   filter_type=settings.filter_type)
+    iir = MarkerFilter(len(HALPE26), settings)
 
     source = MmposeMarkerSource(
         keypoints, confidences, mtxs, dists, projections, world_R, world_T,
         models, augmenter_dir, meta["height"], meta["weight"],
-        iir=iir, buffer_len=settings.N, logger=LOGGER)
+        iir=iir, logger=LOGGER)
 
     solver = HumanSolver(settings, gender=meta["gender"][0],
                          height=meta["height"], weight=meta["weight"],

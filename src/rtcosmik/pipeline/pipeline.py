@@ -1,4 +1,3 @@
-from collections import deque
 import torch
 import numpy as np
 import pinocchio as pin
@@ -9,7 +8,7 @@ import time
 
 from rtcosmik.nlf.nlf import NLFEstimator, extract_views
 from rtcosmik.triangulation.triangulation import reconstruct_3d
-from rtcosmik.filtering.iir import IIR
+from rtcosmik.filtering.iir import MarkerFilter
 from rtcosmik.pipeline.solver import HumanSolver
 from rtcosmik.saver.recorder import Recorder
 from rtcosmik.viewer.async_display import AsyncDisplay
@@ -63,8 +62,6 @@ class PipelineProcess(Process):
 
         # Others, cam parameters
         self.first_sample = True
-
-        self.p3d_buffer=deque(maxlen=self.settings.N)
 
         self.mtxs=mtxs
         self.dists=dists
@@ -148,12 +145,7 @@ class PipelineProcess(Process):
             device=self.settings.device,
         )
 
-        num_channel = 3*len(self.settings.marker_names)
-        iir_filter = IIR(
-            num_channel=num_channel,
-            sampling_frequency=self.settings.fs
-        )
-        iir_filter.add_filter(order=self.settings.order, cutoff=self.settings.cutoff_freq, filter_type=self.settings.filter_type)
+        marker_filter = MarkerFilter(len(self.settings.marker_names), self.settings)
 
         try:
             while not self.stop_event.is_set():
@@ -199,69 +191,58 @@ class PipelineProcess(Process):
 
                     p3d_in_world=np.array([np.dot(self.world_R1_cam,point) + self.world_T1_cam for point in p3d_np])
 
+                    # One frame in, one filtered frame out. IIR.filter is
+                    # stateful, so it must see each sample exactly once.
+                    augmented_markers = marker_filter(p3d_in_world)
+
+                    mks_dict = dict(zip(self.settings.marker_names, augmented_markers))
+
                     if self.first_sample:
-                        for k in range(self.settings.N):
-                            self.p3d_buffer.append(p3d_in_world)  # add the 1st frame 30 times
+                        q = self.solver.calibrate(mks_dict)
+                        self.first_sample = False
+                        # Built here, from the *calibrated* model. The old
+                        # viewer process rebuilt its own from settings
+                        # defaults and drew a differently sized person.
+                        # Releases the replay sources, which have been
+                        # holding their first frame while this ran.
+                        if self.calibrated_event is not None:
+                            self.calibrated_event.set()
+                        viewer = Viewer(self.solver.model,
+                                        self.solver.collision_model,
+                                        self.solver.visual_model,
+                                        self.settings.marker_names)
                     else:
-                        self.p3d_buffer.append(p3d_in_world) # add the keypoints to the buffer normally
+                        t_ik0 = time.perf_counter()
+                        q = self.solver.step(mks_dict)
+                        stage_ms["ik"].append((time.perf_counter()-t_ik0)*1e3)
 
-                    if len(self.p3d_buffer) == self.settings.N:
-                        p3d_buffer_array = np.array(self.p3d_buffer)
+                        t_rec0 = time.perf_counter()
+                        recorder.record(new_counters, mks_dict, q)
+                        stage_ms["record"].append((time.perf_counter()-t_rec0)*1e3)
 
-                        # Filter keypoints in world to remove noisy artefacts 
-                        filtered_p3d_buffer = iir_filter.filter(np.reshape(p3d_buffer_array,(self.settings.N, 3*len(self.settings.marker_names))))
-                        filtered_p3d_buffer = np.reshape(filtered_p3d_buffer,(self.settings.N, len(self.settings.marker_names), 3))
+                        t_disp0 = time.perf_counter()
+                        if viewer is not None:
+                            display.submit(
+                                lambda m=dict(mks_dict), qq=np.array(q, copy=True):
+                                (viewer.display_markers(m), viewer.display_q(qq)))
+                        stage_ms["display"].append(
+                            (time.perf_counter()-t_disp0)*1e3)
+                        stage_ms["wait"].append((t_wait-t_loop0)*1e3)
+                        stage_ms["pose"].append((t_pose-t_wait)*1e3)
+                        stage_ms["reconstruct"].append((t_rec-t_pose)*1e3)
+                        loop_ms = (time.perf_counter()-t_loop0)*1e3
+                        stage_ms["loop"].append(loop_ms)
 
-                        augmented_markers=filtered_p3d_buffer[-1]
-
-                        mks_dict = dict(zip(self.settings.marker_names, augmented_markers))
-
-                        if self.first_sample:
-                            q = self.solver.calibrate(mks_dict)
-                            self.first_sample = False
-                            # Built here, from the *calibrated* model. The old
-                            # viewer process rebuilt its own from settings
-                            # defaults and drew a differently sized person.
-                            # Releases the replay sources, which have been
-                            # holding their first frame while this ran.
-                            if self.calibrated_event is not None:
-                                self.calibrated_event.set()
-                            viewer = Viewer(self.solver.model,
-                                            self.solver.collision_model,
-                                            self.solver.visual_model,
-                                            self.settings.marker_names)
-                        else:
-                            t_ik0 = time.perf_counter()
-                            q = self.solver.step(mks_dict)
-                            stage_ms["ik"].append((time.perf_counter()-t_ik0)*1e3)
-
-                            t_rec0 = time.perf_counter()
-                            recorder.record(new_counters, mks_dict, q)
-                            stage_ms["record"].append((time.perf_counter()-t_rec0)*1e3)
-
-                            t_disp0 = time.perf_counter()
-                            if viewer is not None:
-                                display.submit(
-                                    lambda m=dict(mks_dict), qq=np.array(q, copy=True):
-                                    (viewer.display_markers(m), viewer.display_q(qq)))
-                            stage_ms["display"].append(
-                                (time.perf_counter()-t_disp0)*1e3)
-                            stage_ms["wait"].append((t_wait-t_loop0)*1e3)
-                            stage_ms["pose"].append((t_pose-t_wait)*1e3)
-                            stage_ms["reconstruct"].append((t_rec-t_pose)*1e3)
-                            loop_ms = (time.perf_counter()-t_loop0)*1e3
-                            stage_ms["loop"].append(loop_ms)
-
-                            recent["loop"].append(loop_ms)
-                            recent["pose"].append((t_pose-t_wait)*1e3)
-                            recent["ik"].append(stage_ms["ik"][-1])
-                            recent["skip"].append(skipped[-1] if skipped else 1)
-                            now = time.perf_counter()
-                            if now - t_report >= self.report_every:
-                                self._log_live(recent, now - t_report)
-                                for v in recent.values():
-                                    v.clear()
-                                t_report = now
+                        recent["loop"].append(loop_ms)
+                        recent["pose"].append((t_pose-t_wait)*1e3)
+                        recent["ik"].append(stage_ms["ik"][-1])
+                        recent["skip"].append(skipped[-1] if skipped else 1)
+                        now = time.perf_counter()
+                        if now - t_report >= self.report_every:
+                            self._log_live(recent, now - t_report)
+                            for v in recent.values():
+                                v.clear()
+                            t_report = now
 
         finally:
             self._log_timing(stage_ms, skipped)

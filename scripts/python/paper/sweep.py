@@ -164,11 +164,11 @@ def run_nlf(dataset, participant, task, cameras, out_dir, settings,
     weighted DLT the mmpose arm uses, which holds the reconstruction fixed and
     leaves the detector as the only difference between the two arms.
     """
-    from collections import OrderedDict, deque
+    from collections import OrderedDict
     import yaml
     from rtcosmik.camera.cam_utils import (load_camera_parameters,
                                            load_world_transformation)
-    from rtcosmik.filtering.iir import IIR
+    from rtcosmik.filtering.iir import MarkerFilter
     from rtcosmik.nlf.nlf import extract_views
     from rtcosmik.pipeline.solver import HumanSolver
     from rtcosmik.saver.csv_saver import CSVSaver
@@ -198,17 +198,13 @@ def run_nlf(dataset, participant, task, cameras, out_dir, settings,
     solver = HumanSolver(settings, gender=meta["gender"][0], height=meta["height"],
                          weight=meta["weight"], logger=logging.getLogger("solve"))
 
-    channels = 3 * len(settings.marker_names)
-    iir = IIR(num_channel=channels, sampling_frequency=settings.fs)
-    iir.add_filter(order=settings.order, cutoff=settings.cutoff_freq,
-                   filter_type=settings.filter_type)
+    marker_filter = MarkerFilter(len(settings.marker_names), settings)
 
     out_dir.mkdir(parents=True, exist_ok=True)
     saver = CSVSaver(str(out_dir),
                      markers_header=["Frame_0"] + list(settings.marker_names),
                      joint_angles_header=list(settings.joint_angles_names))
 
-    buffer = deque(maxlen=settings.N)
     ik_ms, rows, read = [], 0, 0
     started = time.perf_counter()
     try:
@@ -230,15 +226,7 @@ def run_nlf(dataset, participant, task, cameras, out_dir, settings,
                 continue
             p3d = np.asarray(p3d) @ np.asarray(world_R).T + np.asarray(world_T)
 
-            if not buffer:
-                for _ in range(settings.N):
-                    buffer.append(p3d)
-            else:
-                buffer.append(p3d)
-            block = np.asarray(buffer).reshape(settings.N, channels)
-            markers_xyz = iir.filter(block).reshape(
-                settings.N, len(settings.marker_names), 3)[-1]
-            mks = dict(zip(settings.marker_names, markers_xyz))
+            mks = dict(zip(settings.marker_names, marker_filter(p3d)))
 
             t0 = time.perf_counter()
             q = solver.solve(mks)

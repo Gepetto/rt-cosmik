@@ -209,13 +209,11 @@ class MmposeMarkerSource:
             was trained with both as explicit features.
         iir: optional filter applied to the triangulated keypoints before the
             LSTM sees them, matching how the baseline was built and validated.
-        buffer_len: how many frames the filter is run over, ``settings.N``, so
-            the smoothing procedure matches the NLF arm's.
     """
 
     def __init__(self, keypoints, confidences, mtxs, dists, projections,
                  world_R, world_T, models, augmenter_dir, height, mass,
-                 iir=None, buffer_len=10, logger=None, depth_aware=False,
+                 iir=None, logger=None, depth_aware=False,
                  triangulation="dlt"):
         self.keypoints = keypoints
         self.confidences = confidences
@@ -229,7 +227,6 @@ class MmposeMarkerSource:
         self.height = float(height)
         self.mass = float(mass)
         self.iir = iir
-        self.buffer_len = buffer_len
         self.logger = logger or LOGGER
         self.depth_aware = depth_aware
         self.triangulation = triangulation
@@ -288,24 +285,14 @@ class MmposeMarkerSource:
         from rtcosmik.augmenter.marker_augmenter import augmentTRC
 
         window = deque(maxlen=WINDOW)
-        smooth = deque(maxlen=self.buffer_len)
         n_kp = len(HALPE26)
 
         for frame in range(len(self)):
             p3d = self.triangulate(frame)
 
-            # Mirror the NLF arm exactly: hold a buffer of buffer_len frames,
-            # filter the buffer, keep its last sample. The first frame seeds the
-            # buffer so filtering can start immediately rather than after a
-            # silent warm-up that would shift the two arms out of step.
-            if not smooth:
-                for _ in range(self.buffer_len):
-                    smooth.append(p3d)
-            else:
-                smooth.append(p3d)
+            # Mirror the NLF arm exactly: one frame in, one filtered frame out.
             if self.iir is not None:
-                block = np.asarray(smooth).reshape(self.buffer_len, 3 * n_kp)
-                p3d = self.iir.filter(block).reshape(self.buffer_len, n_kp, 3)[-1]
+                p3d = self.iir(p3d)
 
             if not window:
                 for _ in range(WINDOW):
@@ -338,7 +325,7 @@ def build_source(dataset, participant, task, cameras, settings, logger=None,
     import yaml
     from rtcosmik.camera.cam_utils import (load_camera_parameters,
                                            load_world_transformation)
-    from rtcosmik.filtering.iir import IIR
+    from rtcosmik.filtering.iir import MarkerFilter
 
     root = Path(dataset)
     meta = yaml.safe_load(
@@ -352,14 +339,12 @@ def build_source(dataset, participant, task, cameras, settings, logger=None,
     keypoints, confidences = load_trial(
         root / "mmpose" / "output" / participant / task, task, cameras)
 
-    iir = IIR(num_channel=3 * len(HALPE26), sampling_frequency=settings.fs)
-    iir.add_filter(order=settings.order, cutoff=settings.cutoff_freq,
-                   filter_type=settings.filter_type)
+    iir = MarkerFilter(len(HALPE26), settings)
 
     source = MmposeMarkerSource(
         keypoints, confidences, mtxs, dists, projections, world_R, world_T,
         load_models(), augmenter_dir(), meta["height"], meta["weight"],
-        iir=iir, buffer_len=settings.N, logger=logger, depth_aware=depth_aware,
+        iir=iir, logger=logger, depth_aware=depth_aware,
         triangulation=triangulation)
     return source, meta
 
