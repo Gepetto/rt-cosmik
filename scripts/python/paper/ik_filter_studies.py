@@ -3,7 +3,7 @@
 
 E3  IK type        sample-by-sample QP ("sbs") against the MHE
 E4  MHE horizon    N = 3, 5, 7, 10, 15, 20
-E5  marker filter  none; 2nd order at 6, 8, 10 Hz; 4th order at 5, 8, 10 Hz
+E5  marker filter  none; 2nd order at 6, 8, 10 Hz; 4th order at 3, 4, 5, 8, 10 Hz
 
 All three change only what happens after NLF, so nothing is re-estimated: the
 NLF-3D 4-camera sweep saved every frame's per-camera NLF output
@@ -72,6 +72,8 @@ VARIANTS = OrderedDict([
     ("mhe_N7_o2c10", ("E5", "mhe", 7, 2, 10.0)),
     ("mhe_N7_o4c8", ("E5", "mhe", 7, 4, 8.0)),
     ("mhe_N7_o4c10", ("E5", "mhe", 7, 4, 10.0)),
+    ("mhe_N7_o4c4", ("E5", "mhe", 7, 4, 4.0)),
+    ("mhe_N7_o4c3", ("E5", "mhe", 7, 4, 3.0)),
 ])
 LIMIT_NEAR_RAD, LIMIT_VIOLATION_RAD = np.radians(0.5), 1e-3
 FIELDS = ["variant", "study", "ik_type", "N", "filter", "participant", "task", "frames",
@@ -119,33 +121,6 @@ def filter_delay_ms(order, cutoff):
     return float(delay[0] / FS * 1000.0)
 
 
-def markers_from_views(participant, task, views_path, settings):
-    """World-frame markers per frame, exactly as run_nlf reconstructs them."""
-    from rtcosmik.camera.cam_utils import load_camera_parameters, load_world_transformation
-    from rtcosmik.nlf.nlf import Views
-    from rtcosmik.triangulation.triangulation import reconstruct_3d
-
-    data = np.load(views_path)
-    cameras = [int(c) for c in data["cameras"]]
-    cam_dir = DATASET / "cam_params" / participant
-    _, _, projections, _, _ = load_camera_parameters(cam_dir, cameras)
-    world_R, world_T = load_world_transformation(cam_dir, cameras[0])
-    K, P, S = data["keypoints"], data["poses3d"], data["uncertainties"]
-    frames = []
-    for frame in range(len(K)):
-        valid = [c for c in range(len(cameras)) if np.isfinite(K[frame, c]).all()]
-        poses = [P[frame, c] if c in valid and np.isfinite(P[frame, c]).all() else None
-                 for c in range(len(cameras))]
-        keypoints = [K[frame, c] if c in valid else None for c in range(len(cameras))]
-        sigma = S[frame].astype(np.float64)
-        views = Views(keypoints, poses, None if valid == [] or np.isnan(sigma).all() else sigma, valid)
-        p3d = reconstruct_3d(views, projections)
-        if len(p3d) == 0:
-            continue
-        frames.append((frame, np.asarray(p3d) @ np.asarray(world_R).T + np.asarray(world_T)))
-    return frames
-
-
 def replay(job):
     """One variant on one trial: write the run folder and return timing and failures."""
     runs_root, views_root, participant, task, variant = job
@@ -162,7 +137,8 @@ def replay(job):
     settings.ik_type, settings.N = ik_type, horizon
     if order is not None:
         settings.order, settings.cutoff_freq = order, cutoff
-    frames = markers_from_views(participant, task, views_root / participant / f"{task}.npz", settings)
+    from rtcosmik.paper.nlf_views import replay_markers
+    frames = replay_markers(views_root / participant / f"{task}.npz", DATASET / "cam_params" / participant)
     marker_filter = MarkerFilter(len(settings.marker_names), settings) if order is not None else None
 
     meta = yaml.safe_load((DATASET / "metadata" / f"{participant}.yaml").read_text())

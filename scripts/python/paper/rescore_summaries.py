@@ -25,8 +25,9 @@ sys.path.insert(0, str(REPO / "scripts" / "python" / "paper"))
 
 import sweep as sweep_mod
 
-CONFIGS = ["mmpose_0-2-4-6", "mmpose_0-2", "nlf_0-2-4-6", "nlf_0-2", "nlf_0",
-           "nlf2d_0-2-4-6", "nlf2d_0-2", "fastsam_0", "fastsam_0-2", "fastsam_0-2-4-6"]
+CONFIGS = ["mmpose_0-2-4-6", "mmpose_0-2", "mmpose_0-4", "nlf_0-2-4-6", "nlf_0-2", "nlf_0-4",
+           "nlf_0", "nlf2d_0-2-4-6", "nlf2d_0-2", "nlf2d_0-4", "fastsam_0", "fastsam_0-2",
+           "fastsam_0-4", "fastsam_0-2-4-6"]
 REFERENCE_TAG = "mocap_reference"
 
 

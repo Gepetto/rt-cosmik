@@ -13,15 +13,20 @@ Reads ``per_trial/<arm>.csv`` and ``per_dof/<arm>.csv`` written by
 * ``reba_<neutral>``  posture-REBA agreement with the reference (``reba_agreement.py``),
                       including a linear-weighted Cohen's kappa on risk levels, pooled
                       over each participant's frames
-* ``robot_<measure>`` human-robot distance error (``robot_distance.py``)
-* ``timing``          throughput and IK time from the sweep summaries; FastSAM's
-                      inference time per view from its logs (``fastsam_timing.py``)
+* ``robot_<measure>`` human-robot distance error (``robot_distance.py``), including the
+                      separation margin a monitor would need: the 95th / 99th percentile
+                      of the overestimated distance, plus latency x closing speed
+* ``timing``          throughput and IK time from the sweep summaries (for replayed
+                      arms, from their direct timing runs); FastSAM's inference time
+                      per view from its logs (``fastsam_timing.py``)
 * ``study_ik``, ``study_horizon``, ``study_filter``
                       E3 / E4 / E5 on the NLF-3D 4-camera pipeline
                       (``ik_filter_studies.py``), each variant against the baseline
-* ``stats_*``         Friedman across arms, then pairwise Wilcoxon signed-rank with
-                      Holm correction, rank-biserial effect size and a bootstrap 95%
-                      CI of the paired difference
+* ``stats_*``         Friedman across the real-time arms, then the planned comparisons
+                      (:data:`PLANNED`): Wilcoxon signed-rank with Holm correction,
+                      rank-biserial effect size, bootstrap 95% CI of the paired
+                      difference. FastSAM is offline and outside that family: its
+                      comparisons at matched camera counts are reported uncorrected.
 
 and ``summary.json`` holding all of it.
 
@@ -37,14 +42,13 @@ DoF cancel when averaged, which would make a biased arm look unbiased.
 
 Statistics use one value per participant, never per trial: trials from the same
 participant are not independent, and treating 108 trials as 108 observations
-overstates significance. Comparisons are restricted to participants every
-compared arm covers, and the count is stated.
+overstates significance. Each comparison uses the participants both arms cover,
+and the count is stated; the Friedman test uses those all its arms cover.
 
     python3 scripts/python/paper/aggregate_results.py --arms nlf_0 fastsam_0 ...
 """
 import argparse
 import csv
-import itertools
 import json
 import sys
 from collections import defaultdict
@@ -57,12 +61,24 @@ import numpy as np
 GROUPS = ("lower", "trunk", "upper")
 TASKS = ("Screwing", "Polishing", "SideOverhead", "RobotPolishing", "RobotWelding", "Lifting")
 LABELS = {
-    "mmpose_0-2": "mmpose+LSTM, 2 cams", "mmpose_0-2-4-6": "mmpose+LSTM, 4 cams",
-    "nlf2d_0-2": "NLF-2D tri, 2 cams", "nlf2d_0-2-4-6": "NLF-2D tri, 4 cams",
-    "nlf_0": "NLF-3D, 1 cam", "nlf_0-2": "NLF-3D, 2 cams", "nlf_0-2-4-6": "NLF-3D, 4 cams",
-    "fastsam_0": "FastSAM-3D, 1 cam", "fastsam_0-2": "FastSAM-3D, 2 cams",
-    "fastsam_0-2-4-6": "FastSAM-3D, 4 cams",
+    "mmpose_0-2": "mmpose+LSTM, 2 cams same side", "mmpose_0-4": "mmpose+LSTM, 2 cams opposed",
+    "mmpose_0-2-4-6": "mmpose+LSTM, 4 cams",
+    "nlf2d_0-2": "NLF-2D tri, 2 cams same side", "nlf2d_0-4": "NLF-2D tri, 2 cams opposed",
+    "nlf2d_0-2-4-6": "NLF-2D tri, 4 cams",
+    "nlf_0": "NLF-3D, 1 cam", "nlf_0-2": "NLF-3D, 2 cams same side", "nlf_0-4": "NLF-3D, 2 cams opposed",
+    "nlf_0-2-4-6": "NLF-3D, 4 cams",
+    "fastsam_0": "FastSAM-3D, 1 cam", "fastsam_0-2": "FastSAM-3D, 2 cams same side",
+    "fastsam_0-4": "FastSAM-3D, 2 cams opposed", "fastsam_0-2-4-6": "FastSAM-3D, 4 cams",
 }
+#: The planned comparisons, Holm-corrected as one family: the proposed pipeline
+#: against the previous architecture and against triangulating the same
+#: detector's 2D, the camera-count ladder, and camera placement.
+PLANNED = [("nlf_0-2-4-6", "mmpose_0-2-4-6"), ("nlf_0-2-4-6", "nlf2d_0-2-4-6"),
+           ("nlf_0", "nlf_0-2"), ("nlf_0-2", "nlf_0-2-4-6"), ("nlf_0", "nlf_0-2-4-6"),
+           ("nlf_0-2", "nlf_0-4")]
+#: FastSAM (offline) against NLF-3D at the same cameras; reported, not corrected.
+OFFLINE = [("fastsam_0", "nlf_0"), ("fastsam_0-2", "nlf_0-2"), ("fastsam_0-4", "nlf_0-4"),
+           ("fastsam_0-2-4-6", "nlf_0-2-4-6")]
 MARKER_FIELDS = ("marker_raw_mm", "marker_depth_mm", "marker_lateral_mm",
                  "marker_translation_mm", "marker_shape_mm")
 #: Participants excluded from marker geometry for every arm (FastSAM export defect).
@@ -137,41 +153,57 @@ def holm(pvalues):
     return adjusted
 
 
-def paired_stats(by_arm, arms, rng):
-    """Friedman over ``arms``, then every pair: Wilcoxon, Holm, effect size, CI."""
+def friedman(by_arm, arms):
+    """Friedman test over ``arms``, on the participants every one of them covers."""
     from scipy import stats
+    arms = [a for a in arms if by_arm.get(a)]
+    common = sorted(set.intersection(*(set(by_arm[a]) for a in arms))) if arms else []
+    if len(arms) < 3 or len(common) < 5:
+        return {"arms": arms, "n": len(common), "chi2": None, "p": None, "df": None}
+    chi2, p = stats.friedmanchisquare(*np.array([[by_arm[a][q] for a in arms] for q in common]).T)
+    return {"arms": arms, "n": len(common), "chi2": float(chi2), "p": float(p), "df": len(arms) - 1}
 
-    common = sorted(set.intersection(*(set(by_arm[a]) for a in arms)))
-    out = {"participants": common, "n": len(common), "friedman": None, "pairs": []}
-    if len(common) < 5 or len(arms) < 2:
-        return out
-    matrix = np.array([[by_arm[a][p] for a in arms] for p in common])
-    if len(arms) >= 3:
-        chi2, p = stats.friedmanchisquare(*matrix.T)
-        out["friedman"] = {"chi2": float(chi2), "p": float(p), "df": len(arms) - 1}
 
-    pairs, raw_p = [], []
-    for i, j in itertools.combinations(range(len(arms)), 2):
-        diff = matrix[:, i] - matrix[:, j]
-        if np.allclose(diff, 0):
-            w, p = np.nan, 1.0
-        else:
-            w, p = stats.wilcoxon(matrix[:, i], matrix[:, j])
-        ranks = stats.rankdata(np.abs(diff[diff != 0]))
-        signs = np.sign(diff[diff != 0])
-        rbc = (float(ranks[signs > 0].sum() - ranks[signs < 0].sum()) / float(ranks.sum())
+def compare(by_arm, pairs, rng, correct):
+    """Wilcoxon signed-rank for each pair, on the participants both arms cover.
+
+    Also the mean paired difference with a bootstrap 95% CI and the rank-biserial
+    effect size. With ``correct``, p-values are Holm-adjusted across ``pairs``.
+    """
+    from scipy import stats
+    out = []
+    for a, b in pairs:
+        if not (by_arm.get(a) and by_arm.get(b)):
+            continue
+        common = sorted(set(by_arm[a]) & set(by_arm[b]))
+        if len(common) < 5:
+            continue
+        diff = np.array([by_arm[a][q] - by_arm[b][q] for q in common])
+        p = 1.0 if np.allclose(diff, 0) else float(stats.wilcoxon(diff).pvalue)
+        nonzero = diff[diff != 0]
+        ranks = stats.rankdata(np.abs(nonzero))
+        rbc = (float(ranks[nonzero > 0].sum() - ranks[nonzero < 0].sum()) / float(ranks.sum())
                if ranks.size else 0.0)
         boots = diff[rng.integers(0, len(diff), size=(10000, len(diff)))].mean(axis=1)
-        pairs.append({"a": arms[i], "b": arms[j], "mean_diff": float(diff.mean()),
-                      "ci95": [float(np.percentile(boots, 2.5)), float(np.percentile(boots, 97.5))],
-                      "wilcoxon_W": float(w) if np.isfinite(w) else None,
-                      "p": float(p), "rank_biserial": rbc})
-        raw_p.append(float(p))
-    for pair, p_adj in zip(pairs, holm(np.asarray(raw_p))):
-        pair["p_holm"] = float(p_adj)
-        pair["significant_0.05"] = bool(p_adj < 0.05)
-    out["pairs"] = pairs
+        out.append({"a": a, "b": b, "n": len(common), "mean_diff": float(diff.mean()),
+                    "ci95": [float(np.percentile(boots, 2.5)), float(np.percentile(boots, 97.5))],
+                    "p": p, "rank_biserial": rbc})
+    adjusted = holm(np.asarray([c["p"] for c in out])) if (correct and out) else [c["p"] for c in out]
+    for c, p_adj in zip(out, adjusted):
+        c["p_adjusted"] = float(p_adj)
+        c["correction"] = "Holm" if correct else "none"
+        c["significant_0.05"] = bool(p_adj < 0.05)
     return out
+
+
+def filter_delay_ms(frequency_hz=1.0):
+    """Group delay of the configured marker filter at ``frequency_hz``, in ms."""
+    sys.path.insert(0, str(REPO / "src"))
+    from scipy import signal
+    from rtcosmik.config_loader import settings
+    b, a = signal.butter(settings.order, settings.cutoff_freq, settings.filter_type, fs=settings.fs)
+    _, delay = signal.group_delay((b, a), w=[frequency_hz], fs=settings.fs)
+    return float(delay[0] / settings.fs * 1000.0)
 
 
 def fmt(stat, digits=2):
@@ -336,39 +368,6 @@ def main():
                          "time-in-level err %", "neck %", "trunk %", "legs %", "upper arm %",
                          "lower arm %"], rows_out)
 
-    # Human-robot distance, per measure.
-    robot_fields = ("bias_mm", "mae_mm", "rmse_mm", "sd_mm", "r", "closest_approach_err_mm",
-                    "contact_agree_pct", "below_100mm_agree_pct", "below_200mm_agree_pct",
-                    "below_300mm_agree_pct", "closest_segment_agree_pct", "ref_mean_mm", "ref_min_mm")
-    by_arm_body, by_arm_hands = {}, {}
-    for measure in ("whole", "body", "left_hand_ee", "right_hand_ee"):
-        rows_out = []
-        for a in arms:
-            sel = [r for r in read(args.root / "robot_distance" / f"{a}.csv") if r["measure"] == measure]
-            if not sel:
-                continue
-            entry = {f: mean_sd(participant_means(sel, lambda r, f=f: float(r[f])).values())
-                     for f in robot_fields}
-            summary["robot_distance"].setdefault(measure, {})[a] = entry
-            if measure == "body":
-                by_arm_body[a] = participant_means(sel, lambda r: float(r["rmse_mm"]))
-            if measure.endswith("hand_ee"):
-                for p, v in participant_means(sel, lambda r: float(r["rmse_mm"])).items():
-                    by_arm_hands.setdefault(a, {}).setdefault(p, []).append(v)
-            rows_out.append([LABELS.get(a, a), fmt(entry["bias_mm"], 1), fmt(entry["mae_mm"], 1),
-                             fmt(entry["rmse_mm"], 1), fmt(entry["sd_mm"], 1), fmt(entry["r"], 3),
-                             fmt(entry["closest_approach_err_mm"], 1), fmt(entry["contact_agree_pct"], 1),
-                             fmt(entry["below_100mm_agree_pct"], 1), fmt(entry["below_200mm_agree_pct"], 1),
-                             fmt(entry["below_300mm_agree_pct"], 1),
-                             fmt(entry["closest_segment_agree_pct"], 1)])
-        if rows_out:
-            write_table(tables / f"robot_{measure}",
-                        ["arm", "bias mm", "MAE mm", "RMSE mm", "SD mm", "r", "closest approach err mm",
-                         "contact agree %", "<100 mm agree %", "<200 mm agree %", "<300 mm agree %",
-                         "closest segment agree %"], rows_out)
-    by_arm_hands = {a: {p: float(np.mean(v)) for p, v in d.items() if len(v) == 2}
-                    for a, d in by_arm_hands.items()}
-
     # Timing. Offline throughput of each arm's sweep, IK time, and FastSAM's
     # inference per view, which the sweep does not see (it reads exported markers).
     fastsam_views = read(args.root / "timing" / "fastsam_per_view.csv")
@@ -377,6 +376,9 @@ def main():
     timing_rows = []
     for a in arms:
         sweep_rows = [r for r in read(results / "vs_mocap" / f"{a}.csv") if r.get("fps")]
+        if not sweep_rows:          # replayed arm: its throughput comes from direct timing runs
+            sweep_rows = [r for r in read(results / "timing_runs" / f"{a}.csv")
+                          if r.get("status") == "ok" and r.get("fps")]
         fps = mean_sd(participant_means(sweep_rows, lambda r: float(r["fps"])).values())
         ik = mean_sd(participant_means(sweep_rows, lambda r: float(r["ik_ms_median"] or "nan")).values())
         ik95 = mean_sd(participant_means(sweep_rows, lambda r: float(r["ik_ms_p95"] or "nan")).values())
@@ -404,18 +406,84 @@ def main():
     write_table(tables / "timing", ["arm", "sweep fps", "IK ms (median)", "IK ms (p95)",
                                     "estimated rate Hz", ">= 30 Hz", "what it covers"], timing_rows)
 
+    # Human-robot distance, per measure.
+    # The margin a speed-and-separation monitor would add on top of the estimate:
+    # the 95th/99th percentile of overestimated distance, plus the distance the
+    # operator closes during the pipeline's latency (filter group delay at 1 Hz
+    # plus one frame of processing at the arm's rate; camera exposure and
+    # transport not included) at the reference's 95th-percentile closing speed.
+    robot_fields = ("bias_mm", "mae_mm", "rmse_mm", "sd_mm", "r", "closest_approach_err_mm",
+                    "unsafe_p95_mm", "unsafe_p99_mm", "closing_speed_p95_mm_s",
+                    "contact_agree_pct", "below_100mm_agree_pct", "below_200mm_agree_pct",
+                    "below_300mm_agree_pct", "closest_segment_agree_pct", "ref_mean_mm", "ref_min_mm")
+    delay_ms = filter_delay_ms()
+    summary["filter_delay_1hz_ms"] = delay_ms
+    by_arm_body, by_arm_hands = {}, {}
+    for measure in ("whole", "body", "left_hand_ee", "right_hand_ee"):
+        rows_out = []
+        for a in arms:
+            sel = [r for r in read(args.root / "robot_distance" / f"{a}.csv") if r["measure"] == measure]
+            if not sel:
+                continue
+            entry = {f: mean_sd(participant_means(sel, lambda r, f=f: float(r.get(f) or "nan")).values())
+                     for f in robot_fields}
+            rate = summary["timing"].get(a, {}).get("estimated_rate_hz")
+            latency_ms = delay_ms + (1000.0 / rate if rate else np.nan)
+            speed = entry["closing_speed_p95_mm_s"]["mean"]
+            entry["latency_ms"] = latency_ms
+            entry["latency_margin_mm"] = latency_ms / 1000.0 * speed if speed is not None else None
+            p95 = entry["unsafe_p95_mm"]["mean"]
+            entry["total_margin_p95_mm"] = (max(p95, 0.0) + entry["latency_margin_mm"]
+                                            if p95 is not None and entry["latency_margin_mm"] is not None
+                                            else None)
+            summary["robot_distance"].setdefault(measure, {})[a] = entry
+            if measure == "body":
+                by_arm_body[a] = participant_means(sel, lambda r: float(r["rmse_mm"]))
+            if measure.endswith("hand_ee"):
+                for p, v in participant_means(sel, lambda r: float(r["rmse_mm"])).items():
+                    by_arm_hands.setdefault(a, {}).setdefault(p, []).append(v)
+            number = lambda x, d=0: f"{x:.{d}f}" if x is not None and np.isfinite(x) else "--"
+            rows_out.append([LABELS.get(a, a), fmt(entry["bias_mm"], 1), fmt(entry["mae_mm"], 1),
+                             fmt(entry["rmse_mm"], 1), fmt(entry["sd_mm"], 1), fmt(entry["r"], 3),
+                             fmt(entry["unsafe_p95_mm"], 1), fmt(entry["unsafe_p99_mm"], 1),
+                             number(entry["latency_ms"]), number(entry["latency_margin_mm"], 1),
+                             number(entry["total_margin_p95_mm"], 1),
+                             fmt(entry["closest_approach_err_mm"], 1), fmt(entry["contact_agree_pct"], 1),
+                             fmt(entry["below_100mm_agree_pct"], 1), fmt(entry["below_200mm_agree_pct"], 1),
+                             fmt(entry["below_300mm_agree_pct"], 1),
+                             fmt(entry["closest_segment_agree_pct"], 1)])
+        if rows_out:
+            write_table(tables / f"robot_{measure}",
+                        ["arm", "bias mm", "MAE mm", "RMSE mm", "SD mm", "r",
+                         "overestimate p95 mm", "overestimate p99 mm", "latency ms",
+                         "latency margin mm", "total margin (p95) mm", "closest approach err mm",
+                         "contact agree %", "<100 mm agree %", "<200 mm agree %", "<300 mm agree %",
+                         "closest segment agree %"], rows_out)
+    by_arm_hands = {a: {p: float(np.mean(v)) for p, v in d.items() if len(v) == 2}
+                    for a, d in by_arm_hands.items()}
+
     # Statistics, one value per participant.
+    realtime = [a for a in arms if not a.startswith("fastsam")]
+
     def stats_table(name, by_arm, unit, digits=2):
-        present = [a for a in arms if by_arm.get(a)]
-        stat = paired_stats(by_arm, present, rng)
+        stat = {"friedman": friedman(by_arm, realtime),
+                "planned": compare(by_arm, PLANNED, rng, correct=True),
+                "offline": compare(by_arm, OFFLINE, rng, correct=False)}
         summary["stats"][name] = stat
-        write_table(tables / f"stats_{name}",
-                    ["a", "b", f"mean diff {unit}", "95% CI", "p", "p Holm", "rank-biserial", "sig"],
-                    [[LABELS.get(s["a"], s["a"]), LABELS.get(s["b"], s["b"]),
-                      f"{s['mean_diff']:+.{digits}f}",
-                      f"[{s['ci95'][0]:+.{digits}f}, {s['ci95'][1]:+.{digits}f}]", f"{s['p']:.4f}",
-                      f"{s['p_holm']:.4f}", f"{s['rank_biserial']:+.2f}",
-                      "yes" if s["significant_0.05"] else "no"] for s in stat["pairs"]])
+        rows = [["family", "a", "b", "n", f"mean diff (a - b) {unit}", "95% CI", "p", "p adjusted",
+                 "correction", "rank-biserial", "sig"]]
+        for family in ("planned", "offline"):
+            for c in stat[family]:
+                rows.append([family, LABELS.get(c["a"], c["a"]), LABELS.get(c["b"], c["b"]), c["n"],
+                             f"{c['mean_diff']:+.{digits}f}",
+                             f"[{c['ci95'][0]:+.{digits}f}, {c['ci95'][1]:+.{digits}f}]",
+                             f"{c['p']:.4f}", f"{c['p_adjusted']:.4f}", c["correction"],
+                             f"{c['rank_biserial']:+.2f}", "yes" if c["significant_0.05"] else "no"])
+        f = stat["friedman"]
+        rows.append(["friedman", f"{len(f['arms'])} real-time arms", "", f["n"], "", "",
+                     f"{f['p']:.2e}" if f["p"] is not None else "--", "", "",
+                     f"chi2({f['df']}) = {f['chi2']:.1f}" if f["chi2"] is not None else "--", ""])
+        write_table(tables / f"stats_{name}", rows[0], rows[1:])
         return stat
 
     # Design-choice studies (E3 IK type, E4 horizon, E5 filter).
@@ -472,9 +540,9 @@ def main():
 
     (args.root / "summary.json").write_text(json.dumps(summary, indent=2) + "\n")
     print(f"arms: {len(arms)} ({', '.join(arms)})" + (f"; missing: {missing}" if missing else ""))
-    if stat["friedman"]:
-        f = stat["friedman"]
-        print(f"Friedman on whole-body RMSE, n = {stat['n']} participants: "
+    f = stat["friedman"]
+    if f["chi2"] is not None:
+        print(f"Friedman on whole-body RMSE over {len(f['arms'])} real-time arms, n = {f['n']}: "
               f"chi2({f['df']}) = {f['chi2']:.1f}, p = {f['p']:.2e}")
     print(f"tables written to {tables}")
     return 0

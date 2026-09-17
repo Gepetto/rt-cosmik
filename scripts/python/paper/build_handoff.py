@@ -17,7 +17,8 @@ to be copied as is to wherever the paper is written:
     data/           per-trial and per-DoF tables, REBA and robot-distance rows,
                     timing, sweep summaries, and the joint-angle traces behind
                     the trace figure
-    logs/           the campaign's logs and its environment record
+    logs/           the campaign's logs, its environment record, and code.diff: the
+                    uncommitted changes on top of the recorded commit, if any
 
 Per-frame arrays (REBA levels, robot distances) and the run folders themselves
 are left out; they are large and every number in the tables is already
@@ -36,23 +37,34 @@ REPO = Path(__file__).resolve().parents[3]
 
 import numpy as np
 
-ARMS = ["mmpose_0-2", "mmpose_0-2-4-6", "nlf2d_0-2", "nlf2d_0-2-4-6",
-        "nlf_0", "nlf_0-2", "nlf_0-2-4-6", "fastsam_0", "fastsam_0-2", "fastsam_0-2-4-6"]
+ARMS = ["mmpose_0-2", "mmpose_0-4", "mmpose_0-2-4-6", "nlf2d_0-2", "nlf2d_0-4", "nlf2d_0-2-4-6",
+        "nlf_0", "nlf_0-2", "nlf_0-4", "nlf_0-2-4-6",
+        "fastsam_0", "fastsam_0-2", "fastsam_0-4", "fastsam_0-2-4-6"]
 LABELS = {
-    "mmpose_0-2": "mmpose+LSTM, 2 cams", "mmpose_0-2-4-6": "mmpose+LSTM, 4 cams",
-    "nlf2d_0-2": "NLF-2D tri, 2 cams", "nlf2d_0-2-4-6": "NLF-2D tri, 4 cams",
-    "nlf_0": "NLF-3D, 1 cam", "nlf_0-2": "NLF-3D, 2 cams", "nlf_0-2-4-6": "NLF-3D, 4 cams",
-    "fastsam_0": "FastSAM-3D, 1 cam", "fastsam_0-2": "FastSAM-3D, 2 cams",
-    "fastsam_0-2-4-6": "FastSAM-3D, 4 cams",
+    "mmpose_0-2": "mmpose+LSTM, 2 cams same side", "mmpose_0-4": "mmpose+LSTM, 2 cams opposed",
+    "mmpose_0-2-4-6": "mmpose+LSTM, 4 cams",
+    "nlf2d_0-2": "NLF-2D tri, 2 cams same side", "nlf2d_0-4": "NLF-2D tri, 2 cams opposed",
+    "nlf2d_0-2-4-6": "NLF-2D tri, 4 cams",
+    "nlf_0": "NLF-3D, 1 cam", "nlf_0-2": "NLF-3D, 2 cams same side", "nlf_0-4": "NLF-3D, 2 cams opposed",
+    "nlf_0-2-4-6": "NLF-3D, 4 cams",
+    "fastsam_0": "FastSAM-3D, 1 cam", "fastsam_0-2": "FastSAM-3D, 2 cams same side",
+    "fastsam_0-4": "FastSAM-3D, 2 cams opposed", "fastsam_0-2-4-6": "FastSAM-3D, 4 cams",
 }
 #: One colour per arm family, darker with more cameras; used by every figure.
 COLOURS = {
-    "mmpose_0-2": "#f4a582", "mmpose_0-2-4-6": "#ca0020",
-    "nlf2d_0-2": "#92c5de", "nlf2d_0-2-4-6": "#0571b0",
-    "nlf_0": "#c2e699", "nlf_0-2": "#78c679", "nlf_0-2-4-6": "#238443",
-    "fastsam_0": "#dadaeb", "fastsam_0-2": "#9e9ac8", "fastsam_0-2-4-6": "#54278f",
+    "mmpose_0-2": "#f4a582", "mmpose_0-4": "#e7735a", "mmpose_0-2-4-6": "#ca0020",
+    "nlf2d_0-2": "#92c5de", "nlf2d_0-4": "#4a9ac6", "nlf2d_0-2-4-6": "#0571b0",
+    "nlf_0": "#c2e699", "nlf_0-2": "#78c679", "nlf_0-4": "#41ab5d", "nlf_0-2-4-6": "#238443",
+    "fastsam_0": "#dadaeb", "fastsam_0-2": "#9e9ac8", "fastsam_0-4": "#7b6fb3",
+    "fastsam_0-2-4-6": "#54278f",
 }
+#: Sweep-summary columns kept in the handoff. The accuracy columns there are the
+#: sweep's quick scores (free-flyer as a mean of per-axis RMSE, markers as mean
+#: magnitude) and differ from the tables' definitions, so they are left out.
+SWEEP_COLUMNS = ("arm", "participant", "task", "cameras", "n_horizon", "frames", "ik_ms_median",
+                 "ik_ms_p95", "fps", "status")
 GROUPS = ("lower", "trunk", "upper")
+CAP_MM = 200.0      # marker-error axis limit; points beyond it are named on the figure
 TRACE_DOFS = ("Right_Knee_Flexion_Extension[rad]", "Right_Shoulder_Flexion_Extension[rad]")
 
 
@@ -117,8 +129,8 @@ def figures(paper, out, arms, runs_root, trace_trial):
 
     def save(fig, name):
         fig.tight_layout()
-        fig.savefig(out / f"{name}.pdf")
-        fig.savefig(out / f"{name}.png", dpi=200)
+        fig.savefig(out / f"{name}.pdf", bbox_inches="tight")
+        fig.savefig(out / f"{name}.png", dpi=200, bbox_inches="tight")
         plt.close(fig)
         made.append(name)
 
@@ -140,12 +152,13 @@ def figures(paper, out, arms, runs_root, trace_trial):
 
     # 2. Depth vs lateral marker error against camera count.
     fig, ax = plt.subplots(figsize=(3.5, 2.4))
+    stars = []
     families = {"mmpose": "mmpose+LSTM", "nlf2d": "NLF-2D tri", "nlf": "NLF-3D", "fastsam": "FastSAM-3D"}
     for family, label in families.items():
         for field, style in (("marker_depth_mm", "-"), ("marker_lateral_mm", "--")):
             xs, ys = [], []
             for arm in arms:
-                if arm.split("_")[0] != family:
+                if arm.split("_")[0] != family or arm.endswith("_0-4"):
                     continue
                 rows = [r for r in read(paper / "per_trial" / f"{arm}.csv") if r["participant"] != "3361"]
                 per = {}
@@ -159,10 +172,23 @@ def figures(paper, out, arms, runs_root, trace_trial):
                 colour = COLOURS[[a for a in arms if a.split("_")[0] == family][-1]]
                 ax.plot(np.array(xs)[order], np.array(ys)[order], style, marker="o", ms=3, color=colour,
                         label=f"{label}, {'depth' if 'depth' in field else 'lateral'}")
+                opposed = [r for r in read(paper / "per_trial" / f"{family}_0-4.csv") if r["participant"] != "3361"]
+                if opposed:
+                    per = {}
+                    for r in opposed:
+                        per.setdefault(r["participant"], []).append(float(r[field]))
+                    star = np.mean([np.mean(v) for v in per.values()])
+                    stars.append((star, label, "depth" if "depth" in field else "lateral"))
+                    ax.plot([2], [min(star, CAP_MM)], marker="*", ms=6, color=colour, ls="none")
+    off_scale = [(v, l, f) for v, l, f in stars if v > CAP_MM]
+    if off_scale:
+        ax.set_ylim(0, CAP_MM * 1.05)
+        ax.text(2.08, CAP_MM * 0.99, "off scale: " + "; ".join(f"{l} {f} {v:.0f} mm" for v, l, f in off_scale),
+                fontsize=5, va="top")
     ax.set_xticks([1, 2, 4])
-    ax.set_xlabel("cameras")
+    ax.set_xlabel("cameras (line: same-side pair; star: opposed pair)")
     ax.set_ylabel("marker error RMS (mm)")
-    ax.legend(fontsize=5, ncol=2, frameon=False)
+    ax.legend(fontsize=5, ncol=2, frameon=False, loc="upper center", bbox_to_anchor=(0.5, -0.28))
     save(fig, "marker_depth_lateral_vs_cameras")
 
     # 3. Rate per arm against the 30 Hz real-time line.
@@ -320,10 +346,12 @@ def readme(campaign, summary, coverage_rows, figures_made, commit, dirty):
         f"| {LABELS.get(a, a)} | {fmt(joint[a]['all']['rmse_deg'])} | {fmt(joint[a]['lower']['rmse_deg'])} | "
         f"{fmt(joint[a]['trunk']['rmse_deg'])} | {fmt(joint[a]['upper']['rmse_deg'])} |"
         for a in ARMS if a in joint)
-    friedman = summary.get("stats", {}).get("joint_rmse", {}).get("friedman")
-    friedman_line = (f"Friedman on whole-body RMSE over {summary['stats']['joint_rmse']['n']} participants: "
-                     f"chi2({friedman['df']}) = {friedman['chi2']:.1f}, p = {friedman['p']:.2e}."
-                     if friedman else "Friedman test not computed (fewer than 5 common participants).")
+    friedman = summary.get("stats", {}).get("joint_rmse", {}).get("friedman") or {}
+    friedman_line = (f"Friedman on whole-body RMSE over the {len(friedman['arms'])} real-time arms, "
+                     f"{friedman['n']} participants: chi2({friedman['df']}) = {friedman['chi2']:.1f}, "
+                     f"p = {friedman['p']:.2e}."
+                     if friedman.get("chi2") is not None
+                     else "Friedman test not computed (fewer than 5 common participants).")
     coverage = "\n".join(f"| {LABELS.get(a, a)} | {t} | {p} |" for a, t, p in coverage_rows)
     return f"""# RT-COSMIK results handoff: `{campaign}`
 
@@ -338,7 +366,7 @@ Every number here is aggregated by `aggregate_results.py` from the per-trial row
 |---|---|---|---|---|
 {headline}
 
-{friedman_line} Pairwise tests: `tables/stats_joint_rmse.md`.
+{friedman_line} Planned comparisons: `tables/stats_joint_rmse.md`.
 
 ## Coverage
 
@@ -353,10 +381,34 @@ moving-horizon IK; only the source of the markers changes.
 
 | Arm | Markers from |
 |---|---|
-| mmpose+LSTM, 2/4 cams | COMFI's precomputed RTMPose (Halpe26) 2D keypoints, confidence-weighted DLT, stock OpenCap v0.3 LSTM augmenter (causal 30-frame window) |
-| NLF-2D tri, 2/4 cams | NLF's 2D keypoints at the marker vertices, uncertainty-weighted DLT |
-| NLF-3D, 1/2/4 cams | NLF's metric 3D at the marker vertices, per view, fused by inverse variance (the proposed pipeline) |
-| FastSAM-3D, 1/2/4 cams | FastSAM-3D-Body (MHR mesh) exported offline per camera, fused by plain mean |
+| mmpose+LSTM | COMFI's precomputed RTMPose (Halpe26) 2D keypoints, confidence-weighted DLT, stock OpenCap v0.3 LSTM augmenter (causal 30-frame window) |
+| NLF-2D tri | NLF's 2D keypoints at the marker vertices, uncertainty-weighted DLT |
+| NLF-3D (proposed) | NLF's metric 3D at the marker vertices, per view, fused by inverse variance |
+| FastSAM-3D (offline) | FastSAM-3D-Body (MHR mesh) exported offline per camera, fused by plain mean |
+
+Camera configurations: 4 cameras; 2 cameras **same side** (0-2: one support,
+0.82 m apart, 24 deg between optical axes); 2 cameras **opposed** (0-4: facing
+each other across the workspace, 163 deg); and 1 camera for the 3D arms.
+
+NLF runs per image, so the 4-camera NLF-3D sweep recorded every camera's NLF
+output, and NLF-3D 1 / 2 / 2-opposed and NLF-2D 4 / 2 / 2-opposed were
+**replayed** from that recording through the same filter and IK
+(`replay_nlf_arms.py`). Every camera configuration therefore sees identical
+NLF output. Replay was checked against direct runs on participant 1012:
+NLF-2D 4 cams identical, other configurations 0.3-0.4 mm median marker
+difference and at most 0.12 deg of joint RMSE per trial -- with one exception.
+**2D triangulation from the opposed pair is ill-conditioned**: the two cameras
+face each other (163 deg), so their rays are nearly parallel and depth along the
+line between them is barely constrained; in addition, the 2D detector swaps
+left and right in back views on some trials (1012/Screwing: the right knee is
+labelled on the left knee in 88-89% of frames in cameras 4 and 6). mmpose+LSTM
+and NLF-2D both collapse with that pair, and small input differences change the
+outcome: NLF-2D opposed scored 27.7 deg directly and 30.6 deg replayed on 1012
+(one trial differing by 17 deg), and the acados QP reported minimum-step
+warnings only on that configuration. Treat its per-trial numbers as unstable;
+the conclusion (2D triangulation fails with facing cameras, 3D fusion does not)
+holds either way. Direct runs of every replayed configuration on 3 participants
+are in `data/sweep_summaries/timing_run_*.csv` for comparison.
 
 * **Marker set `parity`**: the 35 markers the LSTM baseline can produce; 7 DoF it
   cannot observe are locked (thoracic Z/X/Y, both wrists Z/X), 29 DoF are scored.
@@ -364,9 +416,12 @@ moving-horizon IK; only the source of the markers changes.
   Group delay 79 / 81 / 101 ms at 0.5 / 1 / 3 Hz.
 * **IK**: moving-horizon estimation, N = 7, acados real-time profile.
 * **NLF marker vertices**: fitted to mocap (same method as FastSAM's marker map),
-  except the pelvis, hands and face, which stay hand-picked. The fitted pelvis
-  markers tilted the pelvis frame about 8 deg and caused shoulder flips; keeping
-  the hand-picked pelvis was better or equal in every arm tested.
+  except the pelvis, hands and face, which stay hand-picked. The fit does not
+  overfit: fitted on 14 participants, the map scores 34.0 mm median marker error
+  on them and 34.0 mm on the 3 held out (hand-picked vertices: 43.1 / 40.5 mm).
+  The fitted pelvis markers tilted the pelvis frame about 8 deg and caused
+  shoulder flips; keeping the hand-picked pelvis was better or equal in every
+  arm tested.
 * **FastSAM marker vertices**: the colleague's 17-subject map; TV8/TV12 dropped;
   Head reconstructed from the ears and nose (sensitivity at most 0.18 deg).
 
@@ -386,10 +441,14 @@ moving-horizon IK; only the source of the markers changes.
 * **Markers**: RMS error against the raw Vicon markers (29 body markers; facial
   markers have no Vicon counterpart), split exactly two ways: depth (along camera
   0's optical axis) / lateral, and whole-body translation / shape.
-* **Statistics**: one value per participant; Friedman across arms, Wilcoxon
-  signed-rank pairwise with Holm correction, rank-biserial effect size, bootstrap
-  95% CI (10 000 resamples) of the paired difference; restricted to participants
-  every compared arm covers.
+* **Statistics**: one value per participant. Friedman across the real-time arms
+  (FastSAM excluded), then a small family of **planned comparisons**, Holm-
+  corrected: NLF-3D 4 cams vs mmpose+LSTM 4 cams; NLF-3D vs NLF-2D tri at 4 cams;
+  NLF-3D 1 vs 2 (same side), 2 vs 4, 1 vs 4; NLF-3D 2 cams same side vs opposed.
+  Wilcoxon signed-rank on the participants both arms cover, rank-biserial effect
+  size, bootstrap 95% CI (10 000 resamples) of the paired difference. FastSAM
+  runs offline (below 3 Hz), so it is outside the family: its comparisons with
+  NLF-3D at matched camera counts are reported uncorrected.
 * **Shoulder flip rate**: share of frames in which any shoulder DoF is more than
   90 deg from the reference. With the arms overhead, shoulder flexion reaches the
   model's +-180 deg limit (kept on purpose: it follows human range of motion) and
@@ -424,7 +483,14 @@ hands of 0.108 H past the wrists and the head up to stature), distances are to
 the Panda's collision meshes. Per trial: bias, MAE, RMSE, SD, r, error on the
 closest approach, agreement below 100 / 200 / 300 mm and on contact (< 10 mm),
 closest-segment agreement. The system is not safety-rated; this measures how
-well each arm localises the operator relative to the robot. Robot states are
+well each arm localises the operator relative to the robot.
+
+**Separation margin** (ISO/TS 15066 speed-and-separation monitoring): the 95th
+and 99th percentiles of (estimate - reference), i.e. how much each arm
+overstates the separation, plus a latency term: (filter group delay at 1 Hz +
+one frame of processing at the arm's rate) x the reference's 95th-percentile
+closing speed. Camera exposure and USB transport are not included. Threshold
+agreement is kept in the tables but is noisy near each threshold. Robot states are
 missing for 1602/RobotWelding, 1847/RobotPolishing, 2307/RobotWelding.
 
 ## Timing (`tables/timing.md`, `data/timing/`)
@@ -434,7 +500,10 @@ offline -- not a latency benchmark. RTX 4500 Ada + i9-14900K, arms run one at a
 time on a free GPU.
 
 * NLF arms: offline end-to-end throughput from video files (decode, detection,
-  NLF, reconstruction, filter, IK).
+  NLF, reconstruction, filter, IK). The replayed configurations have no
+  throughput of their own: they were also run directly on 3 participants for
+  timing (`data/sweep_summaries/timing_run_*.csv`).
+* CPU governor set to `performance` for the campaign (see logs/environment.txt).
 * mmpose arms: RTMPose 2D inference from the RT-COSMIK draft's Table I (7.1 ms
   for 2 cams, 13.2 ms for 4, same machine) plus the measured rest of the chain.
 * FastSAM arms: logged inference time per view on the cluster that produced the
@@ -454,9 +523,17 @@ RMS jerk, share of frames near a joint limit (0.5 deg) and beyond one, IK solve
 time p50/p95/max (measured with several replays sharing the CPU: comparable
 between variants, not a clean benchmark), failed frames and shoulder flips.
 
-* E3: sample-by-sample QP (`sbs`) against the MHE.
+* E3: sample-by-sample QP (`sbs`) against the MHE. A bug in its line search
+  (the step size was never reset between iterations) was fixed before the
+  campaign; it had no measurable effect, because the acceptance test passes at
+  the full step. Retuning the QP (up to 10 iterations, gain 1, 5 mm stop) gained
+  at most 0.08 deg on participant 1012 at a cost in jitter and solve time, so
+  the shipped settings were kept.
 * E4: N = 3, 5, 7, 10, 15, 20.
-* E5: no filter; 2nd order at 6, 8, 10 Hz; 4th order at 5, 8, 10 Hz.
+* E5: no filter; 2nd order at 6, 8, 10 Hz; 4th order at 3, 4, 5, 8, 10 Hz. The
+  pipeline keeps 4th order at 5 Hz: accuracy does not depend on the setting
+  once the delay is compensated, and among settings under 100 ms of delay it
+  has the lowest jitter.
 
 ## Not produced, by decision of the study lead
 
@@ -487,7 +564,10 @@ def checklist(paper, figures_made):
         ("E0 filter fix, verified, delay stated", "done",
          "committed (bd09f75); delay in README; section_reconstruction.md corrected"),
         ("E1 modality table, full metric set, per task and DoF group, statistics", "done",
-         "tables/joint_overall, joint_tasks, joint_per_dof, markers, freeflyer, stats_joint_rmse; FastSAM 1/2/4 cams added"),
+         "tables/joint_overall, joint_tasks, joint_per_dof, markers, freeflyer, stats_joint_rmse; "
+         "FastSAM (offline) and an opposed 2-camera pair added"),
+        ("Statistics: Friedman, Wilcoxon + Holm, effect size, CI (brief §4)", "done, restricted",
+         "Holm over a planned family of 6 comparisons, not all pairs; FastSAM reported outside it"),
         ("Zero-lag scoring as default (brief §4.2.1)", "decided otherwise",
          "lag-compensated scoring kept: COMFI video trails mocap by ~3 frames; residual lag reported"),
         ("COMFI published angles as secondary reference (brief §4)", "decided otherwise",
@@ -510,8 +590,9 @@ def checklist(paper, figures_made):
          "only the 1/2/4-camera arms"),
         ("E2 full 43-marker set", "dropped (study lead's decision)", "not useful for this paper"),
         ("E8 locomotion tasks", "dropped (study lead's decision)", "not useful for this paper"),
-        ("E9 human-robot distance", "done" if have("tables/robot_body.md") else "missing",
-         "tables/robot_*; four distances because the operator hand-guides the robot"),
+        ("E9 human-robot distance, framed against ISO/TS 15066", "done" if have("tables/robot_body.md") else "missing",
+         "tables/robot_*; four distances (the operator hand-guides the robot); separation margin "
+         "= p95/p99 overestimate + latency x closing speed"),
         ("Ergonomics: posture REBA agreement (ROADMAP option A)", "done" if have("tables/reba_own.md") else "missing",
          "tables/reba_reference, reba_own"),
         ("REPORT.md", "replaced", "README.md (this package)"),
@@ -569,7 +650,14 @@ def main():
         copy_tree(paper / sub, data / sub, "*.csv")
     copy_tree(paper / "reba", data / "reba", "*.csv")
     copy_tree(paper / "robot_distance", data / "robot_distance", "*.csv")
-    copy_tree(results / "vs_mocap", data / "sweep_summaries", "*.csv")
+    (data / "sweep_summaries").mkdir(parents=True, exist_ok=True)
+    for source in sorted(list((results / "vs_mocap").glob("*.csv")) + list((results / "timing_runs").glob("*.csv"))):
+        rows = read(source)
+        name = source.name if source.parent.name == "vs_mocap" else f"timing_run_{source.name}"
+        with open(data / "sweep_summaries" / name, "w", newline="") as handle:
+            writer = csv.DictWriter(handle, fieldnames=list(SWEEP_COLUMNS), extrasaction="ignore")
+            writer.writeheader()
+            writer.writerows(rows)
     copy_tree(paper / "studies", data / "studies", "*.csv")
 
     trace_trial = args.trace_trial
@@ -588,6 +676,7 @@ def main():
                    runs_root, trace_trial)
 
     copy_tree(results / "logs", out / "logs", "*.log")
+    copy_tree(results, out / "logs", "code.diff")
     environment = results / "environment.txt"
     if environment.exists():
         shutil.copy2(environment, out / "logs" / "environment.txt")

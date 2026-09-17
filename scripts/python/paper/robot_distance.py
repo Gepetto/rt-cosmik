@@ -39,6 +39,13 @@ on the trial's closest approach, agreement on whether the distance is below each
 threshold in ``THRESHOLDS_M`` (contact: ``CONTACT_M``), and for the two minimum
 distances, agreement on which body segment is closest.
 
+For speed-and-separation monitoring (ISO/TS 15066) what matters is how much the
+estimate *overstates* the separation: the 95th and 99th percentiles of
+(estimate - reference) are the extra margin a monitor would need. The
+reference's 95th-percentile closing speed (how fast the distance shrinks) is
+recorded too, so that ``aggregate_results.py`` can add the part of the margin
+that latency costs.
+
     python3 scripts/python/paper/robot_distance.py --arms nlf_0-2-4-6 fastsam_0
 """
 import argparse
@@ -62,6 +69,7 @@ CONTACT_M = 0.01
 MEASURES = ("whole", "body", "left_hand_ee", "right_hand_ee")
 DISTAL = ("left_forearm", "right_forearm", "left_hand", "right_hand")
 HAND_LENGTH_H, ANKLE_HEIGHT_H = 0.108, 0.039
+FS = 40.0
 
 #: (segment, from joint, to joint): joint centres of the scaled model.
 SEGMENTS = (
@@ -88,6 +96,7 @@ SEGMENT_NAMES = tuple(s[0] for s in SEGMENTS) + tuple(h[0] for h in HANDS) + ("h
 FIELDS = (["arm", "participant", "task", "measure", "frames", "lag_frames",
            "ref_mean_mm", "ref_min_mm", "arm_mean_mm", "arm_min_mm",
            "bias_mm", "mae_mm", "rmse_mm", "sd_mm", "r", "closest_approach_err_mm",
+           "unsafe_p95_mm", "unsafe_p99_mm", "closing_speed_p95_mm_s",
            "closest_segment_agree_pct", "contact_agree_pct"]
           + [f"below_{int(t * 1000)}mm_agree_pct" for t in THRESHOLDS_M])
 
@@ -316,6 +325,10 @@ def one_trial(job):
                    "r": (float(np.corrcoef(d_arm, d_ref)[0, 1])
                          if d_ref.std() > 0 and d_arm.std() > 0 else np.nan),
                    "closest_approach_err_mm": 1000 * (d_arm.min() - d_ref.min()),
+                   "unsafe_p95_mm": 1000 * float(np.percentile(e, 95)),
+                   "unsafe_p99_mm": 1000 * float(np.percentile(e, 99)),
+                   "closing_speed_p95_mm_s": 1000 * float(np.percentile(
+                       np.maximum(0.0, -np.diff(d_ref) * FS), 95)) if len(d_ref) > 1 else np.nan,
                    "closest_segment_agree_pct": (100 * np.mean(seg_arm == seg_ref)
                                                  if segments else np.nan),
                    "contact_agree_pct": 100 * np.mean((d_arm < CONTACT_M) == (d_ref < CONTACT_M))}

@@ -212,7 +212,10 @@ def run_nlf(dataset, participant, task, cameras, out_dir, settings,
                      joint_angles_header=list(settings.joint_angles_names))
 
     ik_ms, rows, read = [], 0, 0
-    cached = {"keypoints": [], "poses3d": [], "uncertainties": []}
+    recorder = None
+    if views_cache is not None:
+        from rtcosmik.paper.nlf_views import ViewsRecorder
+        recorder = ViewsRecorder(cameras, len(settings.marker_names))
     started = time.perf_counter()
     try:
         while True:
@@ -222,8 +225,8 @@ def run_nlf(dataset, participant, task, cameras, out_dir, settings,
             read += 1
             nlf_out, _, _, _ = estimator.estimate_from_frames(frames)
             views = extract_views(nlf_out, len(cameras))
-            if views_cache is not None:
-                _cache_views(cached, views, len(cameras), len(settings.marker_names))
+            if recorder is not None:
+                recorder.append(views)
             if reconstruction == "tri2d":
                 if any(k is None for k in views.keypoints) or len(cameras) < 2:
                     continue
@@ -260,28 +263,9 @@ def run_nlf(dataset, participant, task, cameras, out_dir, settings,
         # process. Four cameras a trial adds up fast.
         source.release()
     seconds = time.perf_counter() - started
-    if views_cache is not None:
-        target = Path(views_cache) / participant / f"{task}.npz"
-        target.parent.mkdir(parents=True, exist_ok=True)
-        np.savez_compressed(target, cameras=np.asarray(cameras),
-                            **{k: np.asarray(v, dtype=np.float32) for k, v in cached.items()})
+    if recorder is not None:
+        recorder.save(Path(views_cache) / participant / f"{task}.npz")
     return rows, np.asarray(ik_ms), seconds
-
-
-def _cache_views(cached, views, cameras, markers):
-    """Append one frame of per-camera NLF output; NaN where a camera saw no one."""
-    keypoints = np.full((cameras, markers, 2), np.nan, np.float32)
-    poses = np.full((cameras, markers, 3), np.nan, np.float32)
-    sigma = np.full((cameras, markers), np.nan, np.float32)
-    for c in views.valid_cam_ids:
-        keypoints[c] = views.keypoints[c]
-        if views.poses3d[c] is not None:
-            poses[c] = views.poses3d[c]
-    if views.uncertainties is not None:
-        sigma[:] = views.uncertainties
-    cached["keypoints"].append(keypoints)
-    cached["poses3d"].append(poses)
-    cached["uncertainties"].append(sigma)
 
 
 def run_mocap(dataset, participant, task, cameras, out_dir, settings,
