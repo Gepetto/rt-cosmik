@@ -160,7 +160,7 @@ def figures(paper, out, arms, runs_root, trace_trial):
             for arm in arms:
                 if arm.split("_")[0] != family or arm.endswith("_0-4"):
                     continue
-                rows = [r for r in read(paper / "per_trial" / f"{arm}.csv") if r["participant"] != "3361"]
+                rows = read(paper / "per_trial" / f"{arm}.csv")
                 per = {}
                 for r in rows:
                     per.setdefault(r["participant"], []).append(float(r[field]))
@@ -172,7 +172,7 @@ def figures(paper, out, arms, runs_root, trace_trial):
                 colour = COLOURS[[a for a in arms if a.split("_")[0] == family][-1]]
                 ax.plot(np.array(xs)[order], np.array(ys)[order], style, marker="o", ms=3, color=colour,
                         label=f"{label}, {'depth' if 'depth' in field else 'lateral'}")
-                opposed = [r for r in read(paper / "per_trial" / f"{family}_0-4.csv") if r["participant"] != "3361"]
+                opposed = read(paper / "per_trial" / f"{family}_0-4.csv")
                 if opposed:
                     per = {}
                     for r in opposed:
@@ -545,8 +545,12 @@ run. (E5 still reports zero-lag accuracy, where the delay is the point.)
 
 ## Exclusions and data notes
 
-* Participant 3361 is excluded from the FastSAM arms (its FastSAM export does not
-  match COMFI's calibration) and from marker-geometry metrics for all arms.
+* Participant 3361 is included in every arm. Its first FastSAM camera-0 export
+  (older inference script) had its depth halved and was replaced by a re-export;
+  its FastSAM files also carry the videos' swapped camera labels (0<->4, 2<->6),
+  the same swap as its mmpose export, measured against mocap and corrected when
+  the files are read (`fastsam_source.EXPORT_CAMERA`). Its FastSAM arms were run
+  after the main campaign, on the same code (`logs/addendum_3361.log`).
 * COMFI's 1118/Screwing camera_0 video was corrupt in an early local copy and has
   been re-downloaded; all runs here use the complete video.
 

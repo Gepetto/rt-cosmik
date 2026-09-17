@@ -11,14 +11,16 @@ than copied), using the same marker map as camera 0. So the four files come out
 of one code path and one set of vertex indices; only the camera differs.
 
 Camera 0 was exported earlier and COMFI ships it as
-``cosmik_mhr_markers_cam.csv``; it is copied across under the indexed name.
+``cosmik_mhr_markers_cam.csv`` -- under ``<participant>/<Task>/``, or for
+participant 3361 (folder ``Mathis``) re-exported under ``Mathis/<raw task>/`` --
+and it is copied across under the indexed name.
 
 COMFI is mounted read-only in the container, so the tree is written to a
 staging folder and copied into ``COMFI/fastsam`` on the host.
 
-Participant 3361 is left out of cameras 2/4/6: its FastSAM results come from a
-different inference script and do not line up with COMFI's calibration. Its
-camera-0 file is still renamed, so the folder layout is uniform.
+Files keep FastSAM's own camera labels. For 3361 those labels are swapped
+against the calibration; ``fastsam_source.EXPORT_CAMERA`` pairs each file with
+the right camera when the arm reads them.
 
     python3 scripts/python/paper/export_fastsam_multicam.py \\
         --results /root/workspace/COMFI/fastsam/results_multicam \\
@@ -33,8 +35,11 @@ import sys
 from pathlib import Path
 
 CAMERAS = (2, 4, 6)
-EXCLUDED_IDS = {"3361"}
 LEGACY_CAM0 = "cosmik_mhr_markers_cam.csv"
+#: Results folders the marker map does not list. Mathis was left out of the map's
+#: subject list (its first export came from another inference script), but its
+#: current results are exported like everyone else's.
+EXTRA_IDS = {"Mathis": "3361"}
 
 
 def csv_name(camera):
@@ -51,7 +56,7 @@ def load_exporter(results_root):
 
 def subject_id(mapping, folder):
     """Resolve a results folder to a COMFI id, tolerating the Maxime/Maxime_ spelling."""
-    ids = mapping["subject_ids"]
+    ids = {**EXTRA_IDS, **mapping["subject_ids"]}
     for candidate in (folder, folder.rstrip("_"), folder + "_"):
         if candidate in ids:
             return ids[candidate]
@@ -86,14 +91,14 @@ def main():
             target = args.out / pid / task
             target.mkdir(parents=True, exist_ok=True)
 
-            legacy = args.comfi_fastsam / pid / task / LEGACY_CAM0
+            # A re-export under the results folder's name supersedes the old one.
+            legacy = next((path for path in (args.comfi_fastsam / folder.name / raw_task / LEGACY_CAM0,
+                                             args.comfi_fastsam / pid / task / LEGACY_CAM0)
+                           if path.exists()), None)
             dest0 = target / csv_name(0)
-            if legacy.exists() and (args.overwrite or not dest0.exists()):
+            if legacy is not None and (args.overwrite or not dest0.exists()):
                 shutil.copyfile(legacy, dest0)
                 copied += 1
-
-            if pid in EXCLUDED_IDS:
-                continue
             for camera in CAMERAS:
                 result_dir = folder / raw_task / f"camera_{camera}" / "calibrated"
                 output = target / csv_name(camera)
@@ -111,7 +116,7 @@ def main():
                 print(f"{pid}/{task}/cam{camera}: {len(points)} rows, "
                       f"{int((~valid).sum())} invalid", flush=True)
 
-    # Participants that only exist as camera-0 files (3361) still get renamed.
+    # Participants that only exist as camera-0 files still get renamed.
     for legacy in sorted(args.comfi_fastsam.glob(f"*/*/{LEGACY_CAM0}")):
         pid, task = legacy.parts[-3], legacy.parts[-2]
         if not pid.isdigit() or (args.participants and pid not in args.participants):

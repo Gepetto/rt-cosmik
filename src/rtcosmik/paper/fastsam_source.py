@@ -70,12 +70,19 @@ LOGGER = logging.getLogger(__name__)
 #: One CSV per camera, under ``<dataset>/fastsam/<participant>/<task>/``.
 FASTSAM_FILE = "cosmik_mhr_markers_cam{camera}.csv"
 
-#: Participants left out of every FastSAM arm. 3361's results come from a
-#: different FastSAM inference script and do not line up with COMFI's
-#: calibration: its camera-0 range is scaled by about 2, and cameras 2/4/6 land
-#: 0.5-0.9 m from the mocap markers whichever camera pose is used. Being
-#: investigated upstream; until then it is reported as excluded, not run.
-EXCLUDED_PARTICIPANTS = ("3361",)
+#: Which export file holds each calibrated camera's view, where it is not the
+#: file with the same number. 3361's FastSAM runs read videos whose two stereo
+#: pairs are labelled the other way round -- the same swap as COMFI's mmpose
+#: export for that participant (``mmpose_baseline.CAMERA_ID_OVERRIDES``).
+#: Measured, not assumed: moving each export into the world with every camera's
+#: calibration, the files labelled 0, 2, 4, 6 match cameras 4, 6, 0, 2 at 61-83 mm
+#: median marker error with depth scale 1.01-1.02, and every other assignment is
+#: 0.3-2 m off; participant 1012, labelled correctly, scores 87-91 mm the same way.
+#: (3361's first camera-0 export, from an older inference script, had its depth
+#: halved; it was replaced.)
+EXPORT_CAMERA = {
+    "3361": {0: 4, 2: 6, 4: 0, 6: 2},
+}
 
 #: Columns that carry no marker.
 META_COLUMNS = ("frame_id", "person_id", "valid")
@@ -160,7 +167,7 @@ class FastsamMarkerSource:
     """
 
     def __init__(self, trial_dir, cameras, marker_names, projections,
-                 world_R, world_T, iir=None):
+                 world_R, world_T, iir=None, export_camera=None):
         from rtcosmik.triangulation.triangulation import fuse_camera_poses3d
 
         self._fuse = fuse_camera_poses3d
@@ -171,9 +178,10 @@ class FastsamMarkerSource:
         self.world_T = np.asarray(world_T, dtype=float)
         self.iir = iir
 
+        export_camera = export_camera or {}
         self.views = []
         for camera in self.cameras:
-            path = fastsam_csv(trial_dir, camera)
+            path = fastsam_csv(trial_dir, export_camera.get(camera, camera))
             names, xyz, valid = load_fastsam_markers(path)
             keep = [name for name in names if name not in DROPPED_MARKERS]
             missing = (set(self.marker_names) - set(keep)) - {"Head"}
@@ -233,10 +241,6 @@ def build_source(dataset, participant, task, cameras, settings, logger=None):
                                            load_world_transformation)
     from rtcosmik.filtering.iir import MarkerFilter
 
-    if participant in EXCLUDED_PARTICIPANTS:
-        raise ValueError(f"participant {participant} is excluded from the FastSAM "
-                         f"arms (see EXCLUDED_PARTICIPANTS)")
-
     root = Path(dataset)
     meta = yaml.safe_load((root / "metadata" / f"{participant}.yaml").read_text())
     cam_dir = root / "cam_params" / participant
@@ -247,7 +251,8 @@ def build_source(dataset, participant, task, cameras, settings, logger=None):
 
     source = FastsamMarkerSource(
         root / "fastsam" / participant / task, cameras, settings.marker_names,
-        projections, world_R, world_T, iir=iir)
+        projections, world_R, world_T, iir=iir,
+        export_camera=EXPORT_CAMERA.get(participant))
     (logger or LOGGER).info(
         f"FastSAM {participant}/{task}: {len(source)} frames, cameras "
         f"{list(cameras)}, {len(settings.marker_names)} markers")

@@ -42,8 +42,9 @@ in the reference camera's frame the way NLF fuses its per-view 3D (a plain mean,
 since FastSAM gives no per-point uncertainty), applies the same
 `p_world = R p_cam + T` anchor every arm applies, low-passes with the same IIR,
 and hands the markers to the same solver. It runs with 1, 2 and 4 cameras.
-Participant 3361 is excluded: its FastSAM export does not match COMFI's
-calibration.
+For participant 3361 the FastSAM files carry the videos' swapped camera labels
+(0<->4, 2<->6, as in its mmpose export); `fastsam_source.EXPORT_CAMERA` pairs
+each file with the calibrated camera whose view it holds.
 
 Its marker set is a near-exact parity match, which is what makes the comparison
 fair without tuning. 34 of the 35 parity markers are present under identical

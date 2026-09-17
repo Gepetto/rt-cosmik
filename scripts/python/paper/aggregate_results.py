@@ -81,8 +81,9 @@ OFFLINE = [("fastsam_0", "nlf_0"), ("fastsam_0-2", "nlf_0-2"), ("fastsam_0-4", "
            ("fastsam_0-2-4-6", "nlf_0-2-4-6")]
 MARKER_FIELDS = ("marker_raw_mm", "marker_depth_mm", "marker_lateral_mm",
                  "marker_translation_mm", "marker_shape_mm")
-#: Participants excluded from marker geometry for every arm (FastSAM export defect).
-MARKER_EXCLUDED = {"3361"}
+#: Participants excluded from marker geometry for every arm. Empty since 3361's
+#: FastSAM exports were replaced and their camera labels corrected.
+MARKER_EXCLUDED = set()
 FPS = 40.0
 #: RTMPose 2D inference, mean (SD) ms per multi-view frame, from Table I of the
 #: RT-COSMIK draft (RTX 4500 Ada, i9-14900K). The mmpose arm reads COMFI's
