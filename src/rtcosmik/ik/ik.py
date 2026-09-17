@@ -138,7 +138,7 @@ class RT_IK:
         self._threshold = 0.01
 
         # Line search tuning 
-        self._alpha = 1.0 # Start with full step size 
+        self._alpha = 1.0 # Full step each line search starts from 
         self._c = 0.5 # Backtracking line search factor 
         self._beta = 0.8 # Reduction factor 
 
@@ -251,20 +251,23 @@ class RT_IK:
             # print('Solving ...')
             dq=quadprog_solve_qp(P,q,G,h)
 
-            # Line search 
+            # Line search, restarted from the full step at every iteration: shrinking
+            # self._alpha in place carried the reduction over to every later
+            # iteration and frame, so the step size could only decay over a trial.
             initial_rmse = rmse  # Store current RMSE
-            while self._alpha > 1e-5:  # Prevent alpha from becoming too small
-                q_test = pin.integrate(self._model, q0, dq * self._alpha * self._dt)
-                
+            alpha = self._alpha
+            while alpha > 1e-5:  # Prevent alpha from becoming too small
+                q_test = pin.integrate(self._model, q0, dq * alpha * self._dt)
+
                 self.update_marker_estimates(q_test)
                 new_rmse = self.calculate_RMSE_dicts(self._dict_m, self._dict_m_est)
-                
-                if new_rmse < initial_rmse - self._c * self._alpha * np.dot(q.T, dq):  # Sufficient decrease condition
-                    break  # Sufficient improvement found
-                
-                self._alpha *= self._beta  # Reduce the step size
 
-            q0 = pin.integrate(self._model, q0, dq * self._alpha * self._dt)
+                if new_rmse < initial_rmse - self._c * alpha * np.dot(q.T, dq):  # Sufficient decrease condition
+                    break  # Sufficient improvement found
+
+                alpha *= self._beta  # Reduce the step size
+
+            q0 = pin.integrate(self._model, q0, dq * alpha * self._dt)
 
             # Reset estimated markers dict 
             self.update_marker_estimates(q0)
