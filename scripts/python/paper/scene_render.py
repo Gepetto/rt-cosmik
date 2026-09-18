@@ -83,15 +83,20 @@ class Renderer:
     density of the screenshot (anti-aliasing and print resolution).
     """
 
+    #: playwright allows one sync session per process: every renderer shares it.
+    _playwright, _browser, _open = None, None, 0
+
     def __init__(self, size=(1280, 720), scale=2):
         import meshcat
         from playwright.sync_api import sync_playwright
         self.vis = meshcat.Visualizer()
         self.size, self.scale = tuple(size), scale
-        self._pw = sync_playwright().start()
-        self._browser = self._pw.chromium.launch(
-            args=["--use-angle=swiftshader", "--enable-unsafe-swiftshader", "--ignore-gpu-blocklist"])
-        self.page = self._browser.new_page(viewport={"width": size[0], "height": size[1]},
+        if Renderer._browser is None:
+            Renderer._playwright = sync_playwright().start()
+            Renderer._browser = Renderer._playwright.chromium.launch(
+                args=["--use-angle=swiftshader", "--enable-unsafe-swiftshader", "--ignore-gpu-blocklist"])
+        Renderer._open += 1
+        self.page = Renderer._browser.new_page(viewport={"width": size[0], "height": size[1]},
                                            device_scale_factor=scale)
         self.page.goto(self.vis.url())
         self.page.wait_for_function("() => typeof viewer !== 'undefined' && viewer.renderer")
@@ -100,8 +105,12 @@ class Renderer:
         self._camera = None
 
     def close(self):
-        self._browser.close()
-        self._pw.stop()
+        self.page.close()
+        Renderer._open -= 1
+        if Renderer._open == 0:
+            Renderer._browser.close()
+            Renderer._playwright.stop()
+            Renderer._browser = Renderer._playwright = None
         server = getattr(self.vis.window, "server_proc", None)   # the zmq server meshcat spawned
         if server is not None:
             server.kill()
