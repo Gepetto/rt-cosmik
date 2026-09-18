@@ -10,6 +10,7 @@ debug_fatrop_I.mtx
 nlp_hess_l.casadi
 debug_fatrop.py
 fatrop_generated/
+acados_codegen/
 ocp.c
 data/
 *.engine

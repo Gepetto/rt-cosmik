@@ -10,8 +10,6 @@ import argparse
 
 import time
 from pathlib import Path
-from dataclasses import dataclass
-from typing import List, Optional, Sequence, Tuple
 
 import cv2
 import numpy as np
@@ -21,6 +19,9 @@ from rtcosmik.config_loader import settings
 from rtcosmik.camera.cam_utils import list_cameras, load_camera_parameters
 from rtcosmik.camera.camera import Camera
 from rtcosmik.utils.mp_utils import create_camera_shared_ressources
+from rtcosmik.utils.VideoReader import OfflineVideoSource
+from rtcosmik.utils.dataset import TRIAL_CLI_EPILOG, add_trial_arguments, resolve_trial
+from rtcosmik.model_weights import resolve_detector_engine
 
 from multiprocessing import set_start_method
 
@@ -32,42 +33,6 @@ logging.basicConfig(
     force=True
 )
 
-def list_videos(data_dir: Path) -> List[Path]:
-    if not data_dir.exists():
-        raise FileNotFoundError(f"data dir does not exist: {data_dir}")
-    vids = [p for p in sorted(data_dir.iterdir()) if p.suffix.lower() in [".mp4"]]
-    return vids
-
-@dataclass
-class OfflineVideoSource:
-    paths: List[Path]
-    size_wh: Tuple[int, int]
-
-    def __post_init__(self):
-        self.caps = [cv2.VideoCapture(str(p)) for p in self.paths]
-        for p, cap in zip(self.paths, self.caps):
-            if not cap.isOpened():
-                raise RuntimeError(f"Could not open video: {p}")
-
-    def read(self) -> Optional[List[np.ndarray]]:
-        frames: List[np.ndarray] = []
-        for cap in self.caps:
-            ok, frame = cap.read()
-            if not ok:
-                cap.set(cv2.CAP_PROP_POS_FRAMES, 0)
-                ok, frame = cap.read()
-                if not ok:
-                    return None
-            W, H = self.size_wh
-            if frame.shape[1] != W or frame.shape[0] != H:
-                frame = cv2.resize(frame, (W, H), interpolation=cv2.INTER_LINEAR)
-            frames.append(frame)
-        return frames
-
-    def release(self):
-        for cap in self.caps:
-            cap.release()
-
 def main(args):
     torch.backends.cudnn.benchmark = False
     torch.backends.cuda.matmul.allow_tf32 = True
@@ -76,7 +41,20 @@ def main(args):
     # Determine size
     W = settings.width
     H =settings.height
-    mtxs, dists, projections, rotations, translations = load_camera_parameters(settings.cam_calib_path)
+    if args.online:
+        cam_params_path = settings.cam_calib_path
+        video_paths = None
+    else:
+        cam_params_path, video_paths, _, _ = resolve_trial(args)
+        if len(video_paths) != len(args.cameras):
+            raise ValueError(
+                f"{len(video_paths)} videos but {len(args.cameras)} cameras requested; "
+                "pass --cameras matching the videos, in the same order"
+            )
+
+    mtxs, dists, projections, rotations, translations = load_camera_parameters(
+        cam_params_path, args.cameras
+    )
 
     if args.online:
         cameras = list_cameras()
@@ -129,64 +107,66 @@ def main(args):
                 process.join(timeout=2)
 
     else: # offline mode
-        if args.videos and len(args.videos) > 0:
-            paths = [Path(v) for v in args.videos]
-        else:
-            paths = list_videos(Path(args.data_dir))
-        if len(paths) == 0:
-            raise RuntimeError(f"No videos found in {args.data_dir}")
+        paths = video_paths
 
-        src = OfflineVideoSource(paths=paths, size_wh=(W, H))
+        src = OfflineVideoSource(paths=paths, size_wh=(W, H), loop=False)
+        try:
 
 
-        est = NLFEstimator(
-            yolo_path=settings.yolo_path,
-            nlf_path=settings.nlf_path,
-            cano_path=settings.cano_path,
-            image_size=(W, H),
-            cam_Ks=mtxs,
-            indices=settings.nlf_indices,
-            conf=settings.yolo_conf,
-            imgsz=settings.yolo_imgsz,
-            device=settings.device,
-        )
-
-        cv2.namedWindow("Visualization", cv2.WINDOW_NORMAL)
-
-        while True:
-            frames = src.read()
-            if frames is None:
-                break
-
-            nlf_out, infer_ms, yres, boxes = est.estimate_from_frames(frames)
-
-            print(f"Timings to perform inference = {infer_ms}")
-
-            vis_frames = est.visualize_frames(
-                frames,
-                nlf_out,
-                boxes=boxes,
-                draw_boxes=True,
-                put_text=True,
-                text_prefix="cam",
+            est = NLFEstimator(
+                yolo_path=resolve_detector_engine(settings.yolo_path, len(paths)),
+                nlf_path=settings.nlf_path,
+                cano_path=settings.cano_path,
+                image_size=(W, H),
+                cam_Ks=mtxs,
+                indices=settings.nlf_indices,
+                conf=settings.yolo_conf,
+                imgsz=settings.yolo_imgsz,
+                device=settings.device,
             )
-            vis = np.hstack(vis_frames)
 
-            cv2.imshow("Visualization", vis)
+            cv2.namedWindow("Visualization", cv2.WINDOW_NORMAL)
 
-            key = cv2.waitKey(1) & 0xFF
-            if key in (27, ord('q')):
-                break
+            while True:
+                frames = src.read()
+                if frames is None:
+                    break
 
-        src.release()
+                nlf_out, infer_ms, yres, boxes = est.estimate_from_frames(frames)
+
+                print(f"Timings to perform inference = {infer_ms}")
+
+                vis_frames = est.visualize_frames(
+                    frames,
+                    nlf_out,
+                    boxes=boxes,
+                    draw_boxes=True,
+                    put_text=True,
+                    text_prefix="cam",
+                )
+                vis = np.hstack(vis_frames)
+
+                cv2.imshow("Visualization", vis)
+
+                key = cv2.waitKey(1) & 0xFF
+                if key in (27, ord('q')):
+                    break
+        finally:
+            # Explicit teardown: an unreleased decoder never exits on
+            # its own, it blocks on a full pipe holding GPU memory.
+            src.release()
         cv2.destroyAllWindows()
 
 
 if __name__ == "__main__":
-    p = argparse.ArgumentParser()
-    p.add_argument("--online", action="store_true")
-    p.add_argument("--data-dir", type=str, default="data", help="Folder containing input videos")
-    p.add_argument("--videos", nargs="*", default=None, help="Optional explicit list of input videos")
+    p = argparse.ArgumentParser(
+        description="Run NLF inference live, or offline over one recorded trial.",
+        epilog=TRIAL_CLI_EPILOG,
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+    )
+    p.add_argument("--online", action="store_true",
+                   help="Capture from live cameras instead of video files")
+    add_trial_arguments(p)
     args = p.parse_args()
 
     if args.online:

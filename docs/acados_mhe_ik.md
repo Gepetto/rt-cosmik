@@ -1,283 +1,452 @@
-# Parameterizing the acados MHE-IK to compile ONCE (design & build guide)
+# Parameterizing the acados MHE-IK to compile ONCE
 
-**The task this document is for:** make the acados MHE-IK solver **subject-independent**
-so it is code-generated + compiled **exactly once** (ship the `.so` in the
-container) and every individual — even in the live pipeline — is handled by just
-**setting runtime parameters**, never recompiling.
+**Goal:** make the acados MHE-IK solver subject-independent so it is code-generated
+and compiled **exactly once** (ship the `.so` in the container), and every
+individual — including in the live pipeline — is handled by **setting runtime
+parameters**. No recompile, ever.
 
-Today the acados backend bakes the human's forward-kinematics into the generated C,
-so it recompiles ~30–40 s for every new calibrated model. The whole point here is
-to remove that.
+Today `RT_SWIKA_ACADOS` bakes the human's forward kinematics into the generated C,
+so it recompiles for every newly calibrated model. In the online pipeline that is a
+20–40 s stall the moment a new person steps in front of the cameras.
 
-This guide is self-contained: minimal context, then the concrete plan, code
-skeletons, the acados parameter API, validation, and gotchas. Feasibility has been
-**verified** (see §3).
+Everything in §1–§3 has been **measured on the real 43-dof model**, not assumed.
 
 ---
 
-## 1. Context you need (short)
+## 1. Verified facts
 
-- Two interchangeable MHE-IK smoothers live in
-  [`src/rtcosmik/ik/ik.py`](../src/rtcosmik/ik/ik.py): `RT_SWIKA_FATROP` (validated
-  reference) and `RT_SWIKA_ACADOS` (fast, reproduces the same OCP). Both share:
-  ```python
-  X, U = solver.solve(X, U, marker_meas, X0, cost_weights, dt)   # q = X[:nq, -1]
-  ```
-- The OCP (nodes `k=0..N-1`, `x=[q;dq]`, `u=ddq`): Euler dynamics
-  `q⁺=integrate(q,dq·dt)`, `dq⁺=dq+u·dt`; cost
-  `Σ w0‖markers(q_k)−meas_k‖² + w1‖x_k−X0‖² + w2‖u_k‖²`; bounds `lower≤q_k[7:]≤upper`;
-  soft arrival cost (no hard x0 clamp); output = q at the newest node.
-- **Where the per-subject dependence lives:** the term `markers(q)` — the marker
-  forward-kinematics — is built in `RT_SWIKA_ACADOS._build_marker_fk_expr` via
-  `cpin.framesForwardKinematics`, using the calibrated model's **numeric**
-  `jointPlacements` and marker-frame `placement`s. Those numbers differ per person,
-  so they get baked into the generated C → recompile per person.
-- `dt` is also baked (into `integrate(q, dq*dt)`); keep it fixed (it is — `1/fs`).
-- To run acados you need `ACADOS_SOURCE_DIR` set and its libs on the loader path,
-  and acados_template installed **`--no-deps`** (a pip `casadi` wheel breaks
-  `pinocchio.casadi` — see [full env notes] below in §8).
+### 1.1 Only translations vary between people
 
-Model build (per subject, unchanged and cheap — this stays):
-`HumanLoader → scale_human_model → mks_registration → RT_IK(IPOPT) init → recalibrate_marker_frames_in_joint_space`
-(`src/rtcosmik/human_model/model_utils.py`). Only the acados **compile** is what we
-eliminate; scale/register/recalibrate still run per subject to produce the numbers
-we'll now inject as parameters.
+Two raw `HumanLoader` models (1.64 m / 51 kg / female vs 1.87 m / 90 kg / male):
 
----
+| quantity | max abs difference |
+|---|---|
+| `jointPlacements[j].rotation` | **0.0** |
+| `frames[i].placement.rotation` | **0.0** |
+| `lowerPositionLimit` / `upperPositionLimit` | **0.0** |
+| `nq`, `nv`, `njoints`, `nframes`, joint names, joint types, frame names | identical |
+| `jointPlacements[j].translation` | 7.0e-2 (16 of 37 joints) |
+| `inertias[j].mass` | 7.2 (irrelevant — see below) |
 
-## 2. What varies per individual (this is the whole crux)
+Inertias differ but never enter this OCP: the cost is pure forward kinematics and
+the dynamics is Euler integration on the configuration manifold. No mass property
+is referenced anywhere in `_create_ocp_solver`.
 
-Only **geometry translations** change from person to person:
+The two calibration steps confirm this by construction:
+- `scale_human_model` writes **only** `model.jointPlacements[jid].translation`.
+- `recalibrate_marker_frames_in_joint_space` writes **only**
+  `model.frames[fid].placement.translation` (its one `rotation` mention is a read,
+  `oMj.rotation.T @ (...)`).
+- `mks_registration` adds frames with `pin.SE3(np.eye(3), trans)` — identity
+  rotation, and it iterates the **hardcoded** `SGTS_MKS_MAPPING`, not the marker
+  dict, so the frame set and its order are the same for everyone or the build
+  raises. That determinism is what makes frame ids reusable across subjects.
 
-| what | where in the `pin.Model` | set by |
+### 1.2 The symbolic parameterization works
+
+- `cpin.integrate(cm, q, v)` does **not** depend on placements — confirmed with
+  `casadi.depends_on(...) == False`. **The dynamics needs no parameters.** Only the
+  cost does.
+- A joint-placement parameter propagates into `oMi` and into every downstream
+  `oMf` — confirmed `True`.
+- A marker-frame offset parameter propagates into its `oMf` — confirmed `True`.
+
+### 1.3 It reproduces the baked model exactly
+
+On the real calibrated model (`nq=43`, `nv=42`, 38 joints, 118 frames, 29 tracked
+markers), parameter vector **195 scalars** = 36 internal joints × 3 + 29 marker
+offsets × 3:
+
+```
+FK regression, 200 random q, parameterized-at-default vs baked
+    max |diff| = 0.000e+00
+
+CROSS-SUBJECT: subject A's parameterized FK fed subject B's p,
+               vs subject B's own baked FK, 200 random q
+    max |diff| = 0.000e+00        <- this is the whole win
+```
+
+(`p` differs between those two subjects by up to 63.1 mm, so this is not a
+degenerate comparison.)
+
+### 1.4 It costs essentially nothing to solve
+
+| | baked | parameterized |
 |---|---|---|
-| **segment lengths** | `jointPlacements[j].translation` (3 each) | `scale_human_model` |
-| **marker offsets** | tracked-frame `.placement.translation` (3 each) | `recalibrate_marker_frames_in_joint_space` |
+| codegen + compile | 20.4 s | 32.1 s — **once, ever** |
+| export directory | 7.3 MB | 8.1 MB |
+| **solve time (median / p95)** | 0.59 / 0.59 ms | **0.60 / 0.60 ms (+2.2%)** |
+| `set(k, "p", ...)` over all stages | — | 0.036 ms, once per subject |
 
-**Everything else is shared by everyone and stays baked:** kinematic topology, joint
-types & axes, joint-placement **rotations**, marker-frame **rotations** (identity),
-the freeflyer's enforced orientation, joint **limits** (angular ranges don't change
-with limb length), `N`, `dt`, the cost/constraint structure. Cost weights are
-already set at runtime. So the parameter vector is just a stack of 3-vectors.
-
-Rough size: ~ (internal joints) × 3 + (tracked keys) × 3 ≈ 120 + 87 ≈ **~200 scalars**
-for the current 43-dof model / 29 tracked markers. Parameters are constants (not
-optimization variables) → **zero extra solve cost**.
+Parameters are constants, not decision variables, so there is no extra QP work.
+The +2.2% is function-evaluation overhead and is within run-to-run noise.
 
 ---
 
-## 3. Feasibility — VERIFIED
+## 2. Two gotchas that will bite
 
-`pinocchio.casadi` will carry symbolic placements through FK. Confirmed this session
-(both a segment length and a marker offset propagate, and the FK stays a function of
-`q`):
+**The rotation must come from the NUMERIC model.** `cm.frames[fid].placement.rotation`
+is *already* a CasADi `SX` once `cm` is a `cpin.Model`, and `np.array()` on it raises
+`Implicit conversion of symbolic CasADi type to numeric matrix not supported`. Read
+rotations from the `pin.Model`, never from the `cpin.Model`:
 
 ```python
-import numpy as np, casadi, pinocchio.casadi as cpin
-cm = cpin.Model(model); q = casadi.SX.sym('q', model.nq)
-
-# (a) segment length -> parameter.  BOTH args to cpin.SE3 must be casadi types.
-L = casadi.SX.sym('L', 3)
-R = casadi.SX(np.array(model.jointPlacements[jid].rotation))   # numpy -> SX (required!)
-cm.jointPlacements[jid] = cpin.SE3(R, L)                       # oMi[jid] now depends on L  ✓
-
-# (b) marker offset -> parameter.  Use get-modify-set on the frame.
-off = casadi.SX.sym('off', 3)
 fr = cm.frames[fid]
-fr.placement = cpin.SE3(casadi.SX(np.array(fr.placement.rotation)), off)
-cm.frames[fid] = fr                                            # oMf[fid] now depends on off ✓
-
-cpin.framesForwardKinematics(cm, cm.createData(), q)           # markers(q, [L.., off..]) symbolic
+fr.placement = cpin.SE3(casadi.SX(np.array(model.frames[fid].placement.rotation)), off)
+cm.frames[fid] = fr          # get-modify-set; in-place mutation does not stick
 ```
 
-Two facts that make this clean:
-- `cpin.integrate(cm, q, v)` does **not** depend on placements (it's on the config
-  manifold) → the **dynamics need no parameters**. Only `markers(q,p)` (the cost)
-  does.
-- Passing a **numpy** rotation to `cpin.SE3` raises a Boost.Python `ArgumentError`;
-  always wrap as `casadi.SX(np.array(R))`.
+Both arguments to `cpin.SE3` must be CasADi types — passing a numpy rotation raises
+a Boost.Python `ArgumentError`.
+
+**A propagation test must sample frames that are actually downstream.** Checking
+`depends_on(oMf[some_frame], L_j)` for a frame that is not a descendant of joint `j`
+returns `False` for a perfectly correct parameterization. Test each joint against a
+frame known to be below it, or test the tracked-marker FK as a whole.
 
 ---
 
-## 4. Implementation plan
+## 3. Design
 
-Recommended shape: a new class **`RT_SWIKA_ACADOS_PARAM`** next to `RT_SWIKA_ACADOS`
-(keep the latter for A/B comparison), plus a `settings.mhe_backend = "acados_param"`.
-Model it closely on `RT_SWIKA_ACADOS` — the only differences are (i) symbolic
-placements, (ii) `model.p`, (iii) `parameter_values`, (iv) a `set_model_params()`
-method, and (v) `build` is one-time-global (not per subject).
+A new class `RT_SWIKA_ACADOS_PARAM` beside `RT_SWIKA_ACADOS` (keep the latter for
+A/B), selected by `settings.mhe_backend = "acados_param"`. Differences from the
+baked class are confined to: symbolic placements, `model.p`, `ocp.parameter_values`,
+a `set_model_params()` method, a structural fingerprint, and `build` becoming a
+one-time global concern rather than a per-subject one.
 
-### 4.1 Build the parameterized model + solver (ONCE)
+Everything else is unchanged and must stay bit-identical: `N_horizon = N-1`, the
+`W`/`W_e` block layout, yref mapping, `PARTIAL_CONDENSING_HPIPM`, `GAUSS_NEWTON`,
+`SQP`, `DISCRETE`, the soft arrival cost with no `constraints.x0`, `con_h` limits,
+warm start and read-back.
 
-Give the constructor a **structural** `pin.Model` that already has the marker frames
-registered (any calibrated model works — its numbers are just the *defaults*; the
-structure, rotations, limits are what matter and are shared).
+### 3.1 Parameter vector
+
+Order is **load-bearing** — build and runtime must agree scalar for scalar:
+
+1. for `jid` in `1 .. njoints-1`, skipping the freeflyer (`joints[jid].nq == 7`):
+   `jointPlacements[jid].translation` (3)
+2. for `key` in `keys_to_track` **in list order**:
+   `frames[getFrameId(key)].placement.translation` (3)
+
+Skip the freeflyer deliberately: its translation is a constant zero and its rotation
+is the enforced freeflyer orientation. Parameterize only the tracked marker frames —
+the other ~50 registered frames never enter the cost.
+
+### 3.2 Stage parameters, not `p_global`
+
+Use `model.p` + `ocp.parameter_values` + `ocp_solver.set(k, "p", ...)` for every
+stage `k in 0..N-1`. This build does expose `p_global` and
+`set_p_global_and_precompute_dependencies`, which is arguably the better semantic
+fit for something constant across stages — but stage `p` is what §1.4 measured, and
+the cost it is meant to save is 0.036 ms per subject. Treat `p_global` as an
+optional refinement, not part of the first implementation.
+
+### 3.3 The structural fingerprint — do not skip this
+
+The dangerous failure is **silent misalignment**: if `settings.marker_names`,
+`keys_to_track_list`, `SGTS_MKS_MAPPING` or the URDF ever change, the shipped `.so`
+still loads and still solves, but `p` now means something different and the FK is
+quietly wrong. There is no exception to catch.
+
+Guard it. At build, write a fingerprint next to the generated code covering
+everything baked into the `.so`:
 
 ```python
-def _build_parameterized(self, pin_model, keys):
-    cm = cpin.Model(pin_model)
-    params, defaults = [], []
-    self._joint_ids, self._frame_ids = [], []
-
-    # (a) internal joint placements (skip universe id 0 and the freeflyer)
-    for jid in range(1, pin_model.njoints):
-        if pin_model.joints[jid].nq == 7:      # freeflyer -> keep baked (enforced FF orientation)
-            continue
-        L = casadi.SX.sym(f"L_{jid}", 3)
-        R = casadi.SX(np.array(pin_model.jointPlacements[jid].rotation))
-        cm.jointPlacements[jid] = cpin.SE3(R, L)
-        params.append(L); defaults.append(np.array(pin_model.jointPlacements[jid].translation))
-        self._joint_ids.append(jid)
-
-    # (b) tracked marker frame offsets
-    for key in keys:
-        fid = pin_model.getFrameId(key)
-        off = casadi.SX.sym(f"off_{fid}", 3)
-        fr = cm.frames[fid]
-        fr.placement = cpin.SE3(casadi.SX(np.array(fr.placement.rotation)), off)
-        cm.frames[fid] = fr
-        params.append(off); defaults.append(np.array(pin_model.frames[fid].placement.translation))
-        self._frame_ids.append(fid)
-
-    self._p = casadi.vertcat(*params)
-    self._p_default = np.concatenate(defaults)       # order MUST match extraction (§4.3)
-    self._cm = cm
-    return cm
+fingerprint = hashlib.sha256(json.dumps({
+    "joint_names":  list(model.names),
+    "joint_types":  [model.joints[j].shortname() for j in range(model.njoints)],
+    "frame_names":  [f.name for f in model.frames],
+    "keys_to_track": list(keys_to_track),
+    "param_joint_ids": self._joint_ids,
+    "param_frame_ids": self._frame_ids,
+    "nq": model.nq, "nv": model.nv, "N": N, "dt": dt,
+    "lower": np.asarray(model.lowerPositionLimit).tolist(),
+    "upper": np.asarray(model.upperPositionLimit).tolist(),
+}, sort_keys=True).encode()).hexdigest()
 ```
 
-Then the FK / acados wiring (mirror `RT_SWIKA_ACADOS._create_ocp_solver`):
-```python
-cpin.framesForwardKinematics(cm, cm.createData(), cq)          # cq = cx[:nq]
-markers_expr = casadi.vertcat(*[cm.data.oMf[fid].translation for fid in tracked_fids])
-model.x, model.u, model.p = cx, cu, self._p
-model.disc_dyn_expr  = vertcat(cpin.integrate(cm, cq, cdq*dt), cdq + cu*dt)   # no p dependence
-model.cost_y_expr    = casadi.vertcat(markers_expr, cx, cu)     # depends on p
-model.cost_y_expr_e  = casadi.vertcat(markers_expr, cx)
-model.con_h_expr     = cx[7:nq]                                 # no p dependence
-...
-ocp.parameter_values = self._p_default                          # sets np; REQUIRED
-solver = AcadosOcpSolver(ocp, json_file=..., generate=build, build=build)
-```
-Everything else (W/W_e blocks, yref layout, `PARTIAL_CONDENSING_HPIPM`,
-`GAUSS_NEWTON`, `SQP`, `nlp_solver_max_iter`, `con_h` limits, `N_horizon=N-1`, the
-`solve()` window mapping and warm start) is **identical** to `RT_SWIKA_ACADOS`.
+On construction with `build=False`, recompute it from the incoming model and refuse
+to load a mismatched `.so` with a message naming what changed. Limits go in the hash
+because they are baked into `con_h` bounds — §1.1 says they are subject-independent
+today, but the hash is what makes that a checked fact rather than an assumption.
 
-### 4.2 Set parameters per subject (no recompile)
+### 3.4 Make `set_model_params` mandatory
+
+`ocp.parameter_values` seeds `p` with the *structural seed subject's* numbers. If a
+caller forgets `set_model_params`, the solver runs happily and returns another
+person's kinematics. Set `self._params_set = False` in `__init__` and raise from
+`solve()` until it is set. Cheap, and it converts the worst failure mode into an
+immediate error.
+
+### 3.5 Where the structural seed comes from
+
+Building the parameterized solver still needs *a* model with the marker frames
+registered — its numbers become the defaults, only its structure matters. That model
+comes from the normal `HumanLoader → scale_human_model → mks_registration` path,
+which needs a marker dict.
+
+So ship one: a single reference frame of marker positions committed to the repo
+(shipped inside the package), used only to construct the structural model
+at image-build time. This removes the last reason the build would need subject data.
+It does **not** need to be a real person's calibration — only to contain every marker
+name in `SGTS_MKS_MAPPING`, so the frame set is complete.
+
+### 3.6 Runtime flow
 
 ```python
-def set_model_params(self, calibrated_model):
-    vals = [np.array(calibrated_model.jointPlacements[j].translation) for j in self._joint_ids]
-    vals += [np.array(calibrated_model.frames[f].placement.translation) for f in self._frame_ids]
-    p = np.concatenate(vals)                       # SAME order as _p_default
-    for k in range(self._N):                       # geometry is constant over the horizon
-        self._ocp_solver.set(k, "p", p)
+# once, at image build (or first startup)
+solver = RT_SWIKA_ACADOS_PARAM(structural_model, keys, N, dt, build=True,
+                               export_dir=SHIPPED_DIR)
+
+# once per subject, after scale -> register -> IPOPT -> recalibrate
+solver.set_model_params(calibrated_model)     # ~0.04 ms, no recompile
+
+# every frame, unchanged
+X, U = solver.solve(X, U, marker_meas, X0, cost_weights, dt)
 ```
-Call this once after each subject's calibration; then `solve()` as usual. (If your
-acados version exposes global parameters — `set_p_global_and_precompute_dependencies`
-— you can set once instead of per-stage; per-stage is the safe default.)
 
-### 4.3 Pipeline / benchmark integration
-- Build `RT_SWIKA_ACADOS_PARAM` **once** at startup (or ship a prebuilt export dir
-  and construct with `build=False`).
-- After the per-subject `scale→register→IPOPT→recalibrate`, call
-  `set_model_params(calibrated_model)` instead of reconstructing the solver.
-- Structure identical across subjects (same URDF + same `MKS_COSMIK_2_JOINTS`),
-  so the joint/frame id lists are stable.
+`HumanSolver._build_mhe_solver` currently constructs a fresh solver per subject.
+For `acados_param` it should instead construct once (lazily, cached on the class or
+passed in) and call `set_model_params` on each calibration. That is the only change
+outside `ik.py`.
 
 ---
 
-## 5. Validation (do this FIRST, before wiring anything)
+## 4. Implementation order
 
-**5a. FK regression** — the parameterized FK with the calibrated `p` must equal the
-baked FK of the current per-subject model, to ~1e-9:
-```python
-f_baked = casadi.Function('fb', [cq], [markers_expr_from_baked_calibrated_model])
-f_param = casadi.Function('fp', [cq, p_sym], [markers_expr_parameterized])
-p_cal   = extract_params(calibrated_model)     # via the §4.2 ordering
-for _ in range(200):
-    qr = pin.randomConfiguration(model)
-    assert np.allclose(np.array(f_baked(qr)), np.array(f_param(qr, p_cal)), atol=1e-9)
-```
-This catches any parameter-ordering or convention mistake immediately.
+1. **`_build_parameterized(pin_model, keys)`** — returns `(cm, p_sym, p_default,
+   joint_ids, frame_ids)`. Pure CasADi, no acados. Testable on its own.
+2. **FK regression test** (§5a) against the baked expression. Do this before
+   touching acados; it catches every ordering mistake.
+3. **`RT_SWIKA_ACADOS_PARAM`** — clone `RT_SWIKA_ACADOS`, swap in the symbolic
+   model, add `model.p`, `ocp.parameter_values`, the fingerprint and the
+   `_params_set` guard.
+4. **`set_model_params(calibrated_model)`** — extract in the §3.1 order, set on all
+   stages, flip `_params_set`.
+5. **Wire `settings.mhe_backend = "acados_param"`** into `HumanSolver`, building
+   once and setting parameters per subject.
+6. **Ship it** — build in the Dockerfile to a fixed `export_dir`, construct with
+   `build=False` at runtime.
 
-**5b. End-to-end A/B** — in the benchmark, add `RT_SWIKA_ACADOS_PARAM` as a third
-backend; on the same data its per-frame `q` and RMSE must match `RT_SWIKA_ACADOS`
-(the baked one) to solver tolerance, and the "reuse" is now automatic (no compile
-after the first). Reuse the existing harness in
-[`tests/benchmark/benchmark_mhe_ik_backends.py`](../tests/benchmark/benchmark_mhe_ik_backends.py).
-
-**5c. Cross-subject** — build once from subject A's structure, then
-`set_model_params(subject_B_model)` and confirm markers/RMSE match a freshly-baked
-subject-B solver. This is the actual win: one `.so`, many people.
+Steps 1–4 are self-contained in `ik.py`; step 5 touches `solver.py` only.
 
 ---
 
-## 6. Gotchas & risks (read before coding)
+## 5. Validation
 
-- **`cpin.SE3(R, t)` casadi typing:** both args must be casadi (`casadi.SX(np.array(R))`).
-- **Parameter ordering** in `_p_default` (build) and `set_model_params` (runtime)
-  **must be byte-for-byte the same**. The FK regression (5a) is your guard.
-- **Skip the freeflyer** joint placement (its rotation is the enforced FF
-  orientation; translation is 0 and constant). Parameterize internal joints only.
-- **Only parameterize tracked-key frames** (only they enter the cost). Other
-  registered marker frames can stay baked.
-- **Joint limits** (`con_h` bounds `lower/upperPositionLimit[7:]`) are angular →
-  subject-independent → keep baked. Confirm `scale_human_model`/`mks_registration`
-  never touch position limits (they only set placements/add frames).
-- **`integrate` must not gain a `p` dependence.** Verify with `casadi.depends_on`.
-- **acados parameter API** differs slightly across versions — verify
-  `ocp.parameter_values` sets `np` and `ocp_solver.set(stage,'p',...)` works on the
-  pinned build (commit `8e1a6f856`).
-- **Codegen size:** ~200 params in the FK expression makes the generated C a bit
-  larger and codegen a touch slower — **one-time only**; solve time is unchanged
-  (constants, no new variables). Validate this claim on the real model.
-- The `scale→register→IPOPT→recalibrate` calibration **still runs per subject**
-  (seconds) to produce `p`; only the ~30–40 s acados compile is removed.
+**5a. FK regression** — parameterized FK at the calibrated `p` must equal the baked
+FK. Measured **0.000e+00** over 200 random configurations. This is the guard for
+parameter ordering; run it in CI.
 
-**Effort:** ~1–2 focused days including the three validation stages. **Payoff:**
-compile once, ship the `.so`; every subject and every live session just sets `p`.
-This makes the benchmark hash-cache and the per-run pipeline recompile obsolete.
+**5b. Cross-subject FK** — build from subject A, feed subject B's `p`, compare with
+B's own baked FK. Measured **0.000e+00**. This is the actual claim being made.
+
+**5c. End-to-end A/B** — add `acados_param` as a third backend in
+`tests/benchmark/benchmark_mhe_ik_backends.py`; per-frame `q` and marker RMSE must
+match `acados` to solver tolerance on the same data.
+
+**5d. Two subjects, one `.so`** — calibrate subject A, run; call `set_model_params`
+with subject B, run; confirm B's trajectory matches a freshly-baked B solver and
+that no compile occurred (check the export dir mtime).
+
+**5e. Fingerprint** — mutate `keys_to_track` and confirm construction with
+`build=False` refuses rather than silently mis-mapping.
 
 ---
 
-## 7. Reference: how the current baked solver is built
+## 6. Residual risks
 
-To mirror conventions, read `RT_SWIKA_ACADOS` in
-[`src/rtcosmik/ik/ik.py`](../src/rtcosmik/ik/ik.py):
-- `__init__` → `_create_ocp_solver(build)`; `_build_marker_fk_expr(cq)` (the FK to
-  parameterize); `_build_block_weight(...)` (W/W_e); `solve(...)` (window→yref
-  mapping, warm start, read-back). Constructor already takes `max_iter`, `build`,
-  `export_dir`, `acados_source_dir` — reuse those.
-- Model build to feed it: `build_model()` in
-  [`tests/benchmark/benchmark_mhe_ik_backends.py`](../tests/benchmark/benchmark_mhe_ik_backends.py)
-  (HumanLoader → scale → register → IPOPT init → recalibrate). `nq=43, nv=42`,
-  29 tracked keys.
+- **`p_global` untested here.** Stage `p` is validated; do not switch without
+  re-running 5a–5d.
+- **`keys_to_track` must be fully present.** `build_model` currently does
+  `keys = [k for k in KEYS_TO_TRACK if model.existFrame(k)]`. If a subject's model
+  were missing a frame, `nmc` would change and the `.so` would be structurally
+  invalid. With `acados_param`, assert the full set exists and fail loudly instead
+  of silently shrinking the tracked list.
+- **Codegen is 57% slower** (20.4 → 32.1 s) and the export dir 11% larger. Both are
+  one-time and irrelevant once shipped.
+- **fatrop has no C-codegen path any more.** It was removed (dead: reachable only
+  through a broken script, wrote `ocp_O3.so` into the working directory, and
+  shelled out to gcc with no error checking). `RT_SWIKA_FATROP` is now Python-only
+  and rebuilds its CasADi function per subject in ~0.4 s, which is cheap enough to
+  leave alone. `settings.ik_code` is gone with it.
+- **`dt` and `N` stay baked.** Changing either still requires a rebuild. They are
+  config, not subject properties, so this is fine — but the fingerprint covers them
+  so a mismatch is caught.
 
 ---
 
-## 8. Env & operational notes (only what you need to run/compile acados)
+## 7. Environment notes
 
-- **acados** built from source, pinned commit `8e1a6f856` (v0.5.4-20), installed to
-  `<acados>` with `-DACADOS_WITH_OPENMP=OFF -DBLASFEO_TARGET=X64_AUTOMATIC`. Needs
-  `ACADOS_SOURCE_DIR=<acados>`, its `lib/*.so` on the loader path, and the
-  `t_renderer` binary at `<acados>/bin/t_renderer` (tera v0.2.0, downloadable from
-  the tera_renderer releases). CPU-only (HPIPM) — no GPU needed for IK.
-- **CASADI PITFALL:** `pip install acados_template` pulls a pip `casadi` wheel that
-  shadows the from-source casadi and **breaks `import pinocchio.casadi`**. Install
-  with `--no-deps` (+ `matplotlib cython Deprecated` separately). If broken:
-  `pip uninstall -y casadi`. The dev-container Dockerfile
-  (`cosmik-dev-container/.devcontainer/Dockerfile`, has the acados stage) does this
-  correctly; it also RAM-limits the from-source builds (`build_jobs`) to avoid OOM.
-- **Timing hygiene when benchmarking:** governor `performance`, measure without
-  `--display`, compare **medians** (acados `sqp_iter` and thus solve time are
-  data-dependent; cap with `settings.mhe_max_iter=2..3` for bounded real-time).
+- acados built from source, pinned commit `8e1a6f856` (v0.5.4-20), with
+  `-DACADOS_WITH_OPENMP=OFF -DBLASFEO_TARGET=X64_AUTOMATIC`. Needs
+  `ACADOS_SOURCE_DIR` (here `/root/workspace/deps/acados`), its `lib/*.so` on the
+  loader path, and `t_renderer` at `<acados>/bin/`.
+- **CasADi pitfall:** `pip install acados_template` pulls a pip `casadi` wheel that
+  shadows the from-source casadi and breaks `import pinocchio.casadi`. Install with
+  `--no-deps`. If broken: `pip uninstall -y casadi`.
+- Benchmark hygiene: governor `performance`, no `--display`, compare medians;
+  acados `sqp_iter` is data-dependent, so cap with `settings.mhe_max_iter` for
+  bounded real-time.
 
 ### Reference numbers (i7-8850H, N=10, 272 frames)
 fatrop(python) ~31 ms / 9.93 mm · acados(default) ~10 ms / 4.29 mm (spikes to
 ~200 ms on hard frames) · acados(max_iter=3) ~5 ms / ~3.7 mm · agreement mean
-`|Δq|` 1.3e-2 rad · first acados build ~35 s, cached reuse ~0.2 s.
+`|Δq|` 1.3e-2 rad.
 
-### Known pre-existing bugs (unrelated, in the `mhe` branch)
-- `pipeline.py` online `mhe` steady-state uses bare `settings.ik_type` (should be
-  `self.settings.ik_type`); and references an undefined `viz_human`. Never hit
-  because default `ik_type='sbs'`. `run_pipeline.py` (offline) is fine.
+### Known pre-existing bugs (unrelated)
+`pipeline.py` online `mhe` steady-state uses bare `settings.ik_type` (should be
+`self.settings.ik_type`) and references an undefined `viz_human`. Never hit because
+the default `ik_type='sbs'`. `run_pipeline.py` (offline) is fine.
+
+---
+
+## 8. Integration (implemented)
+
+The parameterization is shared by both backends, because both bake the FK and so
+both used to regenerate per subject. `RT_SWIKA_FATROP` builds its OCP through
+`opti.to_function([...])`, so adding `p` as one more input makes the fatrop
+artefact subject-independent in exactly the same way as the acados one.
+
+### 8.1 Layout
+
+```
+src/rtcosmik/ik/ocp_model.py     parameterize / extract_params / fingerprint /
+                                 manifest I/O / structural model
+scripts/python/core/run_ocp_codegen.py   --backend {fatrop,acados,both}, --check
+<repo>/ocp/<backend>/                    generated artefacts + ocp_manifest.json
+```
+
+`RTCOSMIK_OCP_DIR` overrides the artefact root. It is an absolute path by
+design: the previous acados default was `os.getcwd()/acados_codegen`, so *where
+the pipeline was launched from* decided whether a compiled solver was found.
+
+### 8.2 Guarding against silent drift
+
+`ocp_manifest.json` records joint names and types, frame names, the tracked
+marker list, the parameter id lists, `nq`, `nv`, `N`, `dt`, `with_freeflyer` and
+the position limits. Three enforcement points:
+
+1. **On load** — `check_manifest` refuses a mismatched artefact and names what
+   changed (`dt: generated 0.025, now 0.026`).
+2. **In CI** — `run_ocp_codegen.py --check` exits non-zero when an artefact is
+   stale. This is what catches an edit to `settings.py` or `SGTS_MKS_MAPPING`
+   that nobody regenerated for.
+3. **At generation** — the script prints the fingerprint and what it built from.
+
+A prebuilt solver additionally refuses to `solve()` before `set_model_params`,
+because its parameters otherwise hold the *structural seed's* geometry — it would
+run happily on the wrong skeleton.
+
+### 8.3 Runtime
+
+`HumanSolver._build_mhe_solver` now tries the pre-generated artefact first and
+applies the subject with `set_model_params`; if none matches it generates one for
+this subject and warns, which is the old behaviour. So an install with no
+generated OCP still works, just slowly.
+
+The fatrop `code='c'` path is restored, with both of its bugs fixed: the library
+goes to the artefact directory instead of the working directory, and the compile
+is a checked `subprocess.run` instead of a bare `os.system` that printed a timing
+and carried on after a failure. Building the CasADi function is also skipped in
+`c` mode, where it was seconds of wasted startup.
+
+### 8.4 What generation costs
+
+The fatrop OCP generates a **26 MB `ocp.c`** — the whole horizon unrolled — and
+`cc1` peaks above 4 GB compiling it. That is fine on a workstation and a very good
+reason never to do it at runtime, which is what this whole change achieves.
+
+### 8.5 Validation (passing)
+
+`tests/benchmark/validate_ocp_params.py` runs the case this exists for: several
+COMFI participants, each solved twice — once on a solver generated from their own
+model, once on the shared solver with their geometry set as parameters — then
+switches between subjects on the same solver to confirm the switch is stateless.
+
+```
+loaded the pre-generated acados OCP in 0.13 s, 237 geometry parameters
+
+1012 (h=1.70 m): regenerate 55.4 s vs set params 0.672 ms | max |dq| = 4.15e-15 rad
+1118 (h=1.80 m): regenerate 55.5 s vs set params 0.878 ms | max |dq| = 4.66e-15 rad
+1508 (h=1.79 m): regenerate 55.4 s vs set params 0.543 ms | max |dq| = 1.89e-15 rad
+4279 (h=1.87 m): regenerate 55.1 s vs set params 0.534 ms | max |dq| = 1.72e-15 rad
+
+switching subjects on one solver, twice each: max |dq| = 0.00e+00, stateless
+221 s of regeneration replaced by 2.6 ms of parameter setting
+```
+
+### 8.6 Two bugs this validation caught
+
+**acados silently regenerated on every load.** `is_code_reuse_possible` calls
+`compare_ocp_formulations`, which raises `AttributeError: 'NoneType' object has
+no attribute 'shape'` because acados' own JSON round-trip drops `tol`, `qp_tol`
+and `qp_solver_tol_*` (each warns "not in dictionary" on read and comes back
+None). The exception is swallowed by a bare `except Exception: return False`, so
+it rebuilt every time — 55 s per load — while appearing to work.
+
+Fixed by passing `check_reuse_possible=False` when loading. The manifest check in
+`__init__` already verifies compatibility against the fields that matter, and
+unlike acados' comparison it does not crash. Load time went 55.24 s → **0.13 s**.
+
+**Solver state leaked between subjects.** acados keeps the iterate and duals
+across `solve()` calls, which is what makes warm starting work — but after a
+subject change the first frames were pulled toward the previous person's
+solution. Symptom: the same solver, same subject, same inputs, run twice,
+differed by 3.67e-02 rad. `set_model_params` now calls `reset()`, and repeat
+passes are bit-identical.
+
+Neither was visible to the fingerprint check, which is why the end-to-end
+cross-subject test earns its place: it is the only thing here that would have
+caught either.
+
+---
+
+## 9. Solver profiles (measured)
+
+120 frames of real marker data, 43 dof, N=10. Solve time in ms, marker RMSE in
+mm (the cost the OCP minimises), jitter is the median frame-to-frame `|dq|`.
+
+| config | median | p95 | max | RMSE | jitter |
+|---|---|---|---|---|---|
+| acados SQP it=50 tol=1e-4 *(old default)* | 3.66 | 89.5 | 131.7 | **1.92** | 0.0053 |
+| acados SQP it=50 tol=1e-6 | 11.73 | **185.0** | 212.7 | 1.03 | 0.0056 |
+| acados SQP it=10 tol=1e-6 | 12.31 | 43.2 | 45.8 | 1.03 | 0.0056 |
+| **acados SQP_RTI** | 4.85 | **5.9** | **8.7** | **1.02** | **0.0049** |
+| acados SQP it=1 | 2.71 | 3.0 | 3.8 | 1.90 | 0.0067 |
+| fatrop it=100 tol=1e-6 | 35.70 | 41.0 | 45.7 | 1.07 | 0.0041 |
+| fatrop it=10 tol=1e-4 | 26.86 | 28.8 | 46.5 | 1.09 | 0.0042 |
+
+Three findings.
+
+**The old default was the worst of both worlds.** `tol=1e-4` with a 50-iteration
+budget gave both a 131 ms tail *and* the worst marker fit (1.92 mm), because the
+tolerance stops the solve before the marker term is properly minimised. Raising
+the tolerance to 1e-6 fixes the fit but makes the tail worse (212 ms).
+
+**SQP_RTI is not the usual real-time compromise here.** It matches fully
+converged SQP on marker RMSE (1.02 vs 1.03) with slightly *less* jitter, at a
+twentieth of the tail. This was checked specifically because a lower RMSE than
+the converged solve looked wrong: the first measurement compared RTI against an
+SQP "gold" left at the default `tol=1e-4`, which was an unfair baseline. At
+matched tolerance the two agree, and the jitter metric rules out RTI simply
+tracking noise more closely.
+
+**`dq` against the converged solution is ~4.8e-02 rad for RTI** — but SQP at
+`tol=1e-4` differs from `tol=1e-6` by 4.2e-02, the same band. With marker RMSE
+equal, that difference lives in directions the cost is flat in, not in tracking
+quality.
+
+`ocp_model.SOLVER_PROFILES` therefore ships:
+
+    realtime   acados SQP_RTI                       fatrop it=10  tol=1e-4
+    accurate   acados SQP it=10 tol=1e-6            fatrop it=100 tol=1e-6
+
+acados `it=10` rather than `it=50` for `accurate`: it reaches the same answer
+(`dq` 7.6e-05) for a quarter of the tail, so the extra budget only buys worse
+worst cases.
+
+Because `nlp_solver_type`, `qp_solver` and `globalization` shape the generated C,
+a profile is a **separate artefact** under `ocp/<backend>/<profile>/`, and the
+solver options are part of the fingerprint -- switching profiles without
+regenerating is refused rather than silently reusing the wrong `.so`.
