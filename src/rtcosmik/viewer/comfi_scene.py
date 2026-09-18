@@ -68,6 +68,11 @@ TABLE_LEG_RGBA = (0.45, 0.45, 0.45, 1.0)
 CAMERA_SUPPORTS = ((0, 2), (4, 6))
 
 
+def is_comfi(root):
+    """A COMFI dataset root: it carries the robot's placement in the mocap world."""
+    return (Path(root) / "robot" / "robot_in_world").is_dir()
+
+
 def task_has_robot(task):
     return task is not None and "robot" in task.lower()
 
@@ -146,7 +151,12 @@ class TrialAssets:
             except Exception as exc:
                 assets.missing.append(f"camera {k} ({type(exc).__name__})")
 
-        if task_has_robot(task):
+        # The room itself -- robot, tables, force plates -- is COMFI's lab: only
+        # drawn for COMFI, recognised by the robot calibration it ships. Another
+        # dataset in the same layout gets its cameras and the floor.
+        if not is_comfi(root):
+            assets.missing.append("COMFI room (not a COMFI dataset)")
+        elif task_has_robot(task):
             base = root / "robot" / "robot_in_world" / str(participant) / "robot_base_pose.yaml"
             if base.is_file():
                 import yaml
@@ -159,11 +169,11 @@ class TrialAssets:
                 assets.missing.append("robot base pose")
         if assets.robot_base is not None:
             assets.table = robot_table(assets.robot_base)
-        elif task in WORK_TABLE_TASKS:
+        elif task in WORK_TABLE_TASKS and is_comfi(root):
             pose = np.eye(4)
             pose[:2, 3] = WORK_TABLE_CENTRE_XY
             assets.table = {"pose": pose, "size": WORK_TABLE_SIZE, "height": WORK_TABLE_HEIGHT}
-        if (root / "forces").is_dir():
+        if is_comfi(root) and (root / "forces").is_dir():
             assets.force_plates = FORCE_PLATES
         if assets.missing:
             LOGGER.info("[SCENE] %s/%s: not found, left out: %s", participant, task,
