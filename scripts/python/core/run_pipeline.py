@@ -31,6 +31,7 @@ from rtcosmik.utils.VideoReader import OfflineVideoSource
 from rtcosmik.saver.csv_saver import CSVSaver
 from rtcosmik.saver.hotkeys import TerminalHotkeys
 from rtcosmik.viewer.async_display import AsyncDisplay
+from rtcosmik.viewer.comfi_scene import ComfiScene, TrialAssets
 from rtcosmik.utils.dataset import (
     TRIAL_CLI_EPILOG, add_trial_arguments, load_subject, resolve_trial, run_variant)
 from rtcosmik.model_weights import resolve_detector_engine
@@ -319,20 +320,34 @@ def main(args):
                     # statistics as a single ~1000 ms outlier that looks like a
                     # solver stall.
                     t_viz0=time.perf_counter()
-                    # Init meshcat viewer for human
-                    viz_human = MeshcatVisualizer(
-                        human_model, solver.collision_model, solver.visual_model)
-                    viz_human.initViewer(vis, open=True)
+                    # A dataset trial is drawn in the room it was recorded in
+                    # (settings.viewer_scene); anything else, or a scene that
+                    # cannot be built, falls back to the body alone.
+                    scene = None
+                    if settings.viewer_scene and args.dataset:
+                        try:
+                            scene = ComfiScene(vis, TrialAssets.resolve(
+                                args.dataset, args.participant, args.task, args.cameras))
+                            scene.add_body("estimate", human_model, solver.visual_model)
+                        except Exception as exc:
+                            LOGGER.warning("[VIZ] scene not drawn (%s: %s); body only",
+                                           type(exc).__name__, exc)
+                            scene = None
+                    if scene is None:
+                        # Init meshcat viewer for human
+                        viz_human = MeshcatVisualizer(
+                            human_model, solver.collision_model, solver.visual_model)
+                        viz_human.initViewer(vis, open=True)
 
-                    # Don't delete the whole Meshcat tree: keep '/markers' etc.
-                    try:
-                        vis["ref"].delete()
-                    except Exception:
-                        pass
-                    viz_human.loadViewerModel("ref")
+                        # Don't delete the whole Meshcat tree: keep '/markers' etc.
+                        try:
+                            vis["ref"].delete()
+                        except Exception:
+                            pass
+                        viz_human.loadViewerModel("ref")
 
-                    viz_human.viewer["/Background"].set_property("top_color", [1, 1, 1])
-                    viz_human.viewer["/Background"].set_property("bottom_color", [0.65, 0.65, 0.65])
+                        viz_human.viewer["/Background"].set_property("top_color", [1, 1, 1])
+                        viz_human.viewer["/Background"].set_property("bottom_color", [0.65, 0.65, 0.65])
                     viewer_setup_ms = (time.perf_counter()-t_viz0)*1e3
                     viewer_total_ms = viewer_setup_ms
 
@@ -343,7 +358,12 @@ def main(args):
                     stage_ms["ik"].append((time.perf_counter()-t_ik0)*1e3)
 
                 t_disp1=time.perf_counter()
-                display.submit(lambda qq=np.array(q, copy=True): viz_human.display(qq))
+                if scene is not None:
+                    # The robot follows the recording: its state at this video frame.
+                    display.submit(lambda qq=np.array(q, copy=True), frame=frames_read - 1:
+                                   scene.show(frame, {"estimate": qq}))
+                else:
+                    display.submit(lambda qq=np.array(q, copy=True): viz_human.display(qq))
                 display_ms += (time.perf_counter()-t_disp1)*1e3
                 stage_ms["display"].append(display_ms)
                 t_save0=time.perf_counter()

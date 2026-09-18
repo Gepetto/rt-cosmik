@@ -248,7 +248,21 @@ Useful flags:
 --no-save              # visualise only
 ```
 
-Meshcat prints a viewer URL at startup for live 3D inspection.
+Meshcat prints a viewer URL at startup for live 3D inspection. When the trial
+comes from a dataset (`--dataset/--participant/--task`), the estimated body is
+drawn in the room it was recorded in, as COMFI's own example viewer draws it:
+the floor, the cameras used, and for `RobotPolishing`/`RobotWelding` the table
+and the Franka Panda, which follows its recorded joint states frame by frame.
+It is on by default (`viewer_scene` in `settings.py`); whatever the dataset
+lacks is left out, and runs that are not a dataset trial (live cameras,
+`--trial-dir`, `--videos`) show the body alone, as before. For example:
+
+```bash
+python3 scripts/python/core/run_pipeline.py --dataset /path/to/COMFI \
+    --participant 1012 --task RobotWelding --no-save
+# open the printed http://127.0.0.1:7000/static/ URL
+COMFI_ROOT=/path/to/COMFI python3 -m pytest tests/unit/viewer/test_comfi_scene.py
+```
 
 Fully explicit paths work for data outside the shorthand layout:
 

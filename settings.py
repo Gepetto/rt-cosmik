@@ -65,6 +65,13 @@ class Settings:
     human_weight: float = 70.0 
     human_gender: str = 'm'
 
+    ### VIEWER ###
+    # Offline replays of a dataset trial (--dataset/--participant/--task) draw
+    # the room around the estimated body: floor, cameras, and for COMFI's robot
+    # tasks the table and the Franka Panda in its recorded state. Whatever the
+    # dataset does not provide is left out, and live runs show the body alone.
+    viewer_scene: bool = True
+
     ### CALIB ###
     cam_calib_path: str = field(init=False) # relative path to the camera calibration file
     human_calib_path: str = field(init=False)  # relative path to the human calibration file
