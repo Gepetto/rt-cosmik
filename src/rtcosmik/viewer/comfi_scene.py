@@ -11,8 +11,13 @@ from the dataset root, the participant id and the task name:
 floor               meshcat's grid at z = 0 (the mocap world frame is z up)
 cameras             ``cam_params/<id>/extrinsics/cam_to_world/camera_<k>``, the
                     same calibration the pipeline reads
-table               the robot tasks only, at comfi-examples' fixed pose (the
-                    dataset does not record it)
+force plates        the five plates of comfi-examples, flush with the floor
+                    (only the plates: forces are not drawn)
+tables              two different tables, neither recorded by the dataset: the
+                    robot is mounted on its own table, placed here relative to
+                    the robot base (it moves with the robot between sessions);
+                    the tasks done at a work bench use comfi-examples' fixed
+                    table pose, at the bench's height
 robot               the Franka Panda (example-robot-data), placed by
                     ``robot/robot_in_world/<id>/robot_base_pose.yaml`` and
                     driven by ``robot/aligned/<id>/<id>_<task>.csv``, matched to
@@ -23,7 +28,7 @@ bodies              any number of human models, each with its own colour and
 markers             point sets, as spheres or a point cloud
 ==================  =========================================================
 
-Force plates and force arrows of the original viewer are not ported.
+The force arrows of the original viewer are not ported.
 
 Every dataset asset is optional. :meth:`TrialAssets.resolve` records what it
 could not find and the scene simply leaves it out, so the same code draws a
@@ -38,12 +43,24 @@ import numpy as np
 
 LOGGER = logging.getLogger(__name__)
 
-#: comfi-examples places the table at this pose, for these tasks only.
-TABLE_POSE_XYZ = (0.9, -0.6, 0.0)
-TABLE_TASKS = ("RobotPolishing", "RobotWelding")
-#: Table geometry (m), from comfi-examples' draw_table.
-TABLE_LENGTH, TABLE_WIDTH, TABLE_THICKNESS, TABLE_HEIGHT = 0.90, 1.80, 0.04, 0.95
-TABLE_LEG, TABLE_INSET = 0.05, 0.05
+#: The robot's table (m): long side along the robot's x axis, the robot base
+#: this far from its back edge and centred across it, top at the base's height.
+#: Sized and placed by projecting it onto the videos of several participants;
+#: the width is kept just inside the operators' closest approach (the front of
+#: the pelvis and the knees come within 0.37 m of the robot's axis) so the body
+#: does not sink into it.
+ROBOT_TABLE_LENGTH, ROBOT_TABLE_WIDTH, ROBOT_TABLE_BACK = 1.20, 0.70, 0.18
+#: The work bench of the tasks below: comfi-examples' table pose and size (x, y
+#: extent), at the bench's height, checked the same way.
+WORK_TABLE_TASKS = ("Screwing", "ScrewingSat", "Polishing", "PolishingSat",
+                    "Hammering", "HammeringSat", "Welding", "WeldingSat")
+WORK_TABLE_CENTRE_XY, WORK_TABLE_SIZE, WORK_TABLE_HEIGHT = (0.9, -0.6), (0.90, 1.80), 0.75
+TABLE_THICKNESS, TABLE_LEG, TABLE_INSET = 0.04, 0.05, 0.05
+#: Force plates, from comfi-examples: (x, y) size and centre (m), on the floor.
+FORCE_PLATES = (((0.5, 0.6), (-0.83, -0.3)), ((0.5, 0.6), (-0.25, -0.3)), ((0.5, 0.6), (0.39, -0.3)),
+                ((0.9, 1.8), (-1.68, -0.3)), ((0.5, 0.6), (-0.25, 0.3)))
+FORCE_PLATE_THICKNESS = 0.01
+FORCE_PLATE_RGBA = (0.5, 0.5, 0.5, 1.0)
 #: Default colours, from comfi-examples: brown top, grey legs.
 TABLE_TOP_RGBA = (0.80, 0.60, 0.40, 1.0)
 TABLE_LEG_RGBA = (0.45, 0.45, 0.45, 1.0)
@@ -80,6 +97,18 @@ def robot_joints_by_frame(dataset, participant, task):
             for k, i in enumerate(index) if exact[k] and np.isfinite(joints[k]).all()}
 
 
+def robot_table(world_T_robot):
+    """The robot's table, from the robot base pose: only the base's heading and
+    position are used, so a slightly tilted base calibration leaves it level."""
+    R, t = world_T_robot[:3, :3], world_T_robot[:3, 3]
+    yaw = np.arctan2(R[1, 0], R[0, 0])
+    c, s = np.cos(yaw), np.sin(yaw)
+    pose = np.eye(4)
+    pose[:2, :2] = [[c, -s], [s, c]]
+    pose[:2, 3] = t[:2] + (ROBOT_TABLE_LENGTH / 2 - ROBOT_TABLE_BACK) * np.array([c, s])
+    return {"pose": pose, "size": (ROBOT_TABLE_LENGTH, ROBOT_TABLE_WIDTH), "height": float(t[2])}
+
+
 @dataclass
 class TrialAssets:
     """What the scene of one trial needs, resolved from the dataset layout."""
@@ -90,7 +119,8 @@ class TrialAssets:
     intrinsics: dict = field(default_factory=dict)   # id -> (K, dist)
     robot_base: np.ndarray = None                    # 4x4 world_T_robot
     robot_joints: dict = field(default_factory=dict)  # video frame -> 7 joint positions
-    table: np.ndarray = None                         # 4x4 world_T_table
+    table: dict = None      # pose (4x4, floor under the top's centre, x along size[0]), size, height
+    force_plates: tuple = ()                         # ((size x, size y), (centre x, centre y))
     missing: list = field(default_factory=list)
 
     @classmethod
@@ -127,9 +157,14 @@ class TrialAssets:
                     assets.missing.append("robot joint states")
             else:
                 assets.missing.append("robot base pose")
-        if task in TABLE_TASKS:
-            assets.table = np.eye(4)
-            assets.table[:3, 3] = TABLE_POSE_XYZ
+        if assets.robot_base is not None:
+            assets.table = robot_table(assets.robot_base)
+        elif task in WORK_TABLE_TASKS:
+            pose = np.eye(4)
+            pose[:2, 3] = WORK_TABLE_CENTRE_XY
+            assets.table = {"pose": pose, "size": WORK_TABLE_SIZE, "height": WORK_TABLE_HEIGHT}
+        if (root / "forces").is_dir():
+            assets.force_plates = FORCE_PLATES
         if assets.missing:
             LOGGER.info("[SCENE] %s/%s: not found, left out: %s", participant, task,
                         ", ".join(assets.missing))
@@ -180,6 +215,7 @@ class ComfiScene:
         viewer["/Grid"].set_transform(np.eye(4))
         if show_cameras:
             self._draw_cameras()
+        self._draw_force_plates()
         if self.assets.table is not None:
             self._draw_table(self.assets.table, table_rgba)
         if self.assets.robot_base is not None:
@@ -212,24 +248,34 @@ class ComfiScene:
         self.viewer[path].set_object(g.Box([length, thickness, thickness]), _material(rgba))
         self.viewer[path].set_transform(T)
 
-    def _draw_table(self, T_world_table, rgba=None):
-        """comfi-examples' draw_table: a top and four legs."""
+    def _draw_table(self, table, rgba=None):
+        """comfi-examples' draw_table, for any size and height: a top and four legs."""
         import meshcat.geometry as g
         top_rgba, leg_rgba = (rgba, rgba) if rgba is not None else (TABLE_TOP_RGBA, TABLE_LEG_RGBA)
+        (length, width), height = table["size"], table["height"]
         node = self.viewer["scene/table"]
-        node["top"].set_object(g.Box([TABLE_LENGTH, TABLE_WIDTH, TABLE_THICKNESS]), _material(top_rgba))
+        node["top"].set_object(g.Box([length, width, TABLE_THICKNESS]), _material(top_rgba))
         top = np.eye(4)
-        top[2, 3] = TABLE_HEIGHT - TABLE_THICKNESS / 2
+        top[2, 3] = height - TABLE_THICKNESS / 2
         node["top"].set_transform(top)
-        xs = (TABLE_LENGTH / 2 - TABLE_INSET - TABLE_LEG / 2, -TABLE_LENGTH / 2 + TABLE_INSET + TABLE_LEG / 2)
-        ys = (TABLE_WIDTH / 2 - TABLE_INSET - TABLE_LEG / 2, -TABLE_WIDTH / 2 + TABLE_INSET + TABLE_LEG / 2)
+        xs = (length / 2 - TABLE_INSET - TABLE_LEG / 2, -length / 2 + TABLE_INSET + TABLE_LEG / 2)
+        ys = (width / 2 - TABLE_INSET - TABLE_LEG / 2, -width / 2 + TABLE_INSET + TABLE_LEG / 2)
         for i, (x, y) in enumerate((x, y) for x in xs for y in ys):
             leg = np.eye(4)
-            leg[:3, 3] = (x, y, (TABLE_HEIGHT - TABLE_THICKNESS) / 2)
-            node[f"leg_{i}"].set_object(g.Box([TABLE_LEG, TABLE_LEG, TABLE_HEIGHT - TABLE_THICKNESS]),
+            leg[:3, 3] = (x, y, (height - TABLE_THICKNESS) / 2)
+            node[f"leg_{i}"].set_object(g.Box([TABLE_LEG, TABLE_LEG, height - TABLE_THICKNESS]),
                                         _material(leg_rgba))
             node[f"leg_{i}"].set_transform(leg)
-        node.set_transform(T_world_table)
+        node.set_transform(table["pose"])
+
+    def _draw_force_plates(self):
+        import meshcat.geometry as g
+        for i, ((sx, sy), (cx, cy)) in enumerate(self.assets.force_plates, start=1):
+            node = self.viewer["scene/force_plates"][f"fp{i}"]
+            node.set_object(g.Box([sx, sy, FORCE_PLATE_THICKNESS]), _material(FORCE_PLATE_RGBA))
+            T = np.eye(4)
+            T[:3, 3] = (cx, cy, FORCE_PLATE_THICKNESS / 2)
+            node.set_transform(T)
 
     def _load_robot(self, rgba=None):
         import example_robot_data as erd
