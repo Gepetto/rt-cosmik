@@ -68,11 +68,24 @@ def test_without_a_dataset_the_scene_is_a_bare_floor():
 
 
 def test_missing_assets_are_listed_not_raised(tmp_path):
+    (tmp_path / "robot" / "robot_in_world").mkdir(parents=True)          # looks like COMFI
     assets = TrialAssets.resolve(tmp_path, "0000", "RobotWelding")
     assert any(m.startswith("camera 0") for m in assets.missing)
     assert "robot base pose" in assets.missing
     assert assets.cameras == {} and assets.robot_base is None
     ComfiScene(StubViewer(), assets)                        # and it still draws
+
+
+def test_another_dataset_gets_no_comfi_room(tmp_path):
+    """Same layout, not COMFI: even with a forces/ folder and a task named like
+    a COMFI bench task, no plates, table or robot are invented."""
+    (tmp_path / "forces").mkdir()
+    for task in ("Screwing", "RobotWelding"):
+        assets = TrialAssets.resolve(tmp_path, "S01", task)
+        assert assets.table is None and assets.force_plates == () and assets.robot_base is None
+        viewer = StubViewer()
+        ComfiScene(viewer, assets)
+        assert not viewer.nodes("/scene")
 
 
 @needs_comfi
