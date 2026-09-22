@@ -8,12 +8,19 @@ import subprocess
 import numpy as np
 import cv2
 
-@dataclass 
+@dataclass
 class OfflineVideoSource:
+    # Sentinel pushed onto a stream's queue when that stream reaches its end.
+    _EOF = object()
+
+
     paths: List[Path]
     size_wh: Tuple[int, int]
     queue_size: int = 2  # Keeps 2 frames in flight per stream to maintain speed
-    
+    # Offline processing needs the streams to end so the caller's loop can
+    # terminate; looping forever is only useful for open-ended live previews.
+    loop: bool = False
+
     # Internal engine tracking
     _procs: List[subprocess.Popen] = field(default_factory=list, init=False)
     # Changed from a single Queue to a List of independent Queues
@@ -66,7 +73,7 @@ class OfflineVideoSource:
                 'ffmpeg',
                 '-loglevel', 'error',
                 "-hwaccel", 'auto',
-                '-stream_loop', '-1',      
+                *(['-stream_loop', '-1'] if self.loop else []),
                 '-i', str(p),
                 '-vf', filter_graph,
                 '-f', 'image2pipe',
@@ -104,17 +111,20 @@ class OfflineVideoSource:
             try:
                 frame_buffer = np.empty((h, w, 3), dtype=np.uint8)
                 bytes_read = proc.stdout.readinto(frame_buffer)
-                
+
                 if bytes_read == 0 or bytes_read is None:
-                    continue 
-                
+                    # A zero-length read is EOF, not a hiccup: ffmpeg has closed
+                    # the pipe. Spinning here would busy-wait until the process
+                    # is reaped, so stop and let the sentinel below signal it.
+                    break
+
                 while bytes_read < frame_size and self._running:
                     remaining_view = memoryview(frame_buffer)[bytes_read:]
                     extra_bytes = proc.stdout.readinto(remaining_view)
                     if extra_bytes == 0 or extra_bytes is None:
                         break
                     bytes_read += extra_bytes
- 
+
                 if bytes_read == frame_size and self._running:
                     # Push straight to this stream's dedicated queue channel
                     while self._running:
@@ -123,29 +133,70 @@ class OfflineVideoSource:
                             break
                         except Full:
                             continue
- 
+                elif self._running:
+                    # Trailing partial frame: the stream is truncated, so treat
+                    # it as the end rather than emitting a half-filled buffer.
+                    break
+
             except Exception:
                 break
+
+        # Sentinel so a waiting read() learns the stream ended immediately,
+        # instead of stalling for its full timeout on every remaining call.
+        try:
+            target_queue.put(self._EOF, timeout=0.5)
+        except Full:
+            pass
  
     def read(self) -> Optional[List[np.ndarray]]:
         assembled_frames = []
- 
+
         # Force a strict lock-step read across all active channels
         for q in self._queues:
             try:
                 # Blocks until THIS specific stream yields its next sequential frame
                 frame = q.get(timeout=2.0)
-                assembled_frames.append(frame)
                 q.task_done()
             except Empty:
                 # If any single stream drops out or times out, the whole reader safely halts
                 return None
- 
+            if frame is self._EOF:
+                # One stream ended, so there is no complete multi-view frame left.
+                return None
+            assembled_frames.append(frame)
+
         return assembled_frames if self._running else None
  
+    # Teardown must be explicit: use ``with OfflineVideoSource(...) as src`` or
+    # a try/finally. There is deliberately no ``__del__`` fallback, because it
+    # cannot work here -- the daemon reader threads are bound methods holding a
+    # reference to self, so a leaked source is never collected and ``__del__``
+    # would only ever fire on sources that had already been released. Measured:
+    # with the source garbage-collected but never released, 2 of 2 ffmpeg
+    # processes survived; with release() in a finally, 0 of 2.
+    #
+    # An unreleased decoder does not exit on its own. Its reader thread blocks
+    # putting into a full queue, so ffmpeg blocks writing and never reaches EOF,
+    # and it sits holding ~288 MiB of GPU for the life of the process. Four
+    # cameras a trial adds up fast: a sweep once accumulated 16 of them, 4.6 GB.
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *exc):
+        self.release()
+        return False
+
     def release(self):
         """Thread-safe teardown sequence that safely cleans up pipes 
-        and filters out annoying OS shutdown artifacts."""
+        and filters out annoying OS shutdown artifacts.
+
+        Idempotent: calling it twice, or after __del__ has already run, is a
+        no-op rather than an error.
+        """
+        if not self._procs and not self._threads:
+            self._running = False
+            return
         self._running = False
         
         # Ask each process to exit gracefully first.

@@ -15,9 +15,9 @@ class TestCSVSaver(unittest.TestCase):
     def setUp(self):
         self.temp_dir = tempfile.TemporaryDirectory()
         self.save_dir = self.temp_dir.name
-        self.keypoints_header = ["Time", "Nose", "RShoulder", "RFoot"]
-        self.markers_header = ["Time", "RPSI_study", "LASI_study", "RASI_study"]
-        self.joint_angles_header = ["Time", "FF_x", "FF_y", "FF_z"]
+        self.keypoints_header = ["Frame", "Nose", "RShoulder", "RFoot"]
+        self.markers_header = ["Frame", "RPSI_study", "LASI_study", "RASI_study"]
+        self.joint_angles_header = ["Frame", "FF_x", "FF_y", "FF_z"]
 
     def tearDown(self):
         self.temp_dir.cleanup()
@@ -30,9 +30,9 @@ class TestCSVSaver(unittest.TestCase):
             self.assertTrue(os.path.exists(saver.joint_angles_path))
 
             # Expected headers based on the CSVSaver logic
-            expected_keypoints_header = "Time,Nose_x,Nose_y,Nose_z,RShoulder_x,RShoulder_y,RShoulder_z,RFoot_x,RFoot_y,RFoot_z"
-            expected_markers_header = "Time,RPSI_study_x,RPSI_study_y,RPSI_study_z,LASI_study_x,LASI_study_y,LASI_study_z,RASI_study_x,RASI_study_y,RASI_study_z"
-            expected_joint_angles_header = "Time,FF_x,FF_y,FF_z"
+            expected_keypoints_header = "Frame,Nose_x,Nose_y,Nose_z,RShoulder_x,RShoulder_y,RShoulder_z,RFoot_x,RFoot_y,RFoot_z"
+            expected_markers_header = "Frame,RPSI_study_x,RPSI_study_y,RPSI_study_z,LASI_study_x,LASI_study_y,LASI_study_z,RASI_study_x,RASI_study_y,RASI_study_z"
+            expected_joint_angles_header = "Frame,FF_x,FF_y,FF_z"
 
             with open(saver.keypoints_path, 'r') as f:
                 header = f.readline().strip()
@@ -54,7 +54,7 @@ class TestCSVSaver(unittest.TestCase):
 
     def test_save_keypoints(self):
         saver = CSVSaver(self.save_dir, self.keypoints_header, self.markers_header, self.joint_angles_header)
-        keypoints_data = OrderedDict([("Time", 1), ("Nose_x", 0.1), ("Nose_y", 0.2), ("Nose_z", 0.3),
+        keypoints_data = OrderedDict([("Frame", 1), ("Nose_x", 0.1), ("Nose_y", 0.2), ("Nose_z", 0.3),
                                       ("RShoulder_x", 0.4), ("RShoulder_y", 0.5), ("RShoulder_z", 0.6),
                                       ("RFoot_x", 0.7), ("RFoot_y", 0.8), ("RFoot_z", 0.9)])
         saver.save_keypoints(keypoints_data)
@@ -67,7 +67,7 @@ class TestCSVSaver(unittest.TestCase):
 
     def test_save_markers(self):
         saver = CSVSaver(self.save_dir, self.keypoints_header, self.markers_header, self.joint_angles_header)
-        markers_data = OrderedDict([("Time", 1), ("RPSI_study_x", 0.1), ("RPSI_study_y", 0.2), ("RPSI_study_z", 0.3),
+        markers_data = OrderedDict([("Frame", 1), ("RPSI_study_x", 0.1), ("RPSI_study_y", 0.2), ("RPSI_study_z", 0.3),
                                     ("LASI_study_x", 0.4), ("LASI_study_y", 0.5), ("LASI_study_z", 0.6),
                                     ("RASI_study_x", 0.7), ("RASI_study_y", 0.8), ("RASI_study_z", 0.9)])
         saver.save_markers(markers_data)
@@ -80,7 +80,7 @@ class TestCSVSaver(unittest.TestCase):
 
     def test_save_joint_angles(self):
         saver = CSVSaver(self.save_dir, self.keypoints_header, self.markers_header, self.joint_angles_header)
-        joint_angles_data = OrderedDict([("Time", 1), ("FF_x", 0.1), ("FF_y", 0.2), ("FF_z", 0.3)])
+        joint_angles_data = OrderedDict([("Frame", 1), ("FF_x", 0.1), ("FF_y", 0.2), ("FF_z", 0.3)])
         saver.save_joint_angles(joint_angles_data)
         saver.close()
 

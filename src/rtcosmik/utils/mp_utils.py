@@ -35,9 +35,6 @@ def create_pose_estimator_shared_ressources(num_cameras):
     barrier = mp.Barrier(num_cameras)
     return queues, barrier
 
-def create_pipeline_shared_ressources():
-    return [mp.Queue(maxsize=30) for _ in range(2)]
-
 def create_pipeline_shared_resources_with_buffers():
     # Create locks for safe access (optional but recommended)
     locks = [mp.Lock() for _ in range(4)]

@@ -74,22 +74,9 @@ def test_triangulate_points_matches_reference_loop_numpy():
     keypoints_list = _project_points(points_3d, projections)
 
     reference = _triangulate_reference_loop(keypoints_list, mtxs, dists, projections)
-    result = triangulate_points(keypoints_list, mtxs, dists, projections, backend="numpy")
+    result = triangulate_points(keypoints_list, mtxs, dists, projections)
 
     np.testing.assert_allclose(result, reference, rtol=1e-10, atol=1e-10)
-
-
-def test_triangulate_points_rejects_unknown_backend():
-    mtxs, dists, projections = _make_camera_matrices(num_cams=2)
-    points_3d = np.array([[0.2, -0.1, 3.0]], dtype=np.float64)
-    keypoints_list = _project_points(points_3d, projections)
-
-    try:
-        triangulate_points(keypoints_list, mtxs, dists, projections, backend="invalid")
-    except ValueError:
-        pass
-    else:
-        raise AssertionError("Expected ValueError for invalid backend")
 
 
 def test_triangulate_points_empty_input():
@@ -131,6 +118,6 @@ def test_triangulate_points_torch_native_matches_numpy_when_available():
     projections_t = torch.as_tensor(np.asarray(projections, dtype=np.float64), dtype=torch.float64)
 
     result_torch_native = triangulate_points_torch(points_t, projections_t, return_numpy=True)
-    result_numpy = triangulate_points(keypoints_list, mtxs, dists, projections, backend="numpy")
+    result_numpy = triangulate_points(keypoints_list, mtxs, dists, projections)
 
     np.testing.assert_allclose(result_torch_native, result_numpy, rtol=1e-10, atol=1e-10)

@@ -1,7 +1,19 @@
 # From project root (rt-cosmik)
 # PYTHONPATH=src:. python -m unittest discover tests/unit -v
 
+import glob
+import os
 import unittest
+
+import pytest
+
+# These are hardware-integration tests, not unit tests: they start a real
+# Camera process that grabs from /dev/video0 and blocks until it does. That
+# hangs the suite rather than failing it, and it needs exclusive access to a
+# device a live pipeline may be using. Opt in explicitly.
+if not (os.environ.get('RTCOSMIK_HW_TESTS') and glob.glob('/dev/video*')):
+    pytest.skip('camera hardware test; set RTCOSMIK_HW_TESTS=1 to run',
+                allow_module_level=True)
 from unittest.mock import Mock, patch
 import multiprocessing as mp
 import numpy as np
@@ -14,7 +26,7 @@ import cv2
 # Add project root to Python path
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '../../..')))
 
-from src.camera.camera import Camera
+from rtcosmik.camera.camera import Camera
 
 class TestCameraClass(unittest.TestCase):
     @classmethod
@@ -25,6 +37,10 @@ class TestCameraClass(unittest.TestCase):
         cls.shared_buffer = mp.Array('B', buffer_size, lock=False)
         cls.timestamp_buffer = mp.Array('c', 26)  # Timestamp buffer
         cls.lock = mp.Lock()
+        # Camera now takes the multiprocessing coordination primitives too.
+        cls.frame_counter = mp.Value('i', 0)
+        cls.barrier = mp.Barrier(1)
+        cls.stop_event = mp.Event()
 
     def create_camera_process(self, cam_id=0):
         return Camera(
@@ -32,6 +48,9 @@ class TestCameraClass(unittest.TestCase):
             shared_buffer=self.shared_buffer,
             timestamp_buffer=self.timestamp_buffer,
             lock=self.lock,
+            frame_counter=self.frame_counter,
+            barrier=self.barrier,
+            stop_event=self.stop_event,
             frame_shape=self.frame_shape,
             cam_fps=30,
             cam_fourcc="MJPG"
@@ -164,6 +183,10 @@ class TestMockCamera(unittest.TestCase):
         cls.shared_buffer = mp.Array('B', int(np.prod(cls.frame_shape)), lock=False)
         cls.timestamp_buffer = mp.Array('c', 26)
         cls.lock = mp.Lock()
+        # Camera now takes the multiprocessing coordination primitives too.
+        cls.frame_counter = mp.Value('i', 0)
+        cls.barrier = mp.Barrier(1)
+        cls.stop_event = mp.Event()
 
     @patch('cv2.VideoCapture')
     def test_mocked_camera_operation(self, mock_videocapture):
