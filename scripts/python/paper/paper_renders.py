@@ -321,8 +321,14 @@ def compose_snapshots(args, participant, top, bottom, bodies, rows):
 
 
 SETUP_TRIAL = ("1118", "RobotWelding")   # a session with the robot in its usual place
-CAPTURE_HEIGHT_M = 1.0                     # the capture volume is drawn at this height
+CAPTURE_HEIGHT_M = 1.0                     # the capture region is taken at this height ...
+CAPTURE_TOP_M = 2.0                        # ... and drawn as a volume from the floor to this height
 CONFIGURATIONS = (("2S", (0, 2)), ("2F", (0, 4)))
+#: The inclined view of the setup: from above the participant's front-left, so
+#: the body is seen in profile at the robot's table, the force plates in front.
+SETUP_EYE, SETUP_TARGET, SETUP_FOV_DEG = (-5.5, -4.2, 4.4), (0.0, -0.3, 0.45), 36.0
+AXIS_RGB = ((0.85, 0.12, 0.12), (0.10, 0.65, 0.15), (0.12, 0.25, 0.90))    # x, y, z
+FRUSTUM_DEPTH_M = 1.0
 
 
 def seen_by(assets, cameras, points):
@@ -337,84 +343,117 @@ def seen_by(assets, cameras, points):
     return ok
 
 
+def draw_triad(node, T, length=0.3, radius=0.012):
+    """An xyz frame (red, green, blue cylinders) at the 4x4 pose ``T``."""
+    import meshcat.geometry as g
+    from rtcosmik.viewer.comfi_scene import _material
+    turn = {0: np.array([[0, 1, 0], [-1, 0, 0], [0, 0, 1]]),     # meshcat cylinders run along y
+            1: np.eye(3), 2: np.array([[1, 0, 0], [0, 0, -1], [0, 1, 0]])}
+    for axis in range(3):
+        local = np.eye(4)
+        local[:3, :3] = turn[axis]
+        local[axis, 3] = length / 2
+        node[f"axis_{axis}"].set_object(g.Cylinder(length, radius), _material((*AXIS_RGB[axis], 1.0)))
+        node[f"axis_{axis}"].set_transform(local)
+    node.set_transform(T)
+
+
+def draw_frustum(scene, path, T, K, depth=FRUSTUM_DEPTH_M, rgba=(0.2, 0.2, 0.2, 0.9)):
+    """The field of view of a camera as a wire pyramid ``depth`` deep."""
+    corners = [np.linalg.inv(K) @ np.array([u, v, 1.0]) * depth for u, v in ((0, 0), (1280, 0), (1280, 720), (0, 720))]
+    world = [T[:3, :3] @ c + T[:3, 3] for c in corners]
+    for i, c in enumerate(world):
+        scene._bar(f"{path}/ray_{i}", T[:3, 3], c, 0.008, rgba)
+        scene._bar(f"{path}/edge_{i}", c, world[(i + 1) % 4], 0.008, rgba)
+
+
+def draw_prism(node, polygon_xy, bottom, top, rgba=(0.45, 0.70, 0.95, 0.14)):
+    """A translucent vertical prism over a convex floor polygon."""
+    import meshcat.geometry as g
+    n = len(polygon_xy)
+    ring = np.asarray(polygon_xy, float)
+    verts = np.vstack([np.column_stack([ring, np.full(n, bottom)]), np.column_stack([ring, np.full(n, top)]),
+                       [[*ring.mean(axis=0), bottom], [*ring.mean(axis=0), top]]])
+    faces = []
+    for i in range(n):
+        j = (i + 1) % n
+        faces += [[i, j, n + j], [i, n + j, n + i],             # side
+                  [2 * n, j, i], [2 * n + 1, n + i, n + j]]      # bottom and top fans
+    colour = int(rgba[0] * 255) * 65536 + int(rgba[1] * 255) * 256 + int(rgba[2] * 255)
+    node.set_object(g.TriangularMeshGeometry(verts, np.array(faces)),
+                    g.MeshLambertMaterial(color=colour, opacity=rgba[3], transparent=True, side=2))
+
+
 def setup_figure(args):
-    """Fig. 4: the workspace seen from above -- force plates, the robot on its
-    table, the four cameras with their optical axes and horizontal field of
-    view, the floor area all four see at CAPTURE_HEIGHT_M, and the 2S / 2F pairs."""
+    """Fig. 4: the workspace in the COMFI scene, seen from above at an angle --
+    force plates, the robot on its table, a participant at work (in the model's
+    own colours), the four cameras with their frames and fields of view, the
+    capture volume every camera sees, the 2S and 2F pairs, and xyz frames."""
     import cv2
-    from matplotlib.patches import Polygon
     from rtcosmik.viewer.comfi_scene import ComfiScene, TrialAssets
     from scene_render import Renderer
     p, t = SETUP_TRIAL
     assets = TrialAssets.resolve(DATASET, p, t)
     ref = Run(args.output_dir / p / t / REFERENCE_TAG, meta_of(p))
-    from scene_render import look_at_cv
-    # Seen from above with the long, camera-to-camera axis horizontal (image up = world +x).
-    points = [T[:3, 3] for T in assets.cameras.values()] + [assets.robot_base[:3, 3]]
-    table = assets.table
-    (L, Wd), pose = table["size"], table["pose"]
-    points += [pose[:3, :3] @ np.array([sx * L / 2, sy * Wd / 2, 0]) + pose[:3, 3]
-               for sx in (-1, 1) for sy in (-1, 1)]
-    centre = np.r_[np.mean([p_[:2] for p_ in points], axis=0), 0.0]
-    eye = centre + [0.0, 0.0, 8.0]
-    view = np.linalg.inv(look_at_cv(eye, centre, up=(1.0, 0.0, 0.0)))
-    local = np.array([(view[:3, :3] @ p_ + view[:3, 3])[:2] for p_ in points])
-    half = np.abs(local).max(axis=0) + 0.45
-    size = (1600, int(1600 * half[1] / half[0]))
+    event = [e for e in read(args.events) if e["participant"] == p and e["task"] == t]
+    frame = int(event[0]["ref_frame"]) if event else len(ref.q) // 2
+
+    # Capture region: the convex floor polygon every camera sees at CAPTURE_HEIGHT_M.
+    gx, gy = np.meshgrid(np.linspace(-4, 4, 400), np.linspace(-4, 4, 400))
+    grid = np.column_stack([gx.ravel(), gy.ravel(), np.full(gx.size, CAPTURE_HEIGHT_M)])
+    mask = seen_by(assets, sorted(assets.cameras), grid).reshape(gx.shape).astype(np.uint8)
+    contour = max(cv2.findContours(mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)[0], key=cv2.contourArea)
+    hull = cv2.approxPolyDP(cv2.convexHull(contour), 2.0, True)[:, 0, :]
+    region = np.column_stack([gx[0, hull[:, 0]], gy[hull[:, 1], 0]])
+
+    size = (1600, 1000)
     with Renderer(size=size, scale=1) as r:
-        scene = ComfiScene(r.vis, assets, show_cameras=True, table_rgba=GREY, robot_rgba=GREY)
-        scene.add_body("reference", ref.model, ref.visual_model, rgba=(*COLOURS["reference"], 1.0))
-        scene.show(min(assets.robot_joints), {"reference": ref.q[0]})
-        r.look_at(eye, centre, up=(1.0, 0.0, 0.0), ortho_half_height=half[1])
-        image = r.shot(grid=False)[..., :3]
+        scene = ComfiScene(r.vis, assets, show_cameras=True)
+        scene.add_body("reference", ref.model, ref.visual_model)            # the model's own colours
+        scene.show(frame + VIDEO_OFFSET, {"reference": ref.q[frame]})
+        extras = r.vis["scene"]["extras"]
+        draw_triad(extras["world"], np.eye(4), length=0.5, radius=0.015)
+        draw_triad(extras["robot"], assets.robot_base, length=0.35)
+        for k, T in assets.cameras.items():
+            draw_triad(extras[f"camera_{k}"], T, length=0.3)
+            draw_frustum(scene, f"scene/extras/frustum_{k}", T, assets.intrinsics[k][0])
+        draw_prism(extras["capture"], region, 0.005, CAPTURE_TOP_M)
+        r.look_at(SETUP_EYE, SETUP_TARGET, fov_deg=SETUP_FOV_DEG)
+        image = r.shot()[..., :3]
+        at = {k: r.project(T[:3, 3])[0] for k, T in assets.cameras.items()}
+        robot_px = r.project(assets.robot_base[:3, 3] + [0, 0, 0.55])[0]
+        capture_px = r.project([*region[np.argmin(region[:, 0])], CAPTURE_TOP_M])[0]
+        big = max(assets.force_plates, key=lambda plate: plate[0][0] * plate[0][1])
+        plates_px = r.project([big[1][0] - big[0][0] / 2, big[1][1] - big[0][1] / 2, 0.0])[0]
+
     W, H = size
-
-    def px(xy):
-        xy = np.asarray(xy, float)
-        pts = np.column_stack([xy, np.zeros(len(xy))])
-        c = (view[:3, :3] @ pts.T + view[:3, 3:4]).T
-        return np.column_stack([W / 2 + c[:, 0] / half[0] * W / 2, H / 2 + c[:, 1] / half[1] * H / 2])
-    lo = np.min([p_[:2] for p_ in points], axis=0) - 0.6
-    hi = np.max([p_[:2] for p_ in points], axis=0) + 0.6
-
     plt = plot_setup()
     fig, ax = plt.subplots(figsize=(88 * MM, 88 * MM * H / W))
     ax.imshow(image)
     ax.set_axis_off()
-    # Capture volume: the floor area every camera sees at CAPTURE_HEIGHT_M.
-    gx, gy = np.meshgrid(np.linspace(lo[0], hi[0], 300), np.linspace(lo[1], hi[1], 300))
-    grid = np.column_stack([gx.ravel(), gy.ravel(), np.full(gx.size, CAPTURE_HEIGHT_M)])
-    mask = seen_by(assets, sorted(assets.cameras), grid).reshape(gx.shape).astype(np.uint8)
-    contours, _ = cv2.findContours(mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-    region = max(contours, key=cv2.contourArea)[:, 0, :]
-    region_xy = np.column_stack([gx[0, region[:, 0]], gy[region[:, 1], 0]])
-    ax.add_patch(Polygon(px(region_xy), closed=True, facecolor=(0.2, 0.2, 0.2, 0.08),
-                         edgecolor="0.3", lw=0.8, ls="--"))
-    # Cameras: optical axis and horizontal field of view.
-    for k, T in sorted(assets.cameras.items()):
-        K, _ = assets.intrinsics[k]
-        o, axis = T[:3, 3], T[:3, 2]
-        half_fov = np.arctan(640.0 / K[0, 0])
-        heading = np.arctan2(axis[1], axis[0])
-        for sign, style in ((0, "-"), (-1, ":"), (1, ":")):
-            a = heading + sign * half_fov
-            end = o[:2] + (1.6 if sign == 0 else 1.2) * np.array([np.cos(a), np.sin(a)])
-            seg = px([o[:2], end])
-            ax.plot(seg[:, 0], seg[:, 1], color="k", lw=0.9 if sign == 0 else 0.6, ls=style)
-        label = px([o[:2] - 0.35 * axis[:2] / np.linalg.norm(axis[:2])])[0]
-        ax.text(*label, str(k), ha="center", va="center", fontsize=8)
-    # Camera configurations.
+    ax.set_xlim(0, W)
+    ax.set_ylim(H, 0)
+    # Camera ids pushed away from the middle of their support, so a pair seen
+    # end-on keeps its two labels apart.
+    supports = {0: (0, 2), 2: (0, 2), 4: (4, 6), 6: (4, 6)}
+    for k, (u, v) in at.items():
+        centre = (at[supports[k][0]] + at[supports[k][1]]) / 2
+        away = np.array([u, v]) - centre
+        away = away / max(np.linalg.norm(away), 1e-9)
+        ax.text(u + 45 * away[0], v - 30 + 25 * away[1], str(k), ha="center", va="center", fontsize=8,
+                bbox=dict(facecolor="white", edgecolor="none", pad=0.5, alpha=0.8))
     for name, (a, b) in CONFIGURATIONS:
-        pa, pb = assets.cameras[a][:3, 3][:2], assets.cameras[b][:3, 3][:2]
-        seg = px([pa, pb])
-        ax.plot(seg[:, 0], seg[:, 1], color="0.35", lw=0.8, ls=(0, (3, 2)))
-        at = seg[0] + (0.5 if name == "2S" else 0.3) * (seg[1] - seg[0])    # off the body and axes
-        ax.text(at[0], at[1], name, ha="center", va="center", fontsize=8,
+        seg = np.array([at[a], at[b]])
+        if name == "2F":
+            ax.plot(seg[:, 0], seg[:, 1], color="0.2", lw=0.8, ls=(0, (3, 2)))
+            mid = seg[0] + 0.3 * (seg[1] - seg[0])
+        else:
+            mid = seg.mean(axis=0) + [0, 55]                       # just below the support
+        ax.text(mid[0], mid[1], name, ha="center", va="center", fontsize=8,
                 bbox=dict(facecolor="white", edgecolor="none", pad=0.6))
-    # Scale bar, 1 m, in the upper left corner.
-    bar = np.array([[40, 50], [40 + W / half[0] / 2, 50]])
-    ax.plot(bar[:, 0], bar[:, 1], color="k", lw=1.2)
-    ax.text(bar[:, 0].mean(), bar[0, 1] - 10, "1 m", ha="center", va="bottom", fontsize=8)
+    ax.text(robot_px[0] + 40, robot_px[1], "robot", ha="left", va="center", fontsize=8)
+    ax.text(*capture_px, "capture volume", ha="right", va="bottom", fontsize=8)
+    ax.text(plates_px[0], plates_px[1] + 12, "force plates", ha="center", va="top", fontsize=8)
     out = args.out
     out.mkdir(parents=True, exist_ok=True)
     fig.subplots_adjust(0, 0, 1, 1)
@@ -429,133 +468,209 @@ def setup_figure(args):
             writer.writerow(["camera", k, *np.round(T[:3, 3], 4), *np.round(T[:3, 2], 4),
                              round(float(np.degrees(2 * np.arctan(640.0 / K[0, 0]))), 1)])
         writer.writerow(["robot_base", "", *np.round(assets.robot_base[:3, 3], 4), "", "", "", ""])
-        for x, y in region_xy:
-            writer.writerow([f"capture_region_at_{CAPTURE_HEIGHT_M:.1f}m", "", round(x, 3), round(y, 3), CAPTURE_HEIGHT_M, "", "", "", ""])
-    print(f"  setup: pdf, png, csv -> {out} ({p}/{t})", flush=True)
+        for (sx, sy), (cx, cy) in assets.force_plates:
+            writer.writerow(["force_plate", "", cx, cy, 0.0, "", "", "", f"{sx} x {sy} m"])
+        for x, y in region:
+            writer.writerow([f"capture_region_at_{CAPTURE_HEIGHT_M:.1f}m", "", round(x, 3), round(y, 3),
+                             CAPTURE_HEIGHT_M, "", "", "", ""])
+    print(f"  setup: pdf, png, csv -> {out} ({p}/{t}, reference frame {frame})", flush=True)
 
 
-MARKERSET_PARTICIPANT, MARKERSET_TASK = "1847", "SideOverhead"   # frame 0: standing, calibration pose
+#: Panel (a): the marker figure of the COMFI paper, which names every marker
+#: (anatomical in red, technical in green). Used as published, without a list:
+#: which of them the IK uses is in markerset.csv.
+COMFI_MARKER_FIGURE = Path("/root/workspace/Figure_4_markers_comfi.pdf")
+#: Panel (c): a FastSAM export whose mesh is also published, at its first frame
+#: (the participant stands in the calibration pose).
 FASTSAM_EXPORT = DATASET / "fastsam" / "results_multicam"
-FASTSAM_NAMES = {"1847": ("Maxime", "overhead")}      # export folders are named by first name
-FROZEN = (("middle_thoracic_Z", "thoracic (3 DoF)"), ("right_wrist_Z", "wrist (2 DoF)"),
-          ("left_wrist_Z", "wrist (2 DoF)"))
+MARKERSET_FASTSAM = ("2198", "SideOverhead", "Batiste", "overhead", 2)   # id, task, folder, task dir, camera
+ARMS_DOWN_DEG = 70.0      # SMPL-X template: shoulders lowered from the T pose
+#: Where each marker of the evaluation comes from in the mocap reference
+#: (``mocap_reference.py``): COMFI's head cluster stands in for the head, and
+#: the three facial landmarks have no mocap counterpart.
+MOCAP_SOURCE = {"REar": "RHD", "LEar": "LHD",
+                "Head": "centroid of FHD, BHD, LHD, RHD",
+                "Nose": "not in mocap", "REye": "not in mocap", "LEye": "not in mocap"}
 
 
-def upright(vertices, left, right, pelvis_centre):
-    """Rotate about z so left-right runs along +x, the body facing -y; feet on z = 0."""
-    d = right - left
-    a = np.arctan2(d[1], d[0]) - np.pi          # right side to image left for a body facing the viewer
+def comfi_marker_figure():
+    """The COMFI paper's marker figure, rendered and trimmed of its margins."""
+    import subprocess
+    import tempfile
+    import cv2
+    with tempfile.TemporaryDirectory() as tmp:
+        subprocess.run(["pdftoppm", "-r", "500", "-png", "-singlefile", str(COMFI_MARKER_FIGURE),
+                        f"{tmp}/page"], check=True)
+        page = cv2.cvtColor(cv2.imread(f"{tmp}/page.png"), cv2.COLOR_BGR2RGB)
+    ink = page.mean(axis=2) < 245
+    ys, xs = np.nonzero(ink)
+    return page[ys.min():ys.max() + 1, xs.min():xs.max() + 1]
+
+
+def smplx_arms_down(path, angle_deg=ARMS_DOWN_DEG):
+    """SMPL-X template vertices (y up, facing +z) with the arms lowered along the
+    body: linear blend skinning of the model's own joints, weights and pose
+    corrective blend shapes, shoulders rotated by ``angle_deg``."""
+    d = np.load(path, allow_pickle=True)
+    v = d["v_template"].astype(float)
+    J = d["J_regressor"] @ v
+    parents = d["kintree_table"][0].astype(np.int64)
+    n = len(J)
+    rz = lambda t: np.array([[np.cos(t), -np.sin(t), 0], [np.sin(t), np.cos(t), 0], [0, 0, 1]])
+    R = np.tile(np.eye(3), (n, 1, 1))
+    R[16], R[17] = rz(-np.radians(angle_deg)), rz(np.radians(angle_deg))    # left, right shoulder
+    v = v + np.einsum("vcp,p->vc", d["posedirs"], (R[1:] - np.eye(3)).reshape(-1))
+    G = np.zeros((n, 4, 4))
+    for j in range(n):
+        T = np.eye(4)
+        T[:3, :3] = R[j]
+        T[:3, 3] = J[j] - (J[parents[j]] if j else 0.0)
+        G[j] = T if j == 0 else G[parents[j]] @ T
+    G[:, :3, 3] -= np.einsum("jab,jb->ja", G[:, :3, :3], J)
+    T_v = np.einsum("vj,jab->vab", d["weights"], G)
+    return np.einsum("vab,vb->va", T_v[:, :3, :3], v) + T_v[:, :3, 3], d["f"]
+
+
+def upright_transform(left, right, centre, floor_of):
+    """A transform putting a body upright and facing -y: left-right along +x,
+    the pelvis centred, the lowest of ``floor_of`` on z = 0."""
+    d = np.asarray(right) - np.asarray(left)
+    a = np.arctan2(d[1], d[0]) - np.pi          # the body's right lands on image left
     c, s_ = np.cos(-a), np.sin(-a)
-    R = np.array([[c, -s_, 0], [s_, c, 0], [0, 0, 1]])
-    v = (R @ (vertices - pelvis_centre).T).T
-    v[:, 2] -= v[:, 2].min()
-    return v, R
+    T = np.eye(4)
+    T[:3, :3] = [[c, -s_, 0], [s_, c, 0], [0, 0, 1]]
+    T[:3, 3] = -T[:3, :3] @ np.asarray(centre)
+    T[2, 3] -= ((T[:3, :3] @ np.asarray(floor_of).T).T + T[:3, 3])[:, 2].min()
+    return T
+
+
+def apply(T, points):
+    return (T[:3, :3] @ np.asarray(points, float).reshape(-1, 3).T).T + T[:3, 3]
+
+
+def fastsam_markers(names):
+    """The 35 markers FastSAM-3D feeds the IK, and its body mesh, in one frame.
+
+    Read with the pipeline's own reader (``fastsam_source``), so the points are
+    exactly the ones the IK consumes: the exported markers, minus the two extra
+    thoracic ones, with Head placed from the facial landmarks.
+    """
+    import importlib
+    import sys as _sys
+    _sys.path.insert(0, str(REPO / "src"))
+    fs = importlib.import_module("rtcosmik.paper.fastsam_source")
+    participant, task, folder, task_dir, camera = MARKERSET_FASTSAM
+    export = DATASET / "fastsam" / participant / task / fs.FASTSAM_FILE.format(camera=camera)
+    exported, xyz, valid = fs.load_fastsam_markers(export)
+    frame = int(np.flatnonzero(valid)[0])
+    markers = {name: xyz[frame, i] for i, name in enumerate(exported) if name not in fs.DROPPED_MARKERS}
+    markers["Head"] = fs.derive_head(markers)
+    missing = set(names) - set(markers)
+    if missing:
+        raise ValueError(f"FastSAM export is missing {sorted(missing)}")
+    base = FASTSAM_EXPORT / folder / task_dir / f"camera_{camera}" / "calibrated"
+    mesh = np.load(base / "vertices_cam.npy", mmap_mode="r")[frame].astype(float)
+    return markers, mesh, np.load(base / "faces.npy")
 
 
 def markerset_figure(args):
-    """Fig. 5: the markers the evaluation uses -- (a) on our model, as the mocap
-    markers, with the 7 frozen DoFs; (b) the SMPL-X vertices NLF is queried at;
-    (c) the MHR vertices of FastSAM-3D -- from the front and from the back."""
+    """Fig. 5: the markers of the evaluation. (a) the motion capture markers, as
+    the COMFI paper shows them; (b) the SMPL-X vertices NLF is queried at;
+    (c) the points FastSAM-3D feeds the IK, on its own body mesh. (b) and (c)
+    carry the same 35 markers as the parity set, front and back."""
     import json
-    import cv2
     import meshcat.geometry as g
-    import pinocchio as pin
     from rtcosmik.config_loader import settings
     from rtcosmik.viewer.comfi_scene import ComfiScene
-    from scene_render import Renderer, look_at_cv
+    from scene_render import Renderer
     names = list(settings.marker_names)
-    p, t = MARKERSET_PARTICIPANT, MARKERSET_TASK
-    ref = Run(args.output_dir / p / t / REFERENCE_TAG, meta_of(p))
-    xyz = lambda m, n: m[[f"{n}_x", f"{n}_y", f"{n}_z"]].iloc[0].to_numpy(float)
 
-    # (a) our model at frame 0 with the mocap markers the IK used.
-    data = ref.model.createData()
-    pin.forwardKinematics(ref.model, data, ref.q[0])
-    mocap = {n: xyz(ref.markers, n) for n in names if f"{n}_x" in ref.markers}
-    left, right = xyz(ref.markers, "LASI"), xyz(ref.markers, "RASI")
-    centre = (left + right + xyz(ref.markers, "LPSI") + xyz(ref.markers, "RPSI")) / 4
-    _, R_a = upright(np.array([centre]), left, right, centre)
-    floor = min(mocap[n][2] for n in ("RHEE", "LHEE", "RTOE", "LTOE")) - 0.03   # skin markers sit ~3 cm up
-    T_a = np.eye(4)
-    T_a[:3, :3] = R_a
-    T_a[:3, 3] = -R_a @ centre
-    T_a[2, 3] = -floor
-    place = lambda P: (T_a[:3, :3] @ np.asarray(P).T).T + T_a[:3, 3]
-    frozen = [(place([data.oMi[ref.model.getJointId(j)].translation])[0], text) for j, text in FROZEN]
+    # (b) SMPL-X, arms along the body, at the vertices NLF is queried at.
+    vs, faces_s = smplx_arms_down(REPO / "weights" / "body_models" / "smplx" / "SMPLX_NEUTRAL.npz")
+    vs = vs @ np.array([[1, 0, 0], [0, 0, 1], [0, -1, 0]])        # y up, facing +z -> z up, facing -y
+    nlf_vertex = dict(zip(names, settings.nlf_indices))
+    T = upright_transform(vs[nlf_vertex["LASI"]], vs[nlf_vertex["RASI"]],
+                          (vs[nlf_vertex["LASI"]] + vs[nlf_vertex["RASI"]]) / 2, vs)
+    vs = apply(T, vs)
+    nlf_points = np.array([vs[nlf_vertex[n]] for n in names])
 
-    # (b) SMPL-X template and the vertices NLF is queried at (same order as the markers).
-    smplx = np.load(REPO / "weights" / "body_models" / "smplx" / "SMPLX_NEUTRAL.npz", allow_pickle=True)
-    vs = smplx["v_template"] @ np.array([[1, 0, 0], [0, 0, 1], [0, -1, 0]])    # y up, facing +z -> z up, facing -y
-    ids = list(settings.nlf_indices)
-    idx = {n: i for n, i in zip(names, ids)}
-    vs, _ = upright(vs, vs[idx["LASI"]], vs[idx["RASI"]], (vs[idx["LASI"]] + vs[idx["RASI"]]) / 2)
-    nlf = {n: vs[i] for n, i in idx.items()}
+    # (c) FastSAM-3D: the points its source hands the IK, on the published mesh.
+    fast, vm, faces_m = fastsam_markers(names)
+    vm = vm @ np.array([[1, 0, 0], [0, 0, -1], [0, 1, 0]])        # camera (x right, y down, z ahead) -> z up
+    fast = {n: p @ np.array([[1, 0, 0], [0, 0, -1], [0, 1, 0]]) for n, p in fast.items()}
+    T = upright_transform(fast["LASI"], fast["RASI"], (fast["LASI"] + fast["RASI"]) / 2, vm)
+    vm = apply(T, vm)
+    fast_points = apply(T, [fast[n] for n in names])
+    mhr_vertex = json.load(open(FASTSAM_EXPORT / "cosmik_mhr_marker_map_17subjects_tv8_tv12.json"))
 
-    # (c) FastSAM-3D's MHR mesh, frame 0 of camera 2 (facing the camera), and its marker map.
-    folder, task_dir = FASTSAM_NAMES[p]
-    base = FASTSAM_EXPORT / folder / task_dir / "camera_2" / "calibrated"
-    vm = np.load(base / "vertices_cam.npy", mmap_mode="r")[0].astype(float)
-    faces_m = np.load(base / "faces.npy")
-    vm = vm @ np.array([[1, 0, 0], [0, 0, -1], [0, 1, 0]])       # camera (x right, y down, z ahead) -> z up
-    mmap = json.load(open(FASTSAM_EXPORT / "cosmik_mhr_marker_map_17subjects_tv8_tv12.json"))["markers"]
-    fidx = {n: mmap[n]["vertex_index"] for n in names if n in mmap}
-    vm, _ = upright(vm, vm[fidx["LASI"]], vm[fidx["RASI"]], (vm[fidx["LASI"]] + vm[fidx["RASI"]]) / 2)
-    fast = {n: vm[i] for n, i in fidx.items()}
-
-    panels = []
-    size = (700, 1400)
+    size = (560, 1400)
+    renders = {}
     with Renderer(size=size, scale=1) as r:
-        for key in ("mocap", "nlf", "fastsam"):
+        for key, verts, faces, points, colour in (
+                ("nlf", vs, faces_s, nlf_points, COLOURS["nlf_0-2-4-6"]),
+                ("fastsam", vm, faces_m, fast_points, COLOURS["fastsam_0-2-4-6"])):
             r.vis["bodies"].delete()
             r.vis["markers"].delete()
-            r.vis["scene"].delete()
             scene = ComfiScene(r.vis, None, show_cameras=False)
-            if key == "mocap":
-                scene.add_body("model", ref.model, ref.visual_model, rgba=(0.80, 0.80, 0.80, 1.0))
-                scene.show(None, {"model": ref.q[0]})
-                r.vis["bodies"].set_transform(T_a)
-                points, colour = [place([v])[0] for v in mocap.values()], COLOURS["reference"]
-            else:
-                verts, faces = (vs, smplx["f"]) if key == "nlf" else (vm, faces_m)
-                r.vis["bodies"]["mesh"].set_object(g.TriangularMeshGeometry(verts, faces),
-                                                   g.MeshLambertMaterial(color=0xcccccc))
-                points = list((nlf if key == "nlf" else fast).values())
-                colour = COLOURS["nlf_0-2-4-6" if key == "nlf" else "fastsam_0-2-4-6"]
-            scene.set_markers("m", np.array(points), rgba=(*colour, 1.0), radius=0.018)
-            views = []
-            for side in (-1, 1):                      # front (viewer at -y), then back
-                eye = np.array([0.0, 6.0 * side, 0.9])
-                r.look_at(eye, (0.0, 0.0, 0.9), up=(0, 0, 1), ortho_half_height=1.0)
-                views.append(r.shot(grid=False)[..., :3])
-            panels.append((key, views, points))
+            r.vis["bodies"]["mesh"].set_object(g.TriangularMeshGeometry(verts, faces),
+                                               g.MeshLambertMaterial(color=0xd9d9d9))
+            scene.set_markers("m", points, rgba=(*colour, 1.0), radius=0.02)
+            renders[key] = []
+            for side in (-1, 1):                              # front (viewer at -y), then back
+                r.look_at((0.0, 6.0 * side, 0.9), (0.0, 0.0, 0.9), up=(0, 0, 1), ortho_half_height=1.0)
+                image = r.shot(grid=False)[..., :3]
+                renders[key].append(image[int(0.03 * size[1]):int(0.97 * size[1])])
 
+    comfi = comfi_marker_figure()
     plt = plot_setup()
-    fig, axes = plt.subplots(2, 3, figsize=(88 * MM, 118 * MM), gridspec_kw={"hspace": 0.02, "wspace": 0.0})
-    W, H = size
-    to_px = lambda P, side: np.column_stack([W / 2 + (-side) * np.asarray(P)[:, 0] / (W / H) * W / 2,
-                                             H / 2 - (np.asarray(P)[:, 2] - 0.9) * H / 2])
-    captions = {"mocap": "(a) Mocap", "nlf": "(b) NLF", "fastsam": "(c) FastSAM-3D"}
-    for c, (key, views, points) in enumerate(panels):
-        for r_, image in enumerate(views):
-            ax = axes[r_, c]
-            ax.imshow(image[int(H * 0.02):int(H * 0.98)], extent=(0, W, H * 0.98, H * 0.02))
-            ax.set_axis_off()
-        axes[1, c].text(0.5, -0.02, captions[key], transform=axes[1, c].transAxes, ha="center", va="top")
-    for (P, text), dy in zip(frozen, (0, 0, 0)):
-        u, v = to_px([P], -1)[0]
-        axes[0, 0].plot(u, v, "o", ms=7, mfc="none", mec="k", mew=0.8)
-    axes[0, 0].text(0.02, 0.995, "\u25cb frozen:\nthoracic (3 DoF)\nwrists (2\u00d72 DoF)",
-                    transform=axes[0, 0].transAxes, ha="left", va="top", fontsize=8, linespacing=1.1)
+    # One column, two rows, laid out in millimetres: the COMFI figure on top,
+    # the two templates below, front and back.
+    W_MM, GAP_MM, CAPTION_MM = 88.0, 3.0, 5.0
+    ratio = lambda im: im.shape[1] / im.shape[0]
+    h1 = W_MM / ratio(comfi)
+    views = [*renders["nlf"], *renders["fastsam"]]
+    h2 = (W_MM - GAP_MM) / sum(ratio(v) for v in views)
+    H_MM = h1 + CAPTION_MM + h2 + CAPTION_MM
+    fig = plt.figure(figsize=(W_MM * MM, H_MM * MM))
+    box = lambda x, y, w, h: fig.add_axes([x / W_MM, 1 - (y + h) / H_MM, w / W_MM, h / H_MM])
+
+    def image_at(x, y, image, height):
+        ax = box(x, y, ratio(image) * height, height)
+        ax.imshow(image)
+        ax.set_axis_off()
+        return x + ratio(image) * height
+
+    image_at(0.0, 0.0, comfi, h1)
+    fig.text(0.5, 1 - (h1 + 0.6) / H_MM, "(a) Motion capture markers (COMFI)", ha="center", va="top", fontsize=8)
+    y2 = h1 + CAPTION_MM
+    x = image_at(0.0, y2, views[0], h2)
+    x = image_at(x, y2, views[1], h2)
+    split = x + GAP_MM / 2
+    x = image_at(x + GAP_MM, y2, views[2], h2)
+    image_at(x, y2, views[3], h2)
+    for centre, text in ((split / 2, "(b) NLF (SMPL-X)"), ((split + W_MM) / 2, "(c) FastSAM-3D (MHR)")):
+        fig.text(centre / W_MM, 1 - (y2 + h2 + 0.6) / H_MM, text, ha="center", va="top", fontsize=8)
     out = args.out
+    out.mkdir(parents=True, exist_ok=True)
     fig.savefig(out / "markerset.pdf", bbox_inches="tight", pad_inches=0.01, dpi=300)
     fig.savefig(out / "markerset.png", bbox_inches="tight", pad_inches=0.01, dpi=200)
     plt.close(fig)
+    markers_map = mhr_vertex["markers"]
+    faces_map = mhr_vertex["face_keypoints"]
     with open(out / "markerset.csv", "w", newline="") as handle:
         writer = csv.writer(handle)
-        writer.writerow(["marker", "mocap_in_our_model_frame0", "nlf_smplx_vertex", "fastsam_mhr_vertex"])
-        for n in names:
-            writer.writerow([n, "yes" if n in mocap else "no", idx.get(n, ""), fidx.get(n, "reconstructed" if n == "Head" else "")])
-    print(f"  markerset: pdf, png, csv -> {out}", flush=True)
+        writer.writerow(["number", "marker", "mocap reference (COMFI marker)", "NLF: SMPL-X vertex",
+                         "FastSAM-3D: MHR source"])
+        for i, n in enumerate(names, start=1):
+            if n in markers_map:
+                source = f"vertex {markers_map[n]['vertex_index']}"
+            elif n in faces_map:
+                source = f"mhr70 keypoint {faces_map[n]['keypoint_index']}"
+            else:
+                source = "placed from Nose, REar, LEar"
+            writer.writerow([i, n, MOCAP_SOURCE.get(n, n), nlf_vertex[n], source])
+    print(f"  markerset: pdf, png, csv -> {out} ({len(names)} markers)", flush=True)
+
 
 
 def main():

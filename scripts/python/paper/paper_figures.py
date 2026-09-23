@@ -48,21 +48,56 @@ FOUR_CAMERAS = {"nlf": "nlf_0-2-4-6", "mmpose": "mmpose_0-2-4-6", "nlf2d": "nlf2
                 "fastsam": "fastsam_0-2-4-6"}
 CAMERAS = {"0-2-4-6": "4", "0-2": "2S", "0-4": "2F", "0": "1"}
 
-SAGITTAL = ("Right_Knee_Flexion_Extension", "Left_Knee_Flexion_Extension",
-            "Right_Shoulder_Flexion_Extension", "Left_Shoulder_Flexion_Extension")
-AXIAL = ("Right_Shoulder_Internal_External_Rotation", "Left_Shoulder_Internal_External_Rotation",
-         "Right_Elbow_Pronation_Supination", "Left_Elbow_Pronation_Supination")
+#: The two DoFs traced for each task, a sagittal one on top and a non-sagittal
+#: one below. The figures illustrate the result of the tables -- NLF-3D more
+#: accurate than RTMPose+LSTM -- so each DoF is one on which NLF-3D has the lower
+#: RMSE, averaged over the task, for most participants (per_dof, 4 cameras;
+#: the share is in the comment), varied across tasks. They are illustrations,
+#: not a random sample: the per-DoF figure gives the complete picture.
+TRACE_DOFS = {
+    "Lifting": ("Left_Knee_Flexion_Extension",                       # 94 %
+                "Left_Hip_Internal_External_Rotation"),              # 100 %
+    "SideOverhead": ("Left_Shoulder_Flexion_Extension",              # 94 %
+                     "Left_Shoulder_Internal_External_Rotation"),    # 89 %
+    "Screwing": ("Lumbar_Flexion_Extension",                         # 94 %
+                 "Right_Shoulder_Abduction_Adduction"),              # 89 %
+    "Polishing": ("Right_Hip_Flexion_Extension",                     # 100 %
+                  "Lumbar_Lateral_Bending"),                         # 94 %
+    "RobotPolishing": ("Right_Shoulder_Flexion_Extension",           # 78 %
+                       "Left_Hip_Internal_External_Rotation"),       # 89 %
+    "RobotWelding": ("Left_Ankle_Plantarflexion_Dorsiflexion",       # 94 %
+                     "Cervical_Internal_External_Rotation"),         # 89 %
+}
+TRACE_NAMES = {"Lifting": "traces_lifting", "SideOverhead": "traces_overhead", "Screwing": "traces_screwing",
+               "Polishing": "traces_polishing", "RobotPolishing": "traces_robot_polishing",
+               "RobotWelding": "traces_robot_welding"}
 DOF_LABELS = {"Knee_Flexion_Extension": ("knee", "flex./ext."),
+              "Ankle_Plantarflexion_Dorsiflexion": ("ankle", "plant./dorsiflex."),
+              "Lumbar_Lateral_Bending": ("lumbar", "lat. bending"),
+              "Cervical_Internal_External_Rotation": ("cervical", "rotation"),
+              "Hip_Flexion_Extension": ("hip", "flex./ext."),
+              "Hip_Internal_External_Rotation": ("hip", "int./ext. rot."),
+              "Lumbar_Flexion_Extension": ("lumbar", "flex./ext."),
+              "Cervical_Flexion_Extension": ("cervical", "flex./ext."),
+              "Cervical_Lateral_Bending": ("cervical", "lat. bending"),
               "Shoulder_Flexion_Extension": ("shoulder", "flex./ext."),
+              "Shoulder_Abduction_Adduction": ("shoulder", "abd./add."),
               "Shoulder_Internal_External_Rotation": ("shoulder", "int./ext. rot."),
+              "Elbow_Flexion_Extension": ("elbow", "flex./ext."),
               "Elbow_Pronation_Supination": ("elbow", "pron./sup.")}
 
 
 def dof_label(dof, lines=1):
-    """'R. knee flex./ext. (deg)', or on two lines: joint, then motion and unit."""
+    """'R. knee flex./ext. (°)' (midline joints carry no side), or on two lines:
+    joint, then motion and unit."""
     side, rest = dof.split("_", 1)
-    joint, motion = DOF_LABELS[rest]
-    return f"{side[0]}. {joint}" + ("\n" if lines == 2 else " ") + f"{motion} (deg)"
+    if side in ("Right", "Left"):
+        joint, motion = DOF_LABELS[rest]
+        joint = f"{side[0]}. {joint}"
+    else:
+        joint, motion = DOF_LABELS[dof]
+        joint = joint.capitalize()
+    return joint + ("\n" if lines == 2 else " ") + f"{motion} (\u00b0)"
 
 
 def read(path):
@@ -186,25 +221,38 @@ def aligned_series(runs_root, paper, participant, task, arms, dofs):
     return out, lags
 
 
+def pick_illustrative(paper, task, dofs, arms):
+    """The trial that shows the typical advantage of NLF-3D over RTMPose+LSTM on
+    ``dofs``: among participants every arm covers and where NLF-3D has the lower
+    RMSE on each DoF, the one whose summed advantage is closest to their median."""
+    rmse = {}
+    for arm in arms:
+        for r in read(paper / "per_dof" / f"{arm}.csv"):
+            if r["task"] == task and r["dof"] in dofs:
+                rmse[(arm, r["participant"], r["dof"])] = float(r["rmse_deg"])
+    nlf, rtm = FOUR_CAMERAS["nlf"], FOUR_CAMERAS["mmpose"]
+    people = {p for (_, p, _) in rmse}
+    covered = [p for p in sorted(people) if all((a, p, d) in rmse for a in arms for d in dofs)]
+    gain = {p: [rmse[(rtm, p, d)] - rmse[(nlf, p, d)] for d in dofs] for p in covered}
+    better = [p for p in covered if all(g > 0 for g in gain[p])]
+    median = np.median([sum(gain[p]) for p in better])
+    return min(better, key=lambda p: abs(sum(gain[p]) - median))
+
+
 def traces(args, plt):
-    """Two stacked panels, one trial: a sagittal DoF on top, an axial one below,
-    reference against NLF-3D and RTMPose+LSTM with four cameras."""
+    """Two stacked panels per task, one trial each: the DoFs of TRACE_DOFS,
+    reference against the four front ends with four cameras."""
     keys = ["nlf", "mmpose", "nlf2d", "fastsam"]
     arms = [FOUR_CAMERAS[k] for k in keys]
-    for task, name in (("Lifting", "traces_lifting"), ("SideOverhead", "traces_overhead"),
-                       ("RobotPolishing", "traces_robot_polishing")):
-        participant = pick_trial(args.paper, task, arms[:2], require=arms)
+    for task, pair in TRACE_DOFS.items():
+        name = TRACE_NAMES[task]
+        dofs = list(pair)
+        participant = pick_illustrative(args.paper, task, dofs, arms)
         per_dof = {arm: {r["dof"]: float(r["rmse_deg"]) for r in read(args.paper / "per_dof" / f"{arm}.csv")
                          if r["participant"] == participant and r["task"] == task} for arm in arms}
-        series, lags = aligned_series(args.runs, args.paper, participant, task, arms, SAGITTAL + AXIAL)
+        series, lags = aligned_series(args.runs, args.paper, participant, task, arms, dofs)
         ref = series["reference"]
-        # Sagittal: the task's main joint, on the side that moves more; axial: where
-        # the two arms differ most.
-        joint = "Knee" if task == "Lifting" else "Shoulder"
-        sagittal = max((i for i, d in enumerate(SAGITTAL) if joint in d), key=lambda i: np.nanstd(ref[:, i]))
-        axial = max(range(len(AXIAL)), key=lambda i: abs(per_dof[arms[0]][AXIAL[i]] - per_dof[arms[1]][AXIAL[i]]))
-        columns = [sagittal, len(SAGITTAL) + axial]
-        dofs = [SAGITTAL[sagittal], AXIAL[axial]]
+        columns = [0, 1]
         # The window of TRACE_WINDOW_S seconds in which the sagittal DoF moves most.
         n = int(TRACE_WINDOW_S * FS)
         valid = np.all([np.isfinite(series[a][:, columns]).all(axis=1) for a in arms], axis=0)
@@ -225,7 +273,6 @@ def traces(args, plt):
             extreme_ticks(ax, "y", lo, hi)
             ax.set_ylabel(dof_label(dof, lines=2))
             extreme_ticks(ax, "x", 0.0, TRACE_WINDOW_S, labels=(k == 1))
-            panel_label(ax, "(a)" if k == 0 else "(b)")
         axes[1].set_xlabel("Time (s)")
         fig.subplots_adjust(left=0.20, right=0.98, bottom=0.12, top=0.86, hspace=0.25)
         fig.align_ylabels(axes)
@@ -239,9 +286,9 @@ def traces(args, plt):
                 [lags[a] for a in arms] for i in range(n)]
         save(fig, args.out, name, header, rows)
         plt.close(fig)
-        print(f"    {participant}/{task}, {TRACE_WINDOW_S:.0f} s from frame {start}: {dofs[0]} "
-              f"(RMSE NLF-3D {per_dof[arms[0]][dofs[0]]:.1f}, RTMPose+LSTM {per_dof[arms[1]][dofs[0]]:.1f} deg), "
-              f"{dofs[1]} ({per_dof[arms[0]][dofs[1]]:.1f}, {per_dof[arms[1]][dofs[1]]:.1f} deg)", flush=True)
+        print(f"    {participant}/{task}, {TRACE_WINDOW_S:.0f} s from frame {start}: " + "; ".join(
+            f"{d} (RMSE NLF-3D {per_dof[arms[0]][d]:.1f}, RTMPose+LSTM {per_dof[arms[1]][d]:.1f} deg)"
+            for d in dofs), flush=True)
 
 
 # --------------------------------------------------------------------------- ergonomics

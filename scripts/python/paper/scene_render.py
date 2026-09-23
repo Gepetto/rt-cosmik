@@ -132,15 +132,30 @@ class Renderer:
 
     def look_at(self, eye, target, fov_deg=30.0, up=(0.0, 0.0, 1.0), ortho_half_height=None):
         """A free camera; ``ortho_half_height`` (m) makes it orthographic."""
-        world = look_at_cv(eye, target, up) @ CV_TO_GL
+        self._view = look_at_cv(eye, target, up)
+        world = self._view @ CV_TO_GL
         aspect = self.size[0] / self.size[1]
         if ortho_half_height is not None:
             projection = orthographic(ortho_half_height * aspect, ortho_half_height)
+            self._K = None
+            self._ortho = (ortho_half_height * aspect, ortho_half_height)
         else:
             f = 0.5 * self.size[1] / np.tan(np.radians(fov_deg) / 2)
             K = np.array([[f, 0, self.size[0] / 2], [0, f, self.size[1] / 2], [0, 0, 1]])
             projection = perspective(K, *self.size)
+            self._K = K
         self._camera = (world, projection)
+
+    def project(self, points):
+        """Pixel coordinates (CSS pixels) of world points in the last ``look_at`` view."""
+        points = np.atleast_2d(np.asarray(points, float))
+        T = np.linalg.inv(self._view)
+        c = (T[:3, :3] @ points.T + T[:3, 3:4]).T
+        if self._K is None:
+            hw, hh = self._ortho
+            return np.column_stack([self.size[0] / 2 * (1 + c[:, 0] / hw), self.size[1] / 2 * (1 + c[:, 1] / hh)])
+        uv = (self._K @ (c / c[:, 2:3]).T).T
+        return uv[:, :2]
 
     # -- capture -----------------------------------------------------------
 
