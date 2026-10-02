@@ -55,24 +55,67 @@ def list_cameras():
     Returns a dictionary of camera indices and associated device names.
     """
     cameras = {}
-    try:
-        output = subprocess.check_output("v4l2-ctl --list-devices", shell=True).decode("utf-8")
-        devices = output.split("\n\n")
-        for device in devices:
-            lines = device.split("\n")
-            if len(lines) > 1:
-                device_name = lines[0].strip()
-                video_path = lines[1].strip()
-                if "/dev/video" in video_path:
-                    index = int(video_path.split("video")[-1])
-                    cap = cv.VideoCapture(index, cv.CAP_V4L2)
-                    if cap.isOpened():
-                        cameras[index] = device_name
-                    cap.release()
-    except Exception as e:
-        print("Error using v4l2-ctl:", e)
-    return cameras
 
+    try:
+        result = subprocess.run(
+            ["v4l2-ctl", "--list-devices"],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+            check=False,
+        )
+
+        output = result.stdout
+
+        if not output.strip():
+            LOGGER.warning(
+                "v4l2-ctl returned no camera information. stderr: %s",
+                result.stderr.strip(),
+            )
+            return cameras
+
+        devices = output.split("\n\n")
+
+        for device in devices:
+            lines = [line.strip() for line in device.splitlines() if line.strip()]
+
+            if len(lines) < 2:
+                continue
+
+            device_name = lines[0]
+
+            # A physical camera can expose several /dev/video* nodes.
+            # Test each one and keep the first node that OpenCV can actually open.
+            for line in lines[1:]:
+                if not line.startswith("/dev/video"):
+                    continue
+
+                try:
+                    index = int(line.rsplit("video", 1)[1])
+                except ValueError:
+                    continue
+
+                cap = cv.VideoCapture(index, cv.CAP_V4L2)
+
+                if cap.isOpened():
+                    cameras[index] = device_name
+                    cap.release()
+                    break
+
+                cap.release()
+
+        if result.returncode != 0:
+            LOGGER.warning(
+                "v4l2-ctl exited with code %d, but usable cameras were still found. "
+                "stderr: %s",
+                result.returncode,
+                result.stderr.strip(),
+            )
+
+    except Exception as e:
+        LOGGER.exception("Error while discovering V4L2 cameras: %s", e)
+
+    return cameras
 
 # ---------------------------------------------------------------------------
 # Which physical camera is which
