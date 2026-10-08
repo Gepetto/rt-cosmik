@@ -88,12 +88,14 @@ RUN --mount=type=cache,sharing=locked,target=/var/cache/apt \
         --extra-index-url https://download.pytorch.org/whl/cu121 \
         "torch==2.4.1+cu121" "torchvision==0.19.1+cu121" "torchaudio==2.4.1+cu121" \
     \
-    # the rest (also constrained)
+    # the rest (also constrained), at the versions RT-COSMIK is validated with:
+    # newer ultralytics releases, for instance, no longer import torchvision
     && python -m pip install -c /tmp/constraints.txt --upgrade-strategy only-if-needed \
         argcomplete pre-commit \
-        quadprog ultralytics opencv-python meshcat pandas \
-        onnxruntime-gpu onnx \
-        looseversion pynput \
+        "quadprog==0.1.13" "opencv-python==4.11.0.86" "meshcat==0.3.2" "pandas==2.3.3" \
+        "ultralytics==8.4.14" "ultralytics-thop==2.0.18" "polars==1.38.1" \
+        "onnxruntime-gpu==1.23.2" "onnx==1.20.1" \
+        "looseversion==1.3.0" "pynput==1.8.1" \
     && python -m pip check \
     \
     # sanity: make sure numpy is <2 right now
