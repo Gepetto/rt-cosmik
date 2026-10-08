@@ -107,12 +107,9 @@ class DefaultSettings:
 
     # PATHS
     cam_calib_path: str = field(init=False)
-    human_calib_path: str = field(init=False)
-    robot_calib_path: str = field(init=False)
 
     # FILTER
     order: int = 4
-    system_freq: int = 40
     cutoff_freq: float = 5.0
     filter_type: str = "lowpass"
 
@@ -131,7 +128,7 @@ class DefaultSettings:
     mhe_profile: str = "realtime"  # "realtime" or "accurate"
     cost_weights: list = field(default_factory=lambda: [1, 1e-3, 1e-5])
     N: int = 10
-    acados_export_dir: str = None  # default: <repo>/output/acados
+    acados_export_dir: str = None  # default: <repo>/ocp
     acados_source_dir: str = None  # default: read from ACADOS_SOURCE_DIR env var
 
     # MARKERS
@@ -190,8 +187,6 @@ class DefaultSettings:
         self.output_dir = str(root / "output")
         self.SAVE_DIR = str(Path(self.output_dir) / self.no_trial)
         self.cam_calib_path = str(root / "config" / "cam_params")
-        self.human_calib_path = str(root / "config" / "human_params")
-        self.robot_calib_path = str(root / "config" / "robot_params")
         self.cano_path = str(root / "weights" / "canonical_verts" / "smplx.npy")
         self.nlf_path = str(root / "weights" / "nlf" / "nlf_s_multi_0.2.2.torchscript")
         self.yolo_path = str(root / "weights" / "yolo" / f"{self.yolo_model}.engine")

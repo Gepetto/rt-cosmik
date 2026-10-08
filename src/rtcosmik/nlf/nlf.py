@@ -18,11 +18,9 @@ from rtcosmik.triangulation.triangulation import reconstruct_3d
 
 LOGGER = logging.getLogger(__name__)
 
-#: One frame's worth of per-camera observations, as returned by extract_views.
 Views = namedtuple("Views", "keypoints poses3d uncertainties valid_cam_ids")
 
 from rtcosmik.model_weights import resolve_detector_engine
-
 
 
 def extract_views(nlf_out, num_cameras):
@@ -97,7 +95,6 @@ class NLFEstimator:
         image_size,
         cam_Ks,
         indices,
-        all_in_one=False, # performs detection + nlf all in one or not 
         conf=0.75,
         imgsz=640,
         device="cuda:0",
@@ -154,10 +151,7 @@ class NLFEstimator:
 
         if warmup:
             self.logger.info("[INFO] Starting to warm up all the models")
-            if all_in_one:
-                self._warmup_all_in_one(iters=warmup_iters)
-            else:
-                self._warmup(iters=warmup_iters)
+            self._warmup(iters=warmup_iters)
             self.logger.info("[INFO] Models warmed up")
     
     def load_nlf(self, path: str):
@@ -208,32 +202,7 @@ class NLFEstimator:
                 )
         torch.cuda.synchronize()
     
-    def _warmup_all_in_one(self, iters: int = 10):
-        frames = [np.random.randint(0, 256, (self.H, self.W, 3), dtype=np.uint8) for _ in range(self.C)]
 
-        with torch.inference_mode():
-            imgs = self.preprocess_batch(frames)  # (C,3,H,W)
-
-            for _ in range(iters):
-                # One single batched call
-                _ = self.nlf0.detect_poses_batched(
-                    imgs,
-                    intrinsic_matrix=self.Kt,   # see note below if shape mismatch
-                    weights=self.weights,
-                    num_aug=1,
-                )
-        torch.cuda.synchronize()
-
-    def top1_box_xywh(self, res):
-        """Return top-1 bbox as (1,4) xywh on self.device, or (0,4) if none."""
-        if len(res.boxes) == 0:
-            return torch.zeros((0, 4), device=self.device, dtype=self.geom_dtype)
-
-        j = int(torch.argmax(res.boxes.conf).item())
-        boxes_xyxy = res.boxes.xyxy[j:j + 1].to(self.device)  # (1,4) xyxy
-        wh = boxes_xyxy[:, 2:] - boxes_xyxy[:, :2]
-        xywh = torch.cat([boxes_xyxy[:, :2], wh], dim=1)       # (1,4) xywh
-        return xywh.contiguous().to(self.geom_dtype)
 
     def _xyxy_to_xywh(self, box_xyxy):
         box = box_xyxy.reshape(1, 4).to(self.device, dtype=self.geom_dtype)
@@ -375,30 +344,6 @@ class NLFEstimator:
             "cpu_overhead_ms": (time.perf_counter() - t_cpu0) * 1000.0,  # small sanity
         }
         return out, timings, yres, boxes
-
-    @torch.inference_mode()
-    def detect_and_estimate_from_frames(self, frames_bgr):
-        # --- CPU preprocess timing (stacking etc.) ---
-        t_cpu0 = time.perf_counter()
-
-        # preprocess_batch includes H2D; count it separately
-        t2 = time.perf_counter()
-        imgs = self.preprocess_batch(frames_bgr)
-        t3 = time.perf_counter()
-
-        # NLF
-        out = self.nlf0.detect_poses_batched(
-            imgs, intrinsic_matrix=self.Kt, weights=self.weights, num_aug=1
-        )
-        t4 = time.perf_counter()
-
-        timings = {
-            "h2d+pre_ms": (t3 - t2) * 1000.0,
-            "nlf_ms": (t4 - t3) * 1000.0,
-            "total_ms": (t4 - t_cpu0) * 1000.0,
-            "cpu_overhead_ms": (time.perf_counter() - t_cpu0) * 1000.0,  # small sanity
-        }
-        return out, timings
 
 
     @staticmethod

@@ -153,7 +153,6 @@ class DisplayConsumer(Process):
         self.frame_counters = frame_counters
         
     def run(self):
-        window_names = [f'Camera {i}' for i in range(self.num_cameras)]
         
         # Optimization 1: Create a single window for all cameras
         combined_window = "Multi-Camera View"
@@ -161,7 +160,6 @@ class DisplayConsumer(Process):
         try: 
             while not self.stop_event.is_set():
                 frames = []
-                keypoints_list = []
                 new_counters = []
                 for i, (lock, buffer, cam_ts, frame_counter) in enumerate(zip(self.camera_locks, self.camera_buffers, self.timestamp_buffers, self.frame_counters)):
                     with lock:
@@ -192,12 +190,6 @@ class DisplayConsumer(Process):
                 cv2.imshow(combined_window,  combined_frame)
                 ########################################
                 
-                # Original individual windows display (comment out when using combined view)
-                # for i, frame in enumerate(frames):
-                #     if frame.shape[2] == 3:
-                #         frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-                #     cv2.imshow(window_names[i], frame)
-
                 # Break on 'q' key press
                 if cv2.waitKey(1) & 0xFF == ord('q'):
                     break

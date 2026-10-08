@@ -270,36 +270,3 @@ def list_videos(data_dir: Path) -> List[Path]:
     if not data_dir.exists():
         raise FileNotFoundError(f"data dir does not exist: {data_dir}")
     return [p for p in sorted(data_dir.iterdir()) if p.suffix.lower() in [".mp4"]]
-
-#OLD OpenCV implementation kept in case
-# @dataclass
-# class OfflineVideoSource:
-#     points_saved=False
-#     paths: List[Path]
-#     size_wh: Tuple[int, int]
-
-#     def __post_init__(self):
-#         self.caps = [cv2.VideoCapture(str(p)) for p in self.paths]
-#         for p, cap in zip(self.paths, self.caps):
-#             if not cap.isOpened():
-#                 raise RuntimeError(f"Could not open video: {p}")
-
-#     def read(self) -> Optional[List[np.ndarray]]:
-#         frames: List[np.ndarray] = []
-#         for cap in self.caps:
-#             ok, frame = cap.read()
-#             if not ok:
-#                 self.points_saved=True
-#                 cap.set(cv2.CAP_PROP_POS_FRAMES, 0)
-#                 ok, frame = cap.read()
-#                 if not ok:
-#                     return None
-#             W, H = self.size_wh
-#             if frame.shape[1] != W or frame.shape[0] != H:
-#                 frame = cv2.resize(frame, (W, H), interpolation=cv2.INTER_LINEAR)
-#             frames.append(frame)
-#         return frames
-
-#     def release(self):
-#         for cap in self.caps:
-#             cap.release()

@@ -74,12 +74,9 @@ class Settings:
 
     ### CALIB ###
     cam_calib_path: str = field(init=False) # relative path to the camera calibration file
-    human_calib_path: str = field(init=False)  # relative path to the human calibration file
-    robot_calib_path: str = field(init=False)  # relative path to the robot calibration file
 
     ### FILTER PARAMS ###
     order: int = 4
-    system_freq: int = 40 
     cutoff_freq: float = 10
     filter_type: str = "lowpass"
 
@@ -145,7 +142,8 @@ class Settings:
     mhe_profile: str = "realtime" # or "accurate"
     cost_weights: list = field(default_factory=lambda: [1, 1e-3, 1e-5])
     N: int = 10 # number of time steps
-    # acados only: where generated C code/.so/.json go (default: <repo>/output/acados),
+    # acados only: where generated C code/.so/.json go (default: <repo>/ocp,
+    # RTCOSMIK_OCP_DIR overrides it),
     # and the acados install dir (default: read from the ACADOS_SOURCE_DIR env var).
     acados_export_dir: str = None
     acados_source_dir: str = None
@@ -173,8 +171,6 @@ class Settings:
         # Use Pathlib for better path handling
         self.cosmik_path = str(Path(__file__).parent.resolve())
         self.cam_calib_path = str(Path(self.cosmik_path) / "config/cam_params")
-        self.human_calib_path = str(Path(self.cosmik_path) / "config/human_params")
-        self.robot_calib_path = str(Path(self.cosmik_path) / "config/robot_params")
         self.output_dir = str(Path(self.cosmik_path) / "output")
         self.SAVE_DIR = str(Path(self.output_dir) / self.no_trial)
         self.cano_path = str(Path(self.cosmik_path) / "weights/canonical_verts/smplx.npy")
