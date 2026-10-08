@@ -78,17 +78,22 @@ def _to_spawn_safe_settings(settings_obj):
 
 @dataclass
 class DefaultSettings:
-    """Fallback settings used when project-level settings cannot be imported."""
+    """Fallback settings used when project-level settings cannot be imported.
+
+    The defaults are those of settings.py, except ``device``;
+    tests/unit/test_config_loader.py checks that they stay in step.
+    """
 
     cosmik_path: str = field(init=False)
+    # settings.py picks CUDA when available; this fallback does not import torch.
     device: str = "cpu"
 
     # SAVE
-    no_trial: str = "default"
-    SAVE_VID: bool = False
-    SAVE_CSV: bool = False
-    record_hotkeys: bool = True
-    record_on_start: bool = False
+    no_trial: str = "test"
+    SAVE_VID: bool = True
+    SAVE_CSV: bool = True
+    record_hotkeys: bool = False
+    record_on_start: bool = True
     output_dir: str = field(init=False)  # <repo>/output
     SAVE_DIR: str = field(init=False)    # online trial directory
 
@@ -101,16 +106,19 @@ class DefaultSettings:
     cameras: tuple = (0, 2, 4, 6)
 
     # HUMAN
-    human_height: float = 1.81
-    human_weight: float = 74.0
+    human_height: float = 1.80
+    human_weight: float = 70.0
     human_gender: str = "m"
+
+    # VIEWER
+    viewer_scene: bool = True
 
     # PATHS
     cam_calib_path: str = field(init=False)
 
     # FILTER
     order: int = 4
-    cutoff_freq: float = 5.0
+    cutoff_freq: float = 10
     filter_type: str = "lowpass"
 
     # MODELS
@@ -122,9 +130,9 @@ class DefaultSettings:
     yolo_imgsz: int = 640
 
     # IK
-    ik_type: str = "sbs"
-    ik_code: str = "python"
-    mhe_backend: str = "fatrop"  # "fatrop" (validated reference) or "acados"
+    ik_type: str = "mhe"
+    ik_code: str = "c"
+    mhe_backend: str = "acados"  # "acados" or "fatrop" (validated reference)
     mhe_profile: str = "realtime"  # "realtime" or "accurate"
     cost_weights: list = field(default_factory=lambda: [1, 1e-3, 1e-5])
     N: int = 10
@@ -137,7 +145,7 @@ class DefaultSettings:
         "C7", "T11", "T6", "RSHO", "LSHO", "RELB", "LELB", "RMELB", "LMELB", "RWRI", "LWRI", "RMWRI", "LMWRI",
         "RTHU", "LTHU", "RMID", "LMID", "RPIN", "LPIN",
         "RKNE", "LKNE", "RMKNE", "LMKNE", "RANK", "LANK", "RMANK", "LMANK",
-        "R5MHD", "L5MHD", "RTOE", "LTOE", "LHEE", "RHEE",
+        "R5MHD", "L5MHD", "RTOE", "LTOE", "RHEE", "LHEE",
         "Nose", "Head", "REar", "LEar", "REye", "LEye",
     ])
     keys_to_track_list: list = field(default_factory=lambda: [
@@ -145,7 +153,7 @@ class DefaultSettings:
         "C7", "T11", "T6", "RSHO", "LSHO", "RELB", "LELB", "RMELB", "LMELB", "RWRI", "LWRI", "RMWRI", "LMWRI",
         "RTHU", "LTHU", "RMID", "LMID", "RPIN", "LPIN",
         "RKNE", "LKNE", "RMKNE", "LMKNE", "RANK", "LANK", "RMANK", "LMANK",
-        "R5MHD", "L5MHD", "RTOE", "LTOE", "LHEE", "RHEE",
+        "R5MHD", "L5MHD", "RTOE", "LTOE", "RHEE", "LHEE",
         "Nose", "Head", "REar", "LEar", "REye", "LEye",
     ])
     nlf_indices: list = field(default_factory=lambda: [
