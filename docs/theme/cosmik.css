@@ -1,0 +1,16 @@
+/* COSMIK red for links and the current chapter, in the light and dark themes. */
+.light, .rust {
+    --links: #c2361d;
+    --sidebar-active: #d53920;
+}
+
+.navy, .coal, .ayu {
+    --links: #ff8a70;
+    --sidebar-active: #ff8a70;
+}
+
+/* Figures and videos fill the text column without overflowing it. */
+.content img, .content video {
+    max-width: 100%;
+    height: auto;
+}
