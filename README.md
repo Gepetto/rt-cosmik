@@ -10,6 +10,7 @@
 </p>
 
 <p align="center">
+  <a href="https://gepetto.github.io/rt-cosmik/"><img src="https://img.shields.io/badge/docs-book-D53920" alt="Documentation"></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-BSD--2--Clause-D53920" alt="License: BSD-2-Clause"></a>
   <img src="https://img.shields.io/badge/python-3.10-D53920" alt="Python 3.10">
   <img src="https://img.shields.io/badge/ROS%202-Humble-D53920" alt="ROS 2 Humble">
@@ -158,10 +159,10 @@ The joint names, their order and the model are described in
 ## Use your own cameras
 
 <!--
-  Setup video (docs/how_to_setup.mp4, 8 MB). Open README.md in GitHub's web
-  editor, drag the .mp4 onto this line, and keep the
-  https://github.com/user-attachments/assets/... line GitHub inserts: it plays
-  inline. Videos are limited to 10 MB on free plans.
+  Setup video. A README plays only videos uploaded through GitHub's web editor:
+  edit this file on github.com, delete this comment, drag
+  docs/assets/how_to_setup.mp4 onto the editor at this spot, and keep the
+  https://github.com/user-attachments/assets/... line GitHub inserts.
 -->
 
 **What you need**
@@ -283,12 +284,21 @@ thoracic and wrist joints frozen for the comparison; details are in the paper.
 
 ## Documentation
 
+The [RT-COSMIK book](https://gepetto.github.io/rt-cosmik/) gathers the guides,
+how-tos and the API reference generated from the code. Its pages can also be
+read here:
+
 - [Installation](docs/installation.md): the Docker image, the VS Code dev container, a native install
+- [Overview](docs/overview.md): how the pipeline works, and where each stage lives in the code
+- [Configuration](docs/configuration.md): every setting of `settings.py`
 - [Outputs and the human model](docs/outputs.md): files, joint names, units and frames
 - [Data format and camera conventions](docs/data-format.md): running on your own recordings
 - [Recorded data and evaluation](docs/offline.md): batch processing and comparison with motion capture
 - [Live capture](docs/live.md): cameras, recording, replays and timings
 - [Inverse kinematics](docs/inverse-kinematics.md): solvers, profiles and code generation
+- How-to: [use your own pose estimator](docs/howto/pose-estimator.md),
+  [run the IK on your own markers](docs/howto/ik-from-markers.md),
+  [publish to ROS 2](docs/howto/ros2.md)
 
 ## Citing RT-COSMIK
 

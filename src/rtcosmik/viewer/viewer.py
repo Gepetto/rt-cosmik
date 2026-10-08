@@ -19,6 +19,16 @@ import numpy as np
 LOGGER = logging.getLogger(__name__)
 
 class Viewer:
+    """Draw a calibrated human model and its landmarks in a Meshcat viewer.
+
+    Opens a Meshcat server, whose URL is logged, and loads the model in it.
+
+    Args:
+        model, collision_model, visual_model: the Pinocchio models of the
+            calibrated person (see :class:`~rtcosmik.pipeline.solver.HumanSolver`).
+        marker_names: names of the landmarks to draw.
+        freeflyer: whether the model has a free-flyer root joint.
+    """
     def __init__(self, model, collision_model, visual_model, marker_names, freeflyer=True):
         self.model = model
         self.collision_model = collision_model 
@@ -53,9 +63,11 @@ class Viewer:
 
     
     def display_q(self, q):
+        """Pose the model at configuration ``q``."""
         self.viz_human.display(q)
 
     def display_markers(self, pos_markers_dict):
+        """Draw the landmarks, a mapping from name to 3D position (m), as red points."""
         pts = np.stack(list(pos_markers_dict.values()), axis=0).astype(np.float32)
         self.vis_markers.set_object(
                     g.PointCloud(position=pts.T, color=self.marker_colors, size=0.02)

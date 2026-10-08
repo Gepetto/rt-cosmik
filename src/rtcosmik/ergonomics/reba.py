@@ -1,3 +1,4 @@
+"""REBA (Rapid Entire Body Assessment) scores from the 3D keypoints of a skeleton."""
 import numpy as np
 from rtcosmik.utils import ergo_utils as utils
 
@@ -588,6 +589,7 @@ class RebaScore:
                          lower_arm_angle, wrist_angle, wrist_twisted])
 
 def quad(coord):
+    """Quadrant (1 to 4) of the 2D point ``coord``, counter-clockwise from (+, +)."""
     q = 0
     if coord[0] >= 0 and coord[1] >= 0:
         q = 1

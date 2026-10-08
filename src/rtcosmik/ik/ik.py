@@ -1,3 +1,11 @@
+"""Inverse kinematics solvers.
+
+:class:`RT_IK` solves each frame on its own (``ik_type = "sbs"``), as a damped
+quadratic program. :class:`RT_SWIKA_FATROP` and :class:`RT_SWIKA_ACADOS` solve
+the moving-horizon problem over the last ``N`` frames (``ik_type = "mhe"``),
+with fatrop or acados. :class:`~rtcosmik.pipeline.solver.HumanSolver` chooses
+and drives them from the settings; use it rather than these classes directly.
+"""
 import pinocchio as pin
 import casadi
 import pinocchio.casadi as cpin
@@ -277,6 +285,11 @@ class RT_IK:
         return q0
     
     def solve_ik_sample_casadi(self)->np.ndarray:
+        """Solve the same problem as :meth:`solve_ik_sample_quadprog` with CasADi and IPOPT.
+
+        Returns:
+            np.ndarray: the configuration ``q`` for this frame.
+        """
         # Casadi optimization class
         opti = casadi.Opti()
 
@@ -333,6 +346,26 @@ class RT_IK:
         return q
 
 class RT_SWIKA_FATROP:
+    """Moving-horizon inverse kinematics solved by fatrop, the reference backend.
+
+    Fits the model to the landmarks of the last ``N`` frames at once; the
+    problem is spelled out in :class:`RT_SWIKA_ACADOS`, which solves the same
+    one. The subject's geometry is a parameter of the problem, so one
+    generated solver serves every person.
+
+    Args:
+        pin_model: the human model, with its landmark frames registered.
+        keys_to_track: names of the landmarks to fit.
+        N: number of frames in the window.
+        dict_dof_to_keypoints: mapping from model frame names to landmark names,
+            when they differ; None when the frames carry the landmark names.
+        with_freeflyer: whether the model has a free-flyer root joint.
+        code: ``"c"`` loads the compiled solver ``run_ocp_codegen.py``
+            generated; ``"python"`` evaluates the CasADi function directly.
+        max_iter: maximum number of fatrop iterations, baked into the solver.
+        export_dir: where the generated solver lives, ``ocp/fatrop/...`` by default.
+        solver_options: fatrop options overriding ``DEFAULT_SOLVER_OPTIONS``.
+    """
     #: fatrop settings baked into the generated function. Overridable so
     #: speed/accuracy profiles can be generated and compared.
     DEFAULT_SOLVER_OPTIONS = {"print_level": 0, "mu_init": 1e-1, "tol": 1e-4}
@@ -422,6 +455,7 @@ class RT_SWIKA_FATROP:
                                   solver_options=self._solver_options)
 
     def create_ocp(self):
+        """Build the moving-horizon problem as a CasADi function, solved by fatrop."""
         ##### CASADI SYMBOLICS #####
         cmodel = self._cmodel
         cdata = cmodel.createData()
@@ -570,6 +604,20 @@ class RT_SWIKA_FATROP:
         return library
 
     def solve(self, X: np.ndarray, U: np.ndarray, marker_meas: np.ndarray, X0: np.ndarray, cost_weights: np.ndarray, dt: float):
+        """Solve the window, warm-started from the previous solution.
+
+        Args:
+            X, U: states ``[q; dq]`` and controls ``ddq`` of the window, as the
+                previous solve returned them.
+            marker_meas: the landmarks of the window's frames.
+            X0: the previous newest state, which the window is kept close to.
+            cost_weights: weights of the landmark, state and control costs.
+            dt: time step (s).
+
+        Returns:
+            tuple: the solved ``(X, U)``; the newest configuration is the last
+            node of ``X``.
+        """
         if self._code == 'c':
             if self._compiled is None:
                 library = self.library_path()
@@ -611,10 +659,12 @@ class RT_SWIKA_ACADOS:
         estimate), exactly as RT_SWIKA_FATROP -- there is NO hard clamp on ``x_0``.
       * Acados counts *intervals* (``N_horizon``), so ``N_horizon = N - 1`` to obtain
         the same ``N`` nodes and ``N`` tracked measurements as RT_SWIKA_FATROP.
-      * The marker forward-kinematics is baked into the generated C code, so the
-        solver must be (re)built from the *calibrated* model. Pass ``build=True``
-        (default) when constructing on the subject-calibrated model; ``build=False``
-        reuses previously generated/compiled code in ``export_dir``.
+      * The subject's geometry (joint placements and landmark offsets) is a
+        solver parameter, so one generated solver serves every person:
+        :meth:`set_model_params` points it at a newly calibrated one, with no
+        recompilation. ``build=True`` (default) generates and compiles the code;
+        ``build=False`` reuses what ``run_ocp_codegen.py`` generated in
+        ``export_dir``, after checking it still matches the configuration.
       * Requires ``ACADOS_SOURCE_DIR`` to point at the acados install (set it in the
         environment, or pass ``acados_source_dir=...``).
     """

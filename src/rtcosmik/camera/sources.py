@@ -75,6 +75,7 @@ class FFmpegSource:
     # -- lifecycle --------------------------------------------------------
 
     def open(self):
+        """Start ffmpeg on the source; returns ``self``, to chain with the constructor."""
         if not ffmpeg_available():
             raise RuntimeError(
                 "ffmpeg is not on PATH; install it or use the OpenCV source")
@@ -119,6 +120,7 @@ class FFmpegSource:
         return cmd
 
     def release(self):
+        """Stop ffmpeg, which also ends a recording in progress."""
         if self._proc is None:
             return
         try:
@@ -176,4 +178,5 @@ class FFmpegSource:
         return self.retrieve()
 
     def isOpened(self):  # noqa: N802 - matches cv2.VideoCapture
+        """Whether ffmpeg is running, as ``cv2.VideoCapture.isOpened``."""
         return self._proc is not None and self._proc.poll() is None

@@ -1,3 +1,9 @@
+"""Turning the landmarks of every view into one set of 3D points.
+
+:func:`reconstruct_3d` fuses the metric 3D landmarks each view regresses, the
+pipeline's default. :func:`triangulate_points` triangulates 2D keypoints
+instead, for pose estimators that only give pixel positions.
+"""
 import numpy as np
 import cv2
 

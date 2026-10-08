@@ -2,7 +2,7 @@
 
 Running RT-COSMIK on cameras: which cameras it opens, how it records, how to
 test the live path without a rig, and how to read its timings. Calibrate the
-cameras first (see the [README](../README.md#use-your-own-cameras) and
+cameras first (see the [README](own-cameras.md) and
 [data-format.md](data-format.md)).
 
 ```bash
