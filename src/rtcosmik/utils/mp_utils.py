@@ -1,3 +1,4 @@
+"""Shared memory between the camera processes and the pipeline process."""
 import numpy as np
 import multiprocessing as mp
 

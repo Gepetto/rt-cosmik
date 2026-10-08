@@ -1,8 +1,22 @@
+"""Writing landmarks and joint angles to CSV files, one row per frame."""
 import csv
 from collections import OrderedDict
 import os
 
 class CSVSaver:
+    """Write ``markers.csv`` and ``joint_angles.csv`` in a directory, row by row.
+
+    Every row is flushed as it is written, so a run stopped abruptly keeps what
+    it had computed.
+
+    Args:
+        save_dir: directory to write in, created if needed.
+        markers_header: landmark names; each is expanded into ``<name>_x``,
+            ``<name>_y`` and ``<name>_z`` columns, except names starting with
+            ``Frame``, kept as one column. None writes no markers file.
+        joint_angles_header: joint angle column names. None writes no joint
+            angles file.
+    """
 
     def __init__(self, save_dir, markers_header=None, joint_angles_header=None):
         self._save_dir = save_dir
@@ -59,6 +73,12 @@ class CSVSaver:
         return handle, writer
 
     def save_markers(self, markers_dict):
+        """Write one row of ``markers.csv``: the values of ``markers_dict``, in order.
+
+        Raises:
+            ValueError: ``markers_dict`` is not an ``OrderedDict``.
+            RuntimeError: the saver was created without a markers header.
+        """
         if not isinstance(markers_dict, OrderedDict):
             raise ValueError("markers_dict must be an OrderedDict")
         if self.markers_writer is None:
@@ -67,6 +87,12 @@ class CSVSaver:
         self.markers_file.flush()
 
     def save_joint_angles(self, joint_angles_dict):
+        """Write one row of ``joint_angles.csv``: the values of ``joint_angles_dict``, in order.
+
+        Raises:
+            ValueError: ``joint_angles_dict`` is not an ``OrderedDict``.
+            RuntimeError: the saver was created without a joint angles header.
+        """
         if not isinstance(joint_angles_dict, OrderedDict):
             raise ValueError("joint_angles_dict must be an OrderedDict")
         if self.joint_angles_writer is None:

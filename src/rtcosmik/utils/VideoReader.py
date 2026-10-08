@@ -1,3 +1,4 @@
+"""Reading the videos of one trial in step, frame by frame, through ffmpeg."""
 from dataclasses import dataclass, field
 from typing import List, Optional, Tuple
 from queue import Queue, Full, Empty
@@ -10,6 +11,18 @@ import cv2
 
 @dataclass
 class OfflineVideoSource:
+    """Decode several synchronized videos in lockstep, one ffmpeg process per video.
+
+    :meth:`read` returns the next frame of every video together. Release the
+    source when done, with ``with OfflineVideoSource(...) as source:`` or
+    :meth:`release`: an unreleased decoder keeps running.
+
+    Args:
+        paths: the videos, in camera order.
+        size_wh: ``(width, height)`` the frames are delivered at.
+        queue_size: frames decoded ahead, per video.
+        loop: restart the videos at their end instead of ending.
+    """
     # Sentinel pushed onto a stream's queue when that stream reaches its end.
     _EOF = object()
 
@@ -149,6 +162,7 @@ class OfflineVideoSource:
             pass
  
     def read(self) -> Optional[List[np.ndarray]]:
+        """The next frame of every video, in order, or None once any video has ended."""
         assembled_frames = []
 
         # Force a strict lock-step read across all active channels

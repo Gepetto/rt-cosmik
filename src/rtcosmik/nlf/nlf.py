@@ -1,3 +1,11 @@
+"""Per-view anatomical landmarks: person detection, then NLF.
+
+:class:`NLFEstimator` detects the person in the images of every camera, in one
+batch, and queries NLF (Neural Localizer Fields) at the points of the SMPL-X
+template that stand for RT-COSMIK's landmarks. :func:`extract_views` turns its
+output into :class:`Views`, the per-camera observations that
+:func:`~rtcosmik.triangulation.triangulation.reconstruct_3d` fuses.
+"""
 import numpy as np
 import torch
 # NLF's TorchScript model calls torchvision::nms, an operator that only exists
@@ -19,6 +27,14 @@ from rtcosmik.triangulation.triangulation import reconstruct_3d
 LOGGER = logging.getLogger(__name__)
 
 Views = namedtuple("Views", "keypoints poses3d uncertainties valid_cam_ids")
+"""One frame's per-camera observations, as returned by :func:`extract_views`.
+
+``keypoints`` and ``poses3d`` hold one entry per camera, in calibration order:
+(J, 2) pixel positions and (J, 3) positions in metres in that camera's frame,
+or None for a camera that saw nobody. ``uncertainties`` is a (C, J) array, NaN
+where a view reported none, or None. ``valid_cam_ids`` lists the cameras that
+saw the person.
+"""
 
 from rtcosmik.model_weights import resolve_detector_engine
 
@@ -85,7 +101,31 @@ def extract_views(nlf_out, num_cameras):
 
 
 class NLFEstimator:
-    """Roll YOLO detection (batched) + per-camera NLF sequential estimation for multiple images."""
+    """Person detection and NLF landmarks for a batch of synchronized images.
+
+    YOLO detects people in the images of all cameras in one batch, and in each
+    view the detection stays locked on the same person from frame to frame.
+    NLF then regresses, for each view, the 3D position of every template point
+    of ``indices`` -- RT-COSMIK's landmarks -- with its 2D projection and its
+    uncertainty.
+
+    Args:
+        yolo_path: detector weights, a TensorRT engine built for this number of
+            cameras (see :func:`~rtcosmik.model_weights.resolve_detector_engine`).
+        nlf_path: NLF TorchScript model.
+        cano_path: canonical vertices of the SMPL-X template (``.npy``).
+        image_size: ``(width, height)`` of the images, in pixels.
+        cam_Ks: per-camera 3x3 intrinsic matrices, in camera order.
+        indices: template vertices to query, one per landmark
+            (``settings.nlf_indices``).
+        conf: minimum detection confidence.
+        imgsz: detector input size, in pixels.
+        device: torch device; a CUDA device is required.
+        logger: optional logger.
+        warmup: run a few inferences on random images at construction, so that
+            the first real frame does not pay for lazy initialization.
+        warmup_iters: number of warm-up inferences.
+    """
 
     def __init__(
         self,
@@ -155,6 +195,7 @@ class NLFEstimator:
             self.logger.info("[INFO] Models warmed up")
     
     def load_nlf(self, path: str):
+        """Load the NLF TorchScript model on the device, optimized for inference."""
         model = torch.jit.load(path).eval().to(self.device)
 
         def _nop(*args, **kwargs):
@@ -287,6 +328,11 @@ class NLFEstimator:
         return self._xyxy_to_xywh(chosen)
 
     def preprocess_batch(self, frames_bgr):
+        """Upload BGR images to the GPU as one (C, 3, H, W) RGB fp16 batch in [0, 1].
+
+        Reuses buffers allocated at construction, so no memory is allocated per
+        frame; the returned tensor is overwritten by the next call.
+        """
         # 1) copy frames into pinned CPU buffer (no big stack allocation)
         for i, f in enumerate(frames_bgr):
             self._cpu_pinned_np[i] = f  # copies into pinned memory
@@ -310,6 +356,19 @@ class NLFEstimator:
 
     @torch.inference_mode()
     def estimate_from_frames(self, frames_bgr):
+        """Detect the person in every view, then estimate their landmarks.
+
+        Args:
+            frames_bgr: one (H, W, 3) BGR image per camera, in camera order.
+
+        Returns:
+            tuple: ``(out, timings, detections, boxes)``. ``out`` is NLF's
+            output, from which :func:`extract_views` takes the per-view
+            landmarks: ``poses3d`` in millimetres in each camera's frame,
+            ``poses2d`` in pixels, ``uncertainties``. ``timings`` gives the
+            duration of each step in milliseconds, ``detections`` the raw YOLO
+            results, and ``boxes`` the box tracked in each view.
+        """
         # --- CPU preprocess timing (stacking etc.) ---
         t_cpu0 = time.perf_counter()
 

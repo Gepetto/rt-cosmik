@@ -53,6 +53,7 @@ class TerminalHotkeys:
             return False
 
     def start(self):
+        """Start listening to the terminal's keys; returns ``self``."""
         if not self.available():
             self.logger.warning(
                 "[KEY] stdin is not a terminal, so hotkeys are off; "
@@ -96,6 +97,7 @@ class TerminalHotkeys:
                 self.logger.exception("[KEY] handler for %r failed", char)
 
     def stop(self):
+        """Stop listening, and restore the terminal's settings."""
         self._stop.set()
         if self._thread is not None:
             self._thread.join(timeout=1.0)

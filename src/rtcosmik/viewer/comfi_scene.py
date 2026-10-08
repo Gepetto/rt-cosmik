@@ -74,6 +74,7 @@ def is_comfi(root):
 
 
 def task_has_robot(task):
+    """Whether a COMFI task involves the robot: its name contains \"robot\"."""
     return task is not None and "robot" in task.lower()
 
 

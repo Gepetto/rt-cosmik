@@ -117,6 +117,7 @@ class Recorder:
             f"[REC] recording {'started' if enabled else 'stopped'}")
 
     def close(self):
+        """Stop the keyboard listener and close the CSV files."""
         if self._listener is not None:
             self._listener.stop()
             self._listener = None

@@ -1,10 +1,17 @@
+"""Reading subject metadata and rigid transformations from files."""
 import numpy as np
 import yaml
 
 
 def read_subject_yaml(file_path):
-    """
-    Lit un fichier YAML et retourne directement id, height, weight et gender.
+    """Read a subject file, as datasets in RT-COSMIK's layout provide them.
+
+    Args:
+        file_path: YAML file with ``id``, ``height`` (m), ``weight`` (kg) and
+            ``gender`` keys.
+
+    Returns:
+        tuple: ``(id, height, weight, gender)``, None for a missing key.
     """
     with open(file_path, 'r') as f:
         data = yaml.safe_load(f)

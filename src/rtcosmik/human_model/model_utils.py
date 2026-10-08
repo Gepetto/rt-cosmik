@@ -1,3 +1,9 @@
+"""Fitting the human model to a person.
+
+Segment frames built from the landmarks, scaling of the model to the person
+(:func:`scale_human_model`), and registration of the landmarks on its segments
+(:func:`mks_registration`, following ``SGTS_MKS_MAPPING``).
+"""
 import pinocchio as pin
 import numpy as np 
 from scipy.spatial.transform import Rotation as R
@@ -50,6 +56,7 @@ SGTS_MKS_MAPPING = {
 #Function that takes as input a matrix and orthogonalizes it
 #Its mainly used to orthogonalize rotation matrices constructed by hand
 def orthogonalize_matrix(matrix:np.ndarray)->np.ndarray:
+    """The rotation matrix nearest to ``matrix`` (by SVD, determinant +1)."""
     # Perform Singular Value Decomposition
     U, _, Vt = np.linalg.svd(matrix)
     # Reconstruct the orthogonal matrix
@@ -709,6 +716,7 @@ def get_right_lowerleg_pose(mks_positions, gender='m', subject_height= 1.80):
     return pose
 
 def get_right_hand_pose(mks_positions, gender='m', subject_height=1.80):
+    """4x4 pose of the right hand segment, from the wrist and hand landmarks."""
     pose = np.eye(4, 4)
 
     wrist_center = ((mks_positions['RWRI'] + mks_positions['RMWRI']) / 2.0).reshape(3, 1)
@@ -735,6 +743,7 @@ def get_right_hand_pose(mks_positions, gender='m', subject_height=1.80):
 
 
 def get_left_hand_pose(mks_positions, gender='m', subject_height=1.80):
+    """4x4 pose of the left hand segment, from the wrist and hand landmarks."""
     pose = np.eye(4, 4)
 
     wrist_center = ((mks_positions['LWRI'] + mks_positions['LMWRI']) / 2.0).reshape(3, 1)
