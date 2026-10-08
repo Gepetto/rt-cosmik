@@ -145,6 +145,14 @@ python3 scripts/python/core/run_ocp_codegen.py --check    # is the solver up to 
 
 Then run the [sample trial](../README.md#quick-start).
 
+To check the whole Docker route at once, as a new user would follow it, run
+`docker/check.sh` on the host. It builds the image, then, inside it, checks the
+environment, fetches the models, generates the solver, runs the sample trial,
+compares it with motion capture and runs the unit tests; with `rtcosmik_ros`
+cloned next to the checkout, it also builds the ROS 2 node and replays the
+sample through it. Each step is reported as PASS or FAIL in
+`output/docker-check/<date>/summary.txt`, with its log next to it.
+
 ## Troubleshooting
 
 | Message or symptom | What to do |
