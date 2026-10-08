@@ -1,0 +1,40 @@
+// VS Code: "Dev Containers: Reopen in Container" builds docker/Dockerfile and
+// opens this checkout inside it, with the GPU, the cameras and the host network.
+// docker/run.sh does the same from a terminal.
+{
+    "name": "RT-COSMIK",
+    "build": {
+        "dockerfile": "../docker/Dockerfile",
+        "context": "../docker"
+    },
+    "workspaceMount": "source=${localWorkspaceFolder},target=/root/workspace/rt-cosmik,type=bind",
+    "workspaceFolder": "/root/workspace/rt-cosmik",
+    "remoteUser": "root",
+    // OpenCV windows (camera calibration, camera preview) draw on the host's X server.
+    "initializeCommand": "xhost +si:localuser:root || true",
+    "containerEnv": {
+        "DISPLAY": "${localEnv:DISPLAY}",
+        "NVIDIA_VISIBLE_DEVICES": "all",
+        "NVIDIA_DRIVER_CAPABILITIES": "all"
+    },
+    "runArgs": [
+        "--gpus", "all",
+        "--net=host",
+        "--ipc=host",
+        "--privileged",
+        "-v", "/dev:/dev",
+        "-v", "/tmp/.X11-unix:/tmp/.X11-unix",
+        "--device-cgroup-rule", "c 81:* rmw",
+        "--device-cgroup-rule", "c 189:* rmw"
+    ],
+    "customizations": {
+        "vscode": {
+            "extensions": [
+                "ms-python.python",
+                "ms-toolsai.jupyter",
+                "ms-iot.vscode-ros",
+                "redhat.vscode-yaml"
+            ]
+        }
+    }
+}
