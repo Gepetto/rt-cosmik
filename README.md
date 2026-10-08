@@ -53,7 +53,7 @@ body is.
   landmarks per view can replace the default one, including slower foundation
   models for offline processing.
 
-RT-COSMIK is developed at [LAAS-CNRS](https://www.laas.fr) and builds on
+RT-COSMIK is developed in collaboration between [LAAS-CNRS](https://www.laas.fr) and [NUS](https://www.nus.edu.sg) and builds on
 [Pinocchio](https://github.com/stack-of-tasks/pinocchio),
 [CasADi](https://web.casadi.org), [acados](https://github.com/acados/acados) and
 [fatrop](https://github.com/meco-group/fatrop), with
