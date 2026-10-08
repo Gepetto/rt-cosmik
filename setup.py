@@ -32,9 +32,11 @@ long_description = readme_path.read_text(encoding="utf-8") if readme_path.exists
 setup(
     name="RT-COSMIK",
     version="0.1.0",
-    description="Real-Time Constrained and Open-Source Multibody Inverse Kinematics",
+    description="Real-time low-cost and open-source toolbox for markerless inverse kinematics",
     long_description=long_description,
     long_description_content_type="text/markdown",
+    url="https://github.com/Gepetto/rt-cosmik",
+    license="BSD-2-Clause",
     packages=find_packages(where="src"),
     package_dir={"": "src"},
     scripts=script_files,

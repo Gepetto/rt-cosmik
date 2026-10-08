@@ -24,7 +24,8 @@ from rtcosmik.nlf.nlf import NLFEstimator, extract_views
 from rtcosmik.triangulation.triangulation import reconstruct_3d
 from rtcosmik.filtering.iir import MarkerFilter
 from rtcosmik.pipeline.solver import HumanSolver
-from rtcosmik.camera.cam_utils import list_cameras, load_camera_parameters, load_world_transformation
+from rtcosmik.camera.cam_utils import (
+    anchor_first, load_camera_parameters, load_world_transformation, select_live_cameras)
 from rtcosmik.camera.camera import Camera
 from rtcosmik.utils.mp_utils import create_camera_shared_ressources
 from rtcosmik.utils.VideoReader import OfflineVideoSource
@@ -69,20 +70,24 @@ def main(args):
         # would calibrate a different body than the one in the video.
         subject_path = args.subject
         video_paths = out_dir = None
+        # Only the reference camera's world pose is read, and a rig calibration
+        # anchors a single camera, so the reference must be that one.
+        camera_ids = anchor_first(cam_params_path, args.cameras)
     else:
         cam_params_path, video_paths, subject_path, out_dir = resolve_trial(args)
-        if len(video_paths) != len(args.cameras):
+        camera_ids = list(args.cameras)
+        if len(video_paths) != len(camera_ids):
             raise ValueError(
-                f"{len(video_paths)} videos but {len(args.cameras)} cameras requested; "
+                f"{len(video_paths)} videos but {len(camera_ids)} cameras requested; "
                 "pass --cameras matching the videos, in the same order"
             )
 
     # Cameras are loaded in the requested order and the first is the reference
     # frame triangulation outputs into, so the world transform uses that one.
     mtxs, dists, projections, rotations, translations = load_camera_parameters(
-        cam_params_path, args.cameras
+        cam_params_path, camera_ids
     )
-    world_R1_cam, world_T1_cam = load_world_transformation(cam_params_path, args.cameras[0])
+    world_R1_cam, world_T1_cam = load_world_transformation(cam_params_path, camera_ids[0])
 
     if args.online:
         # --replay feeds recordings through the *online* path: the same camera
@@ -94,17 +99,17 @@ def main(args):
         # actually waits and real inter-camera skew stays invisible.
         if args.replay:
             replay_dir = Path(args.replay)
-            sources = [str(replay_dir / f"camera_{c}.mp4") for c in args.cameras]
+            sources = [str(replay_dir / f"camera_{c}.mp4") for c in camera_ids]
             missing = [s for s in sources if not Path(s).is_file()]
             if missing:
                 raise FileNotFoundError(f"missing recordings for replay: {missing}")
-            camera_ids = list(args.cameras)
             LOGGER.info("[CAP] replaying %d recordings from %s as live cameras",
                         len(sources), replay_dir)
         else:
-            cameras = list_cameras()
-            camera_ids = list(cameras.keys())
-            sources = [None] * len(camera_ids)
+            # The ids name calibrated cameras, not devices: open the device behind
+            # each of them, and nothing else that happens to be plugged in.
+            sources = [f"/dev/video{index}"
+                       for index in select_live_cameras(cam_params_path, camera_ids)]
 
         NUM_CAMERAS = len(camera_ids)
         FRAME_SHAPE = (H, W, 3)

@@ -1,480 +1,339 @@
-## RT-COSMIK
-***Real-Time - Constrained and Open Source Multibodied Inverse Kinematics***
+<p align="center">
+  <img src="docs/assets/logo.png" alt="COSMIK logo" width="150">
+</p>
 
-RT-COSMIK is a cutting-edge open-source library for solving real-time constrained inverse kinematics problems for multibody systems. It is designed for robotics applications, offering robust integration with ROS and advanced features like real-time pipelines, MMpose, and LSTM-based motion prediction.
+<h1 align="center">RT-COSMIK</h1>
 
----
+<p align="center">
+  <b>Real-time, markerless, whole-body biomechanics from ordinary cameras.</b><br>
+  Joint angles of an anatomical human model, from one to four webcams, at 40&nbsp;Hz.
+</p>
 
-To generate the appropriate models, use:
+<p align="center">
+  <a href="LICENSE"><img src="https://img.shields.io/badge/license-BSD--2--Clause-D53920" alt="License: BSD-2-Clause"></a>
+  <img src="https://img.shields.io/badge/python-3.10-D53920" alt="Python 3.10">
+  <img src="https://img.shields.io/badge/ROS%202-Humble-D53920" alt="ROS 2 Humble">
+  <img src="https://img.shields.io/badge/runs%20on-Linux%20%2B%20NVIDIA%20GPU-D53920" alt="Runs on Linux with an NVIDIA GPU">
+  <a href="https://doi.org/10.5281/zenodo.17223909"><img src="https://img.shields.io/badge/validated%20on-COMFI-D53920" alt="Validated on the COMFI dataset"></a>
+</p>
 
-```bash 
-./scripts/bash/fetch_models.sh 
-```
+<p align="center">
+  <a href="#quick-start">Quick start</a> ·
+  <a href="#use-your-own-cameras">Your own cameras</a> ·
+  <a href="#accuracy">Accuracy</a> ·
+  <a href="#documentation">Documentation</a> ·
+  <a href="#citing-rt-cosmik">Cite</a>
+</p>
 
-To generate the inverse-kinematics solvers (only needed for `ik_type = "mhe"`):
+<p align="center">
+  <img src="docs/assets/hero.gif" width="100%" alt="Left: a camera view of a person welding with a collaborative robot, with RT-COSMIK's estimated body model drawn over them. Right: the same motion in RT-COSMIK's 3D viewer, with the robot following its recorded joint states.">
+</p>
+
+RT-COSMIK estimates the joint angles and the global pose of a whole-body
+biomechanical model from synchronized RGB cameras, live, at the camera rate. It
+was built for the workplace: continuous ergonomic monitoring of operators, and
+human–robot collaboration, where the robot needs to know where the operator's
+body is.
+
+- **Real time.** 40 Hz with four 720p webcams on a single workstation, from
+  images to joint angles.
+- **Biomechanical.** Joint angles defined as the International Society of
+  Biomechanics recommends, on the
+  [human model of example-robot-data](https://github.com/Gepetto/example-robot-data/tree/devel/robots/human_description),
+  scaled to each person from their height, mass and sex. They feed ergonomic
+  scores such as REBA directly.
+- **One to four cameras.** A single camera already gives usable joint angles;
+  more cameras mainly locate the body better in the room.
+- **Moving-horizon inverse kinematics.** Each estimate is fitted over the last
+  few frames, under joint limits. The solver is generated once: a new person is
+  a parameter update, not a recompilation.
+- **Works with your robot.** Cameras are calibrated in the robot's frame, and a
+  ROS 2 node publishes joint states, markers and collision capsules.
+- **Open to other pose estimators.** Any network that returns 3D or 2D body
+  landmarks per view can replace the default one, including slower foundation
+  models for offline processing.
+
+RT-COSMIK is developed at [LAAS-CNRS](https://www.laas.fr) and builds on
+[Pinocchio](https://github.com/stack-of-tasks/pinocchio),
+[CasADi](https://web.casadi.org), [acados](https://github.com/acados/acados) and
+[fatrop](https://github.com/meco-group/fatrop), with
+[NLF](https://github.com/isarandi/nlf) as its default pose estimator.
+
+## How it works
+
+<p align="center">
+  <img src="docs/assets/pipeline.jpg" width="100%" alt="The RT-COSMIK pipeline: synchronized camera images, 3D landmarks estimated in each view, landmarks fused over a sliding window, and the biomechanical model fitted to them.">
+</p>
+
+For every set of synchronized images:
+
+1. **Estimate landmarks in each view.** A person detector (YOLO) finds the
+   operator and [NLF](https://github.com/isarandi/nlf) regresses 3D anatomical
+   landmarks (pelvis, spine, limbs, hands, feet, head) in each camera's frame,
+   with an uncertainty for each.
+2. **Fuse the views.** The landmarks of all cameras are brought into one frame,
+   averaged with weights from their uncertainty, then low-pass filtered.
+3. **Fit the model to the person, once.** On the first frame, while the person
+   stands still, the model is scaled to them.
+4. **Solve the inverse kinematics.** The model is fitted to the landmarks of the
+   last few frames, and the newest pose is returned: the pelvis position and
+   orientation, and 36 joint angles.
+
+## Quick start
+
+No cameras needed: this runs RT-COSMIK on a 20-second recording from the
+[COMFI dataset](https://doi.org/10.5281/zenodo.17223909), someone welding with a
+Franka robot, filmed by four cameras.
+
+> [!NOTE]
+> You need Linux, an NVIDIA GPU, [Docker](https://docs.docker.com/engine/install/)
+> and the [NVIDIA Container Toolkit](https://docs.nvidia.com/datacenter/cloud-native/container-toolkit/latest/install-guide.html).
+> The Docker image holds everything else. To install without Docker, see
+> [docs/installation.md](docs/installation.md).
+
+**1. Get the code and start the container.**
 
 ```bash
-python3 scripts/python/core/run_ocp_codegen.py
+git clone https://github.com/Gepetto/rt-cosmik.git
+cd rt-cosmik
+docker/run.sh
 ```
 
-To install the toolbox and use the scripts files: 
-```bash 
-pip install -e .
-```
+The first run builds the image, which takes about half an hour: it compiles
+CasADi, Pinocchio and acados. After that, `docker/run.sh` opens a shell in the container
+within seconds, with your checkout at `/root/workspace/rt-cosmik`. VS Code users
+can use **Dev Containers: Reopen in Container** instead.
 
-## Quick start: offline evaluation on a recorded dataset
-
-Run the pipeline over recorded video and compare the result against reference
-mocap. The example below uses participant `1012`, task `Lifting`.
-
-### 1. Install and fetch the models
+**2. Download the models and generate the solver.** Once, inside the container:
 
 ```bash
-pip install -e .
-./scripts/bash/fetch_models.sh
-```
-
-The human model comes from `example-robot-data`. Its thorax visual is misplaced
-upstream (the chest renders below the thoracic joint and overlaps the abdomen,
-increasingly so for taller subjects); the fix lives on the
-`fix/thorax-visual-scale-and-origin` branch of the fork. Kinematics are
-unaffected either way, so this only matters for how the model looks in the
-viewer.
-
-`fetch_models.sh` downloads the NLF and YOLO weights and exports one TensorRT
-detector engine per supported camera count (2 to 6). Engines are built
-non-dynamic, so the batch size is fixed at export time and the pipeline picks the
-engine matching the cameras in use. Build a subset with `BATCHES="2 4"`.
-
-### 1b. Generate the IK solvers
-
-Only for `ik_type = "mhe"`. Like the detector engines, these are compiled
-artefacts: generated once, gitignored, never committed.
-
-```bash
-python3 scripts/python/core/run_ocp_codegen.py                 # everything
+# the pose estimator and the person detector
+scripts/bash/fetch_models.sh
+# the inverse kinematics solver
 python3 scripts/python/core/run_ocp_codegen.py --backend acados --profile realtime
-python3 scripts/python/core/run_ocp_codegen.py --check         # up to date?
 ```
 
-Output goes to `ocp/<backend>/<profile>/`. Expect ~55 s per acados artefact and
-~4 min per fatrop one, which compiles a 26 MB C file.
+The first downloads the network weights and builds a TensorRT engine of the
+detector for each camera count. The second generates and compiles the solver,
+in about a minute.
 
-#### Speed/accuracy profile
-
-`settings.mhe_profile` picks the solver configuration:
-
-| | per-frame solve (median / p95 / max) | marker RMSE |
-|---|---|---|
-| `realtime` (acados `SQP_RTI`) | 4.9 / 5.9 / 8.7 ms | 1.02 mm |
-| `accurate` (acados `SQP`, 10 iterations, tol 1e-6) | 12.3 / 43.2 / 45.8 ms | 1.03 mm |
-
-Measured over 120 frames of real data, 43 dof, N=10. `realtime` bounds the
-per-frame cost: plain `SQP` has the same median but a 130-210 ms tail on hard
-frames, which breaks a 40 fps budget. The two agree on marker fit to 0.01 mm, and
-`realtime` is marginally *smoother* frame to frame, so it is the default.
-
-The profile is baked into the generated code, so switching it needs a
-regeneration -- `--check` will say so.
-
-The optimal control problem is parameterized by the subject's geometry (segment
-lengths and marker offsets), so **one generated solver serves every person** —
-calibrating a new subject sets parameters in under a millisecond instead of
-recompiling for 20-40 s mid-session. Generation needs no subject data at all --
-only the model's topology, which is the same for everybody.
-
-Each artefact carries an `ocp_manifest.json` recording what it was built from.
-The pipeline refuses to load one that no longer matches your configuration, and
-names what changed. Re-run after changing the tracked marker set, `N`, the model,
-or the marker-to-joint mapping — plus `fs` for acados, which bakes the timestep
-into its dynamics (fatrop takes it at runtime). `--check` answers this and is
-what CI should call.
-
-### 2. Data layout
-
-Any dataset in this layout works, not one in particular:
-
-```
-<dataset>/cam_params/<participant>/                      calibration
-          ├── intrinsics/camera_<i>_intrinsics.yaml      K, D (OpenCV FileStorage)
-          └── extrinsics/                                either source, see below
-              ├── cam_to_world/camera_<i>/camera_<i>_extrinsics.yaml
-              └── cam_to_cam/camera_<a>_to_camera_<b>.yaml
-<dataset>/videos/<participant>/<task>/camera_<i>.mp4     synchronised video
-<dataset>/metadata/<participant>.yaml                    id, height, weight, gender
-```
-
-#### Camera pose convention
-
-**RT-COSMIK expects the pose of the camera in the world frame.** One convention,
-everywhere, for every entry point:
-
-```
-R  3x3  the camera's orientation in world coordinates
-        (its columns are the camera's x, y, z axes expressed in the world frame)
-T  3x1  the camera's position in world coordinates, in metres
-```
-
-Equivalently, the pair maps a point from camera coordinates into world
-coordinates:
-
-```
-p_world = R @ p_cam + T
-```
-
-**How to check you have it the right way round.** `T` is the camera's physical
-position in the room, so read it back and see whether it describes where the
-camera actually is. A correct 4-camera rig looks like this:
-
-```
-camera_0: T = [-0.82 -3.02  1.11]     all four at 1.11 m height,
-camera_2: T = [-0.00 -2.96  1.11]     two at y ~ -3, two at y ~ +2.3,
-camera_4: T = [-0.61  2.31  1.11]     i.e. facing each other across
-camera_6: T = [ 0.19  2.32  1.11]     a capture volume ~5 m deep
-```
-
-Those are metres from the world origin, and they match the room. If instead `T`
-comes out near zero, or at an implausible height, the transform is inverted.
-Getting this backwards raises no error: the skeleton is simply reconstructed in
-the wrong place and orientation.
-
-Read your own back with:
-
-```python
-from rtcosmik.camera.cam_utils import describe_camera_placement
-describe_camera_placement("<dataset>/cam_params/<participant>")
-```
-
-**Converting from OpenCV.** `cv2.solvePnP` and most aruco helpers give you the
-*opposite* transform — the world/marker expressed in camera coordinates
-(`p_cam = R_cv @ p_world + t_cv`). Invert it before saving:
-
-```python
-R = R_cv.T
-T = -R_cv.T @ t_cv
-```
-
-#### Providing extrinsics
-
-Poses come from either of two sources, whichever the calibration produced. The
-loader picks automatically, and `load_camera_parameters(..., extrinsics_source=)`
-forces one.
-
-**A world pose per camera** — what a fit against shared motion-capture markers
-produces. Each camera is placed independently, so error does not accumulate.
-This is preferred when available.
-
-```
-extrinsics/cam_to_world/camera_<i>/camera_<i>_extrinsics.yaml
-```
-```yaml
-camera_extrinsics:
-  frame_from: camera_0
-  frame_to: world
-  rotation_matrix: [[...], [...], [...]]   # R, camera orientation in world
-  translation_vector: [tx, ty, tz]         # T, camera position in world, metres
-```
-
-**Stereo pairs plus one anchor** — what a checkerboard calibration produces, and
-the usual online case: a checkerboard gives intrinsics and pairwise poses, and a
-single aruco marker fixes one camera in the world.
-
-```
-extrinsics/cam_to_cam/camera_<a>_to_camera_<b>.yaml   OpenCV stereoCalibrate output
-extrinsics/cam_to_world/camera_<ref>/...              the anchor, reference camera only
-```
-
-Pairs hold `R`, `T` in `cv2.stereoCalibrate`'s own convention (`p_b = R @ p_a + T`),
-so they are saved exactly as OpenCV writes them — no inversion. They are chained
-from the reference camera, in either direction, by the shortest path. Only the
-**reference** camera needs a world pose; every other camera is placed relative to
-it.
-
-Without any anchor the reference camera's own frame becomes the world frame, with
-a warning. Joint angles are unaffected, since they depend only on relative
-geometry, but positions are then in camera coordinates rather than room
-coordinates.
-
-#### Calibrating a rig
-
-[cams_calibration](https://gitlab.laas.fr/msabbah/cams_calibration) produces this
-layout directly, and installs it here:
+**3. Run the sample.**
 
 ```bash
+scripts/bash/fetch_sample.sh
+python3 scripts/python/core/run_pipeline.py \
+    --dataset data/comfi_sample --participant 2112 --task RobotWelding
+```
+
+Open the URL it prints, <http://127.0.0.1:7000/static/>, to watch the
+reconstruction in 3D: the body, the cameras, the table, and the robot moving as
+it was recorded. The results are written to
+`output/2112/RobotWelding/4cam_mhe_acados/`.
+
+**4. Compare with motion capture** (optional). The sample includes the
+marker-based reference of the same trial:
+
+```bash
+python3 scripts/python/eval/compare_to_mocap.py \
+    --reference data/comfi_sample/mocap/aligned/2112/RobotWelding \
+    rt-cosmik=output/2112/RobotWelding/4cam_mhe_acados \
+    --plots output/2112/eval
+```
+
+It prints the error of every joint angle and marker (about 9° and 45 mm on
+average on this trial) and draws them in `output/2112/eval/`.
+
+## What you get
+
+| File | Contents |
+|---|---|
+| `joint_angles.csv` | One row per frame: pelvis position (m) and orientation (quaternion), then the 36 joint angles (rad), with names such as `Right_Knee_Flexion_Extension[rad]` |
+| `markers.csv` | The fused 3D landmarks (m), in the world frame |
+| `run_info.json` | The configuration of the run and the person's calibrated model |
+| `camera_<id>.mkv` | Live runs only: each camera's video, recorded as the camera streamed it |
+
+The joint names, their order and the model are described in
+[docs/outputs.md](docs/outputs.md).
+
+## Use your own cameras
+
+<!--
+  Setup video (docs/how_to_setup.mp4, 8 MB). Open README.md in GitHub's web
+  editor, drag the .mp4 onto this line, and keep the
+  https://github.com/user-attachments/assets/... line GitHub inserts: it plays
+  inline. Videos are limited to 10 MB on free plans.
+-->
+
+**What you need**
+
+- **A computer** running Linux, with an NVIDIA GPU. 40 Hz with four cameras was
+  measured with an RTX 4500 Ada and an Intel i9-14900K.
+- **One to four USB webcams** streaming 1280×720 MJPEG at 40 fps. Other
+  resolutions and rates work after setting `width`, `height` and `fs` in
+  `settings.py`.
+- **For calibration**, a printed checkerboard, and a wand (an ArUco marker on a
+  stick) to set the world frame.
+
+**1. Place the cameras.** Frame the whole working area in every view. Then
+place them for what you measure (see [Accuracy](#accuracy)):
+
+- **Joint angles only**, for ergonomics: one camera is almost as accurate as four.
+- **Positions in the room**, for distances to a robot: put cameras on opposite
+  sides of the workspace. Two facing cameras come close to four, whereas two
+  cameras side by side double the position error.
+
+**2. Calibrate them** with
+[cams_calibration](https://github.com/Gepetto/cams_calibration). Clone it
+next to `rt-cosmik` before starting the container, so that `docker/run.sh`
+mounts it. Then, in the container:
+
+```bash
+cd /root/workspace/cams_calibration
+# checkerboard: each camera, then the camera pairs
 python3 scripts/calibrate_cameras.py --cameras 0 2 4 6 --install
-python3 scripts/set_world_frame.py   --cameras 0 2 4 6 --install
+# wand: the world frame on the floor (add --robot to put it at the robot base)
+python3 scripts/set_world_frame.py --cameras 0 2 4 6 --install
 ```
 
-It may also record a `cameras.yaml` naming the USB port behind each camera id.
-Where present, RT-COSMIK matches on it instead of trusting the v4l2 index, so a
-recabled rig is remapped rather than silently paired with the wrong calibration.
+`--install` writes the calibration into `config/cam_params/`, where RT-COSMIK
+reads it. Camera ids are the `/dev/video<id>` numbers when you calibrate; the
+calibration records which USB port each camera is on, so a recabled rig is
+recognised later.
 
-### 3. Run one trial
+**3. Say who is in front of the cameras.** Set `human_height` (m),
+`human_weight` (kg) and `human_gender` (`'m'` or `'f'`) in `settings.py`.
 
-```bash
-python3 scripts/python/core/run_pipeline.py \
-    --dataset /path/to/COMFI --participant 1012 --task Lifting
-```
-
-Results land in `output/1012/Lifting/<variant>/`, mirroring the dataset layout.
-The variant names the settings that distinguish one run from another - the
-camera count and the IK method - so switching solver or cameras writes a new
-directory instead of overwriting the previous run:
-
-```
-output/1012/Lifting/4cam_mhe_fatrop/     # settings.ik_type = "mhe", mhe_backend = "fatrop"
-output/1012/Lifting/4cam_sbs/            # settings.ik_type = "sbs"
-output/1012/Lifting/1cam_mhe_fatrop/     # --cameras 0
-```
-
-Each directory holds:
-
-| file | contents |
-|---|---|
-| `joint_angles.csv` | 43 DoF per frame, using the standard RT-COSMIK column names |
-| `markers.csv`      | triangulated 3D markers per frame, in metres, world frame |
-
-Alongside them, `run_info.json` records the full configuration (cameras,
-subject, IK type and solver settings, filter, frame counts, model root frame),
-which the evaluation tools read. Only the discriminating knobs go in the
-directory name; everything else is recorded there.
-
-Useful flags:
-
-```bash
---cameras 0 2          # use a subset; the first is the triangulation reference frame
-                       # a single camera works too (NLF's monocular 3D is used)
---out DIR              # write somewhere other than output/<participant>/<task>
---no-save              # visualise only
-```
-
-Meshcat prints a viewer URL at startup for live 3D inspection. When the trial
-comes from a dataset (`--dataset/--participant/--task`), the estimated body is
-drawn in the room it was recorded in, as COMFI's own example viewer draws it:
-the floor, the cameras used, and for `RobotPolishing`/`RobotWelding` the table
-and the Franka Panda, which follows its recorded joint states frame by frame.
-It is on by default (`viewer_scene` in `settings.py`); whatever the dataset
-lacks is left out, and runs that are not a dataset trial (live cameras,
-`--trial-dir`, `--videos`) show the body alone, as before. For example:
-
-```bash
-python3 scripts/python/core/run_pipeline.py --dataset /path/to/COMFI \
-    --participant 1012 --task RobotWelding --no-save
-# open the printed http://127.0.0.1:7000/static/ URL
-COMFI_ROOT=/path/to/COMFI python3 -m pytest tests/unit/viewer/test_comfi_scene.py
-```
-
-Fully explicit paths work for data outside the shorthand layout:
-
-```bash
-python3 scripts/python/core/run_pipeline.py \
-    --cam-params CAL/S03 --trial-dir VIDEO/S03/Lifting --subject META/S03.yaml
-```
-
-### 4. Compare against mocap
-
-One script does the whole evaluation: error tables, figures, and a 3D replay.
-A single camera is supported - there is nothing to triangulate, so the metric
-3D pose NLF regresses from that view is used directly.
-
-```bash
-# produce one run per setup (variant directories keep them apart)
-for cams in "0" "0 2" "0 2 4 6"; do
-  python3 scripts/python/core/run_pipeline.py --dataset /path/to/COMFI \
-      --participant 1012 --task Lifting --cameras $cams
-done
-
-# compare them all against mocap: tables, figures and the 3D view
-python3 scripts/python/eval/compare_to_mocap.py \
-    --reference /path/to/COMFI/mocap/aligned/1012/Lifting \
-    1cam=output/1012/Lifting/1cam_mhe_fatrop \
-    2cam=output/1012/Lifting/2cam_mhe_fatrop \
-    4cam=output/1012/Lifting/4cam_mhe_fatrop \
-    --plots output/1012/eval_Lifting --meshcat
-```
-
-Any labels work, so the same command compares IK methods instead of camera
-counts:
-
-```bash
-python3 scripts/python/eval/compare_to_mocap.py \
-    --reference /path/to/COMFI/mocap/aligned/1012/Lifting \
-    sbs=output/1012/Lifting/4cam_sbs \
-    mhe=output/1012/Lifting/4cam_mhe_fatrop \
-    --plots output/1012/eval_ik --meshcat
-```
-
-Before anything is compared, the runs are **time-aligned** to the mocap. The
-cameras are synchronised with each other but not with the mocap, so a single
-offset covers them all: it is estimated per run by correlating knee flexion
-against the reference, and the median is applied to every modality. The
-estimates and the applied lag are printed.
-
-**Tables** print per-joint and per-marker error with one column per run, each
-ending with the mean and median across all joints or all markers.
-
-**Figures** (`--plots DIR`, which also receives `errors.csv` with the same
-numbers for a spreadsheet):
-
-| figure | shows |
-|---|---|
-| `joint_angle_rmse.png`            | error per degree of freedom, plus the mean over all joints |
-| `marker_error.png`                | 3D error per marker, plus the mean over all markers |
-| `joint_angle_trajectories.png`    | every joint angle over time, each panel captioned with its own RMSE |
-| `marker_error_distribution.png`   | spread of marker error per modality |
-
-The bar charts carry a bold `MEAN (all …)` row at the top, so a modality can be
-judged as a whole before reading the per-item breakdown.
-
-**3D replay** (`--meshcat`) shows every modality at once, each drawn as the
-human model it solved on, tinted with the colour it has in the tables and
-figures. Each run records its calibrated model in `run_info.json`, so the body
-shown is the one the IK used - no external model file is needed. The reference
-contributes its markers, the ground truth being compared against. Models are
-semi-transparent so overlapping bodies stay readable. Open the printed URL in a
-browser. Playback is stepped by hand from the terminal so you can stop on any
-instant:
-
-| key | action |
-|---|---|
-| `space` | play / pause |
-| `n` / `p` | one frame forward / back |
-| `f` / `b` | jump 25 frames forward / back |
-| `[` / `]` | slower / faster |
-| `r` | back to the first frame |
-| `q` | quit |
-
-Every modality keeps the same colour and label across the tables, the figures
-and the 3D view, so a colour means the same thing everywhere.
-
-`joint_angles.csv` uses the same column names and ordering as the reference, so
-the two line up without renaming. The free-flyer needs one extra step:
-RT-COSMIK's human model carries a fixed rotation on its root joint while the
-reference URDF does not, so the two base frames differ. Each run records its
-root placement in `run_info.json` and the comparison removes it before
-reporting, so the free-flyer is compared like for like.
-
-### 5. Sweep several trials
-
-There is no batch script; a shell loop does the job.
-
-```bash
-for p in $(ls /path/to/COMFI/videos); do
-  for t in $(ls /path/to/COMFI/videos/$p); do
-    python3 scripts/python/core/run_pipeline.py \
-        --dataset /path/to/COMFI --participant $p --task $t || echo "FAILED $p/$t"
-  done
-done
-```
-
-## Running live, on cameras
+**4. Run live.**
 
 ```bash
 python3 scripts/python/core/run_pipeline.py --online --cameras 0 2 4 6
 ```
 
-Cameras are opened through **ffmpeg**, not OpenCV: `cv2.VideoCapture` ignores
-`CAP_PROP_BUFFERSIZE` on the V4L2 backend, so frames queue in the driver and
-arrive late, and it cannot record without a decode/re-encode cycle. ffmpeg needs
-to be on `PATH`.
+Stand still and fully in view for a second when it starts: the model is fitted
+to the person on the first frame. The 3D viewer is at
+<http://127.0.0.1:7000/static/>.
 
-Camera calibration comes from `settings.cam_calib_path`, or `--cam-params`.
+**5. Record.** Live runs record the videos and the results to
+`output/<no_trial>/`. Name each recording with `no_trial` in `settings.py`.
+Recording starts immediately; with `record_on_start = False`, press `s` in the
+terminal to start and `q` to stop.
 
-### Recording
+To publish the results to other robot software, use the ROS 2 node
+[rtcosmik_ros](https://github.com/Gepetto/rtcosmik_ros), which runs this same
+pipeline.
 
-Set in `settings.py`:
+## Configuration
 
-| | |
+All configuration lives in [`settings.py`](settings.py); command-line arguments
+only say which data to process. The settings you are most likely to change:
+
+| Setting | Default | What it does |
+|---|---|---|
+| `cameras` | `(0, 2, 4, 6)` | The calibrated cameras to use. The first one is the reference. |
+| `human_height`, `human_weight`, `human_gender` | `1.80`, `70.0`, `'m'` | The person, for live runs. Offline runs read it from the dataset. |
+| `no_trial` | `"test"` | Name of the live recording: `output/<no_trial>/`. |
+| `SAVE_VID`, `SAVE_CSV`, `record_on_start` | `True`, `True`, `True` | What a live run records, and whether it starts at once. |
+| `cutoff_freq` | `10` | Low-pass filter on the landmarks (Hz): lower is smoother, higher reacts faster. |
+| `ik_type` | `"mhe"` | Moving-horizon inverse kinematics, or `"sbs"` to solve each frame on its own. |
+| `mhe_backend`, `mhe_profile` | `"acados"`, `"realtime"` | Solver, and its speed/accuracy trade-off. Regenerate the solver after changing them. |
+| `yolo_model` | `"yolov10n"` | Person detector. Run `fetch_models.sh` again after changing it. |
+
+The solver has to be regenerated after a change to what it is built from (the
+time step `fs`, the horizon `N`, the tracked landmarks): `run_ocp_codegen.py
+--check` says whether it is up to date, and the pipeline refuses a stale one.
+
+## Accuracy
+
+RT-COSMIK was evaluated on [COMFI](https://doi.org/10.5281/zenodo.17223909): 18
+participants, six demanding industrial tasks (two of them with a collaborative
+robot), against marker-based motion capture processed through the same model.
+
+<p align="center">
+  <img src="docs/assets/tasks.jpg" width="100%" alt="The six tasks of the evaluation. Top: RT-COSMIK's estimate drawn over a camera image. Bottom: the same instant in 3D, with the motion capture reference in black, RT-COSMIK in green, and a 2D-keypoint baseline in yellow.">
+</p>
+<p align="center"><sub>
+Top: RT-COSMIK's estimate (NLF-3D) drawn over one camera image. Bottom: the same
+instant in 3D, with the motion capture reference in black and a 2D-keypoint
+baseline (RTMPose+LSTM) in yellow.
+</sub></p>
+
+| Cameras | Joint angles (RMSE) | Position (marker error) | Hand–robot distance (RMSE) | Processing rate |
+|---|---|---|---|---|
+| 4 | **9.7°** | **53 mm** | **24 mm** | 43 Hz |
+| 2, facing each other | 10.0° | 61 mm | 32 mm | 58 Hz |
+| 2, side by side | 10.0° | 111 mm | 43 mm | 58 Hz |
+| 1 | 10.5° | 124 mm | 58 mm | 73 Hz |
+
+Means across participants, whole body, on an RTX 4500 Ada GPU and an Intel
+i9-14900K. On the same data, a 2D-keypoint baseline (RTMPose with OpenCap's
+marker augmenter) reached 13.1° with four cameras. Errors are lowest on the
+trunk and legs (3 to 4° for lumbar and knee flexion) and highest on elbow
+pronation–supination and ankle inversion–eversion. The evaluation used a 7-frame
+horizon and a 5 Hz filter (the defaults are 10 frames and 10 Hz), with the
+thoracic and wrist joints frozen for the comparison; details are in the paper.
+
+## Related repositories
+
+| Repository | What it is for |
 |---|---|
-| `SAVE_CSV` | markers and joint angles, with a frame counter per camera |
-| `SAVE_VID` | one `camera_<id>.mkv` per camera |
-| `record_on_start` | begin recording immediately, for headless or scripted runs |
-| `SAVE_DIR` | where they go (`output/<no_trial>`) |
+| [cams_calibration](https://github.com/Gepetto/cams_calibration) | Calibrates a camera rig (checkerboard, then a wand for the world frame) and installs the result here |
+| [rtcosmik_ros](https://github.com/Gepetto/rtcosmik_ros) | ROS 2 node running the live pipeline and publishing joint states, markers and collision capsules |
+| [COMFI](https://doi.org/10.5281/zenodo.17223909) | Multimodal industrial dataset used for validation: videos, motion capture, robot states, forces |
+| [comfi-examples](https://github.com/Gepetto/comfi-examples) | Scripts to download and visualize COMFI |
 
-Video is a **stream copy of the camera's own MJPEG**: no decode, no re-encode,
-so recording is nearly free and the file is what the sensor produced.
+## Documentation
 
-With `record_on_start = False`, press **`s`** to start and **`q`** to stop. The
-listener reads the terminal, so it works over SSH — unlike a keyboard hook,
-which needs an X display and fails on a headless or remote session.
-
-### Testing it without a rig
-
-Recordings can be replayed through the *live* path — the same camera processes,
-barrier, shared buffers and pipeline, with files standing in for devices:
-
-```bash
-python3 scripts/python/core/run_pipeline.py --online \
-  --replay     <dataset>/videos/<participant>/<task> \
-  --cam-params <dataset>/cam_params/<participant> \
-  --subject    <dataset>/metadata/<participant>.yaml \
-  --cameras 0 2 4 6
-```
-
-Playback is paced at the recording's own frame rate, so this shows whether the
-pipeline *keeps up* rather than just how fast it can consume a file. The sources
-also hold their first frame until the model is calibrated, because a real
-subject stands still for that — without it the trial runs on during calibration,
-and the model gets scaled from whatever pose it lands on.
-
-It exercises the software path, not the capture hardware: every file source is
-always ready, so the barrier never actually waits and real inter-camera skew
-stays invisible.
-
-### Reading the timings
-
-The pipeline prints a line every couple of seconds while it runs:
-
-```
-[TIME]  37.2 turns/s | loop  26.9 ms (pose 18.9, ik  5.1) | kept  93% of camera frames
-```
-
-and a per-stage summary on exit. `wait` is time blocked waiting for every camera
-to publish a new frame, so a late camera shows up there rather than in `pose`.
-
-`kept %` is how many camera frames were processed. To see *where* frames were
-lost — a warm-up cost, or a recurring stall:
-
-```bash
-python3 scripts/python/eval/frame_drops.py output/<run>/markers.csv
-```
-
-### Related entry points
-
-`run_nlf_inference.py` (pose estimation only) and `run_triangulation.py`
-(through triangulation) accept the same trial arguments, which is handy for
-isolating a stage.
+- [Installation](docs/installation.md): the Docker image, the VS Code dev container, a native install
+- [Outputs and the human model](docs/outputs.md): files, joint names, units and frames
+- [Data format and camera conventions](docs/data-format.md): running on your own recordings
+- [Recorded data and evaluation](docs/offline.md): batch processing and comparison with motion capture
+- [Live capture](docs/live.md): cameras, recording, replays and timings
+- [Inverse kinematics](docs/inverse-kinematics.md): solvers, profiles and code generation
 
 ## Citing RT-COSMIK
 
+If you use RT-COSMIK in your work, please cite:
+
+> Maxime Sabbah\*, Kahina Chalabi\*, Mohamed Adjel, Mathilde Lalanne, Leslie Lu
+> Zhuye, Harold Soh, Guilhem Saurel, Bruno Watier and Vincent Bonnet,
+> "RT-COSMIK: a Real-Time low-Cost and Open-Source toolbox for Markerless Inverse
+> Kinematics," *IEEE Transactions on Industrial Informatics*, under review.
+>
+> <sub>\*Equal contribution.</sub>
+
+```bibtex
+@article{rtcosmik2026,
+  title   = {{RT-COSMIK}: a Real-Time low-Cost and Open-Source toolbox for Markerless Inverse Kinematics},
+  author  = {Sabbah, Maxime and Chalabi, Kahina and Adjel, Mohamed and Lalanne, Mathilde and
+             {Leslie Lu Zhuye} and Soh, Harold and Saurel, Guilhem and Watier, Bruno and
+             Bonnet, Vincent},
+  journal = {IEEE Transactions on Industrial Informatics},
+  year    = {2026},
+  note    = {Under review}
+}
+```
+
+If you use the sample data or COMFI, please also cite:
+
+```bibtex
+@article{chalabi2026comfi,
+  title   = {{COMFI}: A multimodal industrial human motion dataset for markerless motion capture and collaborative robotics},
+  author  = {Chalabi, K. and others},
+  journal = {The International Journal of Robotics Research},
+  year    = {2026},
+  doi     = {10.1177/02783649261468361}
+}
+```
+
+## Acknowledgments
+
+This work was supported by the French ANR-23-CE33-0010 HERCULES project. We
+thank Dr Ajay Sathya (Inria Willow) and Dr Lander Vanroye (KU Leuven) for their
+help on the CasADi and fatrop integrations, and Dr István Sárándi (Real Virtual
+Humans) for his insights on integrating NLF.
 
 ## License
-BSD 2-Clause License
 
-Copyright (c) 2024, LAAS-CNRS
-All rights reserved.
-
-Redistribution and use in source and binary forms, with or without
-modification, are permitted provided that the following conditions are met:
-
-1. Redistributions of source code must retain the above copyright notice, this
-   list of conditions and the following disclaimer.
-
-2. Redistributions in binary form must reproduce the above copyright notice,
-   this list of conditions and the following disclaimer in the documentation
-   and/or other materials provided with the distribution.
-
-THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
-AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
-IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
-DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE
-FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
-DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
-SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
-CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,
-OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
-OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
-
-## Project Status
-RT-COSMIK is currently under active development. Contributions and feedback are welcome. 
-
+RT-COSMIK is released under the [BSD 2-Clause license](LICENSE). Questions, bug
+reports and contributions are welcome through
+[GitHub issues](https://github.com/Gepetto/rt-cosmik/issues).

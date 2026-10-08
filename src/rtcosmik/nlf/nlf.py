@@ -1,5 +1,9 @@
 import numpy as np
 import torch
+# NLF's TorchScript model calls torchvision::nms, an operator that only exists
+# once torchvision is imported. Import it here instead of relying on ultralytics
+# to have done it: recent ultralytics releases no longer import torchvision.
+import torchvision  # noqa: F401
 from ultralytics import YOLO
 import logging
 import time
