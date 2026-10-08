@@ -506,6 +506,33 @@ class NLFEstimator:
         return out_frames
 
 class DisplayConsumerNLF(Process):
+    """Run NLF live on the cameras' images and show what it sees, to check a rig.
+
+    Without ``with_triangul``, the landmarks of every view are drawn over its
+    image in an OpenCV window. With it, the views are fused into 3D points
+    (:func:`~rtcosmik.triangulation.triangulation.reconstruct_3d`) and drawn
+    in the 3D viewer, in the world frame: midline blue, right side green,
+    left side red, medial arm points black. Used by
+    ``run_nlf_inference.py`` and ``run_triangulation.py``.
+
+    Args:
+        settings: the RT-COSMIK settings object.
+        frame_counters, camera_buffers, camera_locks, timestamp_buffers: the
+            shared memory of the camera processes, one entry per camera (see
+            :func:`~rtcosmik.utils.mp_utils.create_camera_shared_ressources`).
+        stop_event: set to stop the process.
+        mtxs: per-camera 3x3 intrinsic matrices.
+        frame_shape: ``(height, width, 3)`` of the images.
+        num_cameras: number of cameras.
+        with_triangul: fuse the views and show them in 3D.
+        world_R1_cam, world_T1_cam: pose of the reference camera in the
+            world; required with ``with_triangul``.
+        dists: per-camera distortion coefficients; required with
+            ``with_triangul``.
+        projections: per-camera 3x4 ``[R | T]`` from the reference camera;
+            required with ``with_triangul``.
+        logger: optional logger.
+    """
     def __init__(self,
                  settings,
                  frame_counters,
@@ -555,6 +582,7 @@ class DisplayConsumerNLF(Process):
 
 
     def run(self):
+        """Estimate and display until ``stop_event`` is set."""
 
         est = NLFEstimator(
             yolo_path=self.yolo_path,

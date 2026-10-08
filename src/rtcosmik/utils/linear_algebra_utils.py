@@ -4,17 +4,24 @@ from numpy import linalg as LA
 from scipy import signal
 
 def trace(m):
+    """Trace of the matrix ``m``, as a float."""
     return float(np.trace(m))
 
 
 def norm(vector):
+    """Euclidean norm of ``vector``."""
     return LA.norm(vector)
 
 def col_vector_3D(a, b, c):
+    """The column vector ``(a, b, c)``, as a (3, 1) float64 array."""
     return np.array([[float(a)], [float(b)], [float(c)]], dtype=np.float64)
 
 
 def RMSE(est, ref):
+    """Root mean square error of ``est`` against ``ref``, over their first axis.
+
+    For (N, k) arrays, one value per column.
+    """
     sq_err_sum=0
     for i in range(len(est)):
         sq_err_sum += pow(est[i] - ref[i], 2)

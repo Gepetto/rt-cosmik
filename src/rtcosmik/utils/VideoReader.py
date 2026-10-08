@@ -281,6 +281,11 @@ class OfflineVideoSource:
         self._threads = []
     
 def list_videos(data_dir: Path) -> List[Path]:
+    """The ``.mp4`` files of ``data_dir``, sorted by name.
+
+    Raises:
+        FileNotFoundError: ``data_dir`` does not exist.
+    """
     if not data_dir.exists():
         raise FileNotFoundError(f"data dir does not exist: {data_dir}")
     return [p for p in sorted(data_dir.iterdir()) if p.suffix.lower() in [".mp4"]]
