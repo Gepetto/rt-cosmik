@@ -159,10 +159,10 @@ The joint names, their order and the model are described in
 ## Use your own cameras
 
 <!--
-  Setup video (docs/how_to_setup.mp4, 8 MB). Open README.md in GitHub's web
-  editor, drag the .mp4 onto this line, and keep the
-  https://github.com/user-attachments/assets/... line GitHub inserts: it plays
-  inline. Videos are limited to 10 MB on free plans.
+  Setup video. A README plays only videos uploaded through GitHub's web editor:
+  edit this file on github.com, delete this comment, drag
+  docs/assets/how_to_setup.mp4 onto the editor at this spot, and keep the
+  https://github.com/user-attachments/assets/... line GitHub inserts.
 -->
 
 **What you need**
