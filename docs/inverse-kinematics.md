@@ -10,7 +10,7 @@ kinematics methods, chosen by `ik_type` in `settings.py`:
 
 The moving-horizon problem is
 
-$$
+```math
 \begin{aligned}
 \min_{\mathbf{x}_j,\,\ddot{\mathbf{q}}_j}\;& \sum_{j=0}^{N-1} w_y\sum_{i}\big\|\mathbf{y}_{j,i}-\boldsymbol{\phi}_i(\mathbf{q}_j,\boldsymbol{\theta})\big\|^2
 + \sum_{j=0}^{N-1} w_x\big\|\mathbf{x}_j \ominus \bar{\mathbf{x}}\big\|^2 + \sum_{j=0}^{N-2} w_u\big\|\ddot{\mathbf{q}}_j\big\|^2\\
@@ -18,7 +18,7 @@ $$
 \dot{\mathbf{q}}_{j+1} = \dot{\mathbf{q}}_j + \ddot{\mathbf{q}}_j\,dt,\qquad
 \boldsymbol{\alpha}^- \le \boldsymbol{\alpha}_j \le \boldsymbol{\alpha}^+
 \end{aligned}
-$$
+```
 
 where $\mathbf{y}_{j,i}$ is landmark $i$ at frame $j$, $\boldsymbol{\phi}_i$ the
 position of the same landmark on the model, $\boldsymbol{\theta}$ the person's
