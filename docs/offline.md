@@ -3,7 +3,7 @@
 RT-COSMIK runs the same pipeline on recorded videos as on live cameras, one
 trial at a time, and compares the result with a motion capture reference. The
 examples below use COMFI participant `1012`, task `Lifting`; the
-[sample trial](../README.md#quick-start) works the same way with participant
+[sample trial](getting-started.md) works the same way with participant
 `2112`, task `RobotWelding`. Recordings must follow the
 [data format](data-format.md).
 

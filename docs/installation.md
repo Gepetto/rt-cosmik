@@ -12,7 +12,7 @@ the reference for a native install.
 - For Docker: [Docker Engine](https://docs.docker.com/engine/install/) and the
   [NVIDIA Container Toolkit](https://docs.nvidia.com/datacenter/cloud-native/container-toolkit/latest/install-guide.html).
 - For live capture: USB webcams that stream MJPEG (see the
-  [README](../README.md#use-your-own-cameras)).
+  [README](own-cameras.md)).
 
 ## Docker
 
@@ -23,7 +23,7 @@ docker/run.sh
 ```
 
 The first call builds the image `rt-cosmik:latest` from
-[`docker/Dockerfile`](../docker/Dockerfile). It compiles CasADi, Pinocchio and
+[`docker/Dockerfile`](https://github.com/Gepetto/rt-cosmik/blob/main/docker/Dockerfile). It compiles CasADi, Pinocchio and
 acados from source, so it takes about half an hour on a workstation and needs
 memory: compile jobs are capped by the RAM available, and if the build is still
 killed for lack of memory, add swap.
@@ -85,14 +85,14 @@ With the [Dev Containers](https://code.visualstudio.com/docs/devcontainers/conta
 extension, open the checkout and run **Dev Containers: Reopen in Container**. It
 builds the same image and opens the checkout inside it, with the same access to
 the GPU, the cameras, the network and the display
-([`.devcontainer/devcontainer.json`](../.devcontainer/devcontainer.json)). The
+([`.devcontainer/devcontainer.json`](https://github.com/Gepetto/rt-cosmik/blob/main/.devcontainer/devcontainer.json)). The
 companion repositories are not mounted automatically; add them to `runArgs` if
 you need them. Files written from the dev container stay root's on the host
 until `docker/run.sh true`, run from the host, hands them back.
 
 ## Native install
 
-Without Docker, follow [`docker/Dockerfile`](../docker/Dockerfile) on Ubuntu
+Without Docker, follow [`docker/Dockerfile`](https://github.com/Gepetto/rt-cosmik/blob/main/docker/Dockerfile) on Ubuntu
 22.04: it is the tested recipe, step by step. The points that matter:
 
 1. **numpy below 2**, which the compiled dependencies are built against.
@@ -145,7 +145,7 @@ python3 -m pytest tests/unit -q                           # seconds; camera hard
 python3 scripts/python/core/run_ocp_codegen.py --check    # is the solver up to date?
 ```
 
-Then run the [sample trial](../README.md#quick-start).
+Then run the [sample trial](getting-started.md).
 
 To check the whole Docker route at once, as a new user would follow it, run
 `docker/check.sh` on the host. It builds the image, then, inside it, checks the

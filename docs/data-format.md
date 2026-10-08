@@ -2,7 +2,7 @@
 
 RT-COSMIK reads recordings and calibrations in one layout, the one of the
 [COMFI dataset](https://doi.org/10.5281/zenodo.17223909). The
-[sample trial](../README.md#quick-start) is a small example of it, and
+[sample trial](getting-started.md) is a small example of it, and
 [cams_calibration](https://github.com/Gepetto/cams_calibration) writes
 calibrations in it directly.
 
