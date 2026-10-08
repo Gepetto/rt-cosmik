@@ -294,10 +294,19 @@ thoracic and wrist joints frozen for the comparison; details are in the paper.
 
 If you use RT-COSMIK in your work, please cite:
 
+> Maxime Sabbah\*, Kahina Chalabi\*, Mohamed Adjel, Mathilde Lalanne, Leslie Lu
+> Zhuye, Harold Soh, Guilhem Saurel, Bruno Watier and Vincent Bonnet,
+> "RT-COSMIK: a Real-Time low-Cost and Open-Source toolbox for Markerless Inverse
+> Kinematics," *IEEE Transactions on Industrial Informatics*, under review.
+>
+> <sub>\*Equal contribution.</sub>
+
 ```bibtex
 @article{rtcosmik2026,
   title   = {{RT-COSMIK}: a Real-Time low-Cost and Open-Source toolbox for Markerless Inverse Kinematics},
-  author  = {Sabbah, Maxime and others},
+  author  = {Sabbah, Maxime and Chalabi, Kahina and Adjel, Mohamed and Lalanne, Mathilde and
+             {Leslie Lu Zhuye} and Soh, Harold and Saurel, Guilhem and Watier, Bruno and
+             Bonnet, Vincent},
   journal = {IEEE Transactions on Industrial Informatics},
   year    = {2026},
   note    = {Under review}
