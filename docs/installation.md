@@ -24,9 +24,9 @@ docker/run.sh
 
 The first call builds the image `rt-cosmik:latest` from
 [`docker/Dockerfile`](../docker/Dockerfile). It compiles CasADi, Pinocchio and
-acados from source, so it takes a while and needs memory: compile jobs are capped
-by the RAM available, and if the build is still killed for lack of memory, add
-swap.
+acados from source, so it takes about half an hour on a workstation and needs
+memory: compile jobs are capped by the RAM available, and if the build is still
+killed for lack of memory, add swap.
 
 Each call then starts a container with:
 
@@ -38,9 +38,9 @@ Each call then starts a container with:
 
 The container is removed when you exit it. Everything worth keeping lives in
 the checkout: models in `weights/`, solvers in `ocp/`, calibrations in
-`config/cam_params/`, results in `output/`, the sample in `data/`. These files
-are created by root inside the container; `sudo chown -R $USER .` gives them
-back to you on the host.
+`config/cam_params/`, results in `output/`, the sample in `data/`. The container
+runs as root, but what it writes there is handed back to you when it exits, so
+you can edit or delete it without sudo.
 
 Other uses:
 
@@ -70,6 +70,7 @@ mounts them as well:
 | Python, numpy | 3.10, 1.26.4 |
 | PyTorch | 2.4.1 (CUDA 12.1) |
 | TensorRT | 10.15.1.29 |
+| ultralytics (person detector) | 8.4.14 |
 | ROS 2 | Humble (desktop) |
 | CasADi | 3.7.2, with fatrop and IPOPT |
 | fatrop, blasfeo | commits `45ee388`, `9923ac8` |
@@ -86,7 +87,8 @@ builds the same image and opens the checkout inside it, with the same access to
 the GPU, the cameras, the network and the display
 ([`.devcontainer/devcontainer.json`](../.devcontainer/devcontainer.json)). The
 companion repositories are not mounted automatically; add them to `runArgs` if
-you need them.
+you need them. Files written from the dev container stay root's on the host
+until `docker/run.sh true`, run from the host, hands them back.
 
 ## Native install
 
@@ -150,7 +152,8 @@ To check the whole Docker route at once, as a new user would follow it, run
 environment, fetches the models, generates the solver, runs the sample trial,
 compares it with motion capture and runs the unit tests; with `rtcosmik_ros`
 cloned next to the checkout, it also builds the ROS 2 node and replays the
-sample through it. Each step is reported as PASS or FAIL in
+sample through it. Last, it checks that the files the container wrote are
+yours. Each step is reported as PASS or FAIL in
 `output/docker-check/<date>/summary.txt`, with its log next to it.
 
 ## Troubleshooting

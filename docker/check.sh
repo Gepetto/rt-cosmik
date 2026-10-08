@@ -4,6 +4,7 @@
 # generate the solver, download the sample trial, run it, compare it with motion
 # capture, and run the unit tests. When rtcosmik_ros is cloned next to this
 # repository, also build it and replay the sample through the ROS 2 node.
+# Last, check that everything the container wrote is the caller's again.
 #
 #   docker/check.sh            # logs in output/docker-check/<date>/
 #   docker/check.sh DIR        # and a copy of them in DIR
@@ -123,6 +124,19 @@ if "${REPO_ROOT}/docker/run.sh" --build true > "${LOGS}/build.log" 2>&1; then
   "${REPO_ROOT}/docker/run.sh" bash "${LOGS_REL}/inside.sh" "${LOGS_REL}"
 else
   printf 'FAIL  %-12s %5ss  see build.log\n' build "$((SECONDS - start))" | tee "${LOGS}/summary.txt"
+fi
+
+# What the container wrote in the checkout and its companions must be yours again.
+PARENT="$(dirname "${REPO_ROOT}")"
+CHECKED=("${REPO_ROOT}")
+for companion in cams_calibration rtcosmik_ros; do
+  [[ -d "${PARENT}/${companion}" ]] && CHECKED+=("${PARENT}/${companion}")
+done
+if find "${CHECKED[@]}" -xdev ! -user "$(id -u)" > "${LOGS}/ownership.log" 2>&1 \
+   && [[ ! -s "${LOGS}/ownership.log" ]]; then
+  printf 'PASS  %-12s %5ss\n' ownership 0 | tee -a "${LOGS}/summary.txt"
+else
+  printf 'FAIL  %-12s %5ss  see ownership.log\n' ownership 0 | tee -a "${LOGS}/summary.txt"
 fi
 
 if [[ -n "${COPY_TO}" ]]; then

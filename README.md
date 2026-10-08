@@ -99,8 +99,8 @@ cd rt-cosmik
 docker/run.sh
 ```
 
-The first run builds the image. Expect it to take a while: it compiles CasADi,
-Pinocchio and acados. After that, `docker/run.sh` opens a shell in the container
+The first run builds the image, which takes about half an hour: it compiles
+CasADi, Pinocchio and acados. After that, `docker/run.sh` opens a shell in the container
 within seconds, with your checkout at `/root/workspace/rt-cosmik`. VS Code users
 can use **Dev Containers: Reopen in Container** instead.
 
