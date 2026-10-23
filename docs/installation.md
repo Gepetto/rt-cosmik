@@ -9,8 +9,8 @@ the reference for a native install.
 
 - Linux on x86-64. Ubuntu 22.04 is the tested system.
 - An NVIDIA GPU and its driver. The image uses CUDA 12.1.
-- For Docker: [Docker Engine](https://docs.docker.com/engine/install/) and the
-  [NVIDIA Container Toolkit](https://docs.nvidia.com/datacenter/cloud-native/container-toolkit/latest/install-guide.html).
+- For Docker: [Docker Engine](https://docs.docker.com/engine/install/) and, for
+  GPU runs, the [NVIDIA Container Toolkit](https://docs.nvidia.com/datacenter/cloud-native/container-toolkit/latest/install-guide.html).
 - For live capture: USB webcams that stream MJPEG (see the
   [README](own-cameras.md)).
 
@@ -24,7 +24,7 @@ docker/run.sh
 
 The first call builds the image `rt-cosmik:latest` from
 [`docker/Dockerfile`](https://github.com/Gepetto/rt-cosmik/blob/main/docker/Dockerfile). It compiles CasADi, Pinocchio and
-acados from source, so it takes about half an hour on a workstation and needs
+acados from source, so it can take around an hour on a workstation and needs
 memory: compile jobs are capped by the RAM available, and if the build is still
 killed for lack of memory, add swap.
 
@@ -47,6 +47,7 @@ Other uses:
 ```bash
 docker/run.sh python3 -m pytest tests/unit   # run one command in the container
 docker/run.sh --build                        # rebuild the image, e.g. after a Dockerfile change
+docker/run.sh --cpu python3 -m pytest tests/unit  # without NVIDIA devices or drivers
 ```
 
 **Companion repositories.** Clone them next to `rt-cosmik`, and `docker/run.sh`
@@ -59,25 +60,88 @@ mounts them as well:
 └── rtcosmik_ros/         ->  /root/workspace/ros_ws/src/rtcosmik_ros
 ```
 
-`rtcosmik_ros` is then built in the container with
-`cd /root/workspace/ros_ws && colcon build --packages-select rtcosmik_ros`.
+The same image supports the standalone toolbox and the
+[ROS overlay](https://github.com/Gepetto/rtcosmik_ros), including RViz,
+`robot_state_publisher`, TF and the required messages. From the host:
+
+```bash
+git clone https://github.com/Gepetto/rtcosmik_ros.git ../rtcosmik_ros
+docker/run.sh
+```
+
+Then, in the container:
+
+```bash
+cd /root/workspace/ros_ws
+colcon build --packages-select rtcosmik_ros
+source install/setup.bash
+ros2 launch rtcosmik_ros start.launch.py
+```
+
+Set `RTCOSMIK_ROS_DIR=/absolute/path/to/rtcosmik_ros` when the overlay is
+elsewhere. The overlay remains optional for standalone use. Its build and
+install directories are local to the container; rebuild it in each new session.
 
 ### What the image contains
 
+The pinned versions preserve the working environment used during development;
+they are not minimum requirements or a claim that newer versions are
+incompatible. Source versions are build arguments in `docker/Dockerfile`, and
+Python package pins are in `docker/requirements.txt`. When upgrading, run
+`docker/check.sh` to check imports, solver generation, the sample pipeline and
+the ROS overlay. TensorRT changes also require regenerating detector engines.
+
 | Component | Version |
 |---|---|
-| Base image | `nvidia/cuda:12.1.1-cudnn8-devel-ubuntu22.04` |
+| Base image | `nvidia/cuda:12.1.1-cudnn8-runtime-ubuntu22.04` |
 | Python, numpy | 3.10, 1.26.4 |
 | PyTorch | 2.4.1 (CUDA 12.1) |
 | TensorRT | 10.15.1.29 |
 | ultralytics (person detector) | 8.4.14 |
-| ROS 2 | Humble (desktop) |
+| ROS 2 | Humble (ROS base, RViz and overlay build tools) |
 | CasADi | 3.7.2, with fatrop and IPOPT |
 | fatrop, blasfeo | commits `45ee388`, `9923ac8` |
-| eigenpy, coal | 3.12.0, 3.0.2 |
+| eigenpy, HPP-FCL | ROS Humble binary packages (exact versions in `/opt/manifest/dpkg.txt`) |
 | Pinocchio | 3.9.0, with CasADi and collision support |
 | example-robot-data | commit `9c202b1` (provides the human model) |
 | acados | commit `8e1a6f8` (v0.5.4-20) |
+
+Eigenpy and HPP-FCL come from the ROS Humble APT repository. Pinocchio 3.9
+requires the older HPP-FCL interface, which the ROS coal package does not
+expose. Pinocchio is compiled against those libraries with CasADi support,
+which the standard ROS package does not provide. The custom CasADi/fatrop and
+acados builds are kept for the solver backends, together with the pinned
+example-robot-data human model.
+
+Python dependencies are installed with a pinned `uv` in a virtual environment at `/usr/local`,
+alongside the source-built Python bindings. It can read the system packages
+needed by ROS, and a `dist-packages` alias makes its packages visible to ROS
+scripts that use `/usr/bin/python3`. The mounted checkout is registered with a
+`.pth` file, as are ROS's Python package directories; no shell activation or
+extra `PYTHONPATH` is needed for these imports. Native
+libraries are registered with `ldconfig`.
+
+APT and Python downloads use BuildKit cache mounts. C/C++ compilation uses
+`ccache` with a separate cache mount. Application requirements and `uv` are
+installed after the native libraries: updating them does not rebuild CasADi or
+Pinocchio. PyTorch and TensorRT also precede the application requirements, so
+utility updates reuse their large layers. NumPy is installed before compilation
+because its ABI matters to the bindings. The CUDA runtime base omits the CUDA
+compiler, profiler and development
+archives; C/C++ compilers and acados headers remain available for solver generation.
+ONNX Runtime and torchaudio are retained for development.
+
+Source downloads use Docker
+`ADD`, with release tarballs or pinned commit archives and the required
+submodules. Temporary source and build trees are removed after installation;
+acados sources remain available for runtime solver generation. The final
+environment and source archive checksums are recorded in `/opt/manifest`.
+
+To override the automatic compile-job limit when building directly:
+
+```bash
+docker build --build-arg MAKE_JOBS=2 -t rt-cosmik:latest docker
+```
 
 ## VS Code dev container
 
@@ -143,18 +207,32 @@ See [inverse-kinematics.md](inverse-kinematics.md).
 ```bash
 python3 -m pytest tests/unit -q                           # seconds; camera hardware tests are skipped
 python3 scripts/python/core/run_ocp_codegen.py --check    # is the solver up to date?
+docker/check.sh --cpu                                   # builds and checks without CUDA
+docker/check.sh --gpu                                   # also runs videos and the ROS replay
 ```
 
-Then run the [sample trial](getting-started.md).
+With no mode, `docker/check.sh` selects GPU mode when `nvidia-smi` detects a
+GPU, otherwise CPU mode. `--gpu` requires working GPU access in the container;
+it does not fall back to CPU. Use `--no-build` to check an existing image, and
+`RTCOSMIK_IMAGE` to select a tag other than `rt-cosmik:latest`.
 
-To check the whole Docker route at once, as a new user would follow it, run
-`docker/check.sh` on the host. It builds the image, then, inside it, checks the
-environment, fetches the models, generates the solver, runs the sample trial,
-compares it with motion capture and runs the unit tests; with `rtcosmik_ros`
-cloned next to the checkout, it also builds the ROS 2 node and replays the
-sample through it. Last, it checks that the files the container wrote are
-yours. Each step is reported as PASS or FAIL in
-`output/docker-check/<date>/summary.txt`, with its log next to it.
+Both modes check Python/native bindings, unit tests, solver generation and
+manifests, and export a small synthetic Meshcat animation. When the overlay is
+mounted, both also build it, import the bridge and inspect its launch arguments.
+GPU mode additionally checks PyTorch, TensorRT and ONNX Runtime CUDA inference,
+processes the sample videos, compares the results with motion capture, and
+checks that the ROS replay publishes finite joint states with advancing timestamps.
+The ROS check uses a private source copy and temporary settings, preserving
+the checkout's scaled URDF and recording preferences.
+
+Logs and `summary.txt` are written under `output/docker-check/`. The launcher
+hands generated files back to the calling user, and the check verifies ownership.
+GPU-dependent checks are explicitly marked `SKIP` in CPU mode; a missing overlay is also
+reported as `SKIP`. Any failed check returns a nonzero exit status. A CPU pass
+therefore validates the CPU checks and does not claim an end-to-end inference pass.
+Viewing a Meshcat replay of saved results does not require CUDA.
+
+Then run the [sample trial](getting-started.md).
 
 ## Troubleshooting
 

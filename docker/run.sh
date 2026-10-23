@@ -5,9 +5,10 @@
 #   docker/run.sh                  # a shell inside the container
 #   docker/run.sh <command> ...    # run one command inside it
 #   docker/run.sh --build          # rebuild the image first (after a Dockerfile change)
+#   docker/run.sh --cpu COMMAND    # checks/replay without CUDA or device access
 #
-# Needs Docker and the NVIDIA Container Toolkit on the host. The container sees
-# the GPU, every camera (/dev), and the host network, so the 3D viewer's
+# Needs Docker; GPU runs also need the NVIDIA Container Toolkit. By default the
+# container sees the GPU, every camera (/dev), and the host network, so the 3D viewer's
 # http://127.0.0.1:7000 URL opens in the host's browser.
 #
 # The companion repositories, cloned next to this one, are mounted too:
@@ -23,15 +24,18 @@ IMAGE="${RTCOSMIK_IMAGE:-rt-cosmik:latest}"
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 MOUNT=/root/workspace/rt-cosmik
 
-if [[ "${1:-}" == "--build" ]]; then
+BUILD=0
+CPU=0
+while [[ "${1:-}" == --build || "${1:-}" == --cpu ]]; do
+  case "$1" in
+    --build) BUILD=1 ;;
+    --cpu) CPU=1 ;;
+  esac
   shift
-  BUILD=1
-else
-  BUILD=0
-fi
+done
 
 if [[ "${BUILD}" == "1" ]] || ! docker image inspect "${IMAGE}" >/dev/null 2>&1; then
-  echo "[..] building ${IMAGE}; the first build compiles CasADi, Pinocchio and acados (about half an hour)"
+  echo "[..] building ${IMAGE}; the first build compiles CasADi, Pinocchio and acados (can take around an hour)"
   DOCKER_BUILDKIT=1 docker build -t "${IMAGE}" "${REPO_ROOT}/docker"
 fi
 
@@ -52,8 +56,9 @@ if [[ -d "${PARENT}/cams_calibration" ]]; then
   COMPANIONS+=(-v "${PARENT}/cams_calibration:/root/workspace/cams_calibration")
   MOUNTED+=(/root/workspace/cams_calibration)
 fi
-if [[ -d "${PARENT}/rtcosmik_ros" ]]; then
-  COMPANIONS+=(-v "${PARENT}/rtcosmik_ros:/root/workspace/ros_ws/src/rtcosmik_ros")
+ROS_SOURCE="${RTCOSMIK_ROS_DIR:-${PARENT}/rtcosmik_ros}"
+if [[ -d "${ROS_SOURCE}" ]]; then
+  COMPANIONS+=(-v "${ROS_SOURCE}:/root/workspace/ros_ws/src/rtcosmik_ros")
   MOUNTED+=(/root/workspace/ros_ws/src/rtcosmik_ros)
 fi
 
@@ -80,12 +85,17 @@ EOF
 TTY=()
 [[ -t 0 && -t 1 ]] && TTY=(-it)
 
+DEVICES=(--gpus all -e NVIDIA_DRIVER_CAPABILITIES=compute,utility,video,graphics,display
+  --privileged -v /dev:/dev
+  --device-cgroup-rule "c 81:* rmw" --device-cgroup-rule "c 189:* rmw")
+if [[ "${CPU}" == 1 ]]; then
+  DEVICES=(-e CUDA_VISIBLE_DEVICES= -e NVIDIA_VISIBLE_DEVICES=void)
+fi
+
 # --init and TINI_KILL_PROCESS_GROUP: a Ctrl-C sent to the container reaches the
 # command, not only the shell that hands its files back.
 exec docker run --rm --init -e TINI_KILL_PROCESS_GROUP=1 "${TTY[@]}" \
-  --gpus all --net=host --ipc=host --privileged \
-  -v /dev:/dev \
-  --device-cgroup-rule "c 81:* rmw" --device-cgroup-rule "c 189:* rmw" \
+  --net=host --ipc=host "${DEVICES[@]}" \
   "${X11[@]}" "${OWNER[@]}" \
   -v "${REPO_ROOT}:${MOUNT}" "${COMPANIONS[@]}" -w "${MOUNT}" \
   "${IMAGE}" bash -c "${HAND_BACK}" rtcosmik "${@:-bash}"

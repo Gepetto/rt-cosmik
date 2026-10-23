@@ -1,0 +1,3 @@
+# The compiled Python bindings use NumPy 1.x. Apply this constraint to every
+# dependency installation when upgrading the historical working environment.
+numpy==1.26.4
