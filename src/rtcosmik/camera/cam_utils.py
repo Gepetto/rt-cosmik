@@ -55,24 +55,67 @@ def list_cameras():
     Returns a dictionary of camera indices and associated device names.
     """
     cameras = {}
-    try:
-        output = subprocess.check_output("v4l2-ctl --list-devices", shell=True).decode("utf-8")
-        devices = output.split("\n\n")
-        for device in devices:
-            lines = device.split("\n")
-            if len(lines) > 1:
-                device_name = lines[0].strip()
-                video_path = lines[1].strip()
-                if "/dev/video" in video_path:
-                    index = int(video_path.split("video")[-1])
-                    cap = cv.VideoCapture(index, cv.CAP_V4L2)
-                    if cap.isOpened():
-                        cameras[index] = device_name
-                    cap.release()
-    except Exception as e:
-        print("Error using v4l2-ctl:", e)
-    return cameras
 
+    try:
+        result = subprocess.run(
+            ["v4l2-ctl", "--list-devices"],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+            check=False,
+        )
+
+        output = result.stdout
+
+        if not output.strip():
+            LOGGER.warning(
+                "v4l2-ctl returned no camera information. stderr: %s",
+                result.stderr.strip(),
+            )
+            return cameras
+
+        devices = output.split("\n\n")
+
+        for device in devices:
+            lines = [line.strip() for line in device.splitlines() if line.strip()]
+
+            if len(lines) < 2:
+                continue
+
+            device_name = lines[0]
+
+            # A physical camera can expose several /dev/video* nodes.
+            # Test each one and keep the first node that OpenCV can actually open.
+            for line in lines[1:]:
+                if not line.startswith("/dev/video"):
+                    continue
+
+                try:
+                    index = int(line.rsplit("video", 1)[1])
+                except ValueError:
+                    continue
+
+                cap = cv.VideoCapture(index, cv.CAP_V4L2)
+
+                if cap.isOpened():
+                    cameras[index] = device_name
+                    cap.release()
+                    break
+
+                cap.release()
+
+        if result.returncode != 0:
+            LOGGER.warning(
+                "v4l2-ctl exited with code %d, but usable cameras were still found. "
+                "stderr: %s",
+                result.returncode,
+                result.stderr.strip(),
+            )
+
+    except Exception as e:
+        LOGGER.exception("Error while discovering V4L2 cameras: %s", e)
+
+    return cameras
 
 # ---------------------------------------------------------------------------
 # Which physical camera is which
@@ -169,6 +212,103 @@ def resolve_camera_ids(config_path, indices):
                     index, camera_id, bus, camera_id)
             resolved[index] = camera_id
     return resolved
+
+
+def select_live_cameras(config_path, camera_ids):
+    """Find the attached device behind each requested camera.
+
+    ``camera_ids`` are calibration ids -- the ``camera_<i>`` of the calibration
+    files, as in ``settings.cameras`` or ``--cameras`` -- not device numbers.
+    Every attached device is matched to the id it was calibrated as: by its USB
+    port when the calibration has a ``cameras.yaml``, by its v4l2 index
+    otherwise. Only the requested cameras are kept. Anything else plugged in,
+    such as a laptop's built-in webcam, stays closed instead of being opened
+    and paired with another camera's calibration.
+
+    Args:
+        config_path (str): calibration root, possibly holding ``cameras.yaml``.
+        camera_ids (Sequence[int]): calibration ids to open, in order.
+
+    Returns:
+        list[int]: the v4l2 index of each requested camera, in ``camera_ids``
+        order.
+
+    Raises:
+        RuntimeError: when a requested camera is not attached. The message lists
+            what is attached and which camera each device was recognised as.
+    """
+    attached = list_cameras()
+    manifest = load_camera_manifest(config_path) or {}
+    by_bus = {entry["bus_info"]: camera_id
+              for camera_id, entry in manifest.items() if entry.get("bus_info")}
+
+    recognised = {}  # v4l2 index -> calibration id, None for a device that is none
+    for index in sorted(attached):
+        bus = camera_bus_info(index) if by_bus else None
+        camera_id = by_bus.get(bus) if bus else None
+        if camera_id is None and index not in by_bus.values():
+            # Not known by its port, so its index stands in for its id, as in a
+            # calibration without a manifest. Not when the manifest puts that id
+            # on another port, though: this device merely got the number, as a
+            # built-in webcam gets /dev/video0.
+            camera_id = index
+        recognised[index] = camera_id
+
+    devices = {}
+    for index, camera_id in recognised.items():
+        if camera_id in camera_ids and camera_id not in devices:
+            devices[camera_id] = index
+
+    missing = [c for c in camera_ids if c not in devices]
+    if missing:
+        found = "; ".join(
+            f"/dev/video{index} ({attached[index]}) is "
+            + (f"camera_{camera_id}" if camera_id is not None else "not a calibrated camera")
+            for index, camera_id in recognised.items())
+        raise RuntimeError(
+            f"Camera(s) {missing} requested but not attached. "
+            f"Attached: {found or 'nothing (is v4l2-ctl installed?)'}. "
+            "Plug them in, or request the cameras you have with --cameras or "
+            "settings.cameras.")
+
+    for camera_id in camera_ids:
+        index = devices[camera_id]
+        LOGGER.info("camera_%d is /dev/video%d (%s)", camera_id, index, attached[index])
+    for index in recognised:
+        if index not in devices.values():
+            LOGGER.info("Leaving /dev/video%d (%s) closed: not a requested camera.",
+                        index, attached[index])
+    return [devices[c] for c in camera_ids]
+
+
+def anchor_first(config_path, camera_ids):
+    """Order the cameras so that the reference one has a world pose.
+
+    Only the reference camera's pose in the world is read; the others are placed
+    relative to it (see :func:`load_world_transformation`). A calibration from
+    cams_calibration anchors a single camera, so when the first camera requested
+    is not anchored, the anchor would be ignored and every position reported in
+    that camera's frame. An anchored camera further down the list is moved to
+    the front instead. The set of cameras is unchanged.
+
+    Args:
+        config_path (str): calibration root in the COMFI layout.
+        camera_ids (Sequence[int]): calibration ids, in the requested order.
+
+    Returns:
+        list[int]: ``camera_ids``, with an anchored camera first when one of them
+        is anchored.
+    """
+    camera_ids = list(camera_ids)
+    if not camera_ids or cam_to_world_path(config_path, camera_ids[0]) is not None:
+        return camera_ids
+    for camera_id in camera_ids[1:]:
+        if cam_to_world_path(config_path, camera_id) is not None:
+            LOGGER.info(
+                "Camera %d holds the world anchor, so it is the reference camera "
+                "rather than camera %d.", camera_id, camera_ids[0])
+            return [camera_id] + [c for c in camera_ids if c != camera_id]
+    return camera_ids
 
 
 def orthonormalize_rotation(R):

@@ -65,28 +65,30 @@ class Settings:
     human_weight: float = 70.0 
     human_gender: str = 'm'
 
+    ### VIEWER ###
+    # Offline replays of a dataset trial (--dataset/--participant/--task) draw
+    # the room around the estimated body: floor, cameras, and for COMFI's robot
+    # tasks the table and the Franka Panda in its recorded state. Whatever the
+    # dataset does not provide is left out, and live runs show the body alone.
+    viewer_scene: bool = True
+
     ### CALIB ###
     cam_calib_path: str = field(init=False) # relative path to the camera calibration file
-    human_calib_path: str = field(init=False)  # relative path to the human calibration file
-    robot_calib_path: str = field(init=False)  # relative path to the robot calibration file
 
     ### FILTER PARAMS ###
     order: int = 4
-    system_freq: int = 40 
-    cutoff_freq: float = 5
+    cutoff_freq: float = 10
     filter_type: str = "lowpass"
 
     ### NLF ###
     cano_path: str = field(init=False)
     nlf_path: str = field(init=False)
-    # Fitted to mocap (scripts/python/paper/fit_nlf_marker_map.py), the method
-    # that produced FastSAM's marker map. Pelvis, hands and face stay hand-picked.
     nlf_indices = [             # For SMPLX model
         8421, 5727, 8371, 5677, # pelvis: RASI, LASI, RPSI, LPSI 
-        3353, 5489, 5500, 6629, 3878, 7075, 4524, 7035, 4370, 7423, 4687, 7409, 4721, # upper: C7, T11, T6,  RSHO, LSHO, RELB, LELB, RMELB, LMELB, RWRI, LWRI, RMWRI, LMWRI    (was 5484, 5489, 5500, 6629, 3878, 7040, 4302, 7105, 4369, 7584, 4848, 7457, 4721)
+        5484, 5489, 5500, 6629, 3878, 7040, 4302, 7105, 4369, 7584, 4848, 7457, 4721, # upper: C7, T11, T6,  RSHO, LSHO, RELB, LELB, RMELB, LMELB, RWRI, LWRI, RMWRI, LMWRI
         8079, 5361, 7794, 5058, 8022, 5286,  # hands:  RTHU, LTHU, RMID, LMID, RPIN, LPIN
-        6403, 3639, 6539, 3781, 8629, 8896, 8680, 5753, # legs: RKNE, LKNE, RMKNE, LMKNE, RANK, LANK, RMANK, LMANK    (was 6401, 3640, 6407, 3646, 8576, 5882, 8680, 8892)
-        8610, 5898, 8584, 5890, 8634, 8848, # feet: R5MHD, L5MHD, RTOE, LTOE, RHEE, LHEE    (was 8474, 5780, 8463, 5770, 8635, 8846)
+        6401, 3640, 6407, 3646, 8576, 5882, 8680, 8892, # legs: RKNE, LKNE, RMKNE, LMKNE, RANK, LANK, RMANK, LMANK,
+        8474,5780,8463,5770,8635,8846, # feet: R5MHD, L5MHD, RTOE, LTOE, RHEE, LHEE,
         9120,9002,616,6,9929,9448,  # face: Nose, Head, REar, LEar, REye, LEye
     ]
 
@@ -139,12 +141,9 @@ class Settings:
     # Measured numbers are in rtcosmik.ik.ocp_model.SOLVER_PROFILES.
     mhe_profile: str = "realtime" # or "accurate"
     cost_weights: list = field(default_factory=lambda: [1, 1e-3, 1e-5])
-    # MHE horizon, in time steps. 7 follows Bailly et al.'s moving-horizon
-    # estimation work. Measured on 10 COMFI trials, accuracy is flat in N --
-    # 16.685 to 16.700 deg across N = 3 to 20 -- while throughput falls 4.8x
-    # over that range, so N is a speed choice, not an accuracy one.
-    N: int = 7 # number of time steps
-    # acados only: where generated C code/.so/.json go (default: <repo>/output/acados),
+    N: int = 10 # number of time steps
+    # acados only: where generated C code/.so/.json go (default: <repo>/ocp,
+    # RTCOSMIK_OCP_DIR overrides it),
     # and the acados install dir (default: read from the ACADOS_SOURCE_DIR env var).
     acados_export_dir: str = None
     acados_source_dir: str = None
@@ -168,27 +167,29 @@ class Settings:
            "Nose", "Head", "REar", "LEar", "REye", "LEye",
     ])
 
-    ### MARKER SET / PARITY COMPARISON ###
-    #
-    # "nlf"    - the full 43-marker NLF set above, all 36 articulated DoF.
-    # "parity" - the 35 markers the mmpose/LSTM baseline can also produce, with
-    #            the 7 DoF that set cannot observe locked. Use this for BOTH
-    #            arms of the paper comparison: same markers, same model, same
-    #            IK, so the only difference left is the pose estimator.
-    #
-    # The parity set drops the 8 markers the LSTM augmenter does not emit:
-    # T11, T6 and the six hand markers. Nothing else changes.
-    marker_set: str = "parity"
-
-    # Filled in by __post_init__ from marker_set; do not edit by hand.
-    locked_joints: list = field(init=False)
+    ### EVALUATION ###
+    # The marker set fitted by the IK: "nlf" (all markers), "parity" or "mocap".
+    marker_set: str = "nlf"
+    # True reproduces the TII paper evaluation: it overrides the filter, the
+    # horizon, the NLF vertices and the marker set with the values in `paper`.
+    paper_evaluation: bool = True
+    paper: dict = field(default_factory=lambda: {
+        "order": 4, "cutoff_freq": 5, "N": 7, "marker_set": "parity",
+        "nlf_indices": [   # fitted to mocap; pelvis, hands and face hand-picked
+            8421, 5727, 8371, 5677,
+            3353, 5489, 5500, 6629, 3878, 7075, 4524, 7035, 4370, 7423, 4687, 7409, 4721,
+            8079, 5361, 7794, 5058, 8022, 5286,
+            6403, 3639, 6539, 3781, 8629, 8896, 8680, 5753,
+            8610, 5898, 8584, 5890, 8634, 8848,
+            9120, 9002, 616, 6, 9929, 9448,
+        ],
+    })
+    locked_joints: list = field(init=False)  # set from marker_set
 
     def __post_init__(self):
         # Use Pathlib for better path handling
         self.cosmik_path = str(Path(__file__).parent.resolve())
         self.cam_calib_path = str(Path(self.cosmik_path) / "config/cam_params")
-        self.human_calib_path = str(Path(self.cosmik_path) / "config/human_params")
-        self.robot_calib_path = str(Path(self.cosmik_path) / "config/robot_params")
         self.output_dir = str(Path(self.cosmik_path) / "output")
         self.SAVE_DIR = str(Path(self.output_dir) / self.no_trial)
         self.cano_path = str(Path(self.cosmik_path) / "weights/canonical_verts/smplx.npy")
@@ -196,58 +197,5 @@ class Settings:
         self.yolo_path = str(Path(self.cosmik_path) / "weights" / "yolo"
                              / f"{self.yolo_model}.engine")
         self.dt = 1 / self.fs
-        self._apply_marker_set()
-
-    #: Markers the mmpose/LSTM baseline cannot produce, and the DoF that become
-    #: unobservable without them. The wrists have no distal marker at all; the
-    #: thorax keeps only C7, leaving its orientation determined indirectly
-    #: through the shoulders, past a clavicle DoF each.
-    PARITY_DROPPED_MARKERS = ("T11", "T6",
-                              "RTHU", "LTHU", "RMID", "LMID", "RPIN", "LPIN")
-    PARITY_LOCKED_JOINTS = ("middle_thoracic_Z", "middle_thoracic_X",
-                            "middle_thoracic_Y",
-                            "left_wrist_Z", "left_wrist_X",
-                            "right_wrist_Z", "right_wrist_X")
-
-    #: Markers the mocap reference cannot supply either. It carries a Vicon head
-    #: cluster (RHD/LHD/FHD/BHD) rather than facial landmarks, so Head, REar and
-    #: LEar are mapped from that cluster and the remaining three are dropped.
-    #: The head segment only needs Head, REar and LEar, so cervical stays
-    #: observable and the locked set is the same seven as parity.
-    MOCAP_DROPPED_MARKERS = ("Nose", "REye", "LEye")
-
-    def _apply_marker_set(self):
-        # Always derive from the pristine lists, so the switch can be re-applied
-        # in a process that has already applied one -- a study script that wants
-        # a different marker set should not have to rebuild Settings.
-        if not hasattr(self, "full_marker_names"):
-            self.full_marker_names = list(self.marker_names)
-            self.full_keys_to_track = list(self.keys_to_track_list)
-            self.full_nlf_indices = list(self.nlf_indices)
-        self.marker_names = list(self.full_marker_names)
-        self.keys_to_track_list = list(self.full_keys_to_track)
-        self.nlf_indices = list(self.full_nlf_indices)
-
-        if self.marker_set == "nlf":
-            self.locked_joints = []
-            return
-        if self.marker_set not in ("parity", "mocap"):
-            raise ValueError(
-                f"marker_set must be 'nlf', 'parity' or 'mocap', "
-                f"got {self.marker_set!r}")
-        dropped = set(self.PARITY_DROPPED_MARKERS)
-        if self.marker_set == "mocap":
-            dropped |= set(self.MOCAP_DROPPED_MARKERS)
-        missing = dropped - set(self.marker_names)
-        if missing:
-            raise ValueError(f"parity drops markers not in the set: {sorted(missing)}")
-        # nlf_indices is positionally aligned with the full marker_names list, so
-        # it has to be subset by the same positions -- otherwise NLF would keep
-        # emitting 43 points against 35 names and every marker would be silently
-        # mislabelled.
-        keep = [i for i, m in enumerate(self.marker_names) if m not in dropped]
-        self.nlf_indices = [self.nlf_indices[i] for i in keep]
-        self.marker_names = [self.marker_names[i] for i in keep]
-        self.keys_to_track_list = [k for k in self.keys_to_track_list
-                                   if k not in dropped]
-        self.locked_joints = list(self.PARITY_LOCKED_JOINTS)
+        from rtcosmik.marker_sets import apply_evaluation
+        apply_evaluation(self)

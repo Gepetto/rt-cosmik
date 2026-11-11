@@ -1,3 +1,8 @@
+"""Causal filtering of multi-channel signals, one sample at a time.
+
+:class:`IIR` filters any number of channels; :class:`MarkerFilter` applies it
+to the fused landmarks, frame by frame.
+"""
 from dataclasses import dataclass, field
 from scipy import signal
 from typing import Union, Sequence, List
@@ -43,6 +48,7 @@ class IIR:
             self.past_zi.append(initial_zi)
 
     def set_raw_enabled(self, state: bool) -> None:
+        """Pass samples through unfiltered while ``state`` is True; resets the filter state."""
         self.raw_enabled = state
         self.past_zi = None
 

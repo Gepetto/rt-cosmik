@@ -1,3 +1,4 @@
+"""Camera processes: one per camera, publishing its latest image in shared memory."""
 import time
 
 import cv2
@@ -12,6 +13,35 @@ import logging
 LOGGER = logging.getLogger(__name__)
 
 class Camera(Process):
+    """Grab one camera's images in step with the others, into shared memory.
+
+    The device (or a recording standing in for it) is read through ffmpeg.
+    Every camera process waits on a shared barrier before grabbing and before
+    retrieving, so the cameras of a rig take their images together. The
+    latest image is copied into ``shared_buffer`` with its timestamp, and
+    ``frame_counter`` is incremented, under ``lock``.
+
+    Args:
+        cam_id: calibrated camera id, for logs; also the device
+            ``/dev/video<cam_id>`` when ``source`` is None.
+        shared_buffer: shared array of ``frame_shape``, uint8, the latest image.
+        timestamp_buffer: shared 26-character buffer, the latest timestamp.
+        lock: lock guarding the buffers and the counter.
+        frame_counter: shared counter of the images published.
+        barrier: barrier shared by all camera processes of the rig.
+        stop_event: set to stop the process.
+        frame_shape: ``(height, width, 3)`` of the images.
+        cam_fps: camera frame rate (Hz).
+        cam_fourcc: ``"MJPG"`` for MJPEG streams, anything else for raw YUYV.
+        source: device path or video file to read instead of
+            ``/dev/video<cam_id>``.
+        record_path: file to copy the camera stream into, without
+            re-encoding, or None.
+        realtime: pace a video file at its own frame rate, as a camera would.
+        calibrated_event: when given, a replay holds its first image until it
+            is set, like a person standing still while the model calibrates.
+        logger: optional logger.
+    """
     def __init__(self, 
                  cam_id: int,
                  shared_buffer: Array,
@@ -55,6 +85,7 @@ class Camera(Process):
             raise ValueError("Timestamp buffer must be exactly 26 characters")
 
     def run(self):
+        """Open the source, then publish images until ``stop_event`` is set."""
         # ffmpeg rather than cv2.VideoCapture: it honours the low-latency flags
         # OpenCV ignores, and it can copy the camera's own stream to disk with no
         # re-encode. The same class replays a recording as a fake camera, which
@@ -133,6 +164,11 @@ class Camera(Process):
             self.logger.info(f"[INFO] Camera process for camera {self.cam_id} terminated...")
 
 class DisplayConsumer(Process):
+    """Show the latest image of every camera in one OpenCV window.
+
+    Reads the shared buffers the :class:`Camera` processes write; used by
+    ``run_cameras.py`` to check a rig.
+    """
     def __init__(self, 
                  frame_counters,
                  camera_buffers, 
@@ -153,7 +189,7 @@ class DisplayConsumer(Process):
         self.frame_counters = frame_counters
         
     def run(self):
-        window_names = [f'Camera {i}' for i in range(self.num_cameras)]
+        """Display the newest images until ``stop_event`` is set."""
         
         # Optimization 1: Create a single window for all cameras
         combined_window = "Multi-Camera View"
@@ -161,7 +197,6 @@ class DisplayConsumer(Process):
         try: 
             while not self.stop_event.is_set():
                 frames = []
-                keypoints_list = []
                 new_counters = []
                 for i, (lock, buffer, cam_ts, frame_counter) in enumerate(zip(self.camera_locks, self.camera_buffers, self.timestamp_buffers, self.frame_counters)):
                     with lock:
@@ -192,12 +227,6 @@ class DisplayConsumer(Process):
                 cv2.imshow(combined_window,  combined_frame)
                 ########################################
                 
-                # Original individual windows display (comment out when using combined view)
-                # for i, frame in enumerate(frames):
-                #     if frame.shape[2] == 3:
-                #         frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-                #     cv2.imshow(window_names[i], frame)
-
                 # Break on 'q' key press
                 if cv2.waitKey(1) & 0xFF == ord('q'):
                     break

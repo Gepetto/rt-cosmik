@@ -48,3 +48,12 @@ def test_replay_reproduces_the_direct_run(direct_run, tmp_path):
     replay_trial(COMFI, views, tmp_path / "replay", PARTICIPANT, TASK, arm, settings)
     diff = _rms_deg(_angles(tmp_path / "replay"), _angles(out_dir))
     assert diff.max() < 1e-3, f"max per-DoF RMS difference {diff.max():.5f} deg"
+
+
+def test_direct_run_scores_like_the_submitted_run(direct_run):
+    import sweep
+    out_dir, _ = direct_run
+    reference = COMFI / "mocap" / "aligned" / PARTICIPANT / TASK
+    ours, submitted = (sweep.score(run, reference, sweep._load_eval()) for run in (out_dir, TRUTH_RUN))
+    assert ours["scored_dof"] == submitted["scored_dof"] == 29
+    assert abs(ours["joint_rmse_mean"] - submitted["joint_rmse_mean"]) < 0.05

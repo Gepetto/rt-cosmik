@@ -4,13 +4,13 @@
 
 **Blocked by:** None (can start immediately)
 
-**Status:** implemented, awaiting the author's regression run (GPU) and commit
+**Status:** done (regression test passed on 1012/Lifting)
 
 - [x] Run information contains commit, settings, fold, map identity, hardware, date
 - [x] A run with uncommitted pipeline changes is refused
 - [x] Synthetic-trial harness drives the arm evaluation seam end to end
-- [ ] The regression test reproduces the submitted numbers for one participant, before and after the merge of main (ticket 03)
-- [ ] Replay matches a direct run within the documented sub-millimetre median marker difference
+- [x] The regression test reproduces the submitted run for one participant (re-checked after the merge, in ticket 03)
+- [x] Replay matches a direct run within the documented sub-millimetre median marker difference
 
 ## Open after review
 

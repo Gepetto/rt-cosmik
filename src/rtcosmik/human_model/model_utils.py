@@ -1,3 +1,9 @@
+"""Fitting the human model to a person.
+
+Segment frames built from the landmarks, scaling of the model to the person
+(:func:`scale_human_model`), and registration of the landmarks on its segments
+(:func:`mks_registration`, following ``SGTS_MKS_MAPPING``).
+"""
 import pinocchio as pin
 import numpy as np 
 from scipy.spatial.transform import Rotation as R
@@ -44,36 +50,13 @@ SGTS_MKS_MAPPING = {
      "left_foot":     ['LTOE','L5MHD','LHEE'],       
     }
 
-def check_orthogonality(matrix: np.ndarray):
-    # Vecteurs colonnes
-    X = matrix[:3, 0]
-    Y = matrix[:3, 1]
-    Z = matrix[:3, 2]
-    
-    # Calcul des produits scalaires
-    dot_XY = np.dot(X, Y)
-    dot_XZ = np.dot(X, Z)
-    dot_YZ = np.dot(Y, Z)
-    
-    # Tolérance pour les erreurs numériques
-    tolerance = 1e-6
-    
-    print(f"Dot product X.Y: {dot_XY}")
-    print(f"Dot product X.Z: {dot_XZ}")
-    print(f"Dot product Y.Z: {dot_YZ}")
-    
-    assert np.abs(dot_XY) < tolerance, "Vectors X and Y are not orthogonal"
-    assert np.abs(dot_XZ) < tolerance, "Vectors X and Z are not orthogonal"
-    assert np.abs(dot_YZ) < tolerance, "Vectors Y and Z are not orthogonal"
-
 
 #Build inertia matrix from 6 inertia components
-def make_inertia_matrix(ixx:float, ixy:float, ixz:float, iyy:float, iyz:float, izz:float)->np.ndarray:
-    return np.array([[ixx, ixy, ixz], [ixy, iyy, iyz], [ixz, iyz, izz]])
 
 #Function that takes as input a matrix and orthogonalizes it
 #Its mainly used to orthogonalize rotation matrices constructed by hand
 def orthogonalize_matrix(matrix:np.ndarray)->np.ndarray:
+    """The rotation matrix nearest to ``matrix`` (by SVD, determinant +1)."""
     # Perform Singular Value Decomposition
     U, _, Vt = np.linalg.svd(matrix)
     # Reconstruct the orthogonal matrix
@@ -222,38 +205,6 @@ def get_left_upperleg_pose(mks_positions, gender='m', subject_height= 1.80):
     return pose
 
 #construct shank frames and get their poses
-def get_right_lowerleg_pose(mks_positions, gender='m', subject_height= 1.80):
-    """
-    Calculate the pose of the right shank based on  marker positions.
-    Parameters:
-    mks_positions (dict): A dictionary containing the positions of  markers. 
-                                The keys should include 'RKNE', 'RMKNE', 
-                                'RMANK', 'RANK'.
-    Returns:
-    numpy.ndarray: A 4x4 transformation matrix representing the pose of the right shank. The matrix 
-                   includes rotation (in the top-left 3x3 submatrix) and translation (in the top-right 
-                   3x1 subvector).
-    """
-
-    pose = np.eye(4,4)
-    X, Y, Z, knee_center, ankle_center = [], [], [], [], []
-
-    knee_center = (mks_positions['RKNE'] + mks_positions['RMKNE']).reshape(3,1)/2.0
-    ankle_center = (mks_positions['RMANK'] + mks_positions['RANK']).reshape(3,1)/2.0
-    Y = knee_center - ankle_center
-    Y = Y/np.linalg.norm(Y)
-    Z = (mks_positions['RKNE'] - mks_positions['RMKNE']).reshape(3,1)
-    Z = Z/np.linalg.norm(Z)
-    X = np.cross(Y, Z, axis=0)
-    Z = np.cross(X, Y, axis=0)
-
-    pose[:3,0] = X.reshape(3,)
-    pose[:3,1] = Y.reshape(3,)
-    pose[:3,2] = Z.reshape(3,)
-    pose[:3,3] = knee_center.reshape(3,)
-    pose[:3,:3] = orthogonalize_matrix(pose[:3,:3])
-    return pose
-
 def get_left_lowerleg_pose(mks_positions, gender='m', subject_height= 1.80):
     """
     Calculate the pose of the left shank based on  marker positions.
@@ -765,6 +716,7 @@ def get_right_lowerleg_pose(mks_positions, gender='m', subject_height= 1.80):
     return pose
 
 def get_right_hand_pose(mks_positions, gender='m', subject_height=1.80):
+    """4x4 pose of the right hand segment, from the wrist and hand landmarks."""
     pose = np.eye(4, 4)
 
     wrist_center = ((mks_positions['RWRI'] + mks_positions['RMWRI']) / 2.0).reshape(3, 1)
@@ -791,6 +743,7 @@ def get_right_hand_pose(mks_positions, gender='m', subject_height=1.80):
 
 
 def get_left_hand_pose(mks_positions, gender='m', subject_height=1.80):
+    """4x4 pose of the left hand segment, from the wrist and hand landmarks."""
     pose = np.eye(4, 4)
 
     wrist_center = ((mks_positions['LWRI'] + mks_positions['LMWRI']) / 2.0).reshape(3, 1)

@@ -15,7 +15,7 @@ sys.path.insert(0, str(REPO / "src"))
 sys.path.insert(0, str(REPO / "scripts" / "python" / "core"))
 
 from rtcosmik.config_loader import settings
-from rtcosmik.paper.mmpose_baseline import apply_marker_set
+from rtcosmik.marker_sets import apply_marker_set
 
 name = sys.argv[1] if len(sys.argv) > 1 else "mocap"
 apply_marker_set(settings, name)

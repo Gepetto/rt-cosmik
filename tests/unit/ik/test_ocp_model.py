@@ -12,6 +12,7 @@ The end-to-end behaviour (a generated solver actually reproducing a per-subject
 one) is covered separately by tests/benchmark/validate_ocp_params.py, which needs
 a compiler and a dataset.
 """
+import copy
 import json
 import os
 import sys
@@ -179,9 +180,11 @@ def test_artifact_root_is_absolute_and_overridable(monkeypatch):
     monkeypatch.setenv("RTCOSMIK_OCP_DIR", "/tmp/some_ocp_dir")
     assert ocp_model.artifact_root(settings) == "/tmp/some_ocp_dir"
     # The profile is part of the path: each is a separate generated artefact.
-    assert ocp_model.backend_dir("acados", settings, "realtime") == \
+    toolbox = copy.copy(settings)
+    toolbox.marker_set = "nlf"
+    assert ocp_model.backend_dir("acados", toolbox, "realtime") == \
         "/tmp/some_ocp_dir/acados/realtime"
-    assert ocp_model.backend_dir("acados", settings, "accurate") == \
+    assert ocp_model.backend_dir("acados", toolbox, "accurate") == \
         "/tmp/some_ocp_dir/acados/accurate"
 
 

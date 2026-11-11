@@ -5,7 +5,7 @@ Produces joint_angles.csv and markers.csv in the ordinary layout, so
 ``eval/compare_to_mocap.py`` reads a baseline run and an NLF run side by side
 with no special casing.
 
-Requires ``marker_set = "parity"`` in settings.py: the baseline cannot produce
+Requires ``paper_evaluation = True`` in settings.py (parity marker set): the baseline cannot produce
 the other 8 markers, and running it against the full 43-marker model would
 compare two different models rather than two pose estimators. The same setting
 must be used for the NLF arm it is compared against.
@@ -52,12 +52,8 @@ def main():
     ap.add_argument("--out", default=None, help="Output directory")
     args = ap.parse_args()
 
-    if settings.marker_set != "parity":
-        raise SystemExit(
-            f"settings.marker_set is {settings.marker_set!r}; the mmpose baseline "
-            f"needs 'parity'. It cannot produce T11, T6 or the hand markers, and "
-            f"comparing it against the full model would compare two models "
-            f"rather than two pose estimators.")
+    from rtcosmik.paper import require_paper_evaluation
+    require_paper_evaluation(settings)
 
     root = Path(args.dataset)
     out_dir = Path(args.out) if args.out else (

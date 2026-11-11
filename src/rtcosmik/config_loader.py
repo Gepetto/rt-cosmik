@@ -78,17 +78,22 @@ def _to_spawn_safe_settings(settings_obj):
 
 @dataclass
 class DefaultSettings:
-    """Fallback settings used when project-level settings cannot be imported."""
+    """Fallback settings used when project-level settings cannot be imported.
+
+    The defaults are those of settings.py, except ``device``;
+    tests/unit/test_config_loader.py checks that they stay in step.
+    """
 
     cosmik_path: str = field(init=False)
+    # settings.py picks CUDA when available; this fallback does not import torch.
     device: str = "cpu"
 
     # SAVE
-    no_trial: str = "default"
-    SAVE_VID: bool = False
-    SAVE_CSV: bool = False
-    record_hotkeys: bool = True
-    record_on_start: bool = False
+    no_trial: str = "test"
+    SAVE_VID: bool = True
+    SAVE_CSV: bool = True
+    record_hotkeys: bool = False
+    record_on_start: bool = True
     output_dir: str = field(init=False)  # <repo>/output
     SAVE_DIR: str = field(init=False)    # online trial directory
 
@@ -101,19 +106,19 @@ class DefaultSettings:
     cameras: tuple = (0, 2, 4, 6)
 
     # HUMAN
-    human_height: float = 1.81
-    human_weight: float = 74.0
+    human_height: float = 1.80
+    human_weight: float = 70.0
     human_gender: str = "m"
+
+    # VIEWER
+    viewer_scene: bool = True
 
     # PATHS
     cam_calib_path: str = field(init=False)
-    human_calib_path: str = field(init=False)
-    robot_calib_path: str = field(init=False)
 
     # FILTER
     order: int = 4
-    system_freq: int = 40
-    cutoff_freq: float = 5.0
+    cutoff_freq: float = 10
     filter_type: str = "lowpass"
 
     # MODELS
@@ -125,13 +130,13 @@ class DefaultSettings:
     yolo_imgsz: int = 640
 
     # IK
-    ik_type: str = "sbs"
-    ik_code: str = "python"
-    mhe_backend: str = "fatrop"  # "fatrop" (validated reference) or "acados"
+    ik_type: str = "mhe"
+    ik_code: str = "c"
+    mhe_backend: str = "acados"  # "acados" or "fatrop" (validated reference)
     mhe_profile: str = "realtime"  # "realtime" or "accurate"
     cost_weights: list = field(default_factory=lambda: [1, 1e-3, 1e-5])
     N: int = 10
-    acados_export_dir: str = None  # default: <repo>/output/acados
+    acados_export_dir: str = None  # default: <repo>/ocp
     acados_source_dir: str = None  # default: read from ACADOS_SOURCE_DIR env var
 
     # MARKERS
@@ -140,7 +145,7 @@ class DefaultSettings:
         "C7", "T11", "T6", "RSHO", "LSHO", "RELB", "LELB", "RMELB", "LMELB", "RWRI", "LWRI", "RMWRI", "LMWRI",
         "RTHU", "LTHU", "RMID", "LMID", "RPIN", "LPIN",
         "RKNE", "LKNE", "RMKNE", "LMKNE", "RANK", "LANK", "RMANK", "LMANK",
-        "R5MHD", "L5MHD", "RTOE", "LTOE", "LHEE", "RHEE",
+        "R5MHD", "L5MHD", "RTOE", "LTOE", "RHEE", "LHEE",
         "Nose", "Head", "REar", "LEar", "REye", "LEye",
     ])
     keys_to_track_list: list = field(default_factory=lambda: [
@@ -148,7 +153,7 @@ class DefaultSettings:
         "C7", "T11", "T6", "RSHO", "LSHO", "RELB", "LELB", "RMELB", "LMELB", "RWRI", "LWRI", "RMWRI", "LMWRI",
         "RTHU", "LTHU", "RMID", "LMID", "RPIN", "LPIN",
         "RKNE", "LKNE", "RMKNE", "LMKNE", "RANK", "LANK", "RMANK", "LMANK",
-        "R5MHD", "L5MHD", "RTOE", "LTOE", "LHEE", "RHEE",
+        "R5MHD", "L5MHD", "RTOE", "LTOE", "RHEE", "LHEE",
         "Nose", "Head", "REar", "LEar", "REye", "LEye",
     ])
     nlf_indices: list = field(default_factory=lambda: [
@@ -184,18 +189,33 @@ class DefaultSettings:
         'Right_Ankle_Inversion_Eversion[rad]',
     ])
 
+    marker_set: str = "nlf"
+    paper_evaluation: bool = True
+    paper: dict = field(default_factory=lambda: {
+        "order": 4, "cutoff_freq": 5, "N": 7, "marker_set": "parity",
+        "nlf_indices": [
+            8421, 5727, 8371, 5677,
+            3353, 5489, 5500, 6629, 3878, 7075, 4524, 7035, 4370, 7423, 4687, 7409, 4721,
+            8079, 5361, 7794, 5058, 8022, 5286,
+            6403, 3639, 6539, 3781, 8629, 8896, 8680, 5753,
+            8610, 5898, 8584, 5890, 8634, 8848,
+            9120, 9002, 616, 6, 9929, 9448,
+        ],
+    })
+    locked_joints: list = field(init=False)
+
     def __post_init__(self):
         root = _guess_project_root()
         self.cosmik_path = str(root)
         self.output_dir = str(root / "output")
         self.SAVE_DIR = str(Path(self.output_dir) / self.no_trial)
         self.cam_calib_path = str(root / "config" / "cam_params")
-        self.human_calib_path = str(root / "config" / "human_params")
-        self.robot_calib_path = str(root / "config" / "robot_params")
         self.cano_path = str(root / "weights" / "canonical_verts" / "smplx.npy")
         self.nlf_path = str(root / "weights" / "nlf" / "nlf_s_multi_0.2.2.torchscript")
         self.yolo_path = str(root / "weights" / "yolo" / f"{self.yolo_model}.engine")
         self.dt = 1 / self.fs
+        from rtcosmik.marker_sets import apply_evaluation
+        apply_evaluation(self)
 
 
 def load_settings():

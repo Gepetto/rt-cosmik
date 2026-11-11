@@ -1,0 +1,49 @@
+name: Documentation
+
+# Builds the book (docs/) on every pull request, and publishes it on GitHub
+# Pages from main. The API reference is generated from src/, so changes there
+# rebuild it too.
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - docs/**
+      - src/**
+      - .github/workflows/book.yml
+  pull_request:
+    paths:
+      - docs/**
+      - src/**
+      - .github/workflows/book.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: cachix/install-nix-action@v31
+      - run: nix build -L ./docs
+      - uses: actions/upload-pages-artifact@v5
+        with:
+          path: result/
+
+  deploy:
+    name: publish on GitHub Pages
+    if: github.ref == 'refs/heads/main'
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v5

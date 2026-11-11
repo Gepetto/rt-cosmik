@@ -1,9 +1,11 @@
+"""Skeleton helpers for the REBA scores of :mod:`rtcosmik.ergonomics.reba`."""
 import numpy as np
 from matplotlib import pyplot as plt
 from random import randint
 
 
 def show_skeleton(joints, swap_y=False, title=None):
+    """Plot a 14- or 16-joint skeleton in 3D with matplotlib."""
 
     if joints.shape[1] == 14:
         bone_list = [[0, 1], [1, 2], [2, 3], [3, 4], [1, 5], [5, 6], [6, 7],
@@ -55,6 +57,15 @@ def show_skeleton(joints, swap_y=False, title=None):
 
 
 def rotate_pose(data, rotation_joint=8, rotation_matrix=None, m_coeff=None):
+    """Rotate skeleton poses about the vertical (y) axis.
+
+    Each pose of ``data`` (frames, joints, 3) is turned so that joint
+    ``rotation_joint`` lies in the y-z plane, unless ``rotation_matrix`` gives
+    the rotations or ``m_coeff`` the angle.
+
+    Returns:
+        tuple: the rotated poses, and the rotation matrix of each frame.
+    """
 
     if rotation_matrix is None:
         rotation_matrix = np.zeros((data.shape[0], 3, 3))

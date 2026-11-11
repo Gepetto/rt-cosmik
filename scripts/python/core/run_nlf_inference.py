@@ -16,7 +16,8 @@ import numpy as np
 import torch
 from rtcosmik.nlf.nlf import NLFEstimator, DisplayConsumerNLF
 from rtcosmik.config_loader import settings
-from rtcosmik.camera.cam_utils import list_cameras, load_camera_parameters
+from rtcosmik.camera.cam_utils import (
+    load_camera_parameters, select_live_cameras)
 from rtcosmik.camera.camera import Camera
 from rtcosmik.utils.mp_utils import create_camera_shared_ressources
 from rtcosmik.utils.VideoReader import OfflineVideoSource
@@ -44,36 +45,41 @@ def main(args):
     if args.online:
         cam_params_path = settings.cam_calib_path
         video_paths = None
+        camera_ids = list(args.cameras)
     else:
         cam_params_path, video_paths, _, _ = resolve_trial(args)
-        if len(video_paths) != len(args.cameras):
+        camera_ids = list(args.cameras)
+        if len(video_paths) != len(camera_ids):
             raise ValueError(
-                f"{len(video_paths)} videos but {len(args.cameras)} cameras requested; "
+                f"{len(video_paths)} videos but {len(camera_ids)} cameras requested; "
                 "pass --cameras matching the videos, in the same order"
             )
 
     mtxs, dists, projections, rotations, translations = load_camera_parameters(
-        cam_params_path, args.cameras
+        cam_params_path, camera_ids
     )
 
     if args.online:
-        cameras = list_cameras()
-        NUM_CAMERAS = len(cameras)
+        # The ids name calibrated cameras, not devices: open the device behind
+        # each of them, and nothing else that happens to be plugged in.
+        devices = select_live_cameras(cam_params_path, camera_ids)
+        NUM_CAMERAS = len(camera_ids)
         FRAME_SHAPE = (H, W, 3)
         camera_buffers, camera_timestamps, camera_locks, frame_counters, camera_barrier, stop_event = create_camera_shared_ressources(NUM_CAMERAS, FRAME_SHAPE)
 
         # Create camera processes
         camera_processes = [
-            Camera(list(cameras.keys())[i], 
-                camera_buffers[i], 
-                camera_timestamps[i], 
-                camera_locks[i], 
-                frame_counters[i], 
-                camera_barrier, 
+            Camera(camera_ids[i],
+                camera_buffers[i],
+                camera_timestamps[i],
+                camera_locks[i],
+                frame_counters[i],
+                camera_barrier,
                 stop_event,
-                FRAME_SHAPE, 
-                settings.fs, 
-                settings.fourcc,)
+                FRAME_SHAPE,
+                settings.fs,
+                settings.fourcc,
+                source=f"/dev/video{devices[i]}")
             for i in range(NUM_CAMERAS)
         ]
 

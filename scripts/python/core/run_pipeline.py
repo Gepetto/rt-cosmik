@@ -24,13 +24,15 @@ from rtcosmik.nlf.nlf import NLFEstimator, extract_views
 from rtcosmik.triangulation.triangulation import reconstruct_3d
 from rtcosmik.filtering.iir import MarkerFilter
 from rtcosmik.pipeline.solver import HumanSolver
-from rtcosmik.camera.cam_utils import list_cameras, load_camera_parameters, load_world_transformation
+from rtcosmik.camera.cam_utils import (
+    anchor_first, load_camera_parameters, load_world_transformation, select_live_cameras)
 from rtcosmik.camera.camera import Camera
 from rtcosmik.utils.mp_utils import create_camera_shared_ressources
 from rtcosmik.utils.VideoReader import OfflineVideoSource
 from rtcosmik.saver.csv_saver import CSVSaver
 from rtcosmik.saver.hotkeys import TerminalHotkeys
 from rtcosmik.viewer.async_display import AsyncDisplay
+from rtcosmik.viewer.comfi_scene import ComfiScene, TrialAssets
 from rtcosmik.utils.dataset import (
     TRIAL_CLI_EPILOG, add_trial_arguments, load_subject, resolve_trial, run_variant)
 from rtcosmik.model_weights import resolve_detector_engine
@@ -68,20 +70,24 @@ def main(args):
         # would calibrate a different body than the one in the video.
         subject_path = args.subject
         video_paths = out_dir = None
+        # Only the reference camera's world pose is read, and a rig calibration
+        # anchors a single camera, so the reference must be that one.
+        camera_ids = anchor_first(cam_params_path, args.cameras)
     else:
         cam_params_path, video_paths, subject_path, out_dir = resolve_trial(args)
-        if len(video_paths) != len(args.cameras):
+        camera_ids = list(args.cameras)
+        if len(video_paths) != len(camera_ids):
             raise ValueError(
-                f"{len(video_paths)} videos but {len(args.cameras)} cameras requested; "
+                f"{len(video_paths)} videos but {len(camera_ids)} cameras requested; "
                 "pass --cameras matching the videos, in the same order"
             )
 
     # Cameras are loaded in the requested order and the first is the reference
     # frame triangulation outputs into, so the world transform uses that one.
     mtxs, dists, projections, rotations, translations = load_camera_parameters(
-        cam_params_path, args.cameras
+        cam_params_path, camera_ids
     )
-    world_R1_cam, world_T1_cam = load_world_transformation(cam_params_path, args.cameras[0])
+    world_R1_cam, world_T1_cam = load_world_transformation(cam_params_path, camera_ids[0])
 
     if args.online:
         # --replay feeds recordings through the *online* path: the same camera
@@ -93,17 +99,17 @@ def main(args):
         # actually waits and real inter-camera skew stays invisible.
         if args.replay:
             replay_dir = Path(args.replay)
-            sources = [str(replay_dir / f"camera_{c}.mp4") for c in args.cameras]
+            sources = [str(replay_dir / f"camera_{c}.mp4") for c in camera_ids]
             missing = [s for s in sources if not Path(s).is_file()]
             if missing:
                 raise FileNotFoundError(f"missing recordings for replay: {missing}")
-            camera_ids = list(args.cameras)
             LOGGER.info("[CAP] replaying %d recordings from %s as live cameras",
                         len(sources), replay_dir)
         else:
-            cameras = list_cameras()
-            camera_ids = list(cameras.keys())
-            sources = [None] * len(camera_ids)
+            # The ids name calibrated cameras, not devices: open the device behind
+            # each of them, and nothing else that happens to be plugged in.
+            sources = [f"/dev/video{index}"
+                       for index in select_live_cameras(cam_params_path, camera_ids)]
 
         NUM_CAMERAS = len(camera_ids)
         FRAME_SHAPE = (H, W, 3)
@@ -319,20 +325,34 @@ def main(args):
                     # statistics as a single ~1000 ms outlier that looks like a
                     # solver stall.
                     t_viz0=time.perf_counter()
-                    # Init meshcat viewer for human
-                    viz_human = MeshcatVisualizer(
-                        human_model, solver.collision_model, solver.visual_model)
-                    viz_human.initViewer(vis, open=True)
+                    # A dataset trial is drawn in the room it was recorded in
+                    # (settings.viewer_scene); anything else, or a scene that
+                    # cannot be built, falls back to the body alone.
+                    scene = None
+                    if settings.viewer_scene and args.dataset:
+                        try:
+                            scene = ComfiScene(vis, TrialAssets.resolve(
+                                args.dataset, args.participant, args.task, args.cameras))
+                            scene.add_body("estimate", human_model, solver.visual_model)
+                        except Exception as exc:
+                            LOGGER.warning("[VIZ] scene not drawn (%s: %s); body only",
+                                           type(exc).__name__, exc)
+                            scene = None
+                    if scene is None:
+                        # Init meshcat viewer for human
+                        viz_human = MeshcatVisualizer(
+                            human_model, solver.collision_model, solver.visual_model)
+                        viz_human.initViewer(vis, open=True)
 
-                    # Don't delete the whole Meshcat tree: keep '/markers' etc.
-                    try:
-                        vis["ref"].delete()
-                    except Exception:
-                        pass
-                    viz_human.loadViewerModel("ref")
+                        # Don't delete the whole Meshcat tree: keep '/markers' etc.
+                        try:
+                            vis["ref"].delete()
+                        except Exception:
+                            pass
+                        viz_human.loadViewerModel("ref")
 
-                    viz_human.viewer["/Background"].set_property("top_color", [1, 1, 1])
-                    viz_human.viewer["/Background"].set_property("bottom_color", [0.65, 0.65, 0.65])
+                        viz_human.viewer["/Background"].set_property("top_color", [1, 1, 1])
+                        viz_human.viewer["/Background"].set_property("bottom_color", [0.65, 0.65, 0.65])
                     viewer_setup_ms = (time.perf_counter()-t_viz0)*1e3
                     viewer_total_ms = viewer_setup_ms
 
@@ -343,7 +363,12 @@ def main(args):
                     stage_ms["ik"].append((time.perf_counter()-t_ik0)*1e3)
 
                 t_disp1=time.perf_counter()
-                display.submit(lambda qq=np.array(q, copy=True): viz_human.display(qq))
+                if scene is not None:
+                    # The robot follows the recording: its state at this video frame.
+                    display.submit(lambda qq=np.array(q, copy=True), frame=frames_read - 1:
+                                   scene.show(frame, {"estimate": qq}))
+                else:
+                    display.submit(lambda qq=np.array(q, copy=True): viz_human.display(qq))
                 display_ms += (time.perf_counter()-t_disp1)*1e3
                 stage_ms["display"].append(display_ms)
                 t_save0=time.perf_counter()

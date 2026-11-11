@@ -1,3 +1,4 @@
+"""The live pipeline: one process from the cameras' images to joint angles."""
 import torch
 import numpy as np
 import pinocchio as pin
@@ -21,6 +22,32 @@ import logging
 LOGGER = logging.getLogger(__name__)
 
 class PipelineProcess(Process):
+    """Turn the images the camera processes publish into joint angles, live.
+
+    Each turn takes the latest image of every camera from shared memory --
+    frames that arrived meanwhile are skipped, so the delay never grows --
+    estimates the landmarks, fuses and filters them, and solves the inverse
+    kinematics, calibrating the model on the first frame. Results are
+    recorded, drawn in the 3D viewer, and timings are logged periodically.
+
+    Args:
+        settings: the RT-COSMIK settings object.
+        frame_counters, camera_buffers, camera_locks, timestamp_buffers: the
+            shared memory of the camera processes, one entry per camera
+            (see :func:`~rtcosmik.utils.mp_utils.create_camera_shared_ressources`).
+        stop_event: set to stop the process.
+        mtxs, dists: per-camera intrinsics and distortion coefficients.
+        projections: per-camera 3x4 ``[R | T]`` from the reference camera.
+        world_R1_cam, world_T1_cam: pose of the reference camera in the world.
+        frame_shape: ``(height, width, 3)`` of the images.
+        num_cameras: number of cameras.
+        saving_flag: shared flag turning recording on and off.
+        subject: ``(height, weight, gender)`` of the person.
+        calibrated_event: set once the model is calibrated, which releases
+            replayed recordings.
+        report_every: seconds between two timing reports.
+        logger: optional logger.
+    """
     def __init__(self, 
                  settings,
                  frame_counters,
@@ -107,7 +134,7 @@ class PipelineProcess(Process):
                 np.median(steps), np.percentile(steps, 95), steps.max(), kept)
 
     def run(self):
-
+        """Process frames until ``stop_event`` is set, then log the timing summary."""
         height, weight, gender = self.subject or (None, None, None)
         self.solver = HumanSolver(self.settings, gender=gender, height=height,
                                   weight=weight, logger=self.logger)

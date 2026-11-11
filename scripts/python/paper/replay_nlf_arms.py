@@ -56,6 +56,8 @@ def replay_trial(dataset, views_path, out_dir, participant, task, arm, settings,
 
     dataset, out_dir = Path(dataset), Path(out_dir)
     cameras = list(arm["cameras"])
+    from rtcosmik.paper import require_paper_evaluation
+    require_paper_evaluation(settings)
     start_run(out_dir, settings, dict(arm, participant=participant, task=task,
                                       views=str(views_path), dataset=str(dataset)), repo=repo)
     row = dict.fromkeys(sweep.FIELDS, "")

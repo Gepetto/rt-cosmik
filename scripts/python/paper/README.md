@@ -16,10 +16,10 @@ only NLF has -- `T11`, `T6` and the six hand markers -- leave 7 DoF unobservable
 | `T6` | `middle_thoracic_Z/X/Y` | C7 alone is one point; orientation survives only indirectly, through the shoulders past a clavicle DoF each |
 | `T11` | none | the pelvis keeps four markers |
 
-So `marker_set = "parity"` in `settings.py` gives both arms the same 35 markers,
+So `paper_evaluation = True` in `settings.py` (which selects the parity set) gives both arms the same 35 markers,
 the same model with those 7 DoF locked, and the same IK. **36 articulated DoF,
-29 scored.** `marker_set = "nlf"` restores the ordinary 43-marker, nothing-locked
-configuration.
+29 scored.** `paper_evaluation = False` with `marker_set = "nlf"` restores the ordinary 43-marker,
+nothing-locked toolbox configuration.
 
 Locking goes through the joint position limits, not a reduced model: both
 backends already enforce them, the limits are fingerprinted so a mismatched OCP
@@ -121,7 +121,7 @@ modality with both low wander (6.4 mm) and low bias (6.3 mm).
 ## Running it
 
 ```bash
-# settings.py: marker_set = "parity"
+# settings.py: paper_evaluation = True
 python3 scripts/python/core/run_ocp_codegen.py --backend acados     # once per N
 
 # one trial, verbose

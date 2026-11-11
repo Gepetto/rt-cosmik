@@ -41,7 +41,9 @@ FIELDS = ["arm", "participant", "task", "cameras", "n_horizon", "frames",
 
 
 def _start(out_dir, settings, name, dataset, participant, task, cameras, **extra):
+    from rtcosmik.paper import require_paper_evaluation
     from rtcosmik.provenance import start_run
+    require_paper_evaluation(settings)
     start_run(out_dir, settings, dict(name=name, tag=Path(out_dir).name, cameras=list(cameras),
                                       participant=participant, task=task, dataset=str(dataset),
                                       fold=None, **extra))
@@ -427,7 +429,7 @@ def main():
         # Mocap has no facial landmarks, so it runs a 32-marker set of its own.
         # The OCP for it must already exist; the fingerprint check refuses a
         # mismatched one rather than silently reusing the parity build.
-        from rtcosmik.paper.mmpose_baseline import apply_marker_set
+        from rtcosmik.marker_sets import apply_marker_set
         apply_marker_set(settings, "mocap")
     ev = _load_eval()
 

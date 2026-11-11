@@ -62,3 +62,13 @@ def test_uncommitted_docs_do_not_block_a_run(synthetic_trial, clean_repo):
 
     assert row["status"] == "ok"
     assert (synthetic_trial["out_dir"] / "joint_angles.csv").exists()
+
+
+@needs_comfi
+def test_paper_arms_score_only_the_unlocked_dof(synthetic_trial, clean_repo):
+    row = _replay(synthetic_trial, clean_repo)
+
+    recorded = json.loads((synthetic_trial["out_dir"] / "run_info.json").read_text())["settings"]
+    assert (recorded["cutoff_freq"], recorded["order"], recorded["N"]) == (5, 4, 7)
+    assert len(recorded["marker_names"]) == 35
+    assert row["scored_dof"] == 29
