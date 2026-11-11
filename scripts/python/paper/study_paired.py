@@ -54,8 +54,8 @@ def load(metric):
 def main():
     ap = argparse.ArgumentParser(description=__doc__,
                                  formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument("--metric", default="joint_rmse_mean",
-                    help="summary column to compare (default joint_rmse_mean)")
+    ap.add_argument("--metric", default="aligned_rmse_mean",
+                    help="summary column to compare (default aligned_rmse_mean)")
     ap.add_argument("--against", default=None,
                     help="compare every arm against this one instead of all pairs")
     args = ap.parse_args()

@@ -90,7 +90,7 @@ def scaling_figure():
     import matplotlib.pyplot as plt
 
     def load(name):
-        return [float(r["joint_rmse_mean"])
+        return [float(r["aligned_rmse_mean"])
                 for r in csv.DictReader(open(REPO / "results" / "vs_mocap" / f"{name}.csv"))
                 if r["status"] == "ok"]
 

@@ -91,8 +91,8 @@ def replay_trial(dataset, views_path, out_dir, participant, task, arm, settings,
                ik_ms_median=round(float(np.median(ik_ms)), 2) if ik_ms else "",
                ik_ms_p95=round(float(np.percentile(ik_ms, 95)), 2) if ik_ms else "")
     update_run_info(out_dir, frames=len(frames))
-    row.update(sweep.score(out_dir, dataset / "mocap" / "aligned" / participant / task,
-                           sweep._load_eval()))
+    from rtcosmik.paper.scoring import score_run
+    row.update(score_run(out_dir, dataset, participant, task, settings))
     row["status"] = "ok"
     return row
 

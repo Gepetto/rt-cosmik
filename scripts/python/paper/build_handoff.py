@@ -266,7 +266,7 @@ def figures(paper, out, arms, runs_root, trace_trial):
     if len(horizon) > 1:
         fig, ax = plt.subplots(figsize=(3.5, 2.2))
         n = [h for h, _ in horizon]
-        rmse = np.array([participant_mean(study[v], "joint_rmse_deg") for _, v in horizon])
+        rmse = np.array([participant_mean(study[v], "aligned_rmse_mean") for _, v in horizon])
         ax.errorbar(n, rmse[:, 0], yerr=rmse[:, 1], color=COLOURS["nlf_0-2-4-6"], marker="o", ms=3, capsize=2)
         ax.set_xlabel("MHE horizon N")
         ax.set_ylabel("joint RMSE (deg)", color=COLOURS["nlf_0-2-4-6"])
@@ -280,16 +280,16 @@ def figures(paper, out, arms, runs_root, trace_trial):
         fig, ax = plt.subplots(figsize=(3.5, 2.4))
         for v, rows in filters:
             delay = float(rows[0]["filter_delay_1hz_ms"])
-            for field, marker in (("joint_rmse_deg", "o"), ("joint_rmse_zero_lag_deg", "^")):
+            for field, marker in (("aligned_rmse_mean", "o"), ("causal_rmse_mean", "^")):
                 m, _ = participant_mean(rows, field)
                 ax.scatter(delay, m, marker=marker, s=12,
                            color=COLOURS["nlf_0-2-4-6"] if marker == "o" else "0.4")
-            # Label the zero-lag points: they spread with delay, the others overlap.
+            # Label the causal points: they spread with delay, the aligned ones overlap.
             ax.annotate(rows[0]["filter"].replace("order ", "o"),
-                        (delay, participant_mean(rows, "joint_rmse_zero_lag_deg")[0]),
+                        (delay, participant_mean(rows, "causal_rmse_mean")[0]),
                         fontsize=5, xytext=(4, -3), textcoords="offset points")
-        ax.scatter([], [], marker="o", color=COLOURS["nlf_0-2-4-6"], label="lag-compensated")
-        ax.scatter([], [], marker="^", color="0.4", label="zero lag")
+        ax.scatter([], [], marker="o", color=COLOURS["nlf_0-2-4-6"], label="aligned")
+        ax.scatter([], [], marker="^", color="0.4", label="causal")
         ax.legend(fontsize=5, frameon=False)
         ax.set_xlabel("filter group delay at 1 Hz (ms)")
         ax.set_ylabel("joint RMSE (deg)")

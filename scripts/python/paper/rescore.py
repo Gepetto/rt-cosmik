@@ -82,7 +82,7 @@ def main():
                     continue
                 try:
                     per_config[name][key] = (
-                        float(row["joint_rmse_mean"]),
+                        float(row["aligned_rmse_mean"]),
                         score_against(run_dir, ref_dir, ev))
                 except Exception as exc:
                     print(f"  {name} {key}: {type(exc).__name__}: {exc}", file=sys.stderr)

@@ -15,7 +15,6 @@ mean here and a mean there are the same number.
 """
 import argparse
 import csv
-import importlib.util
 import logging
 import sys
 import time
@@ -34,10 +33,10 @@ logging.basicConfig(level=logging.WARNING,
 LOGGER = logging.getLogger("sweep")
 LOGGER.setLevel(logging.INFO)
 
-FIELDS = ["arm", "participant", "task", "cameras", "n_horizon", "frames",
-          "lag", "sync_r", "joint_rmse_mean", "joint_rmse_median",
-          "scored_dof", "freeflyer_mm", "marker_mm", "root_orientation_deg",
-          "ik_ms_median", "ik_ms_p95", "fps", "status"]
+from rtcosmik.paper.scoring import ROW_FIELDS
+
+FIELDS = (["arm", "participant", "task", "cameras", "n_horizon", "frames"] + ROW_FIELDS
+          + ["ik_ms_median", "ik_ms_p95", "fps", "status"])
 
 
 def _start(out_dir, settings, name, dataset, participant, task, cameras, landmark_map=None,
@@ -49,41 +48,6 @@ def _start(out_dir, settings, name, dataset, participant, task, cameras, landmar
                                       participant=participant, task=task, dataset=str(dataset),
                                       **extra),
               landmark_map=landmark_map)
-
-
-def _load_eval():
-    """Import compare_to_mocap.py, which is a script rather than a module."""
-    path = REPO / "scripts" / "python" / "eval" / "compare_to_mocap.py"
-    spec = importlib.util.spec_from_file_location("compare_to_mocap", path)
-    module = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(module)
-    return module
-
-
-def score(run_dir, reference_dir, ev):
-    """Compare one finished run against mocap, returning summary numbers."""
-    run = ev.load_run(str(run_dir))
-    reference = ev.load_run(str(reference_dir))
-    lag, correlation = ev.estimate_lag(run, reference)
-    aligned_run, aligned_reference = ev.apply_lag(run, reference, lag)
-    joints, freeflyer = ev.compare_joint_angles(aligned_run, aligned_reference)
-    markers = ev.compare_markers(aligned_run, aligned_reference)
-
-    angular = [r for r in joints if r["unit"] == "deg" and not r.get("locked")]
-    linear = [r for r in joints if r["unit"] == "m"]
-    rmse = [r["rmse"] for r in angular]
-    return {
-        "lag": lag,
-        "sync_r": round(float(correlation), 4),
-        "joint_rmse_mean": round(float(np.mean(rmse)), 3) if rmse else "",
-        "joint_rmse_median": round(float(np.median(rmse)), 3) if rmse else "",
-        "scored_dof": len(angular),
-        "freeflyer_mm": (round(float(np.mean([r["rmse"] for r in linear])) * 1000, 2)
-                         if linear else ""),
-        "marker_mm": (round(float(np.mean([r["mean"] for r in markers])) * 1000, 2)
-                      if markers else ""),
-        "root_orientation_deg": round(float(freeflyer.get("orientation_deg", np.nan)), 3),
-    }
 
 
 def run_mmpose(dataset, participant, task, cameras, out_dir, settings,
@@ -442,7 +406,7 @@ def main():
         # mismatched one rather than silently reusing the parity build.
         from rtcosmik.marker_sets import apply_marker_set
         apply_marker_set(settings, "mocap")
-    ev = _load_eval()
+    from rtcosmik.paper.scoring import score_run
 
     tag = args.tag or f"{len(args.cameras)}cam_{args.arm}"
     cameras_key = "-".join(str(c) for c in args.cameras)
@@ -482,12 +446,10 @@ def main():
                        ik_ms_median=round(float(np.median(ik_ms)), 2) if len(ik_ms) else "",
                        ik_ms_p95=round(float(np.percentile(ik_ms, 95)), 2) if len(ik_ms) else "",
                        fps=round(frames / seconds, 1))
-            row.update(score(out_dir,
-                             Path(args.dataset) / "mocap" / "aligned" / participant / task,
-                             ev))
+            row.update(score_run(out_dir, args.dataset, participant, task, settings))
             row["status"] = "ok"
             LOGGER.info(f"[{index}/{len(trials)}] {participant}/{task}: "
-                        f"{row['joint_rmse_mean']} deg over {row['scored_dof']} DoF, "
+                        f"{row['aligned_rmse_mean']} deg over {row['scored_dof']} DoF, "
                         f"r={row['sync_r']}, {row['fps']} fps")
         except Exception as exc:
             row["status"] = f"{type(exc).__name__}: {exc}"[:200]

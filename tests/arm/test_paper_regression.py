@@ -28,6 +28,7 @@ def settings():
     from rtcosmik.config_loader import settings
     s = copy.deepcopy(settings)
     s.paper["landmark_map"] = "submitted"
+    s.paper["clock_offset"] = 0
     return s
 
 
@@ -59,9 +60,10 @@ def test_replay_reproduces_the_direct_run(direct_run, settings, tmp_path):
 
 
 def test_direct_run_scores_like_the_submitted_run(direct_run):
-    import sweep
+    from rtcosmik.paper.scoring import reference_dir, score_trial
     out_dir, _ = direct_run
-    reference = COMFI / "mocap" / "aligned" / PARTICIPANT / TASK
-    ours, submitted = (sweep.score(run, reference, sweep._load_eval()) for run in (out_dir, TRUTH_RUN))
+    reference = reference_dir(COMFI, PARTICIPANT, TASK)
+    ours, submitted = (score_trial(run, reference, clock_offset=0)[0]
+                       for run in (out_dir, TRUTH_RUN))
     assert ours["scored_dof"] == submitted["scored_dof"] == 29
-    assert abs(ours["joint_rmse_mean"] - submitted["joint_rmse_mean"]) < 0.05
+    assert abs(ours["aligned_rmse_mean"] - submitted["aligned_rmse_mean"]) < 0.05

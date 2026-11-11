@@ -20,6 +20,7 @@ import sys
 from pathlib import Path
 
 REPO = Path(__file__).resolve().parents[3]
+DATASET = Path("/root/workspace/COMFI")
 sys.path.insert(0, str(REPO / "src"))
 sys.path.insert(0, str(REPO / "scripts" / "python" / "paper"))
 
@@ -28,7 +29,6 @@ import sweep as sweep_mod
 CONFIGS = ["mmpose_0-2-4-6", "mmpose_0-2", "mmpose_0-4", "nlf_0-2-4-6", "nlf_0-2", "nlf_0-4",
            "nlf_0", "nlf2d_0-2-4-6", "nlf2d_0-2", "nlf2d_0-4", "fastsam_0", "fastsam_0-2",
            "fastsam_0-4", "fastsam_0-2-4-6"]
-REFERENCE_TAG = "mocap_reference"
 
 
 def main():
@@ -41,7 +41,7 @@ def main():
     args = ap.parse_args()
 
     from rtcosmik.config_loader import settings
-    ev = sweep_mod._load_eval()
+    from rtcosmik.paper.scoring import clock_offset, reference_dir, score_trial
     root = args.output_dir or Path(settings.output_dir)
     out_dir = args.results / "vs_mocap"
     out_dir.mkdir(parents=True, exist_ok=True)
@@ -56,11 +56,12 @@ def main():
             if row.get("status") != "ok":
                 continue
             run_dir = root / row["participant"] / row["task"] / name
-            ref_dir = root / row["participant"] / row["task"] / REFERENCE_TAG
+            ref_dir = reference_dir(DATASET, row["participant"], row["task"])
             if not (run_dir.is_dir() and ref_dir.is_dir()):
                 continue
             try:
-                row.update(sweep_mod.score(run_dir, ref_dir, ev))
+                row.update(score_trial(run_dir, ref_dir, clock_offset(
+                    settings, row["participant"], row["task"]))[0])
                 kept.append(row)
             except Exception as exc:
                 print(f"  {name} {row['participant']}/{row['task']}: "

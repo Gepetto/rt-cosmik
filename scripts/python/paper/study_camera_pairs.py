@@ -49,7 +49,7 @@ def main():
     require_clean()
 
     from rtcosmik.config_loader import settings
-    ev = sweep_mod._load_eval()
+    from rtcosmik.paper.scoring import score_run
 
     trials = (sweep_mod.discover(args.dataset, args.participants, args.tasks)
               if (args.participants or args.tasks) else DEFAULT_TRIALS)
@@ -64,10 +64,8 @@ def main():
             try:
                 sweep_mod.run_mmpose(args.dataset, participant, task, list(pair),
                                      out_dir, settings)
-                row = sweep_mod.score(
-                    out_dir,
-                    Path(args.dataset) / "mocap" / "aligned" / participant / task, ev)
-                scores[(participant, task)] = row["joint_rmse_mean"]
+                row = score_run(out_dir, args.dataset, participant, task, settings)
+                scores[(participant, task)] = row["aligned_rmse_mean"]
             except Exception as exc:
                 LOGGER.warning(f"  {label} {participant}/{task} failed: {exc}")
         results[label] = scores
