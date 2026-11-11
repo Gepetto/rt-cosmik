@@ -1,0 +1,146 @@
+{
+  "1012": {
+    "Lifting": 3,
+    "Polishing": 3,
+    "RobotPolishing": 3,
+    "RobotWelding": 2,
+    "Screwing": 3,
+    "SideOverhead": 3
+  },
+  "1118": {
+    "Lifting": 2,
+    "Polishing": 3,
+    "RobotPolishing": 2,
+    "RobotWelding": 3,
+    "Screwing": 3,
+    "SideOverhead": 2
+  },
+  "1508": {
+    "Lifting": 3,
+    "Polishing": 3,
+    "RobotPolishing": 2,
+    "RobotWelding": 3,
+    "Screwing": 2,
+    "SideOverhead": 3
+  },
+  "1602": {
+    "Lifting": 3,
+    "Polishing": 3,
+    "RobotPolishing": 3,
+    "RobotWelding": 3,
+    "Screwing": 3,
+    "SideOverhead": 3
+  },
+  "1847": {
+    "Lifting": 3,
+    "Polishing": 3,
+    "RobotPolishing": 3,
+    "RobotWelding": 3,
+    "Screwing": 3,
+    "SideOverhead": 2
+  },
+  "2112": {
+    "Lifting": 2,
+    "Polishing": 3,
+    "RobotPolishing": 3,
+    "RobotWelding": 3,
+    "Screwing": 3,
+    "SideOverhead": 2
+  },
+  "2198": {
+    "Lifting": 3,
+    "Polishing": 2,
+    "RobotPolishing": 3,
+    "RobotWelding": 3,
+    "Screwing": 2,
+    "SideOverhead": 3
+  },
+  "2307": {
+    "Lifting": 3,
+    "Polishing": 2,
+    "RobotPolishing": 3,
+    "RobotWelding": 2,
+    "Screwing": 3,
+    "SideOverhead": 3
+  },
+  "3361": {
+    "Lifting": 3,
+    "Polishing": 3,
+    "RobotPolishing": 3,
+    "RobotWelding": 3,
+    "Screwing": 3,
+    "SideOverhead": 3
+  },
+  "4162": {
+    "Lifting": 3,
+    "Polishing": 3,
+    "RobotPolishing": 2,
+    "RobotWelding": 3,
+    "Screwing": 3,
+    "SideOverhead": 3
+  },
+  "4216": {
+    "Lifting": 2,
+    "Polishing": 3,
+    "RobotPolishing": 3,
+    "RobotWelding": 3,
+    "Screwing": 3,
+    "SideOverhead": 3
+  },
+  "4279": {
+    "Lifting": 2,
+    "Polishing": 2,
+    "RobotPolishing": 2,
+    "RobotWelding": 2,
+    "Screwing": 3,
+    "SideOverhead": 3
+  },
+  "4509": {
+    "Lifting": 3,
+    "Polishing": 3,
+    "RobotPolishing": 2,
+    "RobotWelding": 3,
+    "Screwing": 3,
+    "SideOverhead": 3
+  },
+  "4612": {
+    "Lifting": 2,
+    "Polishing": 3,
+    "RobotPolishing": 2,
+    "RobotWelding": 3,
+    "Screwing": 3,
+    "SideOverhead": 3
+  },
+  "4665": {
+    "Lifting": 3,
+    "Polishing": 3,
+    "RobotPolishing": 2,
+    "RobotWelding": 2,
+    "Screwing": 3,
+    "SideOverhead": 3
+  },
+  "4687": {
+    "Lifting": 3,
+    "Polishing": 3,
+    "RobotPolishing": 3,
+    "RobotWelding": 3,
+    "Screwing": 3,
+    "SideOverhead": 2
+  },
+  "4801": {
+    "Lifting": 3,
+    "Polishing": 3,
+    "RobotPolishing": 3,
+    "RobotWelding": 2,
+    "Screwing": 3,
+    "SideOverhead": 3
+  },
+  "4827": {
+    "Lifting": 3,
+    "Polishing": 3,
+    "RobotPolishing": 3,
+    "RobotWelding": 2,
+    "Screwing": 3,
+    "SideOverhead": 3
+  }
+}
