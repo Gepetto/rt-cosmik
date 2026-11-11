@@ -4,8 +4,8 @@
 
 **Blocked by:** 03, 05
 
-**Status:** ready-for-agent
+**Status:** done (108/108 trials, commit 0807040; runs and views in /root/workspace/oof, 1.5 GB)
 
-- [ ] Enough free disk space confirmed before launch
-- [ ] All 108 trials recorded with their fold map
+- [x] Enough free disk space confirmed before launch
+- [x] All 108 trials recorded with their fold map
 - [ ] Recorded views replay through the arm runner
