@@ -63,7 +63,9 @@ def main():
     out_dir = Path(args.out) if args.out else (
         Path(settings.output_dir) / args.participant / args.task
         / f"{len(args.cameras)}cam_mmpose_lstm")
-    out_dir.mkdir(parents=True, exist_ok=True)
+    from rtcosmik.provenance import start_run
+    start_run(out_dir, settings, {"name": "mmpose", "tag": out_dir.name, "cameras": list(args.cameras),
+                                  "participant": args.participant, "task": args.task, "fold": None})
 
     meta = yaml.safe_load((root / "metadata" / f"{args.participant}.yaml").read_text())
     LOGGER.info(f"subject {args.participant}: {meta['height']} m, {meta['weight']} kg, "

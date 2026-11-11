@@ -45,6 +45,8 @@ def main():
     ap.add_argument("--tasks", nargs="*", default=None,
                     help="Restrict to these tasks; default is the study set")
     args = ap.parse_args()
+    from rtcosmik.provenance import require_clean
+    require_clean()
 
     from rtcosmik.config_loader import settings
     ev = sweep_mod._load_eval()

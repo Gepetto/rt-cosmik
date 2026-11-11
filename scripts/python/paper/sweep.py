@@ -40,6 +40,13 @@ FIELDS = ["arm", "participant", "task", "cameras", "n_horizon", "frames",
           "ik_ms_median", "ik_ms_p95", "fps", "status"]
 
 
+def _start(out_dir, settings, name, dataset, participant, task, cameras, **extra):
+    from rtcosmik.provenance import start_run
+    start_run(out_dir, settings, dict(name=name, tag=Path(out_dir).name, cameras=list(cameras),
+                                      participant=participant, task=task, dataset=str(dataset),
+                                      fold=None, **extra))
+
+
 def _load_eval():
     """Import compare_to_mocap.py, which is a script rather than a module."""
     path = REPO / "scripts" / "python" / "eval" / "compare_to_mocap.py"
@@ -87,6 +94,7 @@ def run_mmpose(dataset, participant, task, cameras, out_dir, settings,
                                 depth_aware=depth_aware)
     solver = HumanSolver(settings, gender=meta["gender"][0], height=meta["height"],
                          weight=meta["weight"], logger=logging.getLogger("solve"))
+    _start(out_dir, settings, "mmpose", dataset, participant, task, cameras, depth_aware=depth_aware)
     out_dir.mkdir(parents=True, exist_ok=True)
     saver = CSVSaver(str(out_dir),
                      markers_header=["Frame_0"] + list(settings.marker_names),
@@ -206,6 +214,7 @@ def run_nlf(dataset, participant, task, cameras, out_dir, settings,
 
     marker_filter = MarkerFilter(len(settings.marker_names), settings)
 
+    _start(out_dir, settings, "nlf", dataset, participant, task, cameras, reconstruction=reconstruction)
     out_dir.mkdir(parents=True, exist_ok=True)
     saver = CSVSaver(str(out_dir),
                      markers_header=["Frame_0"] + list(settings.marker_names),
@@ -287,6 +296,7 @@ def run_mocap(dataset, participant, task, cameras, out_dir, settings,
                                settings.marker_names)
     solver = HumanSolver(settings, gender=meta["gender"][0], height=meta["height"],
                          weight=meta["weight"], logger=logging.getLogger("solve"))
+    _start(out_dir, settings, "mocap", dataset, participant, task, cameras)
     out_dir.mkdir(parents=True, exist_ok=True)
     saver = CSVSaver(str(out_dir),
                      markers_header=["Frame_0"] + list(settings.marker_names),
@@ -337,6 +347,7 @@ def run_fastsam(dataset, participant, task, cameras, out_dir, settings,
     source, meta = build_source(dataset, participant, task, cameras, settings)
     solver = HumanSolver(settings, gender=meta["gender"][0], height=meta["height"],
                          weight=meta["weight"], logger=logging.getLogger("solve"))
+    _start(out_dir, settings, "fastsam", dataset, participant, task, cameras)
     out_dir.mkdir(parents=True, exist_ok=True)
     saver = CSVSaver(str(out_dir),
                      markers_header=["Frame_0"] + list(settings.marker_names),
@@ -410,6 +421,8 @@ def main():
     args = ap.parse_args()
 
     from rtcosmik.config_loader import settings
+    from rtcosmik.provenance import require_clean
+    require_clean()
     if args.arm == "mocap":
         # Mocap has no facial landmarks, so it runs a 32-marker set of its own.
         # The OCP for it must already exist; the fingerprint check refuses a

@@ -465,6 +465,8 @@ def main(args):
                     for i in range(human_model.njoints)
                 ],
             }
+            from rtcosmik.provenance import collect_provenance
+            run_info["provenance"] = collect_provenance(settings, {"script": "run_pipeline"})
             with open(Path(out_dir) / "run_info.json", "w") as handle:
                 json.dump(run_info, handle, indent=2)
         LOGGER.info(

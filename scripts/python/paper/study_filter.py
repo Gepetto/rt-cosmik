@@ -44,7 +44,9 @@ def run(dataset, participant, task, cameras, out_dir, settings):
     source, meta = build_source(dataset, participant, task, cameras, settings)
     solver = HumanSolver(settings, gender=meta["gender"][0], height=meta["height"],
                          weight=meta["weight"], logger=logging.getLogger("solve"))
-    out_dir.mkdir(parents=True, exist_ok=True)
+    from rtcosmik.provenance import start_run
+    start_run(out_dir, settings, {"name": "mmpose", "tag": out_dir.name, "cameras": list(cameras),
+                                  "participant": participant, "task": task, "fold": None})
     saver = CSVSaver(str(out_dir),
                      markers_header=["Frame_0"] + list(settings.marker_names),
                      joint_angles_header=list(settings.joint_angles_names))
@@ -70,6 +72,8 @@ def main():
     ap.add_argument("--orders", type=int, nargs="+", default=[4])
     ap.add_argument("--summary", default="results/filter_study.csv")
     args = ap.parse_args()
+    from rtcosmik.provenance import require_clean
+    require_clean()
 
     from rtcosmik.config_loader import settings
     ev = sweep_mod._load_eval()

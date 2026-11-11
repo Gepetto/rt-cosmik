@@ -161,6 +161,8 @@ def main():
     ap.add_argument("--work-dir", default=str(REPO / "results" / "head_offset"),
                     help="Where the sensitivity pass writes its throwaway runs")
     args = ap.parse_args()
+    from rtcosmik.provenance import require_clean
+    require_clean()
     if args.mode == "measure":
         return measure() or 0
     return sensitivity(args.dataset, args.work_dir)

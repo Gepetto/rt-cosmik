@@ -67,6 +67,8 @@ def main():
     ap.add_argument("--cameras", type=int, nargs="+", default=[0, 2, 4, 6])
     ap.add_argument("--summary", default="results/horizon.csv")
     args = ap.parse_args()
+    from rtcosmik.provenance import require_clean
+    require_clean()
 
     sys.path.insert(0, str(REPO / "scripts" / "python" / "core"))
     from rtcosmik.config_loader import settings

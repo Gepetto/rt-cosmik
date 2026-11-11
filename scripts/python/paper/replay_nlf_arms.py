@@ -44,53 +44,71 @@ ARMS = OrderedDict([
 ])
 
 
-def replay(job):
-    """One arm on one trial. Returns a summary row in sweep.FIELDS format."""
-    runs_root, views_root, participant, task, tag = job
+def replay_trial(dataset, views_path, out_dir, participant, task, arm, settings, repo=REPO):
+    """One arm on one recorded trial; returns a sweep.FIELDS row."""
     import yaml
     import sweep
-    from rtcosmik.config_loader import settings
     from rtcosmik.filtering.iir import MarkerFilter
     from rtcosmik.paper.nlf_views import replay_markers
     from rtcosmik.pipeline.solver import HumanSolver
+    from rtcosmik.provenance import start_run, update_run_info
     from rtcosmik.saver.csv_saver import CSVSaver
 
-    arm, reconstruction, cameras = ARMS[tag]
+    dataset, out_dir = Path(dataset), Path(out_dir)
+    cameras = list(arm["cameras"])
+    start_run(out_dir, settings, dict(arm, participant=participant, task=task,
+                                      views=str(views_path), dataset=str(dataset)), repo=repo)
     row = dict.fromkeys(sweep.FIELDS, "")
-    row.update(arm=arm, participant=participant, task=task,
+    row.update(arm=arm["name"], participant=participant, task=task,
                cameras="-".join(map(str, cameras)), n_horizon=settings.N)
+    frames = replay_markers(views_path, dataset / "cam_params" / participant, cameras,
+                            arm["reconstruction"])
+    meta = yaml.safe_load((dataset / "metadata" / f"{participant}.yaml").read_text())
+    solver = HumanSolver(settings, gender=meta["gender"][0], height=meta["height"],
+                         weight=meta["weight"], logger=logging.getLogger("solve"))
+    marker_filter = MarkerFilter(len(settings.marker_names), settings)
+    saver = CSVSaver(str(out_dir), markers_header=["Frame_0"] + list(settings.marker_names),
+                     joint_angles_header=list(settings.joint_angles_names))
+    ik_ms = []
+    for index, (frame, p3d) in enumerate(frames):
+        mks = dict(zip(settings.marker_names, marker_filter(p3d)))
+        t0 = time.perf_counter()
+        q = solver.solve(mks)
+        if index:
+            ik_ms.append((time.perf_counter() - t0) * 1e3)
+        markers = OrderedDict([("Frame_0", frame)])
+        for name in settings.marker_names:
+            markers[f"{name}_x"], markers[f"{name}_y"], markers[f"{name}_z"] = map(float, mks[name])
+        saver.save_markers(markers)
+        saver.save_joint_angles(OrderedDict(zip(settings.joint_angles_names, (float(v) for v in q))))
+    saver.close()
+    row.update(frames=len(frames),
+               ik_ms_median=round(float(np.median(ik_ms)), 2) if ik_ms else "",
+               ik_ms_p95=round(float(np.percentile(ik_ms, 95)), 2) if ik_ms else "")
+    update_run_info(out_dir, frames=len(frames))
+    row.update(sweep.score(out_dir, dataset / "mocap" / "aligned" / participant / task,
+                           sweep._load_eval()))
+    row["status"] = "ok"
+    return row
+
+
+def replay(job):
+    """Pool worker: one arm on one trial, failures reported in the row."""
+    import sweep
+    from rtcosmik.config_loader import settings
+
+    runs_root, views_root, participant, task, tag = job
+    name, reconstruction, cameras = ARMS[tag]
+    arm = {"name": name, "tag": tag, "reconstruction": reconstruction,
+           "cameras": cameras, "fold": None}
     try:
-        frames = replay_markers(views_root / participant / f"{task}.npz",
-                                DATASET / "cam_params" / participant, cameras, reconstruction)
-        meta = yaml.safe_load((DATASET / "metadata" / f"{participant}.yaml").read_text())
-        solver = HumanSolver(settings, gender=meta["gender"][0], height=meta["height"],
-                             weight=meta["weight"], logger=logging.getLogger("solve"))
-        marker_filter = MarkerFilter(len(settings.marker_names), settings)
-        out_dir = runs_root / participant / task / tag
-        out_dir.mkdir(parents=True, exist_ok=True)
-        saver = CSVSaver(str(out_dir), markers_header=["Frame_0"] + list(settings.marker_names),
-                         joint_angles_header=list(settings.joint_angles_names))
-        ik_ms = []
-        for index, (frame, p3d) in enumerate(frames):
-            mks = dict(zip(settings.marker_names, marker_filter(p3d)))
-            t0 = time.perf_counter()
-            q = solver.solve(mks)
-            if index:
-                ik_ms.append((time.perf_counter() - t0) * 1e3)
-            markers = OrderedDict([("Frame_0", frame)])
-            for name in settings.marker_names:
-                markers[f"{name}_x"], markers[f"{name}_y"], markers[f"{name}_z"] = map(float, mks[name])
-            saver.save_markers(markers)
-            saver.save_joint_angles(OrderedDict(zip(settings.joint_angles_names, (float(v) for v in q))))
-        saver.close()
-        row.update(frames=len(frames),
-                   ik_ms_median=round(float(np.median(ik_ms)), 2) if ik_ms else "",
-                   ik_ms_p95=round(float(np.percentile(ik_ms, 95)), 2) if ik_ms else "")
-        row.update(sweep.score(out_dir, DATASET / "mocap" / "aligned" / participant / task,
-                               sweep._load_eval()))
-        row["status"] = "ok"
+        row = replay_trial(DATASET, views_root / participant / f"{task}.npz",
+                           runs_root / participant / task / tag, participant, task, arm, settings)
     except Exception as exc:
-        row["status"] = f"{type(exc).__name__}: {exc}"[:200]
+        row = dict.fromkeys(sweep.FIELDS, "")
+        row.update(arm=name, participant=participant, task=task,
+                   cameras="-".join(map(str, cameras)), n_horizon=settings.N,
+                   status=f"{type(exc).__name__}: {exc}"[:200])
     return tag, row
 
 
@@ -105,6 +123,8 @@ def main():
 
     import multiprocessing
     import sweep
+    from rtcosmik.provenance import require_clean
+    require_clean()
     trials = sorted((p.parent.name, p.stem) for p in args.views.glob("*/*.npz"))
     done = {}
     for tag in ARMS:
