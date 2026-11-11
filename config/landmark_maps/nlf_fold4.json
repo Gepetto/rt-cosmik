@@ -1,0 +1,521 @@
+{
+  "front_end": "nlf",
+  "fold": 4,
+  "fitted_on": [
+    "1012",
+    "1118",
+    "1508",
+    "1602",
+    "2112",
+    "2198",
+    "2307",
+    "3361",
+    "4162",
+    "4279",
+    "4509",
+    "4612",
+    "4665",
+    "4687",
+    "4827"
+  ],
+  "vertices": {
+    "RASI": 8421,
+    "LASI": 5727,
+    "RPSI": 8371,
+    "LPSI": 5677,
+    "C7": 3353,
+    "RSHO": 6629,
+    "LSHO": 3878,
+    "RELB": 7075,
+    "LELB": 4340,
+    "RMELB": 7106,
+    "LMELB": 4370,
+    "RWRI": 7423,
+    "LWRI": 4687,
+    "RMWRI": 7409,
+    "LMWRI": 4722,
+    "RKNE": 6403,
+    "LKNE": 3639,
+    "RMKNE": 6539,
+    "LMKNE": 3781,
+    "RANK": 8629,
+    "LANK": 8896,
+    "RMANK": 8680,
+    "LMANK": 5753,
+    "R5MHD": 8592,
+    "L5MHD": 5898,
+    "RTOE": 8584,
+    "LTOE": 5890,
+    "RHEE": 8636,
+    "LHEE": 8848
+  },
+  "model": "NLF, SMPL-X canonical vertices",
+  "method": "balanced_multisubject_mocap_fit, ported from learn_cosmik_mhr_markers_multisubject.py",
+  "mhr70_from_smplx": {
+    "7": [
+      "joint",
+      18
+    ],
+    "8": [
+      "joint",
+      19
+    ],
+    "9": [
+      "joint",
+      1
+    ],
+    "10": [
+      "joint",
+      2
+    ],
+    "11": [
+      "joint",
+      4
+    ],
+    "12": [
+      "joint",
+      5
+    ],
+    "13": [
+      "joint",
+      7
+    ],
+    "14": [
+      "joint",
+      8
+    ],
+    "15": [
+      "vertex",
+      5770
+    ],
+    "16": [
+      "vertex",
+      5780
+    ],
+    "17": [
+      "vertex",
+      8846
+    ],
+    "18": [
+      "vertex",
+      8463
+    ],
+    "19": [
+      "vertex",
+      8474
+    ],
+    "20": [
+      "vertex",
+      8635
+    ],
+    "41": [
+      "joint",
+      21
+    ],
+    "62": [
+      "joint",
+      20
+    ],
+    "63": [
+      "joint",
+      18
+    ],
+    "64": [
+      "joint",
+      19
+    ],
+    "65": [
+      "joint",
+      18
+    ],
+    "66": [
+      "joint",
+      19
+    ],
+    "67": [
+      "vertex",
+      3878
+    ],
+    "68": [
+      "vertex",
+      6629
+    ],
+    "69": [
+      "joint",
+      12
+    ]
+  },
+  "camera": 0,
+  "frames_per_sequence": 20,
+  "top_candidates": 256,
+  "reference": {
+    "participant": "4162",
+    "task": "SideOverhead",
+    "frame": 2211
+  },
+  "markers": {
+    "RASI": {
+      "vertex_index": 8421,
+      "fitted_vertex_index": 8421,
+      "hand_picked_vertex_index": 8421,
+      "candidate_count": 843,
+      "balanced_error_mm": 32.07534766831407
+    },
+    "LASI": {
+      "vertex_index": 5727,
+      "fitted_vertex_index": 5726,
+      "hand_picked_vertex_index": 5727,
+      "candidate_count": 1761,
+      "balanced_error_mm": 32.532343580448405
+    },
+    "RPSI": {
+      "vertex_index": 8371,
+      "fitted_vertex_index": 7140,
+      "hand_picked_vertex_index": 8371,
+      "candidate_count": 843,
+      "balanced_error_mm": 30.980998104436225
+    },
+    "LPSI": {
+      "vertex_index": 5677,
+      "fitted_vertex_index": 4403,
+      "hand_picked_vertex_index": 5677,
+      "candidate_count": 1761,
+      "balanced_error_mm": 30.423013764559805
+    },
+    "C7": {
+      "vertex_index": 3353,
+      "fitted_vertex_index": 3353,
+      "hand_picked_vertex_index": 5484,
+      "candidate_count": 5845,
+      "balanced_error_mm": 21.55022364644415
+    },
+    "RSHO": {
+      "vertex_index": 6629,
+      "fitted_vertex_index": 6629,
+      "hand_picked_vertex_index": 6629,
+      "candidate_count": 3325,
+      "balanced_error_mm": 23.767135635025475
+    },
+    "LSHO": {
+      "vertex_index": 3878,
+      "fitted_vertex_index": 3878,
+      "hand_picked_vertex_index": 3878,
+      "candidate_count": 1437,
+      "balanced_error_mm": 27.87549390091478
+    },
+    "RELB": {
+      "vertex_index": 7075,
+      "fitted_vertex_index": 7075,
+      "hand_picked_vertex_index": 7040,
+      "candidate_count": 328,
+      "balanced_error_mm": 37.185079530049244
+    },
+    "LELB": {
+      "vertex_index": 4340,
+      "fitted_vertex_index": 4340,
+      "hand_picked_vertex_index": 4302,
+      "candidate_count": 585,
+      "balanced_error_mm": 33.38487296471503
+    },
+    "RMELB": {
+      "vertex_index": 7106,
+      "fitted_vertex_index": 7106,
+      "hand_picked_vertex_index": 7105,
+      "candidate_count": 328,
+      "balanced_error_mm": 32.66825477351357
+    },
+    "LMELB": {
+      "vertex_index": 4370,
+      "fitted_vertex_index": 4370,
+      "hand_picked_vertex_index": 4369,
+      "candidate_count": 585,
+      "balanced_error_mm": 31.757347961159226
+    },
+    "RWRI": {
+      "vertex_index": 7423,
+      "fitted_vertex_index": 7423,
+      "hand_picked_vertex_index": 7584,
+      "candidate_count": 922,
+      "balanced_error_mm": 36.90540702156125
+    },
+    "LWRI": {
+      "vertex_index": 4687,
+      "fitted_vertex_index": 4687,
+      "hand_picked_vertex_index": 4848,
+      "candidate_count": 968,
+      "balanced_error_mm": 38.552657988568264
+    },
+    "RMWRI": {
+      "vertex_index": 7409,
+      "fitted_vertex_index": 7409,
+      "hand_picked_vertex_index": 7457,
+      "candidate_count": 922,
+      "balanced_error_mm": 34.49511408274682
+    },
+    "LMWRI": {
+      "vertex_index": 4722,
+      "fitted_vertex_index": 4722,
+      "hand_picked_vertex_index": 4721,
+      "candidate_count": 968,
+      "balanced_error_mm": 41.282073181885025
+    },
+    "RKNE": {
+      "vertex_index": 6403,
+      "fitted_vertex_index": 6403,
+      "hand_picked_vertex_index": 6401,
+      "candidate_count": 213,
+      "balanced_error_mm": 28.092756514574297
+    },
+    "LKNE": {
+      "vertex_index": 3639,
+      "fitted_vertex_index": 3639,
+      "hand_picked_vertex_index": 3640,
+      "candidate_count": 209,
+      "balanced_error_mm": 27.759275452105783
+    },
+    "RMKNE": {
+      "vertex_index": 6539,
+      "fitted_vertex_index": 6539,
+      "hand_picked_vertex_index": 6407,
+      "candidate_count": 213,
+      "balanced_error_mm": 40.728954782382644
+    },
+    "LMKNE": {
+      "vertex_index": 3781,
+      "fitted_vertex_index": 3781,
+      "hand_picked_vertex_index": 3646,
+      "candidate_count": 209,
+      "balanced_error_mm": 34.25755622035595
+    },
+    "RANK": {
+      "vertex_index": 8629,
+      "fitted_vertex_index": 8629,
+      "hand_picked_vertex_index": 8576,
+      "candidate_count": 308,
+      "balanced_error_mm": 33.98808699615809
+    },
+    "LANK": {
+      "vertex_index": 8896,
+      "fitted_vertex_index": 8896,
+      "hand_picked_vertex_index": 5882,
+      "candidate_count": 281,
+      "balanced_error_mm": 33.34430754613862
+    },
+    "RMANK": {
+      "vertex_index": 8680,
+      "fitted_vertex_index": 8680,
+      "hand_picked_vertex_index": 8680,
+      "candidate_count": 308,
+      "balanced_error_mm": 50.810127910526134
+    },
+    "LMANK": {
+      "vertex_index": 5753,
+      "fitted_vertex_index": 5753,
+      "hand_picked_vertex_index": 8892,
+      "candidate_count": 281,
+      "balanced_error_mm": 56.93697266221011
+    },
+    "R5MHD": {
+      "vertex_index": 8592,
+      "fitted_vertex_index": 8592,
+      "hand_picked_vertex_index": 8474,
+      "candidate_count": 288,
+      "balanced_error_mm": 41.52728518933027
+    },
+    "L5MHD": {
+      "vertex_index": 5898,
+      "fitted_vertex_index": 5898,
+      "hand_picked_vertex_index": 5780,
+      "candidate_count": 303,
+      "balanced_error_mm": 39.62987185136234
+    },
+    "RTOE": {
+      "vertex_index": 8584,
+      "fitted_vertex_index": 8584,
+      "hand_picked_vertex_index": 8463,
+      "candidate_count": 288,
+      "balanced_error_mm": 47.40914079169431
+    },
+    "LTOE": {
+      "vertex_index": 5890,
+      "fitted_vertex_index": 5890,
+      "hand_picked_vertex_index": 5770,
+      "candidate_count": 303,
+      "balanced_error_mm": 44.161384594793766
+    },
+    "RHEE": {
+      "vertex_index": 8636,
+      "fitted_vertex_index": 8636,
+      "hand_picked_vertex_index": 8635,
+      "candidate_count": 298,
+      "balanced_error_mm": 33.56753854693802
+    },
+    "LHEE": {
+      "vertex_index": 8848,
+      "fitted_vertex_index": 8848,
+      "hand_picked_vertex_index": 8846,
+      "candidate_count": 311,
+      "balanced_error_mm": 39.61797588850978
+    }
+  },
+  "evaluation": {
+    "used_on_fitted": {
+      "sampled_sequence_count": 90,
+      "marker_observation_count": 52200,
+      "overall_median_mm": 34.97125761734377,
+      "per_marker_median_mm": {
+        "RASI": 35.09735774593628,
+        "LASI": 35.191258401993174,
+        "RPSI": 33.22794008521762,
+        "LPSI": 38.232207885331704,
+        "C7": 22.300189278535203,
+        "RSHO": 23.50534037891982,
+        "LSHO": 27.13147973802949,
+        "RELB": 34.989608648943886,
+        "LELB": 34.89440268789975,
+        "RMELB": 33.169762469868886,
+        "LMELB": 31.170730068251356,
+        "RWRI": 36.68557822469968,
+        "LWRI": 45.907050589471126,
+        "RMWRI": 36.07668092993878,
+        "LMWRI": 46.13972650844541,
+        "RKNE": 28.719713782164412,
+        "LKNE": 26.63218756274091,
+        "RMKNE": 39.110558523654525,
+        "LMKNE": 33.87730654947336,
+        "RANK": 34.057498737236806,
+        "LANK": 35.612791071157204,
+        "RMANK": 47.74144011349518,
+        "LMANK": 52.04128230744408,
+        "R5MHD": 42.54169283448365,
+        "L5MHD": 35.681656326392115,
+        "RTOE": 46.3265592890814,
+        "LTOE": 41.357383358334815,
+        "RHEE": 31.68368858942816,
+        "LHEE": 39.55035112445944
+      }
+    },
+    "used_on_held_out": {
+      "sampled_sequence_count": 18,
+      "marker_observation_count": 10440,
+      "overall_median_mm": 31.23326354953171,
+      "per_marker_median_mm": {
+        "RASI": 25.330899230732737,
+        "LASI": 31.911087574626894,
+        "RPSI": 24.450984963402,
+        "LPSI": 31.121870427086293,
+        "C7": 22.86826987087825,
+        "RSHO": 23.752241959241026,
+        "LSHO": 23.718092233057813,
+        "RELB": 26.34640566012062,
+        "LELB": 35.41694509415874,
+        "RMELB": 28.29605964439378,
+        "LMELB": 33.41541269977692,
+        "RWRI": 38.381682938509854,
+        "LWRI": 40.944690712206366,
+        "RMWRI": 40.03014198242731,
+        "LMWRI": 42.776209101056715,
+        "RKNE": 24.276283278569785,
+        "LKNE": 25.0182511413981,
+        "RMKNE": 32.86511944827924,
+        "LMKNE": 38.43321725581639,
+        "RANK": 29.187126817018225,
+        "LANK": 41.710065766835925,
+        "RMANK": 31.942918244521245,
+        "LMANK": 45.20583358060707,
+        "R5MHD": 37.59159397382104,
+        "L5MHD": 31.731191257816675,
+        "RTOE": 32.53373970732692,
+        "LTOE": 39.017415329415094,
+        "RHEE": 26.906698451488577,
+        "LHEE": 30.49866355059417
+      }
+    },
+    "fitted_on_held_out": {
+      "sampled_sequence_count": 18,
+      "marker_observation_count": 10440,
+      "overall_median_mm": 31.47692362897589,
+      "per_marker_median_mm": {
+        "RASI": 25.330899230732737,
+        "LASI": 33.90598046108746,
+        "RPSI": 28.57247818755223,
+        "LPSI": 32.58059954441872,
+        "C7": 22.86826987087825,
+        "RSHO": 23.752241959241026,
+        "LSHO": 23.718092233057813,
+        "RELB": 26.34640566012062,
+        "LELB": 35.41694509415874,
+        "RMELB": 28.29605964439378,
+        "LMELB": 33.41541269977692,
+        "RWRI": 38.381682938509854,
+        "LWRI": 40.944690712206366,
+        "RMWRI": 40.03014198242731,
+        "LMWRI": 42.776209101056715,
+        "RKNE": 24.276283278569785,
+        "LKNE": 25.0182511413981,
+        "RMKNE": 32.86511944827924,
+        "LMKNE": 38.43321725581639,
+        "RANK": 29.187126817018225,
+        "LANK": 41.710065766835925,
+        "RMANK": 31.942918244521245,
+        "LMANK": 45.20583358060707,
+        "R5MHD": 37.59159397382104,
+        "L5MHD": 31.731191257816675,
+        "RTOE": 32.53373970732692,
+        "LTOE": 39.017415329415094,
+        "RHEE": 26.906698451488577,
+        "LHEE": 30.49866355059417
+      }
+    },
+    "hand_picked_on_held_out": {
+      "sampled_sequence_count": 18,
+      "marker_observation_count": 10440,
+      "overall_median_mm": 37.931841654287545,
+      "per_marker_median_mm": {
+        "RASI": 25.330899230732737,
+        "LASI": 31.911087574626894,
+        "RPSI": 24.450984963402,
+        "LPSI": 31.121870427086293,
+        "C7": 43.12229679043637,
+        "RSHO": 23.752241959241026,
+        "LSHO": 23.718092233057813,
+        "RELB": 41.30225805305531,
+        "LELB": 48.52542817444178,
+        "RMELB": 28.17368219896485,
+        "LMELB": 38.52522670705251,
+        "RWRI": 46.3809187687441,
+        "LWRI": 53.23206909998782,
+        "RMWRI": 38.716100556003255,
+        "LMWRI": 41.59873231509434,
+        "RKNE": 34.69439343980424,
+        "LKNE": 31.64279368656753,
+        "RMKNE": 43.88503725300126,
+        "LMKNE": 48.16235952055804,
+        "RANK": 28.892706473013813,
+        "LANK": 27.828906527707606,
+        "RMANK": 31.942918244521245,
+        "LMANK": 46.81077502020849,
+        "R5MHD": 63.17961883325096,
+        "L5MHD": 60.14627131782371,
+        "RTOE": 72.16118305770871,
+        "LTOE": 82.28108521289005,
+        "RHEE": 29.355095712122985,
+        "LHEE": 25.149282943034326
+      }
+    }
+  },
+  "not_fitted": [
+    "Nose",
+    "Head",
+    "REar",
+    "LEar",
+    "REye",
+    "LEye"
+  ],
+  "kept_hand_picked": [
+    "RASI",
+    "LASI",
+    "RPSI",
+    "LPSI"
+  ]
+}

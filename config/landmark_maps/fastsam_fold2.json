@@ -1,0 +1,1387 @@
+{
+  "front_end": "fastsam",
+  "fold": 2,
+  "fitted_on": [
+    "1012",
+    "1118",
+    "1602",
+    "1847",
+    "2112",
+    "2198",
+    "2307",
+    "4162",
+    "4216",
+    "4279",
+    "4509",
+    "4612",
+    "4801",
+    "4827"
+  ],
+  "vertices": {
+    "RASI": 7698,
+    "LASI": 6529,
+    "RPSI": 7063,
+    "LPSI": 5852,
+    "C7": 2828,
+    "RSHO": 7629,
+    "LSHO": 6371,
+    "RELB": 13565,
+    "LELB": 8433,
+    "RMELB": 13575,
+    "LMELB": 8393,
+    "RWRI": 14133,
+    "LWRI": 8923,
+    "RMWRI": 14063,
+    "LMWRI": 8857,
+    "RKNE": 16739,
+    "LKNE": 11516,
+    "RMKNE": 16759,
+    "LMKNE": 11593,
+    "RANK": 17449,
+    "LANK": 12249,
+    "RMANK": 17434,
+    "LMANK": 12264,
+    "R5MHD": 18061,
+    "L5MHD": 12952,
+    "RTOE": 18204,
+    "LTOE": 13053,
+    "RHEE": 17487,
+    "LHEE": 12377,
+    "TV8": 5757,
+    "TV12": 5753
+  },
+  "index_base": 0,
+  "vertex_count": 18439,
+  "method": "balanced_multisubject_mhr70_constrained_mocap_fit",
+  "layout": "mocap31",
+  "results_camera_mode": "calibrated",
+  "camera": 2,
+  "frames_per_sequence": 20,
+  "top_candidates": 256,
+  "reference": {
+    "subject": "4216",
+    "task": "Lifting",
+    "frame": 414,
+    "anchor_rmse_mm": 40.89540320583888
+  },
+  "markers": {
+    "RASI": {
+      "number": 1,
+      "csv_name": "r.ASIS_study",
+      "vertex_index": 7698,
+      "mhr70_anchor_indices": [
+        10
+      ],
+      "candidate_count": 3399,
+      "balanced_training_error_mm": 33.77643365939269,
+      "held_out": {
+        "count": 360,
+        "median_mm": 35.84083719557217,
+        "mean_mm": 36.962499219081565,
+        "p95_mm": 60.46262504256738
+      }
+    },
+    "LASI": {
+      "number": 2,
+      "csv_name": "L.ASIS_study",
+      "vertex_index": 6529,
+      "mhr70_anchor_indices": [
+        9
+      ],
+      "candidate_count": 4156,
+      "balanced_training_error_mm": 31.054480001331655,
+      "held_out": {
+        "count": 360,
+        "median_mm": 32.13524615960509,
+        "mean_mm": 34.39418796938928,
+        "p95_mm": 62.379634908407745
+      }
+    },
+    "RPSI": {
+      "number": 3,
+      "csv_name": "r.PSIS_study",
+      "vertex_index": 7063,
+      "mhr70_anchor_indices": [
+        10
+      ],
+      "candidate_count": 3399,
+      "balanced_training_error_mm": 36.50641506312847,
+      "held_out": {
+        "count": 360,
+        "median_mm": 40.24519758837432,
+        "mean_mm": 40.26801052304747,
+        "p95_mm": 65.8431851322808
+      }
+    },
+    "LPSI": {
+      "number": 4,
+      "csv_name": "L.PSIS_study",
+      "vertex_index": 5852,
+      "mhr70_anchor_indices": [
+        9
+      ],
+      "candidate_count": 4156,
+      "balanced_training_error_mm": 36.0010795515683,
+      "held_out": {
+        "count": 360,
+        "median_mm": 34.667257953828,
+        "mean_mm": 35.041966542524165,
+        "p95_mm": 59.72421846790923
+      }
+    },
+    "C7": {
+      "number": 5,
+      "csv_name": "C7_study",
+      "vertex_index": 2828,
+      "mhr70_anchor_indices": [
+        69
+      ],
+      "candidate_count": 6892,
+      "balanced_training_error_mm": 23.489478901552655,
+      "held_out": {
+        "count": 360,
+        "median_mm": 22.366155411516385,
+        "mean_mm": 24.05834625270681,
+        "p95_mm": 43.73938559965174
+      }
+    },
+    "RSHO": {
+      "number": 6,
+      "csv_name": "r_shoulder_study",
+      "vertex_index": 7629,
+      "mhr70_anchor_indices": [
+        68
+      ],
+      "candidate_count": 3157,
+      "balanced_training_error_mm": 22.88790669079759,
+      "held_out": {
+        "count": 360,
+        "median_mm": 26.113506065952624,
+        "mean_mm": 30.27445059307564,
+        "p95_mm": 61.081500288396086
+      }
+    },
+    "LSHO": {
+      "number": 7,
+      "csv_name": "L_shoulder_study",
+      "vertex_index": 6371,
+      "mhr70_anchor_indices": [
+        67
+      ],
+      "candidate_count": 1449,
+      "balanced_training_error_mm": 20.940072979582073,
+      "held_out": {
+        "count": 360,
+        "median_mm": 22.64109246540088,
+        "mean_mm": 24.376484658354233,
+        "p95_mm": 48.58093930692675
+      }
+    },
+    "RELB": {
+      "number": 8,
+      "csv_name": "r_lelbow_study",
+      "vertex_index": 13565,
+      "mhr70_anchor_indices": [
+        8,
+        64
+      ],
+      "candidate_count": 670,
+      "balanced_training_error_mm": 25.68114937609748,
+      "held_out": {
+        "count": 360,
+        "median_mm": 26.462096453729757,
+        "mean_mm": 31.244362728630815,
+        "p95_mm": 68.77794039744649
+      }
+    },
+    "LELB": {
+      "number": 9,
+      "csv_name": "L_lelbow_study",
+      "vertex_index": 8433,
+      "mhr70_anchor_indices": [
+        7,
+        63
+      ],
+      "candidate_count": 702,
+      "balanced_training_error_mm": 27.785097523434626,
+      "held_out": {
+        "count": 360,
+        "median_mm": 25.187106800349177,
+        "mean_mm": 29.414359183762116,
+        "p95_mm": 66.65747954348416
+      }
+    },
+    "RMELB": {
+      "number": 10,
+      "csv_name": "r_melbow_study",
+      "vertex_index": 13575,
+      "mhr70_anchor_indices": [
+        8,
+        66
+      ],
+      "candidate_count": 681,
+      "balanced_training_error_mm": 24.87370300508148,
+      "held_out": {
+        "count": 360,
+        "median_mm": 26.918194135872135,
+        "mean_mm": 31.785194452659955,
+        "p95_mm": 73.70897517363595
+      }
+    },
+    "LMELB": {
+      "number": 11,
+      "csv_name": "L_melbow_study",
+      "vertex_index": 8393,
+      "mhr70_anchor_indices": [
+        7,
+        65
+      ],
+      "candidate_count": 730,
+      "balanced_training_error_mm": 29.269714268376116,
+      "held_out": {
+        "count": 360,
+        "median_mm": 28.80497283659239,
+        "mean_mm": 31.323431620881767,
+        "p95_mm": 69.73375929378983
+      }
+    },
+    "RWRI": {
+      "number": 12,
+      "csv_name": "r_lwrist_study",
+      "vertex_index": 14133,
+      "mhr70_anchor_indices": [
+        41
+      ],
+      "candidate_count": 2739,
+      "balanced_training_error_mm": 31.921557992687823,
+      "held_out": {
+        "count": 360,
+        "median_mm": 34.285195999160365,
+        "mean_mm": 45.37869838443616,
+        "p95_mm": 125.63742787654212
+      }
+    },
+    "LWRI": {
+      "number": 13,
+      "csv_name": "L_lwrist_study",
+      "vertex_index": 8923,
+      "mhr70_anchor_indices": [
+        62
+      ],
+      "candidate_count": 2803,
+      "balanced_training_error_mm": 39.13837771094236,
+      "held_out": {
+        "count": 360,
+        "median_mm": 36.7505996835423,
+        "mean_mm": 45.85915481583045,
+        "p95_mm": 123.94960772662687
+      }
+    },
+    "RMWRI": {
+      "number": 14,
+      "csv_name": "r_mwrist_study",
+      "vertex_index": 14063,
+      "mhr70_anchor_indices": [
+        41
+      ],
+      "candidate_count": 2739,
+      "balanced_training_error_mm": 31.93973239549737,
+      "held_out": {
+        "count": 360,
+        "median_mm": 32.1003824964104,
+        "mean_mm": 43.203314263453656,
+        "p95_mm": 129.78758836951218
+      }
+    },
+    "LMWRI": {
+      "number": 15,
+      "csv_name": "L_mwrist_study",
+      "vertex_index": 8857,
+      "mhr70_anchor_indices": [
+        62
+      ],
+      "candidate_count": 2803,
+      "balanced_training_error_mm": 35.81506739782223,
+      "held_out": {
+        "count": 360,
+        "median_mm": 33.73317044443464,
+        "mean_mm": 44.39345772426136,
+        "p95_mm": 116.12499872027372
+      }
+    },
+    "RKNE": {
+      "number": 16,
+      "csv_name": "r_knee_study",
+      "vertex_index": 16739,
+      "mhr70_anchor_indices": [
+        12
+      ],
+      "candidate_count": 678,
+      "balanced_training_error_mm": 22.230688777950895,
+      "held_out": {
+        "count": 360,
+        "median_mm": 25.7623658099517,
+        "mean_mm": 27.405576565749737,
+        "p95_mm": 52.08034393708565
+      }
+    },
+    "LKNE": {
+      "number": 17,
+      "csv_name": "L_knee_study",
+      "vertex_index": 11516,
+      "mhr70_anchor_indices": [
+        11
+      ],
+      "candidate_count": 706,
+      "balanced_training_error_mm": 21.86110981655522,
+      "held_out": {
+        "count": 360,
+        "median_mm": 24.885906026868593,
+        "mean_mm": 27.518452535549656,
+        "p95_mm": 49.41444140068743
+      }
+    },
+    "RMKNE": {
+      "number": 18,
+      "csv_name": "r_mknee_study",
+      "vertex_index": 16759,
+      "mhr70_anchor_indices": [
+        12
+      ],
+      "candidate_count": 678,
+      "balanced_training_error_mm": 32.901462718971814,
+      "held_out": {
+        "count": 360,
+        "median_mm": 34.45775859308152,
+        "mean_mm": 35.027340395336005,
+        "p95_mm": 53.1523374306913
+      }
+    },
+    "LMKNE": {
+      "number": 19,
+      "csv_name": "L_mknee_study",
+      "vertex_index": 11593,
+      "mhr70_anchor_indices": [
+        11
+      ],
+      "candidate_count": 706,
+      "balanced_training_error_mm": 33.998904130766974,
+      "held_out": {
+        "count": 360,
+        "median_mm": 32.68142485898308,
+        "mean_mm": 34.13109428264366,
+        "p95_mm": 55.828527497151185
+      }
+    },
+    "RANK": {
+      "number": 20,
+      "csv_name": "r_ankle_study",
+      "vertex_index": 17449,
+      "mhr70_anchor_indices": [
+        14
+      ],
+      "candidate_count": 1269,
+      "balanced_training_error_mm": 21.028766033197208,
+      "held_out": {
+        "count": 360,
+        "median_mm": 21.08806659985894,
+        "mean_mm": 22.052512560332964,
+        "p95_mm": 38.71819288487048
+      }
+    },
+    "LANK": {
+      "number": 21,
+      "csv_name": "L_ankle_study",
+      "vertex_index": 12249,
+      "mhr70_anchor_indices": [
+        13
+      ],
+      "candidate_count": 1272,
+      "balanced_training_error_mm": 18.92635607976918,
+      "held_out": {
+        "count": 360,
+        "median_mm": 18.470458049660557,
+        "mean_mm": 22.114790906267366,
+        "p95_mm": 41.73101276102937
+      }
+    },
+    "RMANK": {
+      "number": 22,
+      "csv_name": "r_mankle_study",
+      "vertex_index": 17434,
+      "mhr70_anchor_indices": [
+        14
+      ],
+      "candidate_count": 1269,
+      "balanced_training_error_mm": 25.214933834923016,
+      "held_out": {
+        "count": 360,
+        "median_mm": 20.814818146076554,
+        "mean_mm": 22.79502383894257,
+        "p95_mm": 40.480008484481516
+      }
+    },
+    "LMANK": {
+      "number": 23,
+      "csv_name": "L_mankle_study",
+      "vertex_index": 12264,
+      "mhr70_anchor_indices": [
+        13
+      ],
+      "candidate_count": 1272,
+      "balanced_training_error_mm": 24.210921152371174,
+      "held_out": {
+        "count": 360,
+        "median_mm": 21.819435542414958,
+        "mean_mm": 23.72459060847313,
+        "p95_mm": 42.41144042406972
+      }
+    },
+    "R5MHD": {
+      "number": 24,
+      "csv_name": "r_5meta_study",
+      "vertex_index": 18061,
+      "mhr70_anchor_indices": [
+        18,
+        19
+      ],
+      "candidate_count": 1218,
+      "balanced_training_error_mm": 25.993677011329222,
+      "held_out": {
+        "count": 360,
+        "median_mm": 26.93966724274963,
+        "mean_mm": 29.67284137577455,
+        "p95_mm": 60.04356495786282
+      }
+    },
+    "L5MHD": {
+      "number": 25,
+      "csv_name": "L_5meta_study",
+      "vertex_index": 12952,
+      "mhr70_anchor_indices": [
+        15,
+        16
+      ],
+      "candidate_count": 1522,
+      "balanced_training_error_mm": 22.032965924952435,
+      "held_out": {
+        "count": 360,
+        "median_mm": 30.454477041616226,
+        "mean_mm": 34.41048954235401,
+        "p95_mm": 67.252512859345
+      }
+    },
+    "RTOE": {
+      "number": 26,
+      "csv_name": "r_toe_study",
+      "vertex_index": 18204,
+      "mhr70_anchor_indices": [
+        18,
+        19
+      ],
+      "candidate_count": 1218,
+      "balanced_training_error_mm": 22.438082696279412,
+      "held_out": {
+        "count": 360,
+        "median_mm": 26.25433168600553,
+        "mean_mm": 29.567301824437003,
+        "p95_mm": 58.60226469442423
+      }
+    },
+    "LTOE": {
+      "number": 27,
+      "csv_name": "L_toe_study",
+      "vertex_index": 13053,
+      "mhr70_anchor_indices": [
+        15,
+        16
+      ],
+      "candidate_count": 1522,
+      "balanced_training_error_mm": 19.152176350094418,
+      "held_out": {
+        "count": 360,
+        "median_mm": 25.313751152221474,
+        "mean_mm": 29.928566730349132,
+        "p95_mm": 61.342432813088074
+      }
+    },
+    "RHEE": {
+      "number": 28,
+      "csv_name": "r_calc_study",
+      "vertex_index": 17487,
+      "mhr70_anchor_indices": [
+        20
+      ],
+      "candidate_count": 1822,
+      "balanced_training_error_mm": 18.9669594231912,
+      "held_out": {
+        "count": 360,
+        "median_mm": 16.80950233111606,
+        "mean_mm": 19.525792924432707,
+        "p95_mm": 43.39937091012989
+      }
+    },
+    "LHEE": {
+      "number": 29,
+      "csv_name": "L_calc_study",
+      "vertex_index": 12377,
+      "mhr70_anchor_indices": [
+        17
+      ],
+      "candidate_count": 1340,
+      "balanced_training_error_mm": 17.423963549227178,
+      "held_out": {
+        "count": 360,
+        "median_mm": 18.554337978336026,
+        "mean_mm": 21.915227222661844,
+        "p95_mm": 45.793757025242186
+      }
+    },
+    "TV8": {
+      "number": 30,
+      "csv_name": "TV8",
+      "vertex_index": 5757,
+      "mhr70_anchor_indices": [
+        69,
+        9,
+        10
+      ],
+      "candidate_count": 2621,
+      "balanced_training_error_mm": 35.47673098394615,
+      "held_out": {
+        "count": 360,
+        "median_mm": 31.119733523771142,
+        "mean_mm": 34.3309239870557,
+        "p95_mm": 65.429406484918
+      }
+    },
+    "TV12": {
+      "number": 31,
+      "csv_name": "TV12",
+      "vertex_index": 5753,
+      "mhr70_anchor_indices": [
+        69,
+        9,
+        10
+      ],
+      "candidate_count": 1718,
+      "balanced_training_error_mm": 38.94753395424871,
+      "held_out": {
+        "count": 360,
+        "median_mm": 37.620697894757576,
+        "mean_mm": 39.760611115867526,
+        "p95_mm": 69.01656467226215
+      }
+    }
+  },
+  "face_keypoints": {
+    "Nose": {
+      "number": 32,
+      "source": "mhr70",
+      "keypoint_index": 0
+    },
+    "REar": {
+      "number": 33,
+      "source": "mhr70",
+      "keypoint_index": 4
+    },
+    "LEar": {
+      "number": 34,
+      "source": "mhr70",
+      "keypoint_index": 3
+    },
+    "REye": {
+      "number": 35,
+      "source": "mhr70",
+      "keypoint_index": 2
+    },
+    "LEye": {
+      "number": 36,
+      "source": "mhr70",
+      "keypoint_index": 1
+    }
+  },
+  "evaluation": {
+    "fitted": {
+      "sampled_sequence_count": 84,
+      "sampled_subjects": [
+        "1012",
+        "1118",
+        "1602",
+        "1847",
+        "2112",
+        "2198",
+        "2307",
+        "4162",
+        "4216",
+        "4279",
+        "4509",
+        "4612",
+        "4801",
+        "4827"
+      ],
+      "marker_observation_count": 52080,
+      "overall_median_mm": 27.42599828474136,
+      "per_sequence": [
+        {
+          "subject": "4279",
+          "task": "Screwing",
+          "sampled_frames": 20,
+          "anchor_rmse_median_mm": 55.695376764684084,
+          "marker_error_median_mm": 25.203315168422534
+        },
+        {
+          "subject": "4279",
+          "task": "SideOverhead",
+          "sampled_frames": 20,
+          "anchor_rmse_median_mm": 55.45220852991,
+          "marker_error_median_mm": 29.47023879415498
+        },
+        {
+          "subject": "4279",
+          "task": "RobotWelding",
+          "sampled_frames": 20,
+          "anchor_rmse_median_mm": 58.85118805712422,
+          "marker_error_median_mm": 27.12137758273833
+        },
+        {
+          "subject": "4279",
+          "task": "RobotPolishing",
+          "sampled_frames": 20,
+          "anchor_rmse_median_mm": 56.526486650636734,
+          "marker_error_median_mm": 24.564772653486244
+        },
+        {
+          "subject": "4279",
+          "task": "Polishing",
+          "sampled_frames": 20,
+          "anchor_rmse_median_mm": 58.387553230737836,
+          "marker_error_median_mm": 31.78262962890642
+        },
+        {
+          "subject": "4279",
+          "task": "Lifting",
+          "sampled_frames": 20,
+          "anchor_rmse_median_mm": 61.36609681115626,
+          "marker_error_median_mm": 33.75120559106702
+        },
+        {
+          "subject": "4216",
+          "task": "Screwing",
+          "sampled_frames": 20,
+          "anchor_rmse_median_mm": 47.596016222624506,
+          "marker_error_median_mm": 22.048467436032386
+        },
+        {
+          "subject": "4216",
+          "task": "SideOverhead",
+          "sampled_frames": 20,
+          "anchor_rmse_median_mm": 48.08398321830227,
+          "marker_error_median_mm": 30.37494481291588
+        },
+        {
+          "subject": "4216",
+          "task": "RobotWelding",
+          "sampled_frames": 20,
+          "anchor_rmse_median_mm": 51.62184407457386,
+          "marker_error_median_mm": 26.05998977926835
+        },
+        {
+          "subject": "4216",
+          "task": "RobotPolishing",
+          "sampled_frames": 20,
+          "anchor_rmse_median_mm": 50.518956627179385,
+          "marker_error_median_mm": 25.316554490614955
+        },
+        {
+          "subject": "4216",
+          "task": "Polishing",
+          "sampled_frames": 20,
+          "anchor_rmse_median_mm": 48.003630390052216,
+          "marker_error_median_mm": 29.06620001896973
+        },
+        {
+          "subject": "4216",
+          "task": "Lifting",
+          "sampled_frames": 20,
+          "anchor_rmse_median_mm": 44.87591333313864,
+          "marker_error_median_mm": 24.92859309967966
+        },
+        {
+          "subject": "2198",
+          "task": "Screwing",
+          "sampled_frames": 20,
+          "anchor_rmse_median_mm": 51.72589294831183,
+          "marker_error_median_mm": 27.452407912347052
+        },
+        {
+          "subject": "2198",
+          "task": "SideOverhead",
+          "sampled_frames": 20,
+          "anchor_rmse_median_mm": 54.59462793717973,
+          "marker_error_median_mm": 31.53368448698192
+        },
+        {
+          "subject": "2198",
+          "task": "RobotWelding",
+          "sampled_frames": 20,
+          "anchor_rmse_median_mm": 51.77254585944582,
+          "marker_error_median_mm": 26.53521456062939
+        },
+        {
+          "subject": "2198",
+          "task": "RobotPolishing",
+          "sampled_frames": 20,
+          "anchor_rmse_median_mm": 50.055671679412384,
+          "marker_error_median_mm": 24.717424572822946
+        },
+        {
+          "subject": "2198",
+          "task": "Polishing",
+          "sampled_frames": 20,
+          "anchor_rmse_median_mm": 53.21293531104292,
+          "marker_error_median_mm": 27.474482599820927
+        },
+        {
+          "subject": "2198",
+          "task": "Lifting",
+          "sampled_frames": 20,
+          "anchor_rmse_median_mm": 57.977666813848984,
+          "marker_error_median_mm": 33.75597993534816
+        },
+        {
+          "subject": "4612",
+          "task": "Screwing",
+          "sampled_frames": 20,
+          "anchor_rmse_median_mm": 55.505490268799406,
+          "marker_error_median_mm": 25.944822939857282
+        },
+        {
+          "subject": "4612",
+          "task": "SideOverhead",
+          "sampled_frames": 20,
+          "anchor_rmse_median_mm": 56.056149085734795,
+          "marker_error_median_mm": 29.84876514039439
+        },
+        {
+          "subject": "4612",
+          "task": "RobotWelding",
+          "sampled_frames": 20,
+          "anchor_rmse_median_mm": 58.37673183463344,
+          "marker_error_median_mm": 28.113027196583143
+        },
+        {
+          "subject": "4612",
+          "task": "RobotPolishing",
+          "sampled_frames": 20,
+          "anchor_rmse_median_mm": 55.21248634770804,
+          "marker_error_median_mm": 24.451218942731128
+        },
+        {
+          "subject": "4612",
+          "task": "Polishing",
+          "sampled_frames": 20,
+          "anchor_rmse_median_mm": 56.25944427664231,
+          "marker_error_median_mm": 32.54905813052768
+        },
+        {
+          "subject": "4612",
+          "task": "Lifting",
+          "sampled_frames": 20,
+          "anchor_rmse_median_mm": 53.332373660767665,
+          "marker_error_median_mm": 28.352618947166278
+        },
+        {
+          "subject": "4827",
+          "task": "Screwing",
+          "sampled_frames": 20,
+          "anchor_rmse_median_mm": 52.10257831447866,
+          "marker_error_median_mm": 23.825105396453576
+        },
+        {
+          "subject": "4827",
+          "task": "SideOverhead",
+          "sampled_frames": 20,
+          "anchor_rmse_median_mm": 57.20117623790326,
+          "marker_error_median_mm": 31.988195192674866
+        },
+        {
+          "subject": "4827",
+          "task": "RobotWelding",
+          "sampled_frames": 20,
+          "anchor_rmse_median_mm": 55.097262080715105,
+          "marker_error_median_mm": 23.61723326250516
+        },
+        {
+          "subject": "4827",
+          "task": "RobotPolishing",
+          "sampled_frames": 20,
+          "anchor_rmse_median_mm": 55.73685632084259,
+          "marker_error_median_mm": 23.867016349341714
+        },
+        {
+          "subject": "4827",
+          "task": "Polishing",
+          "sampled_frames": 20,
+          "anchor_rmse_median_mm": 56.56501377116256,
+          "marker_error_median_mm": 28.203254237991054
+        },
+        {
+          "subject": "4827",
+          "task": "Lifting",
+          "sampled_frames": 20,
+          "anchor_rmse_median_mm": 56.005648331218744,
+          "marker_error_median_mm": 24.845980777804545
+        },
+        {
+          "subject": "1118",
+          "task": "Screwing",
+          "sampled_frames": 20,
+          "anchor_rmse_median_mm": 56.88691293674203,
+          "marker_error_median_mm": 24.522401401171923
+        },
+        {
+          "subject": "1118",
+          "task": "SideOverhead",
+          "sampled_frames": 20,
+          "anchor_rmse_median_mm": 56.52016025578287,
+          "marker_error_median_mm": 30.683763922866653
+        },
+        {
+          "subject": "1118",
+          "task": "RobotWelding",
+          "sampled_frames": 20,
+          "anchor_rmse_median_mm": 70.56628265428708,
+          "marker_error_median_mm": 31.947242180416087
+        },
+        {
+          "subject": "1118",
+          "task": "RobotPolishing",
+          "sampled_frames": 20,
+          "anchor_rmse_median_mm": 65.14259503497027,
+          "marker_error_median_mm": 27.582370084182152
+        },
+        {
+          "subject": "1118",
+          "task": "Polishing",
+          "sampled_frames": 20,
+          "anchor_rmse_median_mm": 64.69481686151838,
+          "marker_error_median_mm": 34.811853281978586
+        },
+        {
+          "subject": "1118",
+          "task": "Lifting",
+          "sampled_frames": 20,
+          "anchor_rmse_median_mm": 60.838369155086504,
+          "marker_error_median_mm": 30.5284363236257
+        },
+        {
+          "subject": "4801",
+          "task": "Screwing",
+          "sampled_frames": 20,
+          "anchor_rmse_median_mm": 51.581089281979146,
+          "marker_error_median_mm": 23.948576276331067
+        },
+        {
+          "subject": "4801",
+          "task": "SideOverhead",
+          "sampled_frames": 20,
+          "anchor_rmse_median_mm": 49.04328099570955,
+          "marker_error_median_mm": 28.593140560002144
+        },
+        {
+          "subject": "4801",
+          "task": "RobotWelding",
+          "sampled_frames": 20,
+          "anchor_rmse_median_mm": 53.25167729457622,
+          "marker_error_median_mm": 25.95082283091542
+        },
+        {
+          "subject": "4801",
+          "task": "RobotPolishing",
+          "sampled_frames": 20,
+          "anchor_rmse_median_mm": 60.999395473938264,
+          "marker_error_median_mm": 25.89841569026969
+        },
+        {
+          "subject": "4801",
+          "task": "Polishing",
+          "sampled_frames": 20,
+          "anchor_rmse_median_mm": 52.20275650042874,
+          "marker_error_median_mm": 26.484785688934767
+        },
+        {
+          "subject": "4801",
+          "task": "Lifting",
+          "sampled_frames": 20,
+          "anchor_rmse_median_mm": 53.52290409032001,
+          "marker_error_median_mm": 30.460949709336287
+        },
+        {
+          "subject": "1012",
+          "task": "Screwing",
+          "sampled_frames": 20,
+          "anchor_rmse_median_mm": 46.391472457034276,
+          "marker_error_median_mm": 28.2198716133105
+        },
+        {
+          "subject": "1012",
+          "task": "SideOverhead",
+          "sampled_frames": 20,
+          "anchor_rmse_median_mm": 57.6091417035427,
+          "marker_error_median_mm": 34.62245903375494
+        },
+        {
+          "subject": "1012",
+          "task": "RobotWelding",
+          "sampled_frames": 20,
+          "anchor_rmse_median_mm": 49.64658435038595,
+          "marker_error_median_mm": 28.239899811405376
+        },
+        {
+          "subject": "1012",
+          "task": "RobotPolishing",
+          "sampled_frames": 20,
+          "anchor_rmse_median_mm": 49.82184437826905,
+          "marker_error_median_mm": 27.796908086388253
+        },
+        {
+          "subject": "1012",
+          "task": "Polishing",
+          "sampled_frames": 20,
+          "anchor_rmse_median_mm": 50.95076890371385,
+          "marker_error_median_mm": 30.48388745971929
+        },
+        {
+          "subject": "1012",
+          "task": "Lifting",
+          "sampled_frames": 20,
+          "anchor_rmse_median_mm": 51.73098442004334,
+          "marker_error_median_mm": 29.403139017228387
+        },
+        {
+          "subject": "4509",
+          "task": "Screwing",
+          "sampled_frames": 20,
+          "anchor_rmse_median_mm": 55.557247545445776,
+          "marker_error_median_mm": 23.588036280634572
+        },
+        {
+          "subject": "4509",
+          "task": "SideOverhead",
+          "sampled_frames": 20,
+          "anchor_rmse_median_mm": 58.76113994233608,
+          "marker_error_median_mm": 29.790083164000826
+        },
+        {
+          "subject": "4509",
+          "task": "RobotWelding",
+          "sampled_frames": 20,
+          "anchor_rmse_median_mm": 57.28750336658916,
+          "marker_error_median_mm": 22.220195476273428
+        },
+        {
+          "subject": "4509",
+          "task": "RobotPolishing",
+          "sampled_frames": 20,
+          "anchor_rmse_median_mm": 54.95130804049588,
+          "marker_error_median_mm": 22.567428602841826
+        },
+        {
+          "subject": "4509",
+          "task": "Polishing",
+          "sampled_frames": 20,
+          "anchor_rmse_median_mm": 58.41298751801836,
+          "marker_error_median_mm": 28.542472085036067
+        },
+        {
+          "subject": "4509",
+          "task": "Lifting",
+          "sampled_frames": 20,
+          "anchor_rmse_median_mm": 57.20984875769214,
+          "marker_error_median_mm": 28.156774461472438
+        },
+        {
+          "subject": "2112",
+          "task": "Screwing",
+          "sampled_frames": 20,
+          "anchor_rmse_median_mm": 55.69911072638034,
+          "marker_error_median_mm": 24.858258284621897
+        },
+        {
+          "subject": "2112",
+          "task": "SideOverhead",
+          "sampled_frames": 20,
+          "anchor_rmse_median_mm": 58.61030245272407,
+          "marker_error_median_mm": 28.03185239608251
+        },
+        {
+          "subject": "2112",
+          "task": "RobotWelding",
+          "sampled_frames": 20,
+          "anchor_rmse_median_mm": 56.16635450894168,
+          "marker_error_median_mm": 23.127411211962016
+        },
+        {
+          "subject": "2112",
+          "task": "RobotPolishing",
+          "sampled_frames": 20,
+          "anchor_rmse_median_mm": 57.030131751390215,
+          "marker_error_median_mm": 21.87440540967442
+        },
+        {
+          "subject": "2112",
+          "task": "Polishing",
+          "sampled_frames": 20,
+          "anchor_rmse_median_mm": 62.42445801427054,
+          "marker_error_median_mm": 33.001161400687
+        },
+        {
+          "subject": "2112",
+          "task": "Lifting",
+          "sampled_frames": 20,
+          "anchor_rmse_median_mm": 61.40439458907498,
+          "marker_error_median_mm": 29.794087131513823
+        },
+        {
+          "subject": "1847",
+          "task": "Screwing",
+          "sampled_frames": 20,
+          "anchor_rmse_median_mm": 53.557177124595164,
+          "marker_error_median_mm": 28.806271574296833
+        },
+        {
+          "subject": "1847",
+          "task": "SideOverhead",
+          "sampled_frames": 20,
+          "anchor_rmse_median_mm": 49.66777057151603,
+          "marker_error_median_mm": 30.756606226192087
+        },
+        {
+          "subject": "1847",
+          "task": "RobotWelding",
+          "sampled_frames": 20,
+          "anchor_rmse_median_mm": 54.01278945212406,
+          "marker_error_median_mm": 25.85475508521262
+        },
+        {
+          "subject": "1847",
+          "task": "RobotPolishing",
+          "sampled_frames": 20,
+          "anchor_rmse_median_mm": 54.03387433922691,
+          "marker_error_median_mm": 28.72806523085614
+        },
+        {
+          "subject": "1847",
+          "task": "Polishing",
+          "sampled_frames": 20,
+          "anchor_rmse_median_mm": 56.989571548259384,
+          "marker_error_median_mm": 32.10938545179224
+        },
+        {
+          "subject": "1847",
+          "task": "Lifting",
+          "sampled_frames": 20,
+          "anchor_rmse_median_mm": 50.58725582359905,
+          "marker_error_median_mm": 27.728312332352715
+        },
+        {
+          "subject": "1602",
+          "task": "Screwing",
+          "sampled_frames": 20,
+          "anchor_rmse_median_mm": 53.1966620244138,
+          "marker_error_median_mm": 20.154489510162055
+        },
+        {
+          "subject": "1602",
+          "task": "SideOverhead",
+          "sampled_frames": 20,
+          "anchor_rmse_median_mm": 54.8130970707901,
+          "marker_error_median_mm": 27.911502705382002
+        },
+        {
+          "subject": "1602",
+          "task": "RobotWelding",
+          "sampled_frames": 20,
+          "anchor_rmse_median_mm": 58.515680871963156,
+          "marker_error_median_mm": 23.498786855019382
+        },
+        {
+          "subject": "1602",
+          "task": "RobotPolishing",
+          "sampled_frames": 20,
+          "anchor_rmse_median_mm": 54.86891311842654,
+          "marker_error_median_mm": 24.189353442299527
+        },
+        {
+          "subject": "1602",
+          "task": "Polishing",
+          "sampled_frames": 20,
+          "anchor_rmse_median_mm": 59.338877305527724,
+          "marker_error_median_mm": 32.63506557797584
+        },
+        {
+          "subject": "1602",
+          "task": "Lifting",
+          "sampled_frames": 20,
+          "anchor_rmse_median_mm": 55.951232389555415,
+          "marker_error_median_mm": 32.952403492766145
+        },
+        {
+          "subject": "2307",
+          "task": "Screwing",
+          "sampled_frames": 20,
+          "anchor_rmse_median_mm": 52.548563608111024,
+          "marker_error_median_mm": 25.17464346370325
+        },
+        {
+          "subject": "2307",
+          "task": "SideOverhead",
+          "sampled_frames": 20,
+          "anchor_rmse_median_mm": 50.28511536841088,
+          "marker_error_median_mm": 29.209114520000323
+        },
+        {
+          "subject": "2307",
+          "task": "RobotWelding",
+          "sampled_frames": 20,
+          "anchor_rmse_median_mm": 58.018240263723875,
+          "marker_error_median_mm": 27.96521169843547
+        },
+        {
+          "subject": "2307",
+          "task": "RobotPolishing",
+          "sampled_frames": 20,
+          "anchor_rmse_median_mm": 61.757031115347665,
+          "marker_error_median_mm": 28.268051438870053
+        },
+        {
+          "subject": "2307",
+          "task": "Polishing",
+          "sampled_frames": 20,
+          "anchor_rmse_median_mm": 57.532835059428216,
+          "marker_error_median_mm": 30.08331477168631
+        },
+        {
+          "subject": "2307",
+          "task": "Lifting",
+          "sampled_frames": 20,
+          "anchor_rmse_median_mm": 56.18452281674236,
+          "marker_error_median_mm": 30.355503051914813
+        },
+        {
+          "subject": "4162",
+          "task": "Screwing",
+          "sampled_frames": 20,
+          "anchor_rmse_median_mm": 47.18470350974272,
+          "marker_error_median_mm": 25.717147981751868
+        },
+        {
+          "subject": "4162",
+          "task": "SideOverhead",
+          "sampled_frames": 20,
+          "anchor_rmse_median_mm": 47.78336531301677,
+          "marker_error_median_mm": 30.503741302611473
+        },
+        {
+          "subject": "4162",
+          "task": "RobotWelding",
+          "sampled_frames": 20,
+          "anchor_rmse_median_mm": 48.46199622556121,
+          "marker_error_median_mm": 23.499366420888126
+        },
+        {
+          "subject": "4162",
+          "task": "RobotPolishing",
+          "sampled_frames": 20,
+          "anchor_rmse_median_mm": 49.27102146241785,
+          "marker_error_median_mm": 27.39980914601508
+        },
+        {
+          "subject": "4162",
+          "task": "Polishing",
+          "sampled_frames": 20,
+          "anchor_rmse_median_mm": 50.86082240688611,
+          "marker_error_median_mm": 28.96215068370217
+        },
+        {
+          "subject": "4162",
+          "task": "Lifting",
+          "sampled_frames": 20,
+          "anchor_rmse_median_mm": 47.83722843598232,
+          "marker_error_median_mm": 27.131869890164044
+        }
+      ]
+    },
+    "held_out": {
+      "sampled_sequence_count": 18,
+      "sampled_subjects": [
+        "1508",
+        "3361",
+        "4665"
+      ],
+      "marker_observation_count": 11160,
+      "overall_median_mm": 27.361968813417647,
+      "per_sequence": [
+        {
+          "subject": "1508",
+          "task": "Screwing",
+          "sampled_frames": 20,
+          "anchor_rmse_median_mm": 53.392203075038324,
+          "marker_error_median_mm": 24.421408061373793
+        },
+        {
+          "subject": "1508",
+          "task": "SideOverhead",
+          "sampled_frames": 20,
+          "anchor_rmse_median_mm": 55.23138473195349,
+          "marker_error_median_mm": 29.287130549616062
+        },
+        {
+          "subject": "1508",
+          "task": "RobotWelding",
+          "sampled_frames": 20,
+          "anchor_rmse_median_mm": 55.56796020298501,
+          "marker_error_median_mm": 23.154853517018307
+        },
+        {
+          "subject": "1508",
+          "task": "RobotPolishing",
+          "sampled_frames": 20,
+          "anchor_rmse_median_mm": 62.252497808915045,
+          "marker_error_median_mm": 24.698799588072752
+        },
+        {
+          "subject": "1508",
+          "task": "Polishing",
+          "sampled_frames": 20,
+          "anchor_rmse_median_mm": 57.395464100847654,
+          "marker_error_median_mm": 30.7454644975168
+        },
+        {
+          "subject": "1508",
+          "task": "Lifting",
+          "sampled_frames": 20,
+          "anchor_rmse_median_mm": 62.24221624331148,
+          "marker_error_median_mm": 31.10331183036176
+        },
+        {
+          "subject": "4665",
+          "task": "Screwing",
+          "sampled_frames": 20,
+          "anchor_rmse_median_mm": 47.628148648062684,
+          "marker_error_median_mm": 25.63655885758382
+        },
+        {
+          "subject": "4665",
+          "task": "SideOverhead",
+          "sampled_frames": 20,
+          "anchor_rmse_median_mm": 48.9592160177085,
+          "marker_error_median_mm": 29.791973734679036
+        },
+        {
+          "subject": "4665",
+          "task": "RobotWelding",
+          "sampled_frames": 20,
+          "anchor_rmse_median_mm": 50.65174251228573,
+          "marker_error_median_mm": 23.743051586317325
+        },
+        {
+          "subject": "4665",
+          "task": "RobotPolishing",
+          "sampled_frames": 20,
+          "anchor_rmse_median_mm": 51.19690534231994,
+          "marker_error_median_mm": 21.139261779357447
+        },
+        {
+          "subject": "4665",
+          "task": "Polishing",
+          "sampled_frames": 20,
+          "anchor_rmse_median_mm": 50.919591923249,
+          "marker_error_median_mm": 27.251316222430248
+        },
+        {
+          "subject": "4665",
+          "task": "Lifting",
+          "sampled_frames": 20,
+          "anchor_rmse_median_mm": 48.81906844077403,
+          "marker_error_median_mm": 27.222293489036772
+        },
+        {
+          "subject": "3361",
+          "task": "Screwing",
+          "sampled_frames": 20,
+          "anchor_rmse_median_mm": 51.94743704883792,
+          "marker_error_median_mm": 32.401943570406026
+        },
+        {
+          "subject": "3361",
+          "task": "SideOverhead",
+          "sampled_frames": 20,
+          "anchor_rmse_median_mm": 50.5700717063446,
+          "marker_error_median_mm": 29.488410759417754
+        },
+        {
+          "subject": "3361",
+          "task": "RobotWelding",
+          "sampled_frames": 20,
+          "anchor_rmse_median_mm": 47.356219031350314,
+          "marker_error_median_mm": 26.193135441485687
+        },
+        {
+          "subject": "3361",
+          "task": "RobotPolishing",
+          "sampled_frames": 20,
+          "anchor_rmse_median_mm": 53.441713615947805,
+          "marker_error_median_mm": 30.718631105829008
+        },
+        {
+          "subject": "3361",
+          "task": "Polishing",
+          "sampled_frames": 20,
+          "anchor_rmse_median_mm": 51.378370734630835,
+          "marker_error_median_mm": 29.43390953836985
+        },
+        {
+          "subject": "3361",
+          "task": "Lifting",
+          "sampled_frames": 20,
+          "anchor_rmse_median_mm": 49.93085010341854,
+          "marker_error_median_mm": 30.429985023309527
+        }
+      ]
+    }
+  },
+  "rejected_sequences": [
+    {
+      "participant": "4687",
+      "task": "RobotWelding",
+      "reason": "length mismatch: mesh=1862, reference=1861"
+    },
+    {
+      "participant": "4687",
+      "task": "Screwing",
+      "reason": "participant incomplete"
+    },
+    {
+      "participant": "4687",
+      "task": "SideOverhead",
+      "reason": "participant incomplete"
+    },
+    {
+      "participant": "4687",
+      "task": "RobotPolishing",
+      "reason": "participant incomplete"
+    },
+    {
+      "participant": "4687",
+      "task": "Polishing",
+      "reason": "participant incomplete"
+    },
+    {
+      "participant": "4687",
+      "task": "Lifting",
+      "reason": "participant incomplete"
+    }
+  ]
+}
