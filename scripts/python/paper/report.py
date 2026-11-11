@@ -26,7 +26,7 @@ def load(paths):
             for row in csv.DictReader(handle):
                 if row.get("status") != "ok":
                     continue
-                for key in ("joint_rmse_mean", "joint_rmse_median", "marker_mm",
+                for key in ("aligned_rmse_mean", "aligned_rmse_median", "aligned_marker_mm",
                             "freeflyer_mm", "fps", "sync_r", "ik_ms_median"):
                     row[key] = float(row[key]) if row.get(key) else np.nan
                 rows.append(row)
@@ -90,15 +90,15 @@ def main():
     # visible rather than silently shrinking the shared set for everyone else.
     print("\ncoverage")
     for config in configs:
-        own = stat(config, "joint_rmse_mean", keys=set(by_config[config]))
+        own = stat(config, "aligned_rmse_mean", keys=set(by_config[config]))
         print(f"  {config:<16} {len(by_config[config]):>4} trials completed, "
               f"own mean {own:.2f} deg")
 
     table("Accuracy and speed, over the trials every configuration completed",
           configs, [
-        ("joint RMSE mean", {c: stat(c, "joint_rmse_mean") for c in configs}),
-        ("joint RMSE median", {c: stat(c, "joint_rmse_mean", np.median) for c in configs}),
-        ("marker error mm", {c: stat(c, "marker_mm") for c in configs}),
+        ("joint RMSE mean", {c: stat(c, "aligned_rmse_mean") for c in configs}),
+        ("joint RMSE median", {c: stat(c, "aligned_rmse_mean", np.median) for c in configs}),
+        ("marker error mm", {c: stat(c, "aligned_marker_mm") for c in configs}),
         ("free-flyer mm", {c: stat(c, "freeflyer_mm") for c in configs}),
         ("pipeline fps", {c: stat(c, "fps") for c in configs}),
         ("IK ms median", {c: stat(c, "ik_ms_median") for c in configs}),
@@ -107,7 +107,7 @@ def main():
     if args.by_task:
         tasks = sorted({t for _, t in shared})
         table("Joint RMSE by task", configs,
-              [(task, {c: np.mean([by_config[c][k]["joint_rmse_mean"]
+              [(task, {c: np.mean([by_config[c][k]["aligned_rmse_mean"]
                                    for k in shared if k[1] == task])
                        for c in configs}) for task in tasks], "deg", width=22)
     return 0

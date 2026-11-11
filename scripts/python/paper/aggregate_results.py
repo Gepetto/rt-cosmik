@@ -488,15 +488,15 @@ def main():
         return stat
 
     # Design-choice studies (E3 IK type, E4 horizon, E5 filter).
-    study_fields = ("joint_rmse_deg", "joint_rmse_zero_lag_deg", "upper_rmse_deg", "lower_rmse_deg",
-                    "trunk_rmse_deg", "shoulder_flip_pct", "lag_frames", "jitter_deg",
+    study_fields = ("aligned_rmse_mean", "causal_rmse_mean", "upper_rmse_deg", "lower_rmse_deg",
+                    "trunk_rmse_deg", "shoulder_flip_pct", "lag", "jitter_deg",
                     "jerk_rms_deg_s3", "near_limit_pct", "violation_pct", "solve_ms_p50",
-                    "solve_ms_p95", "solve_ms_max", "failed_frames")
+                    "solve_ms_p95", "solve_ms_max", "solver_failures")
     study_rows = {f.stem: read(f) for f in sorted((args.root / "studies").glob("*.csv"))}
     study_rows = {k: v for k, v in study_rows.items() if v}
     if study_rows:
         summary["studies"] = {}
-        baseline = participant_means(study_rows.get("mhe_N7_o4c5", []), lambda r: float(r["joint_rmse_deg"]))
+        baseline = participant_means(study_rows.get("mhe_N7_o4c5", []), lambda r: float(r["causal_rmse_mean"]))
         for study, name in (("E3", "study_ik"), ("E4", "study_horizon"), ("E5", "study_filter")):
             variants = [v for v, rows in study_rows.items() if rows[0]["study"] in (study, "baseline")]
             order = {"E3": lambda v: study_rows[v][0]["ik_type"] != "mhe",
@@ -508,7 +508,7 @@ def main():
                 rows = study_rows[v]
                 entry = {f: mean_sd(participant_means(rows, lambda r, f=f: float(r[f] or "nan")).values())
                          for f in study_fields}
-                mine = participant_means(rows, lambda r: float(r["joint_rmse_deg"]))
+                mine = participant_means(rows, lambda r: float(r["causal_rmse_mean"]))
                 common = sorted(set(mine) & set(baseline))
                 entry["rmse_minus_baseline_deg"] = mean_sd([mine[p] - baseline[p] for p in common])
                 if len(common) >= 5 and v != "mhe_N7_o4c5":
@@ -519,19 +519,19 @@ def main():
                 entry["filter_delay_1hz_ms"] = float(rows[0]["filter_delay_1hz_ms"])
                 summary["studies"].setdefault(study, {})[v] = entry
                 table.append([v, rows[0]["ik_type"], rows[0]["N"], rows[0]["filter"],
-                              fmt(entry["joint_rmse_deg"]), fmt(entry["rmse_minus_baseline_deg"]),
-                              fmt(entry["joint_rmse_zero_lag_deg"]), fmt(entry["lag_frames"], 1),
+                              fmt(entry["causal_rmse_mean"]), fmt(entry["rmse_minus_baseline_deg"]),
+                              fmt(entry["aligned_rmse_mean"]), fmt(entry["lag"], 1),
                               f"{entry['filter_delay_1hz_ms']:.0f}", fmt(entry["jitter_deg"], 3),
                               fmt(entry["jerk_rms_deg_s3"], 0), fmt(entry["near_limit_pct"], 1),
                               fmt(entry["violation_pct"], 2), fmt(entry["solve_ms_p50"], 2),
                               fmt(entry["solve_ms_p95"], 2), fmt(entry["solve_ms_max"], 1),
-                              fmt(entry["failed_frames"], 1), fmt(entry["shoulder_flip_pct"], 1),
+                              fmt(entry["solver_failures"], 1), fmt(entry["shoulder_flip_pct"], 1),
                               f"{entry['wilcoxon_p_vs_baseline']:.4f}" if "wilcoxon_p_vs_baseline" in entry else "--"])
             write_table(tables / name,
-                        ["variant", "IK", "N", "filter", "RMSE deg", "RMSE - baseline deg",
-                         "RMSE at zero lag deg", "residual lag frames", "filter delay at 1 Hz ms",
+                        ["variant", "IK", "N", "filter", "causal error deg", "causal - baseline deg",
+                         "aligned error deg", "lag frames", "filter delay at 1 Hz ms",
                          "jitter deg/frame", "RMS jerk deg/s^3", "near limit %", "limit violation %",
-                         "solve ms p50", "solve ms p95", "solve ms max", "failed frames",
+                         "solve ms p50", "solve ms p95", "solve ms max", "solver failures",
                          "shoulder flip %", "Wilcoxon p vs baseline"], table)
 
     stat = stats_table("joint_rmse", by_arm_rmse, "deg")

@@ -123,7 +123,7 @@ def sensitivity(dataset, work_dir):
     from rtcosmik.config_loader import settings
     from rtcosmik.paper import fastsam_source
 
-    ev = sweep_mod._load_eval()
+    from rtcosmik.paper.scoring import score_run
     work = Path(work_dir)
     results = {}
     for label, offset in VARIANTS.items():
@@ -134,9 +134,7 @@ def sensitivity(dataset, work_dir):
             out = out / f"{participant}_{task}"
             try:
                 sweep_mod.run_fastsam(dataset, participant, task, [0], out, settings)
-                scores.append(sweep_mod.score(
-                    out, Path(dataset) / "mocap" / "aligned" / participant / task,
-                    ev)["joint_rmse_mean"])
+                scores.append(score_run(out, dataset, participant, task)["aligned_rmse_mean"])
             except Exception as exc:
                 print(f"  {label} {participant}/{task}: {type(exc).__name__}: {exc}")
                 scores.append(np.nan)

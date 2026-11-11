@@ -133,6 +133,9 @@ class MarkerFilter:
     def __init__(self, marker_count, settings):
         self.marker_count = marker_count
         self.channels = 3 * marker_count
+        self.iir = None
+        if settings.order is None:                 # no low-pass
+            return
         self.iir = IIR(num_channel=self.channels,
                        sampling_frequency=settings.fs)
         self.iir.add_filter(order=settings.order, cutoff=settings.cutoff_freq,
@@ -144,5 +147,7 @@ class MarkerFilter:
         The first call seeds the filter state from that frame, so the output
         starts at the signal rather than ramping up from zero.
         """
+        if self.iir is None:
+            return np.asarray(frame, dtype=float)
         flat = np.asarray(frame, dtype=float).reshape(1, self.channels)
         return self.iir.filter(flat).reshape(self.marker_count, 3)

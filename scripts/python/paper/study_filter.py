@@ -24,7 +24,6 @@ sys.path.insert(0, str(REPO / "scripts" / "python" / "paper"))
 
 import numpy as np
 
-import sweep as sweep_mod
 
 logging.basicConfig(level=logging.WARNING,
                     format="%(asctime)s | %(levelname)s | %(message)s", force=True)
@@ -76,7 +75,7 @@ def main():
     require_clean()
 
     from rtcosmik.config_loader import settings
-    ev = sweep_mod._load_eval()
+    from rtcosmik.paper.scoring import reference_dir, score_trial
     base_cutoff, base_order = settings.cutoff_freq, settings.order
     rows = []
     try:
@@ -89,11 +88,9 @@ def main():
                            / f"filter_o{order}_c{cutoff:g}")
                     try:
                         run(args.dataset, participant, task, args.cameras, out, settings)
-                        r = sweep_mod.score(
-                            out, Path(settings.output_dir) / participant / task
-                            / "mocap_reference", ev)
-                        scores.append(r["joint_rmse_mean"])
-                        markers.append(r["marker_mm"])
+                        r = score_trial(out, reference_dir(args.dataset, participant, task))[0]
+                        scores.append(r["aligned_rmse_mean"])
+                        markers.append(r["aligned_marker_mm"])
                     except Exception as exc:
                         LOGGER.warning(f"  o{order} c{cutoff} {participant}/{task}: {exc}")
                 if scores:

@@ -14,15 +14,15 @@ must reproduce the sweep's own run; ``check`` reports how closely it does.
 
 Per trial and variant, written to ``<out>/studies/<variant>.csv``:
 
-* accuracy against the mocap reference, lag-compensated (as everywhere) and at
-  zero lag -- the filter study needs the latter, since compensation hides delay
-* residual lag (frames), and for filters their analytic group delay at 1 Hz
+* the per-trial scores of ``rtcosmik.paper.scoring``: causal and aligned error,
+  lag, bias, SD, marker error, jitter, solver failures, limit violations
+* per-group aligned RMSE, and for filters their analytic group delay at 1 Hz
+* ``mhe_N7_nofilter``'s marker lag measures the video-reference clock offset
 * jitter: median |frame-to-frame change| of the scored DoF (deg), and median RMS
   jerk (deg/s^3)
 * joint-limit activity: share of frames with a scored DoF within 0.5 deg of a
   bound, and with one beyond a bound by more than 0.06 deg (violation)
-* per-frame solve time p50 / p95 / max (ms, calibration frame excluded) and
-  failed frames (solver exception or non-finite result)
+* per-frame solve time p50 / p95 / max (ms, calibration frame excluded)
 
 Solve times are measured with several variants running in parallel on the CPU
 (``--workers``): good for comparing variants, not a clean latency benchmark.
@@ -52,8 +52,9 @@ sys.path.insert(0, str(REPO / "scripts" / "python" / "paper"))
 
 import numpy as np
 
+from rtcosmik.paper.scoring import ROW_FIELDS, joint_limits, reference_dir
+
 DATASET = Path("/root/workspace/COMFI")
-REFERENCE_TAG = "mocap_reference"
 SOURCE_TAG = "nlf_0-2-4-6"
 FS = 40.0
 
@@ -75,12 +76,11 @@ VARIANTS = OrderedDict([
     ("mhe_N7_o4c4", ("E5", "mhe", 7, 4, 4.0)),
     ("mhe_N7_o4c3", ("E5", "mhe", 7, 4, 3.0)),
 ])
-LIMIT_NEAR_RAD, LIMIT_VIOLATION_RAD = np.radians(0.5), 1e-3
-FIELDS = ["variant", "study", "ik_type", "N", "filter", "participant", "task", "frames",
-          "joint_rmse_deg", "joint_rmse_zero_lag_deg", "upper_rmse_deg", "lower_rmse_deg",
-          "trunk_rmse_deg", "shoulder_flip_pct", "lag_frames", "filter_delay_1hz_ms",
-          "jitter_deg", "jerk_rms_deg_s3", "near_limit_pct", "violation_pct",
-          "solve_ms_p50", "solve_ms_p95", "solve_ms_max", "failed_frames"]
+LIMIT_NEAR_RAD = np.radians(0.5)
+FIELDS = (["variant", "study", "ik_type", "N", "filter", "participant", "task", "frames"]
+          + ROW_FIELDS + ["upper_rmse_deg", "lower_rmse_deg", "trunk_rmse_deg",
+                          "shoulder_flip_pct", "filter_delay_1hz_ms", "jerk_rms_deg_s3",
+                          "near_limit_pct", "solve_ms_p50", "solve_ms_p95", "solve_ms_max"])
 
 
 def tag(variant):
@@ -146,7 +146,7 @@ def replay(job):
     meta = yaml.safe_load((DATASET / "metadata" / f"{participant}.yaml").read_text())
     solver = HumanSolver(settings, gender=meta["gender"][0], height=meta["height"],
                          weight=meta["weight"], logger=logging.getLogger("solve"))
-    from rtcosmik.provenance import start_run
+    from rtcosmik.provenance import start_run, update_run_info
     run_dir = runs_root / participant / task / tag(variant)
     start_run(run_dir, settings, {"name": "nlf", "tag": tag(variant), "variant": repr(variant),
                                   "participant": participant, "task": task},
@@ -177,54 +177,46 @@ def replay(job):
         saver.save_markers(row)
         saver.save_joint_angles(OrderedDict(zip(settings.joint_angles_names, (float(v) for v in q))))
     saver.close()
+    update_run_info(run_dir, solver_failures=failed)
     solve_ms = np.asarray(solve_ms) if solve_ms else np.asarray([np.nan])
     return {"solve_ms_p50": float(np.nanpercentile(solve_ms, 50)),
             "solve_ms_p95": float(np.nanpercentile(solve_ms, 95)),
-            "solve_ms_max": float(np.nanmax(solve_ms)), "failed_frames": failed}
+            "solve_ms_max": float(np.nanmax(solve_ms))}
 
 
 def smoothness_and_limits(run_dir, scored):
-    """Jitter, jerk and joint-limit activity over the scored DoF of one run."""
-    import example_robot_data as robex
+    """Jerk and near-limit activity over the scored DoF of one run."""
     import pandas as pd
     angles = pd.read_csv(run_dir / "joint_angles.csv")
-    model = robex.human.HumanLoader(height=1.7, weight=70.0, gender="m").robot.model
     names = list(angles.columns)
     columns = [names.index(n) for n in scored]
-    q = angles.to_numpy(float)
-    lower, upper = model.lowerPositionLimit, model.upperPositionLimit
-    x = q[:, columns]
-    lo, hi = lower[columns], upper[columns]
-    dq = np.degrees(np.abs(np.diff(x, axis=0)))
+    x = angles.to_numpy(float)[:, columns]
+    lo, hi = joint_limits(columns)
     jerk = np.degrees(np.diff(x, n=3, axis=0)) * FS ** 3
     near = ((x - lo) < LIMIT_NEAR_RAD) | ((hi - x) < LIMIT_NEAR_RAD)
-    beyond = (x < lo - LIMIT_VIOLATION_RAD) | (x > hi + LIMIT_VIOLATION_RAD)
-    return {"jitter_deg": float(np.median(dq)),
-            "jerk_rms_deg_s3": float(np.median(np.sqrt((jerk ** 2).mean(axis=0)))),
-            "near_limit_pct": float(100 * near.any(axis=1).mean()),
-            "violation_pct": float(100 * beyond.any(axis=1).mean())}
+    return {"jerk_rms_deg_s3": float(np.median(np.sqrt((jerk ** 2).mean(axis=0)))),
+            "near_limit_pct": float(100 * near.any(axis=1).mean())}
 
 
 def score(job):
     """All metrics for one replayed variant on one trial."""
     runs_root, participant, task, variant, timing = job
     import trial_metrics as tm
-    ev = tm.load_eval()
+    from rtcosmik.paper.scoring import score_run
     run_dir = runs_root / participant / task / tag(variant)
-    ref_dir = runs_root / participant / task / REFERENCE_TAG
-    truth = DATASET / "mocap" / "aligned" / participant / task
-    dofs, trial = tm.trial_metrics(ev, run_dir, ref_dir, truth, participant)
-    zero_dofs, _ = tm.trial_metrics(ev, run_dir, ref_dir, truth, participant, lag=0)
-    by_group = lambda g: float(np.mean([d["rmse_deg"] for d in dofs if d["group"] == g]))
+    row = score_run(run_dir, DATASET, participant, task)
+    dofs = [{"dof": d["dof"], "rmse": float(d["aligned_rmse_deg"])}
+            for d in csv.DictReader(open(run_dir / "per_dof.csv"))]
+    by_group = lambda g: float(np.mean([d["rmse"] for d in dofs if tm.group_of(d["dof"]) == g]))
+    _, trial = tm.trial_metrics(tm.load_eval(), run_dir, reference_dir(DATASET, participant, task),
+                                DATASET / "mocap" / "aligned" / participant / task, participant)
     study, ik_type, horizon, order, cutoff = VARIANTS[variant]
-    row = {"variant": variant, "study": study, "ik_type": ik_type, "N": horizon,
-           "filter": "none" if order is None else f"order {order}, {cutoff:g} Hz",
-           "participant": participant, "task": task, "frames": trial["frames"],
-           "joint_rmse_deg": trial["joint_rmse_deg"],
-           "joint_rmse_zero_lag_deg": float(np.mean([d["rmse_deg"] for d in zero_dofs])),
-           "upper_rmse_deg": by_group("upper"), "lower_rmse_deg": by_group("lower"),
-           "trunk_rmse_deg": by_group("trunk"), "shoulder_flip_pct": trial["shoulder_flip_pct"],
-           "lag_frames": trial["lag_frames"], "filter_delay_1hz_ms": filter_delay_ms(order, cutoff)}
+    row.update({"variant": variant, "study": study, "ik_type": ik_type, "N": horizon,
+                "filter": "none" if order is None else f"order {order}, {cutoff:g} Hz",
+                "participant": participant, "task": task, "frames": trial["frames"],
+                "upper_rmse_deg": by_group("upper"), "lower_rmse_deg": by_group("lower"),
+                "trunk_rmse_deg": by_group("trunk"), "shoulder_flip_pct": trial["shoulder_flip_pct"],
+                "filter_delay_1hz_ms": filter_delay_ms(order, cutoff)})
     row.update(smoothness_and_limits(run_dir, [d["dof"] + "[rad]" for d in dofs]))
     row.update(timing)
     return row
@@ -261,7 +253,7 @@ def main():
     require_clean()
 
     trials = sorted((p.parent.name, p.stem) for p in args.views.glob("*/*.npz")
-                    if (args.output_dir / p.parent.name / p.stem / REFERENCE_TAG).is_dir())
+                    if reference_dir(DATASET, p.parent.name, p.stem).is_dir())
     jobs = [(args.output_dir, args.views, p, t, v) for p, t in trials for v in VARIANTS
             if not (args.output_dir / p / t / tag(v) / "joint_angles.csv").exists()]
     print(f"{len(trials)} trials x {len(VARIANTS)} variants; {len(jobs)} replays to run", flush=True)
@@ -278,10 +270,9 @@ def main():
     with multiprocessing.get_context("spawn").Pool(args.workers, maxtasksperchild=1) as pool:
         for job, timing in zip(jobs, pool.imap(replay, jobs)):
             timings[(job[2], job[3], job[4])] = timing
-            print(f"  {job[2]}/{job[3]} {job[4]}: {timing['solve_ms_p50']:.2f} ms p50, "
-                  f"{timing['failed_frames']} failed", flush=True)
+            print(f"  {job[2]}/{job[3]} {job[4]}: {timing['solve_ms_p50']:.2f} ms p50", flush=True)
     # Replays from an earlier, interrupted run keep their runs but not their timing.
-    empty = {"solve_ms_p50": np.nan, "solve_ms_p95": np.nan, "solve_ms_max": np.nan, "failed_frames": np.nan}
+    empty = {"solve_ms_p50": np.nan, "solve_ms_p95": np.nan, "solve_ms_max": np.nan}
     check(args.output_dir, trials)
 
     score_jobs = [(args.output_dir, p, t, v, timings.get((p, t, v), empty))

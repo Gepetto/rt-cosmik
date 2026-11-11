@@ -48,8 +48,9 @@ sys.path.insert(0, str(REPO / "scripts" / "python" / "paper"))
 
 import numpy as np
 
+from rtcosmik.paper.scoring import ROW_FIELDS
+
 DATASET = Path("/root/workspace/COMFI")
-REFERENCE_TAG = "mocap_reference"
 TASKS = ("Screwing", "Polishing", "SideOverhead", "RobotPolishing", "RobotWelding", "Lifting")
 FS = 40.0
 
@@ -67,9 +68,9 @@ SYMMETRY_PAIRS = ((("RSHO", "RELB"), ("LSHO", "LELB")), (("RELB", "RWRI"), ("LEL
                   (("RASI", "RKNE"), ("LASI", "LKNE")), (("RKNE", "RANK"), ("LKNE", "LANK")))
 GAUSS_NEWTON_STEPS = 5
 DAMPING = 1e-3
-FIELDS = ["variant", "label", "participant", "task", "frames", "joint_rmse_deg", "upper_rmse_deg",
-          "lower_rmse_deg", "trunk_rmse_deg", "marker_raw_mm", "marker_depth_mm", "shoulder_flip_pct",
-          "lag_frames", "jitter_deg", "fuse_ms_p50", "fuse_ms_p95", "solve_ms_p50", "failed_frames"]
+FIELDS = (["variant", "label", "participant", "task", "frames"] + ROW_FIELDS
+          + ["upper_rmse_deg", "lower_rmse_deg", "trunk_rmse_deg", "marker_raw_mm",
+             "marker_depth_mm", "shoulder_flip_pct", "fuse_ms_p50", "fuse_ms_p95", "solve_ms_p50"])
 
 
 def tag(variant):
@@ -226,7 +227,7 @@ def replay(job):
     meta = yaml.safe_load((DATASET / "metadata" / f"{participant}.yaml").read_text())
     solver = HumanSolver(settings, gender=meta["gender"][0], height=meta["height"],
                          weight=meta["weight"], logger=logging.getLogger("solve"))
-    from rtcosmik.provenance import start_run
+    from rtcosmik.provenance import start_run, update_run_info
     run_dir = runs_root / participant / task / tag(variant)
     start_run(run_dir, settings, {"name": "nlf", "tag": tag(variant), "variant": repr(variant),
                                   "participant": participant, "task": task},
@@ -257,28 +258,28 @@ def replay(job):
         saver.save_markers(row)
         saver.save_joint_angles(OrderedDict(zip(settings.joint_angles_names, (float(v) for v in q))))
     saver.close()
+    update_run_info(run_dir, solver_failures=failed)
     solve_ms = np.asarray(solve_ms) if solve_ms else np.asarray([np.nan])
     return {"fuse_ms_p50": float(np.nanpercentile(fuse_ms, 50)),
             "fuse_ms_p95": float(np.nanpercentile(fuse_ms, 95)),
-            "solve_ms_p50": float(np.nanpercentile(solve_ms, 50)), "failed_frames": failed}
+            "solve_ms_p50": float(np.nanpercentile(solve_ms, 50))}
 
 
 def score(job):
     runs_root, participant, task, variant, timing = job
     import trial_metrics as tm
-    import ik_filter_studies as studies
-    ev = tm.load_eval()
+    from rtcosmik.paper.scoring import reference_dir, score_run
     run_dir = runs_root / participant / task / tag(variant)
-    dofs, trial = tm.trial_metrics(ev, run_dir, runs_root / participant / task / REFERENCE_TAG,
+    row = score_run(run_dir, DATASET, participant, task)
+    dofs, trial = tm.trial_metrics(tm.load_eval(), run_dir, reference_dir(DATASET, participant, task),
                                    DATASET / "mocap" / "aligned" / participant / task, participant)
     by_group = lambda g: float(np.mean([d["rmse_deg"] for d in dofs if d["group"] == g]))
-    row = {"variant": variant, "label": VARIANTS[variant][0], "participant": participant, "task": task,
-           "frames": trial["frames"], "joint_rmse_deg": trial["joint_rmse_deg"],
-           "upper_rmse_deg": by_group("upper"), "lower_rmse_deg": by_group("lower"),
-           "trunk_rmse_deg": by_group("trunk"), "marker_raw_mm": trial["marker_raw_mm"],
-           "marker_depth_mm": trial["marker_depth_mm"], "shoulder_flip_pct": trial["shoulder_flip_pct"],
-           "lag_frames": trial["lag_frames"]}
-    row["jitter_deg"] = studies.smoothness_and_limits(run_dir, [d["dof"] + "[rad]" for d in dofs])["jitter_deg"]
+    row.update({"variant": variant, "label": VARIANTS[variant][0], "participant": participant,
+                "task": task, "frames": trial["frames"],
+                "upper_rmse_deg": by_group("upper"), "lower_rmse_deg": by_group("lower"),
+                "trunk_rmse_deg": by_group("trunk"), "marker_raw_mm": trial["marker_raw_mm"],
+                "marker_depth_mm": trial["marker_depth_mm"],
+                "shoulder_flip_pct": trial["shoulder_flip_pct"]})
     row.update(timing)
     return row
 
@@ -312,7 +313,7 @@ def main():
         for row in pool.map(score, score_jobs):
             rows.append(row)
             print(f"  scored {row['variant']} {row['participant']}/{row['task']}: "
-                  f"{row['joint_rmse_deg']:.2f} deg", flush=True)
+                  f"{row['causal_rmse_mean']:.2f} deg causal", flush=True)
 
     out = args.out / "studies"
     out.mkdir(parents=True, exist_ok=True)

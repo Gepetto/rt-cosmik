@@ -220,7 +220,7 @@ def main():
         entry["shape"] = stat(shape)
         entry["anisotropy"] = (entry["depth"][0] / entry["lateral"][0]
                                if entry["lateral"][0] else np.nan)
-        for field in ("marker_mm", "freeflyer_mm", "fps", "ik_ms_median"):
+        for field in ("aligned_marker_mm", "freeflyer_mm", "fps", "ik_ms_median"):
             entry[field] = stat([float(r[field]) for r in rows[tag] if r.get(field)])
         data[tag] = entry
 
@@ -282,7 +282,7 @@ def main():
     for tag, _ in present:
         e = data[tag]
         add(f"{e['label']:<20}{e['fps'][0]:>10.1f}{e['ik_ms_median'][0]:>10.2f}"
-            f"{e['marker_mm'][0]:>12.1f}{e['freeflyer_mm'][0]:>14.1f}")
+            f"{e["aligned_marker_mm"][0]:>12.1f}{e['freeflyer_mm'][0]:>14.1f}")
 
     text = "\n".join(lines)
     (paper / "SUMMARY.txt").write_text(text + "\n")

@@ -72,7 +72,7 @@ def main():
 
     sys.path.insert(0, str(REPO / "scripts" / "python" / "core"))
     from rtcosmik.config_loader import settings
-    ev = sweep_mod._load_eval()
+    from rtcosmik.paper.scoring import score_run
 
     original = settings.N
     profile = settings.mhe_profile
@@ -95,13 +95,10 @@ def main():
                     frames, ik_ms, seconds = sweep_mod.run_mmpose(
                         args.dataset, participant, task, args.cameras,
                         out_dir, settings)
-                    row = sweep_mod.score(
-                        out_dir,
-                        Path(args.dataset) / "mocap" / "aligned" / participant / task,
-                        ev)
-                    scores.append(row["joint_rmse_mean"])
+                    row = score_run(out_dir, args.dataset, participant, task)
+                    scores.append(row["aligned_rmse_mean"])
                     fps.append(frames / seconds)
-                    LOGGER.info(f"    {participant}/{task}: {row['joint_rmse_mean']} deg")
+                    LOGGER.info(f"    {participant}/{task}: {row['aligned_rmse_mean']} deg")
                 except Exception as exc:
                     LOGGER.warning(f"    {participant}/{task} failed: {exc}")
             per_n[n] = (float(np.mean(scores)) if scores else float("nan"),

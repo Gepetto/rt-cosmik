@@ -10,6 +10,7 @@ REPO = Path(__file__).resolve().parents[2]
 COMFI = Path("/root/workspace/COMFI")
 PARTICIPANT, TASK, CAMERAS = "1012", "Lifting", [0, 2, 4, 6]
 TRUTH_RUN = COMFI / "output" / "campaign" / PARTICIPANT / TASK / "nlf_0-2-4-6"
+REFERENCE_RUN = TRUTH_RUN.parent / "mocap_reference"
 
 for path in (REPO / "src", REPO / "scripts" / "python" / "paper"):
     if str(path) not in sys.path:
@@ -35,16 +36,20 @@ def clean_repo(tmp_path):
     return repo
 
 
-@pytest.fixture
-def synthetic_trial(tmp_path):
-    """Recorded views of 1012/Lifting rebuilt from archived landmarks (first 40 frames)."""
+def build_trial(root, frames=40, lag=0, source=TRUTH_RUN):
+    """Recorded views of 1012/Lifting rebuilt from a run's landmarks, delayed by ``lag`` frames.
+
+    Landmarks ``source`` lacks (the reference has no face) come from the archived NLF run.
+    """
     from rtcosmik.camera.cam_utils import load_camera_parameters, load_world_transformation
     from rtcosmik.config_loader import settings
 
     names = list(settings.marker_names)
-    table = np.genfromtxt(TRUTH_RUN / "markers.csv", delimiter=",", names=True)[:40]
-    world = np.stack([np.stack([table[f"{n}_x"], table[f"{n}_y"], table[f"{n}_z"]], -1)
-                      for n in names], 1)                                  # (F, M, 3)
+    tables = [np.genfromtxt(run / "markers.csv", delimiter=",", names=True)[:frames]
+              for run in (source, TRUTH_RUN)]
+    table = lambda n: next(t for t in tables if f"{n}_x" in t.dtype.names)
+    world = np.stack([np.stack([table(n)[f"{n}_{a}"] for a in "xyz"], -1) for n in names], 1)
+    world = np.concatenate([np.repeat(world[:1], lag, 0), world[:len(world) - lag]])
     cam_dir = COMFI / "cam_params" / PARTICIPANT
     mtxs, _, projections, _, _ = load_camera_parameters(cam_dir, CAMERAS)
     R, T = (np.asarray(a) for a in load_world_transformation(cam_dir, CAMERAS[0]))
@@ -59,9 +64,14 @@ def synthetic_trial(tmp_path):
     poses = np.stack(poses, 1).astype(np.float32)                          # (F, C, M, 3)
     keypoints = np.stack(keypoints, 1).astype(np.float32)
     sigma = np.full(poses.shape[:3], 0.05, np.float32)
-    views = tmp_path / "views" / PARTICIPANT / f"{TASK}.npz"
+    views = root / "views" / PARTICIPANT / f"{TASK}.npz"
     views.parent.mkdir(parents=True)
     np.savez_compressed(views, cameras=np.asarray(CAMERAS), keypoints=keypoints,
                         poses3d=poses, uncertainties=sigma)
     return {"dataset": COMFI, "views": views, "participant": PARTICIPANT, "task": TASK,
-            "cameras": CAMERAS, "frames": len(world), "out_dir": tmp_path / "run"}
+            "cameras": CAMERAS, "frames": len(world), "out_dir": root / "run"}
+
+
+@pytest.fixture
+def synthetic_trial(tmp_path):
+    return build_trial(tmp_path)

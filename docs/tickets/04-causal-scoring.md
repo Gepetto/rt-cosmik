@@ -4,9 +4,9 @@
 
 **Blocked by:** None (can start immediately)
 
-**Status:** ready-for-agent
+**Status:** code done; sweeps to be re-run on the ticket 07 recordings
 
-- [ ] Injected lag on a synthetic trial appears in causal error and is removed by alignment, with the estimated lag equal to the injection
-- [ ] Existing sweeps re-scored and tabulated with causal error
-- [ ] How COMFI synchronizes mocap and video is established; any residual clock offset is estimated from a delay-free signal and removed, so causal error counts only pipeline lag
-- [ ] Bias and SD per DoF satisfy RMSE^2 = bias^2 + SD^2
+- [x] Injected lag on a synthetic trial appears in causal error and is removed by alignment, with the estimated lag equal to the injection (marker-space lag exact; joint-space lag shifted by exactly the injection)
+- [ ] Existing sweeps re-scored and tabulated with causal error (re-run of the studies on the out-of-fold recordings)
+- [ ] How COMFI synchronizes mocap and video is established; any residual clock offset is estimated from a delay-free signal and removed, so causal error counts only pipeline lag (measured: unfiltered NLF landmarks trail the reference by 3 frames in 81/108 trials, 2 in 27, so `clock_offset_frames = 3`; hardware sync still to confirm with Kahina)
+- [x] Bias and SD per DoF satisfy RMSE^2 = bias^2 + SD^2

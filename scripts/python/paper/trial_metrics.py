@@ -27,7 +27,6 @@ be traced back to one row.
 """
 import argparse
 import csv
-import importlib.util
 import sys
 from pathlib import Path
 
@@ -43,19 +42,15 @@ FACE = {"Nose", "Head", "REar", "LEar", "REye", "LEye"}
 FLIP_DEG = 90.0
 
 DOF_FIELDS = ["arm", "participant", "task", "dof", "group", "rmse_deg", "mae_deg",
-              "bias_deg", "sd_deg", "r", "frames"]
-TRIAL_FIELDS = ["arm", "participant", "task", "lag_frames", "frames", "scored_dof",
-                "joint_rmse_deg", "shoulder_flip_pct", "freeflyer_pos_mm", "freeflyer_rot_deg",
+              "bias_deg", "sd_deg", "r", "frames", "causal_rmse_deg", "causal_bias_deg",
+              "causal_sd_deg"]
+TRIAL_FIELDS = ["arm", "participant", "task", "lag_frames", "marker_lag", "frames", "scored_dof",
+                "causal_rmse_deg", "joint_rmse_deg", "shoulder_flip_pct", "freeflyer_pos_mm", "freeflyer_rot_deg",
                 "marker_raw_mm", "marker_depth_mm", "marker_lateral_mm",
                 "marker_translation_mm", "marker_shape_mm", "marker_count"]
 
 
-def load_eval():
-    path = REPO / "scripts" / "python" / "eval" / "compare_to_mocap.py"
-    spec = importlib.util.spec_from_file_location("compare_to_mocap", path)
-    module = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(module)
-    return module
+from rtcosmik.paper.scoring import load_eval  # noqa: E402
 
 
 def group_of(name):
@@ -76,12 +71,16 @@ def camera0_axis(participant, cache={}):
 def trial_metrics(ev, run_dir, ref_dir, truth_dir, participant, lag=None):
     """All metrics for one trial. Returns (dof_rows, trial_row).
 
-    ``lag`` forces the alignment (e.g. 0 to score without compensation); by
-    default it is estimated by knee-flexion cross-correlation.
+    Aligned metrics use ``lag`` (default: the scoring module's estimate); causal
+    ones come from ``rtcosmik.paper.scoring``.
     """
+    from rtcosmik.config_loader import settings
+    from rtcosmik.paper.scoring import score_trial
+    scores, causal = score_trial(run_dir, ref_dir)
+    causal = {d["dof"]: d for d in causal}
     run, ref = ev.load_run(str(run_dir)), ev.load_run(str(ref_dir))
     if lag is None:
-        lag, _ = ev.estimate_lag(run, ref)
+        lag = scores["lag"] + settings.paper["clock_offset_frames"]
     a, b = ev.apply_lag(run, ref, lag)
     joints, freeflyer = ev.compare_joint_angles(a, b)
     locked = {j["name"] for j in joints if j.get("locked")}
@@ -107,12 +106,15 @@ def trial_metrics(ev, run_dir, ref_dir, truth_dir, participant, lag=None):
                          "rmse_deg": float(np.sqrt((d ** 2).mean())),
                          "mae_deg": float(np.abs(d).mean()),
                          "bias_deg": float(d.mean()), "sd_deg": float(d.std()),
-                         "r": r, "frames": int(d.size)})
+                         "r": r, "frames": int(d.size),
+                         **{k: causal[name.replace("[rad]", "")][k]
+                            for k in ("causal_rmse_deg", "causal_bias_deg", "causal_sd_deg")}})
 
     linear = {j["name"]: j["rmse"] for j in joints if j["unit"] == "m"}
     position = [linear[k] for k in linear if k.startswith("Freeflyer")]
     trial = {
-        "lag_frames": int(lag), "frames": n, "scored_dof": len(dof_rows),
+        "lag_frames": scores["lag"], "marker_lag": scores["marker_lag"], "frames": n,
+        "scored_dof": len(dof_rows), "causal_rmse_deg": scores["causal_rmse_mean"],
         "joint_rmse_deg": float(np.mean([row["rmse_deg"] for row in dof_rows])),
         "shoulder_flip_pct": (float(100 * np.any(shoulder, axis=0).mean())
                               if shoulder else np.nan),
