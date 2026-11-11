@@ -8,6 +8,7 @@ import numpy as np
 
 REPO = Path(__file__).resolve().parents[3]
 REFERENCE_TAG = "mocap_reference"      # folder name of the reference runs
+CLOCK_OFFSETS = REPO / "config" / "clock_offsets.json"
 LIMIT_VIOLATION_RAD = 1e-3
 
 ROW_FIELDS = ["lag", "marker_lag", "sync_r", "causal_rmse_mean", "aligned_rmse_mean",
@@ -21,6 +22,24 @@ DOF_FIELDS = ["dof", "causal_rmse_deg", "causal_bias_deg", "causal_sd_deg",
 def reference_dir(dataset, participant, task):
     """The reference run of a trial: the reference markers through our model and IK."""
     return Path(dataset) / "output" / "campaign" / participant / task / REFERENCE_TAG
+
+
+def clock_offset(settings, participant, task):
+    """Frames the trial's video trails its reference by: dataset timing, not pipeline lag."""
+    choice = settings.paper["clock_offset"]
+    if choice != "per_trial":
+        return int(choice)
+    return int(json.loads(CLOCK_OFFSETS.read_text())[participant][task])
+
+
+def unfiltered_marker_lag(frames, marker_names, reference):
+    """Lag of ``(frame, (M, 3))`` landmarks, before any filter or IK, against a reference run."""
+    span = max(frame for frame, _ in frames) + 1
+    markers = {name: np.full((span, 3), np.nan) for name in marker_names}
+    for frame, points in frames:
+        for name, point in zip(marker_names, points):
+            markers[name][frame] = point
+    return _marker_lag(load_eval(), markers, _by_frame(reference)[2])
 
 
 def load_eval():
@@ -126,15 +145,11 @@ def _violation_pct(q, columns):
     return float(100 * beyond.any(1).mean()) if len(x) else np.nan
 
 
-def score_trial(run_dir, reference, clock_offset=None):
+def score_trial(run_dir, reference, clock_offset):
     """Score one run folder. Returns a ``ROW_FIELDS`` dict and the per-DoF rows.
 
-    Causal error removes only ``clock_offset`` (frames the video trails the
-    reference; default ``settings.paper["clock_offset_frames"]``).
+    Causal error removes only ``clock_offset``, so the arm's own lag counts as error.
     """
-    from rtcosmik.config_loader import settings
-    if clock_offset is None:
-        clock_offset = settings.paper["clock_offset_frames"]
     ev = load_eval()
     run_dir = Path(run_dir)
     names, q, markers = _by_frame(run_dir)
@@ -178,9 +193,10 @@ def score_trial(run_dir, reference, clock_offset=None):
     }, dofs
 
 
-def score_run(run_dir, dataset, participant, task, clock_offset=None):
+def score_run(run_dir, dataset, participant, task, settings):
     """Score an arm's own run folder against the trial's reference, writing ``per_dof.csv``."""
-    row, dofs = score_trial(run_dir, reference_dir(dataset, participant, task), clock_offset)
+    row, dofs = score_trial(run_dir, reference_dir(dataset, participant, task),
+                            clock_offset(settings, participant, task))
     with open(Path(run_dir) / "per_dof.csv", "w", newline="") as f:
         writer = csv.DictWriter(f, fieldnames=DOF_FIELDS)
         writer.writeheader()

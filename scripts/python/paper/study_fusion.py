@@ -268,9 +268,10 @@ def replay(job):
 def score(job):
     runs_root, participant, task, variant, timing = job
     import trial_metrics as tm
+    from rtcosmik.config_loader import settings
     from rtcosmik.paper.scoring import reference_dir, score_run
     run_dir = runs_root / participant / task / tag(variant)
-    row = score_run(run_dir, DATASET, participant, task)
+    row = score_run(run_dir, DATASET, participant, task, settings)
     dofs, trial = tm.trial_metrics(tm.load_eval(), run_dir, reference_dir(DATASET, participant, task),
                                    DATASET / "mocap" / "aligned" / participant / task, participant)
     by_group = lambda g: float(np.mean([d["rmse_deg"] for d in dofs if d["group"] == g]))

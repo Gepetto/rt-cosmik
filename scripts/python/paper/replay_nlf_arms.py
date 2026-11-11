@@ -92,8 +92,7 @@ def replay_trial(dataset, views_path, out_dir, participant, task, arm, settings,
                ik_ms_p95=round(float(np.percentile(ik_ms, 95)), 2) if ik_ms else "")
     update_run_info(out_dir, frames=len(frames))
     from rtcosmik.paper.scoring import score_run
-    row.update(score_run(out_dir, dataset, participant, task,
-                         settings.paper["clock_offset_frames"]))
+    row.update(score_run(out_dir, dataset, participant, task, settings))
     row["status"] = "ok"
     return row
 

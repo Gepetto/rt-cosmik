@@ -41,7 +41,7 @@ def main():
     args = ap.parse_args()
 
     from rtcosmik.config_loader import settings
-    from rtcosmik.paper.scoring import reference_dir, score_trial
+    from rtcosmik.paper.scoring import clock_offset, reference_dir, score_trial
     root = args.output_dir or Path(settings.output_dir)
     out_dir = args.results / "vs_mocap"
     out_dir.mkdir(parents=True, exist_ok=True)
@@ -60,7 +60,8 @@ def main():
             if not (run_dir.is_dir() and ref_dir.is_dir()):
                 continue
             try:
-                row.update(score_trial(run_dir, ref_dir)[0])
+                row.update(score_trial(run_dir, ref_dir, clock_offset(
+                    settings, row["participant"], row["task"]))[0])
                 kept.append(row)
             except Exception as exc:
                 print(f"  {name} {row['participant']}/{row['task']}: "

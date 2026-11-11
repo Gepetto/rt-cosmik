@@ -12,6 +12,7 @@ def _settings(choice="out_of_fold"):
     s = copy.deepcopy(settings)
     s.ik_type = "sbs"
     s.paper["landmark_map"] = choice
+    s.paper["clock_offset"] = 0
     return s
 
 

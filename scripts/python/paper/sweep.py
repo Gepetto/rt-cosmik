@@ -446,8 +446,7 @@ def main():
                        ik_ms_median=round(float(np.median(ik_ms)), 2) if len(ik_ms) else "",
                        ik_ms_p95=round(float(np.percentile(ik_ms, 95)), 2) if len(ik_ms) else "",
                        fps=round(frames / seconds, 1))
-            row.update(score_run(out_dir, args.dataset, participant, task,
-                                 settings.paper["clock_offset_frames"]))
+            row.update(score_run(out_dir, args.dataset, participant, task, settings))
             row["status"] = "ok"
             LOGGER.info(f"[{index}/{len(trials)}] {participant}/{task}: "
                         f"{row['aligned_rmse_mean']} deg over {row['scored_dof']} DoF, "

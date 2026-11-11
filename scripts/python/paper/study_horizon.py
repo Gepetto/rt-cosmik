@@ -95,7 +95,7 @@ def main():
                     frames, ik_ms, seconds = sweep_mod.run_mmpose(
                         args.dataset, participant, task, args.cameras,
                         out_dir, settings)
-                    row = score_run(out_dir, args.dataset, participant, task)
+                    row = score_run(out_dir, args.dataset, participant, task, settings)
                     scores.append(row["aligned_rmse_mean"])
                     fps.append(frames / seconds)
                     LOGGER.info(f"    {participant}/{task}: {row['aligned_rmse_mean']} deg")

@@ -59,7 +59,7 @@ def main():
             try:
                 sweep_mod.run_mmpose(args.dataset, participant, task, args.cameras,
                                      out_dir, settings, depth_aware=depth_aware)
-                row = score_run(out_dir, args.dataset, participant, task)
+                row = score_run(out_dir, args.dataset, participant, task, settings)
                 scores[(participant, task)] = row["aligned_rmse_mean"]
                 LOGGER.info(f"  {label:<10} {participant}/{task}: "
                             f"{row['aligned_rmse_mean']} deg")

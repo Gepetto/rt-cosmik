@@ -75,12 +75,13 @@ def trial_metrics(ev, run_dir, ref_dir, truth_dir, participant, lag=None):
     ones come from ``rtcosmik.paper.scoring``.
     """
     from rtcosmik.config_loader import settings
-    from rtcosmik.paper.scoring import score_trial
-    scores, causal = score_trial(run_dir, ref_dir)
+    from rtcosmik.paper.scoring import clock_offset, score_trial
+    offset = clock_offset(settings, participant, Path(truth_dir).name)
+    scores, causal = score_trial(run_dir, ref_dir, offset)
     causal = {d["dof"]: d for d in causal}
     run, ref = ev.load_run(str(run_dir)), ev.load_run(str(ref_dir))
     if lag is None:
-        lag = scores["lag"] + settings.paper["clock_offset_frames"]
+        lag = scores["lag"] + offset
     a, b = ev.apply_lag(run, ref, lag)
     joints, freeflyer = ev.compare_joint_angles(a, b)
     locked = {j["name"] for j in joints if j.get("locked")}

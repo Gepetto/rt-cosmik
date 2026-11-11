@@ -134,7 +134,7 @@ def sensitivity(dataset, work_dir):
             out = out / f"{participant}_{task}"
             try:
                 sweep_mod.run_fastsam(dataset, participant, task, [0], out, settings)
-                scores.append(score_run(out, dataset, participant, task)["aligned_rmse_mean"])
+                scores.append(score_run(out, dataset, participant, task, settings)["aligned_rmse_mean"])
             except Exception as exc:
                 print(f"  {label} {participant}/{task}: {type(exc).__name__}: {exc}")
                 scores.append(np.nan)

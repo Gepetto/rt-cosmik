@@ -12,6 +12,7 @@ def _per_frame_settings():
     s = copy.deepcopy(settings)
     s.ik_type = "sbs"
     s.paper["landmark_map"] = "submitted"      # the synthetic trial predates fold maps
+    s.paper["clock_offset"] = 0
     return s
 
 

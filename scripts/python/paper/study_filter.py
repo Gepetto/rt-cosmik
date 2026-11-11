@@ -75,7 +75,7 @@ def main():
     require_clean()
 
     from rtcosmik.config_loader import settings
-    from rtcosmik.paper.scoring import reference_dir, score_trial
+    from rtcosmik.paper.scoring import clock_offset, reference_dir, score_trial
     base_cutoff, base_order = settings.cutoff_freq, settings.order
     rows = []
     try:
@@ -88,7 +88,8 @@ def main():
                            / f"filter_o{order}_c{cutoff:g}")
                     try:
                         run(args.dataset, participant, task, args.cameras, out, settings)
-                        r = score_trial(out, reference_dir(args.dataset, participant, task))[0]
+                        r = score_trial(out, reference_dir(args.dataset, participant, task),
+                                        clock_offset(settings, participant, task))[0]
                         scores.append(r["aligned_rmse_mean"])
                         markers.append(r["aligned_marker_mm"])
                     except Exception as exc:

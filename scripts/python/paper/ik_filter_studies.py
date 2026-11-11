@@ -202,9 +202,10 @@ def score(job):
     """All metrics for one replayed variant on one trial."""
     runs_root, participant, task, variant, timing = job
     import trial_metrics as tm
+    from rtcosmik.config_loader import settings
     from rtcosmik.paper.scoring import score_run
     run_dir = runs_root / participant / task / tag(variant)
-    row = score_run(run_dir, DATASET, participant, task)
+    row = score_run(run_dir, DATASET, participant, task, settings)
     dofs = [{"dof": d["dof"], "rmse": float(d["aligned_rmse_deg"])}
             for d in csv.DictReader(open(run_dir / "per_dof.csv"))]
     by_group = lambda g: float(np.mean([d["rmse"] for d in dofs if tm.group_of(d["dof"]) == g]))

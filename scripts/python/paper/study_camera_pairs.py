@@ -64,7 +64,7 @@ def main():
             try:
                 sweep_mod.run_mmpose(args.dataset, participant, task, list(pair),
                                      out_dir, settings)
-                row = score_run(out_dir, args.dataset, participant, task)
+                row = score_run(out_dir, args.dataset, participant, task, settings)
                 scores[(participant, task)] = row["aligned_rmse_mean"]
             except Exception as exc:
                 LOGGER.warning(f"  {label} {participant}/{task} failed: {exc}")

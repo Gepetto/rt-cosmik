@@ -194,7 +194,7 @@ class DefaultSettings:
     paper: dict = field(default_factory=lambda: {
         "order": 4, "cutoff_freq": 5, "N": 7, "marker_set": "parity",
         "landmark_map": "out_of_fold",   # or "submitted", only to reproduce the manuscript
-        "clock_offset_frames": 3,        # video behind reference: marker lag of unfiltered NLF (2-3 frames)
+        "clock_offset": "per_trial",     # config/clock_offsets.json, or a number of frames
         "nlf_indices": [
             8421, 5727, 8371, 5677,
             3353, 5489, 5500, 6629, 3878, 7075, 4524, 7035, 4370, 7423, 4687, 7409, 4721,

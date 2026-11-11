@@ -9,31 +9,36 @@ from .conftest import REFERENCE_RUN, build_trial, needs_comfi
 LAG = 8
 
 
-def _settings():
+def _settings(clock_offset=0):
     from rtcosmik.config_loader import settings
     s = copy.deepcopy(settings)
     s.ik_type = "sbs"
     s.paper["landmark_map"] = "submitted"      # synthetic trials predate fold maps
     s.order = None                             # no low-pass: any lag is the injected one
-    s.paper["clock_offset_frames"] = 0         # built from the reference: no clock offset
+    s.paper["clock_offset"] = clock_offset     # built from the reference: no clock offset
     return s
 
 
-def _replay(trial, repo):
+def _replay(trial, repo, clock_offset=0):
     from replay_nlf_arms import replay_trial
     arm = {"name": "nlf", "tag": "nlf_0-2-4-6", "reconstruction": "fuse3d",
            "cameras": trial["cameras"]}
     return replay_trial(trial["dataset"], trial["views"], trial["out_dir"], trial["participant"],
-                        trial["task"], arm, _settings(), repo=repo)
+                        trial["task"], arm, _settings(clock_offset), repo=repo)
 
 
 @pytest.fixture(scope="module")
-def rows(tmp_path_factory):
+def repo(tmp_path_factory):
     import subprocess
     repo = tmp_path_factory.mktemp("repo")
     subprocess.run(["git", "-C", str(repo), "init", "-q"], check=True)
     subprocess.run(["git", "-C", str(repo), "-c", "user.name=t", "-c", "user.email=t@t",
                     "commit", "-q", "--allow-empty", "-m", "init"], check=True)
+    return repo
+
+
+@pytest.fixture(scope="module")
+def rows(tmp_path_factory, repo):
     out = {}
     for lag in (0, LAG):
         trial = build_trial(tmp_path_factory.mktemp(f"lag{lag}"), frames=400, lag=lag,
@@ -69,3 +74,15 @@ def test_row_reports_markers_jitter_failures_and_limits(rows):
                 "violation_pct", "dropped_frames"):
         assert row[key] != "" and np.isfinite(float(row[key])), key
     assert row["solver_failures"] == 0
+
+
+@needs_comfi
+def test_clock_offset_is_measured_on_the_recording_and_not_charged_to_the_arm(tmp_path, repo):
+    from measure_clock_offsets import measure
+    trial = build_trial(tmp_path, frames=400, lag=LAG, source=REFERENCE_RUN)
+
+    offset = measure(trial["views"], trial["dataset"], trial["participant"], trial["task"])
+    row = _replay(trial, repo, clock_offset=offset)
+
+    assert offset == LAG
+    assert row["marker_lag"] == 0
