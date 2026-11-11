@@ -4,13 +4,13 @@
 
 **Blocked by:** 02
 
-**Status:** merged in the working tree, awaiting the author's commit and regression run
+**Status:** done (merged; regression test passed after the merge)
 
 - [x] Main merged; the four conflicts resolved
 - [x] Paper configuration (5 Hz, N = 7, fitted NLF map, parity marker set, locked joints) stated in settings.py behind one switch, `paper_evaluation`, on top of main's toolbox defaults
 - [x] The removed filtering helper: false alarm, it is defined locally in the vendored viz tool and only used in a comment
-- [ ] Ticket 02's regression test reproduces the submitted numbers for one participant after the merge
-- [ ] No commit or push without the author's authorization
+- [x] Ticket 02's regression test reproduces the submitted numbers for one participant after the merge
+- [x] No commit or push without the author's authorization
 
 ## Notes
 

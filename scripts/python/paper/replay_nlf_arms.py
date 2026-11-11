@@ -49,6 +49,7 @@ def replay_trial(dataset, views_path, out_dir, participant, task, arm, settings,
     import yaml
     import sweep
     from rtcosmik.filtering.iir import MarkerFilter
+    from rtcosmik.landmark_maps import checked_recording
     from rtcosmik.paper.nlf_views import replay_markers
     from rtcosmik.pipeline.solver import HumanSolver
     from rtcosmik.provenance import start_run, update_run_info
@@ -58,8 +59,10 @@ def replay_trial(dataset, views_path, out_dir, participant, task, arm, settings,
     cameras = list(arm["cameras"])
     from rtcosmik.paper import require_paper_evaluation
     require_paper_evaluation(settings)
+    landmark_map = checked_recording(views_path, participant, settings)
     start_run(out_dir, settings, dict(arm, participant=participant, task=task,
-                                      views=str(views_path), dataset=str(dataset)), repo=repo)
+                                      views=str(views_path), dataset=str(dataset)), repo=repo,
+              landmark_map=landmark_map)
     row = dict.fromkeys(sweep.FIELDS, "")
     row.update(arm=arm["name"], participant=participant, task=task,
                cameras="-".join(map(str, cameras)), n_horizon=settings.N)
@@ -101,8 +104,7 @@ def replay(job):
 
     runs_root, views_root, participant, task, tag = job
     name, reconstruction, cameras = ARMS[tag]
-    arm = {"name": name, "tag": tag, "reconstruction": reconstruction,
-           "cameras": cameras, "fold": None}
+    arm = {"name": name, "tag": tag, "reconstruction": reconstruction, "cameras": cameras}
     try:
         row = replay_trial(DATASET, views_root / participant / f"{task}.npz",
                            runs_root / participant / task / tag, participant, task, arm, settings)

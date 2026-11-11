@@ -22,10 +22,19 @@ def _rms_deg(a, b):
 
 
 @pytest.fixture(scope="module")
-def direct_run(tmp_path_factory):
+def settings():
+    """The paper settings with the submitted map, which these runs reproduce."""
+    import copy
+    from rtcosmik.config_loader import settings
+    s = copy.deepcopy(settings)
+    s.paper["landmark_map"] = "submitted"
+    return s
+
+
+@pytest.fixture(scope="module")
+def direct_run(settings, tmp_path_factory):
     """NLF, four cameras, the paper settings, recording its views."""
     import sweep
-    from rtcosmik.config_loader import settings
     root = tmp_path_factory.mktemp("direct")
     out_dir, views = root / "run", root / "views"
     sweep.run_nlf(str(COMFI), PARTICIPANT, TASK, CAMERAS, out_dir, settings, views_cache=views)
@@ -39,12 +48,11 @@ def test_direct_run_reproduces_the_submitted_run(direct_run):
     assert diff.mean() < 0.1, f"mean per-DoF RMS difference {diff.mean():.3f} deg"
 
 
-def test_replay_reproduces_the_direct_run(direct_run, tmp_path):
+def test_replay_reproduces_the_direct_run(direct_run, settings, tmp_path):
     from replay_nlf_arms import replay_trial
-    from rtcosmik.config_loader import settings
     out_dir, views = direct_run
     arm = {"name": "nlf", "tag": "nlf_0-2-4-6", "reconstruction": "fuse3d",
-           "cameras": CAMERAS, "fold": None}
+           "cameras": CAMERAS}
     replay_trial(COMFI, views, tmp_path / "replay", PARTICIPANT, TASK, arm, settings)
     diff = _rms_deg(_angles(tmp_path / "replay"), _angles(out_dir))
     assert diff.max() < 1e-3, f"max per-DoF RMS difference {diff.max():.5f} deg"

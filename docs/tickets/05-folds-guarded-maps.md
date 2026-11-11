@@ -4,9 +4,9 @@
 
 **Blocked by:** 02, 03
 
-**Status:** ready-for-agent
+**Status:** code done; maps to be fitted by the author (commands in `scripts/python/paper/README.md`)
 
-- [ ] Fold assignment versioned and used by every fitting step
-- [ ] Six NLF maps and six FastSAM-3D maps produced
-- [ ] Scoring a participant with its own fold's map is refused (test at the arm seam)
-- [ ] No participant name appears in any new file
+- [x] Fold assignment versioned and used by every fitting step
+- [ ] Six NLF maps and six FastSAM-3D maps produced (FastSAM-3D from camera-2 meshes; 4687 left out of its fits, as the learner drops participants missing a task: RobotWelding is one frame longer than its reference)
+- [x] Scoring a participant with its own fold's map is refused (test at the arm seam)
+- [x] No participant name appears in any new file

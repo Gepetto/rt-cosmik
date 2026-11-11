@@ -40,13 +40,15 @@ FIELDS = ["arm", "participant", "task", "cameras", "n_horizon", "frames",
           "ik_ms_median", "ik_ms_p95", "fps", "status"]
 
 
-def _start(out_dir, settings, name, dataset, participant, task, cameras, **extra):
+def _start(out_dir, settings, name, dataset, participant, task, cameras, landmark_map=None,
+           **extra):
     from rtcosmik.paper import require_paper_evaluation
     from rtcosmik.provenance import start_run
     require_paper_evaluation(settings)
     start_run(out_dir, settings, dict(name=name, tag=Path(out_dir).name, cameras=list(cameras),
                                       participant=participant, task=task, dataset=str(dataset),
-                                      fold=None, **extra))
+                                      **extra),
+              landmark_map=landmark_map)
 
 
 def _load_eval():
@@ -185,6 +187,7 @@ def run_nlf(dataset, participant, task, cameras, out_dir, settings,
     from rtcosmik.camera.cam_utils import (load_camera_parameters,
                                            load_world_transformation)
     from rtcosmik.filtering.iir import MarkerFilter
+    from rtcosmik import landmark_maps
     from rtcosmik.nlf.nlf import extract_views
     from rtcosmik.pipeline.solver import HumanSolver
     from rtcosmik.saver.csv_saver import CSVSaver
@@ -192,6 +195,9 @@ def run_nlf(dataset, participant, task, cameras, out_dir, settings,
                                                       triangulate_points)
     from rtcosmik.utils.VideoReader import OfflineVideoSource
 
+    landmark_map = landmark_maps.select(settings, participant)
+    landmark_maps.require_out_of_fold(landmark_map, participant, settings)
+    settings = landmark_maps.apply(landmark_map, settings)
     root = Path(dataset)
     meta = yaml.safe_load((root / "metadata" / f"{participant}.yaml").read_text())
     cam_dir = root / "cam_params" / participant
@@ -216,7 +222,8 @@ def run_nlf(dataset, participant, task, cameras, out_dir, settings,
 
     marker_filter = MarkerFilter(len(settings.marker_names), settings)
 
-    _start(out_dir, settings, "nlf", dataset, participant, task, cameras, reconstruction=reconstruction)
+    _start(out_dir, settings, "nlf", dataset, participant, task, cameras,
+           landmark_map.identity(participant), reconstruction=reconstruction)
     out_dir.mkdir(parents=True, exist_ok=True)
     saver = CSVSaver(str(out_dir),
                      markers_header=["Frame_0"] + list(settings.marker_names),
@@ -226,7 +233,7 @@ def run_nlf(dataset, participant, task, cameras, out_dir, settings,
     recorder = None
     if views_cache is not None:
         from rtcosmik.paper.nlf_views import ViewsRecorder
-        recorder = ViewsRecorder(cameras, len(settings.marker_names))
+        recorder = ViewsRecorder(cameras, len(settings.marker_names), landmark_map)
     started = time.perf_counter()
     try:
         while True:
@@ -342,14 +349,18 @@ def run_fastsam(dataset, participant, task, cameras, out_dir, settings,
     the arms that include a detector.
     """
     from collections import OrderedDict
+    from rtcosmik import landmark_maps
     from rtcosmik.paper.fastsam_source import build_source
     from rtcosmik.pipeline.solver import HumanSolver
     from rtcosmik.saver.csv_saver import CSVSaver
 
+    landmark_map = landmark_maps.submitted(settings, "fastsam")     # the COMFI exports
+    landmark_maps.require_out_of_fold(landmark_map, participant, settings)
     source, meta = build_source(dataset, participant, task, cameras, settings)
     solver = HumanSolver(settings, gender=meta["gender"][0], height=meta["height"],
                          weight=meta["weight"], logger=logging.getLogger("solve"))
-    _start(out_dir, settings, "fastsam", dataset, participant, task, cameras)
+    _start(out_dir, settings, "fastsam", dataset, participant, task, cameras,
+           landmark_map.identity(participant))
     out_dir.mkdir(parents=True, exist_ok=True)
     saver = CSVSaver(str(out_dir),
                      markers_header=["Frame_0"] + list(settings.marker_names),

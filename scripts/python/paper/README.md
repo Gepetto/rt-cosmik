@@ -84,6 +84,27 @@ joints locked the thorax follows, which cost up to 3 deg of whole-body RMSE and
 added shoulder flips in overhead work (details in the script's docstring). The
 hand-picked values are kept as comments in `settings.py`.
 
+### Out-of-fold maps
+
+That map, the submitted one, was fitted on the participants it is scored on. The
+resubmission fits one map per fold instead (`rtcosmik.folds`: six fixed folds of
+three participants). Each fold's map is fitted on the other fifteen participants
+and used only for its own three, for NLF and FastSAM-3D alike. The fitting
+method does not change. FastSAM-3D is fitted on the camera-2 meshes, because
+camera-0 meshes are not stored. The maps live in `config/landmark_maps/`.
+
+```bash
+python3 scripts/python/paper/sample_nlf_dense.py --out /root/workspace/nlf_dense_samples
+python3 scripts/python/paper/fit_nlf_marker_map.py --samples /root/workspace/nlf_dense_samples --out-dir config/landmark_maps
+python3 scripts/python/paper/fit_fastsam_landmark_map.py --results /root/workspace/COMFI/fastsam/results_multicam --out-dir config/landmark_maps
+```
+
+Every arm run selects the map named by `settings.paper["landmark_map"]`, and so
+does every replay of recorded views. `"out_of_fold"` gives the participant's own
+fold map. The runner refuses any map fitted on the participant being evaluated.
+The one exception is `"submitted"`, which exists only to reproduce the
+manuscript, and its run information then records `in_sample: true`.
+
 ## SMPL refinement: tested and rejected
 
 Fitting a SMPL body to NLF's dense vertex output, between NLF and the IK, was

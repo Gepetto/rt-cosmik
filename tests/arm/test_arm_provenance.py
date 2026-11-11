@@ -11,13 +11,14 @@ def _per_frame_settings():
     from rtcosmik.config_loader import settings
     s = copy.deepcopy(settings)
     s.ik_type = "sbs"
+    s.paper["landmark_map"] = "submitted"      # the synthetic trial predates fold maps
     return s
 
 
 def _replay(trial, repo, arm=None):
     from replay_nlf_arms import replay_trial
     arm = arm or {"name": "nlf", "tag": "nlf_0-2-4-6", "reconstruction": "fuse3d",
-                  "cameras": trial["cameras"], "fold": None}
+                  "cameras": trial["cameras"]}
     return replay_trial(trial["dataset"], trial["views"], trial["out_dir"], trial["participant"],
                         trial["task"], arm, _per_frame_settings(), repo=repo)
 
@@ -31,10 +32,9 @@ def test_run_info_records_provenance(synthetic_trial, clean_repo):
                           capture_output=True, text=True, check=True).stdout.strip()
     assert info["code"]["commit"] == head
     assert info["arm"]["tag"] == "nlf_0-2-4-6"
-    assert info["arm"]["fold"] is None
+    assert info["landmark_map"]["fold"] is None
     assert info["settings"]["ik_type"] == "sbs"
     assert len(info["landmark_map"]["sha256"]) == 64
-    assert info["landmark_map"]["count"] == len(info["settings"]["nlf_indices"])
     assert info["hardware"]["cpu"]
     assert "gpu" in info["hardware"]
     assert info["started_utc"].endswith("Z")

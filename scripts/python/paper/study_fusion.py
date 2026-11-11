@@ -218,6 +218,8 @@ def replay(job):
     from rtcosmik.pipeline.solver import HumanSolver
     from rtcosmik.saver.csv_saver import CSVSaver
 
+    from rtcosmik.landmark_maps import checked_recording
+    landmark_map = checked_recording(views_root / participant / f"{task}.npz", participant, settings)
     frames, fuse_ms = markers_of(views_root / participant / f"{task}.npz",
                                  DATASET / "cam_params" / participant, variant)
     marker_filter = MarkerFilter(len(settings.marker_names), settings)
@@ -227,7 +229,8 @@ def replay(job):
     from rtcosmik.provenance import start_run
     run_dir = runs_root / participant / task / tag(variant)
     start_run(run_dir, settings, {"name": "nlf", "tag": tag(variant), "variant": repr(variant),
-                                  "participant": participant, "task": task, "fold": None})
+                                  "participant": participant, "task": task},
+              landmark_map=landmark_map)
     saver = CSVSaver(str(run_dir), markers_header=["Frame_0"] + list(settings.marker_names),
                      joint_angles_header=list(settings.joint_angles_names))
     solve_ms, failed, q_last = [], 0, None

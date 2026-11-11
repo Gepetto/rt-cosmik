@@ -78,15 +78,15 @@ def require_clean(repo=REPO):
         raise DirtyTreeError(f"uncommitted pipeline changes in {repo}: {changes[:10]}")
 
 
-def landmark_map(indices):
+def _indices_identity(indices):
     """Identity of the template vertices queried for the landmarks."""
     indices = [int(i) for i in indices]
     digest = hashlib.sha256(json.dumps(indices).encode()).hexdigest()
     return {"sha256": digest, "count": len(indices)}
 
 
-def collect_provenance(settings, arm, repo=REPO):
-    """Provenance dict: date, commit, uncommitted pipeline files, arm, settings, machine."""
+def collect_provenance(settings, arm, repo=REPO, landmark_map=None):
+    """Provenance dict: date, commit, uncommitted pipeline files, arm, settings, map, machine."""
     return {
         "started_utc": datetime.datetime.now(datetime.timezone.utc)
                        .replace(microsecond=0).isoformat().replace("+00:00", "Z"),
@@ -95,16 +95,16 @@ def collect_provenance(settings, arm, repo=REPO):
                  "uncommitted": pipeline_changes(repo)},
         "arm": _jsonable(dict(arm)),
         "settings": _jsonable(dict(vars(settings))),
-        "landmark_map": landmark_map(getattr(settings, "nlf_indices", [])),
+        "landmark_map": landmark_map or _indices_identity(getattr(settings, "nlf_indices", [])),
         "hardware": _hardware(),
         "versions": _versions(),
     }
 
 
-def start_run(out_dir, settings, arm, repo=REPO):
+def start_run(out_dir, settings, arm, repo=REPO, landmark_map=None):
     """Refuse uncommitted pipeline code, then write ``run_info.json``."""
     require_clean(repo)
-    info = collect_provenance(settings, arm, repo)
+    info = collect_provenance(settings, arm, repo, landmark_map)
     out_dir = Path(out_dir)
     out_dir.mkdir(parents=True, exist_ok=True)
     (out_dir / "run_info.json").write_text(json.dumps(info, indent=2))

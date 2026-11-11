@@ -64,9 +64,9 @@ def main():
     from rtcosmik.nlf.nlf import extract_views
     from rtcosmik.utils.VideoReader import OfflineVideoSource
 
-    mapping = json.loads(MARKER_MAP.read_text())
-    tasks = list(mapping["task_directories"].values())
-    participants = sorted(set(mapping["subject_ids"].values()))   # the 17 fitted on
+    from rtcosmik.folds import PARTICIPANTS
+    tasks = list(json.loads(MARKER_MAP.read_text())["task_directories"].values())
+    participants = list(PARTICIPANTS)
     if args.participants:
         participants = [p for p in participants if p in args.participants]
 

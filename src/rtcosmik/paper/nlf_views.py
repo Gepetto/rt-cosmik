@@ -12,6 +12,7 @@ differs from a direct run of that subset only through the detector batch
 (0.3-0.4 mm median marker difference, at most 0.08 deg of joint RMSE per trial,
 measured on all six trials of participant 1012).
 """
+import json
 from pathlib import Path
 
 import numpy as np
@@ -20,8 +21,9 @@ import numpy as np
 class ViewsRecorder:
     """Accumulate one trial's per-camera NLF output, frame by frame."""
 
-    def __init__(self, cameras, markers):
+    def __init__(self, cameras, markers, landmark_map=None):
         self.cameras, self.markers = list(cameras), markers
+        self.landmark_map = landmark_map
         self.keypoints, self.poses3d, self.uncertainties = [], [], []
 
     def append(self, views):
@@ -43,10 +45,14 @@ class ViewsRecorder:
     def save(self, path):
         path = Path(path)
         path.parent.mkdir(parents=True, exist_ok=True)
+        extra = {}
+        if self.landmark_map is not None:
+            extra["landmark_map"] = json.dumps(self.landmark_map.to_dict())
         np.savez_compressed(path, cameras=np.asarray(self.cameras),
                             keypoints=np.asarray(self.keypoints, dtype=np.float32),
                             poses3d=np.asarray(self.poses3d, dtype=np.float32),
-                            uncertainties=np.asarray(self.uncertainties, dtype=np.float32))
+                            uncertainties=np.asarray(self.uncertainties, dtype=np.float32),
+                            **extra)
 
 
 def replay_markers(path, cam_dir, cameras=None, reconstruction="fuse3d"):

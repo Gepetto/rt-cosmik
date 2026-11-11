@@ -39,12 +39,13 @@ The six facial markers are not fitted, for either modality: mocap has no facial
 landmarks to fit them against.
 
 Frames come from ``sample_nlf_dense.py``, which ran NLF on camera 0 at exactly
-the candidate frames the FastSAM fit drew from. The training / held-out split is
-read from the FastSAM map, so both fits hold out the same three subjects.
+the candidate frames the FastSAM fit drew from.
+
+One map is fitted per fold (``rtcosmik.folds``), on the other fifteen
+participants, and scored on the fold's own three.
 
     python3 scripts/python/paper/fit_nlf_marker_map.py \\
-        --samples /root/workspace/nlf_dense_samples \\
-        --out src/rtcosmik/paper/nlf_marker_map_fitted.json
+        --samples /root/workspace/nlf_dense_samples --out-dir config/landmark_maps
 """
 import argparse
 import importlib.util
@@ -61,9 +62,11 @@ import numpy as np
 from scipy.optimize import linear_sum_assignment
 
 FASTSAM_DIR = Path("/root/workspace/COMFI/fastsam/results_multicam")
-FASTSAM_MAP = FASTSAM_DIR / "cosmik_mhr_marker_map_17subjects_tv8_tv12.json"
+TASKS = ("Screwing", "SideOverhead", "RobotWelding", "RobotPolishing", "Polishing", "Lifting")
 FASTSAM_LEARNER = FASTSAM_DIR / "learn_cosmik_mhr_markers_multisubject.py"
 VERTEX_COUNT = 10475
+FRAMES_PER_SEQUENCE = 20
+TOP_CANDIDATES = 256
 #: Markers whose fitted vertex is recorded but not used (see module docstring).
 KEEP_HAND_PICKED = ("RASI", "LASI", "RPSI", "LPSI")
 
@@ -270,11 +273,37 @@ def evaluate(learner, samples, selected):
     }
 
 
-def subject_id(ids, name):
-    for candidate in (name, name.rstrip("_"), name + "_"):
-        if candidate in ids:
-            return ids[candidate]
-    raise KeyError(name)
+def fit_fold(learner, samples, fold, hand):
+    """Fold ``fold``'s map: fitted on its fifteen fitting participants, scored on its three."""
+    from rtcosmik.folds import FOLDS, fitting_participants
+    training = [s for s in samples if s.participant in fitting_participants(fold)]
+    held_out = [s for s in samples if s.participant in FOLDS[fold]]
+    print(f"\nfold {fold}: held out {', '.join(FOLDS[fold])}")
+    fitted, selection, reference = choose_vertices(learner, training, TOP_CANDIDATES)
+    used = np.asarray([selection[label]["vertex_index"] for label, _ in learner.MARKERS])
+    return {
+        "front_end": "nlf",
+        "fold": fold,
+        "fitted_on": list(fitting_participants(fold)),
+        "vertices": {label: entry["vertex_index"] for label, entry in selection.items()},
+        "model": "NLF, SMPL-X canonical vertices",
+        "method": "balanced_multisubject_mocap_fit, ported from "
+                  "learn_cosmik_mhr_markers_multisubject.py",
+        "mhr70_from_smplx": {str(k): list(v) for k, v in MHR70_FROM_SMPLX.items()},
+        "camera": 0,
+        "frames_per_sequence": FRAMES_PER_SEQUENCE,
+        "top_candidates": TOP_CANDIDATES,
+        "reference": reference,
+        "markers": selection,
+        "evaluation": {
+            "used_on_fitted": evaluate(learner, training, used),
+            "used_on_held_out": evaluate(learner, held_out, used),
+            "fitted_on_held_out": evaluate(learner, held_out, fitted),
+            "hand_picked_on_held_out": evaluate(learner, held_out, hand),
+        },
+        "not_fitted": ["Nose", "Head", "REar", "LEar", "REye", "LEye"],
+        "kept_hand_picked": list(KEEP_HAND_PICKED),
+    }
 
 
 def main():
@@ -284,85 +313,38 @@ def main():
     ap.add_argument("--dataset", type=Path, default=Path("/root/workspace/COMFI"))
     ap.add_argument("--body-models", type=Path,
                     default=REPO / "weights" / "body_models" / "smplx")
-    ap.add_argument("--out", type=Path, required=True)
-    ap.add_argument("--frames-per-sequence", type=int, default=20)
-    ap.add_argument("--top-candidates", type=int, default=256)
+    ap.add_argument("--out-dir", type=Path, required=True)
     args = ap.parse_args()
 
+    from rtcosmik.folds import FOLDS, PARTICIPANTS
     learner = load_learner()
-    fastsam_map = json.loads(FASTSAM_MAP.read_text())
-    ids = fastsam_map["subject_ids"]
-    training_ids = {subject_id(ids, n) for n in fastsam_map["training_subjects"]}
-    held_out_ids = {subject_id(ids, n) for n in fastsam_map["held_out_validation_subjects"]}
     regressor = np.load(args.body_models / "SMPLX_NEUTRAL.npz", allow_pickle=True)["J_regressor"]
     if regressor.shape != (55, VERTEX_COUNT):
         raise ValueError(f"unexpected SMPL-X joint regressor {regressor.shape}")
 
     samples = []
-    for name, participant in sorted(ids.items(), key=lambda item: item[1]):
-        for task in fastsam_map["task_directories"].values():
+    for participant in PARTICIPANTS:
+        for task in TASKS:
             npz = args.samples / participant / f"{task}.npz"
             mocap = args.dataset / "mocap" / "aligned" / participant / task / "markers_trajectories.csv"
             samples.append(sample_trial(learner, regressor, npz, mocap, participant,
-                                        name.rstrip("_"), task, args.frames_per_sequence))
+                                        participant, task, FRAMES_PER_SEQUENCE))
     print(f"sampled {len(samples)} trials from {len({s.participant for s in samples})} participants")
-
-    training = [s for s in samples if s.participant in training_ids]
-    held_out = [s for s in samples if s.participant in held_out_ids]
     hand = np.asarray([HAND_PICKED[label] for label, _ in learner.MARKERS])
 
-    print("\nprovisional map, training subjects only")
-    provisional, _, _ = choose_vertices(learner, training, args.top_candidates)
-    print("\nfinal map, all 17 subjects")
-    final, selection, reference = choose_vertices(learner, samples, args.top_candidates)
-
-    report = {
-        "provisional_on_training": evaluate(learner, training, provisional),
-        "provisional_on_held_out": evaluate(learner, held_out, provisional),
-        "hand_picked_on_training": evaluate(learner, training, hand),
-        "hand_picked_on_held_out": evaluate(learner, held_out, hand),
-        "final_on_all": evaluate(learner, samples, final),
-        "used_on_all": evaluate(learner, samples, np.asarray(
-            [selection[label]["vertex_index"] for label, _ in learner.MARKERS])),
-        "hand_picked_on_all": evaluate(learner, samples, hand),
-    }
-    payload = {
-        "index_base": 0,
-        "vertex_count": VERTEX_COUNT,
-        "model": "NLF, SMPL-X canonical vertices",
-        "method": "balanced_multisubject_mocap_fit, ported from "
-                  "learn_cosmik_mhr_markers_multisubject.py",
-        "mhr70_from_smplx": {str(k): list(v) for k, v in MHR70_FROM_SMPLX.items()},
-        "camera": 0,
-        "training_participants": sorted(training_ids),
-        "held_out_participants": sorted(held_out_ids),
-        "final_refit_uses_all_participants": True,
-        "frames_per_sequence": args.frames_per_sequence,
-        "top_candidates": args.top_candidates,
-        "reference": reference,
-        "provisional_vertex_indices": provisional.tolist(),
-        "markers": selection,
-        "evaluation": report,
-        "not_fitted": ["Nose", "Head", "REar", "LEar", "REye", "LEye"],
-        "kept_hand_picked": list(KEEP_HAND_PICKED),
-    }
-    args.out.parent.mkdir(parents=True, exist_ok=True)
-    args.out.write_text(json.dumps(payload, indent=2) + "\n")
-
-    print("\naligned marker error, median (mm)")
-    print(f"{'':<24}{'training':>10}{'held-out':>10}{'all 17':>9}")
-    print(f"{'hand-picked':<24}{report['hand_picked_on_training']['overall_median_mm']:>10.1f}"
-          f"{report['hand_picked_on_held_out']['overall_median_mm']:>10.1f}"
-          f"{report['hand_picked_on_all']['overall_median_mm']:>9.1f}")
-    print(f"{'fitted on 14 training':<24}{report['provisional_on_training']['overall_median_mm']:>10.1f}"
-          f"{report['provisional_on_held_out']['overall_median_mm']:>10.1f}{'':>9}")
-    print(f"{'fitted on all 17 (final)':<24}{'':>10}{'':>10}"
-          f"{report['final_on_all']['overall_median_mm']:>9.1f}")
-    print(f"{'used (pelvis hand-picked)':<24}{'':>10}{'':>10}"
-          f"{report['used_on_all']['overall_median_mm']:>9.1f}")
-    changed = sum(1 for v in selection.values() if v["vertex_index"] != v["hand_picked_vertex_index"])
-    print(f"\n{changed}/{len(selection)} markers moved from their hand-picked vertex")
-    print(f"written to {args.out}")
+    args.out_dir.mkdir(parents=True, exist_ok=True)
+    rows = []
+    for fold in range(len(FOLDS)):
+        payload = fit_fold(learner, samples, fold, hand)
+        path = args.out_dir / f"nlf_fold{fold}.json"
+        path.write_text(json.dumps(payload, indent=2) + "\n")
+        evaluation = payload["evaluation"]
+        rows.append((fold, evaluation["used_on_held_out"]["overall_median_mm"],
+                     evaluation["hand_picked_on_held_out"]["overall_median_mm"]))
+        print(f"written to {path}")
+    print(f"\nheld-out median marker error (mm)\n{'fold':<6}{'fitted (used)':>15}{'hand-picked':>13}")
+    for fold, used, hand_mm in rows:
+        print(f"{fold:<6}{used:>15.1f}{hand_mm:>13.1f}")
     return 0
 
 
