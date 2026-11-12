@@ -35,6 +35,12 @@ in SideOverhead, and cost nothing with four cameras (12.05 -> 12.13 deg).
 Constraining the PSIS pair to mocap's separation and tilt inside the fit only
 half corrected the tilt and did slightly worse, so it was not kept.
 
+The medial ankle markers keep their hand-picked vertices for the same reason.
+Candidate vertices there tie on marker error within a millimetre, so the fitted
+one changes with the participants fitted on, while the ankle frame the IK builds
+from the two malleoli does not tolerate the change: left ankle
+inversion/eversion differs by about 28 deg between the two candidates.
+
 The six facial markers are not fitted, for either modality: mocap has no facial
 landmarks to fit them against.
 
@@ -68,7 +74,7 @@ VERTEX_COUNT = 10475
 FRAMES_PER_SEQUENCE = 20
 TOP_CANDIDATES = 256
 #: Markers whose fitted vertex is recorded but not used (see module docstring).
-KEEP_HAND_PICKED = ("RASI", "LASI", "RPSI", "LPSI")
+KEEP_HAND_PICKED = ("RASI", "LASI", "RPSI", "LPSI", "RMANK", "LMANK")
 
 #: NLF's hand-picked SMPL-X vertices for the markers used as surface anchors.
 HAND_PICKED = {

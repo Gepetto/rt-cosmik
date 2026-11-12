@@ -41,7 +41,7 @@
     "RANK": 8629,
     "LANK": 8896,
     "RMANK": 8680,
-    "LMANK": 5753,
+    "LMANK": 8892,
     "R5MHD": 8610,
     "L5MHD": 5898,
     "RTOE": 8584,
@@ -309,7 +309,7 @@
       "balanced_error_mm": 46.6631702512289
     },
     "LMANK": {
-      "vertex_index": 5753,
+      "vertex_index": 8892,
       "fitted_vertex_index": 5753,
       "hand_picked_vertex_index": 8892,
       "candidate_count": 281,
@@ -362,7 +362,7 @@
     "used_on_fitted": {
       "sampled_sequence_count": 90,
       "marker_observation_count": 52200,
-      "overall_median_mm": 34.62765138933778,
+      "overall_median_mm": 34.628451473314755,
       "per_marker_median_mm": {
         "RASI": 31.993952860996355,
         "LASI": 34.282464414992205,
@@ -386,7 +386,7 @@
         "RANK": 33.92477293306623,
         "LANK": 36.000378937395986,
         "RMANK": 45.212385305468366,
-        "LMANK": 52.417088715243146,
+        "LMANK": 54.79481918527204,
         "R5MHD": 42.976002927267196,
         "L5MHD": 35.122274443108886,
         "RTOE": 44.49293963493868,
@@ -398,7 +398,7 @@
     "used_on_held_out": {
       "sampled_sequence_count": 18,
       "marker_observation_count": 10440,
-      "overall_median_mm": 33.52091140611127,
+      "overall_median_mm": 33.60007540815987,
       "per_marker_median_mm": {
         "RASI": 38.06022543965422,
         "LASI": 38.13319378087616,
@@ -422,7 +422,7 @@
         "RANK": 31.86431400083186,
         "LANK": 42.16829443501209,
         "RMANK": 42.26433686951178,
-        "LMANK": 43.85937776378378,
+        "LMANK": 45.81259525536904,
         "R5MHD": 40.492727116216734,
         "L5MHD": 32.702165713409784,
         "RTOE": 41.650762518382564,
@@ -516,6 +516,8 @@
     "RASI",
     "LASI",
     "RPSI",
-    "LPSI"
+    "LPSI",
+    "RMANK",
+    "LMANK"
   ]
 }

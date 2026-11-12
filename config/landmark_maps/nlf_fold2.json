@@ -516,6 +516,8 @@
     "RASI",
     "LASI",
     "RPSI",
-    "LPSI"
+    "LPSI",
+    "RMANK",
+    "LMANK"
   ]
 }

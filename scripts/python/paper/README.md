@@ -93,6 +93,10 @@ and used only for its own three, for NLF and FastSAM-3D alike. The fitting
 method does not change. FastSAM-3D is fitted on the camera-2 meshes, because
 camera-0 meshes are not stored. The maps live in `config/landmark_maps/`.
 
+The medial ankle keeps its hand-picked vertices, like the pelvis: its candidate
+vertices tie on marker error, so the fitted one changed from fold to fold, and
+the ankle frame built from the two malleoli is sensitive to it.
+
 ```bash
 python3 scripts/python/paper/sample_nlf_dense.py --out /root/workspace/nlf_dense_samples
 python3 scripts/python/paper/fit_nlf_marker_map.py --samples /root/workspace/nlf_dense_samples --out-dir config/landmark_maps
