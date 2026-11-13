@@ -9,7 +9,7 @@ For each arm, under ``<out>/<arm>/``:
   confusion.csv       risk-level counts and shares per reference level
   representative.csv  postures picked on the estimate (causal pairing), reference beside
   frames/             per-frame REBA of estimate and reference (causal)
-  summary.md          the tables above, condensed
+  summary.md          the tables above, condensed; failed trials and trials without a held peak
 
     python3 scripts/python/paper/reba_analyses.py --runs /root/workspace/oof/runs \\
         --dataset /root/workspace/COMFI --out /root/workspace/oof/t12 \\
@@ -49,15 +49,15 @@ def write(path, fields, rows):
 
 
 def peak_summary(ra, rows):
-    """How the reference rates the estimate's peak postures: participant mean, SD, n."""
+    """How the reference rates the estimate's held peaks: participant mean, SD, n."""
     by = {}
     for r in rows:
         if r["selection"] == "peak" and np.isfinite(r["ref_reba"]):
             by.setdefault(r["participant"], []).append(r)
     stat = lambda f: ra.mean_sd([np.mean([f(r) for r in v]) for v in by.values()])
     return {"trials": sum(len(v) for v in by.values()),
-            "est_reba": stat(lambda r: r["est_reba"]), "ref_reba": stat(lambda r: r["ref_reba"]),
-            "error": stat(lambda r: r["est_reba"] - r["ref_reba"]),
+            "est_reba": stat(lambda r: r["held_reba"]), "ref_reba": stat(lambda r: r["ref_reba"]),
+            "error": stat(lambda r: r["held_reba"] - r["ref_reba"]),
             "same_level_pct": stat(lambda r: 100.0 * (r["est_risk"] == r["ref_risk"])),
             "ref_higher_pct": stat(lambda r: 100.0 * (r["ref_risk"] > r["est_risk"])),
             "ref_lower_pct": stat(lambda r: 100.0 * (r["ref_risk"] < r["est_risk"]))}
@@ -70,7 +70,7 @@ def analyse(ra, settings, dataset, arm, trials, out):
     hold = round(settings.paper["reba_hold_s"] * settings.fs)
     combos = [(p, a) for p in ra.PAIRINGS for a in ra.ANGLE_REFERENCES]
     series = {c: [] for c in combos}
-    trial_rows, postures, lags, provenance, failed = [], [], [], set(), []
+    trial_rows, postures, lags, provenance, failed, unheld = [], [], [], set(), [], []
     for participant, task, run_dir in trials:
         try:
             pairs, lag = ra.paired_scores(run_dir, scoring.reference_dir(dataset, participant, task),
@@ -88,10 +88,14 @@ def analyse(ra, settings, dataset, arm, trials, out):
                                "pairing": pairing, "angles": angles, **ra.agreement(est, ref)})
             if pairing == "causal":
                 frames.update({"frame": pair["frame"], f"{angles}_est": est, f"{angles}_ref": ref})
+                rows = ra.representative_postures(pair, hold)
+                if not any(row["selection"] == "peak" for row in rows):
+                    unheld.append(f"{participant}/{task} ({angles})")
                 postures += [{"arm": arm, "participant": participant, "task": task,
-                              "angles": angles, **row}
-                             for row in ra.representative_postures(pair, hold)]
+                              "angles": angles, **row} for row in rows]
         np.savez_compressed(out / "frames" / f"{participant}_{task}.npz", **frames)
+    if not lags:
+        return 0, failed
 
     participant_rows, summary_rows, confusion_rows, tables = [], [], [], {}
     for (pairing, angles), items in series.items():
@@ -123,11 +127,12 @@ def analyse(ra, settings, dataset, arm, trials, out):
     peaks = {a: peak_summary(ra, [r for r in postures if r["angles"] == a])
              for a in ra.ANGLE_REFERENCES}
     report(out / "summary.md", arm, ra, RISK_NAMES, tables, peaks, hold, len(lags), lags,
-           provenance, failed)
+           provenance, failed, unheld)
     return len(lags), failed
 
 
-def report(path, arm, ra, levels, tables, peaks, hold, trials, lags, provenance, failed):
+def report(path, arm, ra, levels, tables, peaks, hold, trials, lags, provenance, failed,
+           unheld):
     pm = lambda t, d=2: f"{t[0]:.{d}f} ± {t[1]:.{d}f}"
     final = provenance == {True}
     lines = [f"# Posture-only REBA: {arm}", "",
@@ -136,12 +141,13 @@ def report(path, arm, ra, levels, tables, peaks, hold, trials, lags, provenance,
              + ("out-of-fold." if final else "NOT all recorded as out-of-fold: not final."),
              "Figures are participant mean ± SD, each participant's frames pooled.", ""]
     if failed:
-        lines += ["Failed trials:", *[f"- {f}" for f in failed], ""]
+        lines += ["Failed trials (not in any figure):", *[f"- {f}" for f in failed], ""]
     lines += ["## Agreement", "",
-              "| pairing | angles | REBA est | REBA ref | bias | MAE | exact % | risk agree % "
-              "| weighted kappa |", "|---|---|---|---|---|---|---|---|---|"]
-    for (pairing, angles), (a, _) in tables.items():
-        lines.append(f"| {pairing} | {angles} | {pm(a['reba_est_mean'])} | "
+              "Frames: those both estimate and reference score, all trials pooled.", "",
+              "| pairing | angles | frames | REBA est | REBA ref | bias | MAE | exact % "
+              "| risk agree % | weighted kappa |", "|---|---|---|---|---|---|---|---|---|---|"]
+    for (pairing, angles), (a, pooled) in tables.items():
+        lines.append(f"| {pairing} | {angles} | {pooled['frames']} | {pm(a['reba_est_mean'])} | "
                      f"{pm(a['reba_ref_mean'])} | {pm(a['reba_bias'])} | {pm(a['reba_mae'])} | "
                      f"{pm(a['reba_exact_pct'], 1)} | {pm(a['risk_agree_pct'], 1)} | "
                      f"{pm(a['risk_kappa'])} |")
@@ -165,14 +171,18 @@ def report(path, arm, ra, levels, tables, peaks, hold, trials, lags, provenance,
                      if pooled["confusion"][i].sum() else "0" for j in range(len(levels))]
             lines.append(f"| {name} | " + " | ".join(cells) + " |")
     lines += ["", "## Peak postures picked on the estimate", "",
-              f"One per trial: the middle of the longest spell at the highest REBA the estimate "
-              f"holds for {hold} frames; causal pairing.", "",
-              "| angles | trials | REBA est | REBA ref | est - ref | same level % "
+              f"One per trial: the highest REBA the estimate stays at or above for {hold} "
+              f"frames, at the frame with that score nearest the middle of the longest such "
+              f"spell; causal pairing.", "",
+              "| angles | trials | REBA held | REBA ref | held - ref | same level % "
               "| reference higher % | reference lower % |", "|---|---|---|---|---|---|---|---|"]
     for angles, p in peaks.items():
         lines.append(f"| {angles} | {p['trials']} | {pm(p['est_reba'])} | {pm(p['ref_reba'])} | "
                      f"{pm(p['error'])} | {pm(p['same_level_pct'], 1)} | "
                      f"{pm(p['ref_higher_pct'], 1)} | {pm(p['ref_lower_pct'], 1)} |")
+    if unheld:
+        lines += ["", f"No held peak (no score kept for {hold} frames), left out of the table:",
+                  *[f"- {u}" for u in unheld]]
     path.write_text("\n".join(lines) + "\n")
 
 
@@ -197,8 +207,12 @@ def main():
             status = 1
             continue
         done, failed = analyse(ra, settings, args.dataset, arm, trials, args.out / arm)
-        print(f"{arm}: {done} trials -> {args.out / arm}"
-              + (f", {len(failed)} failed" if failed else ""), flush=True)
+        if not done:
+            print(f"{arm}: none of the {len(trials)} trials could be scored, nothing written")
+            status = 1
+        else:
+            print(f"{arm}: {done} trials -> {args.out / arm}"
+                  + (f", {len(failed)} failed" if failed else ""), flush=True)
         for line in failed:
             print("  " + line)
     return status

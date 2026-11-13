@@ -22,7 +22,7 @@ anatomical angles:
   below ~37 deg. Absolute REBA thresholds only make sense after the participant's
   neutral posture is subtracted. Every COMFI trial starts with the participant
   standing in the calibration pose, so the neutral is taken there, per trial.
-  ``scores`` without a neutral gives the absolute-angle REBA, for comparison.
+  ``scores`` with ``ABSOLUTE`` in its place gives the absolute-angle REBA, for comparison.
 * **Thresholds REBA leaves unspecified** ("twisted or side-bent", "abducted",
   "shoulder raised") keep the values of the toolbox's earlier implementation:
   15 deg for the neck, 5 deg for the trunk, 15 deg of shoulder abduction, and a
@@ -112,18 +112,25 @@ def neutral_from(joints, markers):
     return {key: float(np.nanmedian(values)) for key, values in raw_inputs(joints, markers).items()}
 
 
-def corrected_inputs(joints, markers, neutral=None):
-    """REBA inputs relative to ``neutral``; absolute angles without one.
+#: Passed in place of a neutral posture to score the raw model angles.
+ABSOLUTE = "absolute"
 
-    Shoulder raise is a distance with no absolute zero: unscored without a neutral.
+
+def corrected_inputs(joints, markers, neutral):
+    """REBA inputs relative to ``neutral``; raw angles for ``ABSOLUTE``.
+
+    Shoulder raise is a distance with no absolute zero: it then counts as not raised
+    wherever its markers exist.
     """
     raw = raw_inputs(joints, markers)
+    if isinstance(neutral, str) and neutral == ABSOLUTE:
+        return {key: v * 0.0 if key.endswith("_raise") else v for key, v in raw.items()}
     if neutral is None:
-        return {key: np.zeros_like(v) if key.endswith("_raise") else v for key, v in raw.items()}
+        raise ValueError("no neutral posture given: pass one, or ABSOLUTE for raw angles")
     return {key: values - neutral[key] for key, values in raw.items()}
 
 
-def scores(joints, markers, neutral=None):
+def scores(joints, markers, neutral):
     """Per-frame REBA components, score and risk level, relative to ``neutral``."""
     x = corrected_inputs(joints, markers, neutral)
 

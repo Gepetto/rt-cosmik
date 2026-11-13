@@ -9,6 +9,8 @@ Every comparison exists for two pairings and three angle references:
 ``neutral_reference``  both relative to the reference's start-of-trial posture
 ``neutral_own``        each relative to its own start-of-trial posture
 """
+import warnings
+
 import numpy as np
 
 from rtcosmik.ergonomics import reba_posture as rp
@@ -26,7 +28,7 @@ SCALARS = ("frames", "reba_est_mean", "reba_ref_mean", "reba_bias", "reba_mae", 
 
 def _tables(run_dir):
     """A run as the column mappings ``reba_posture`` reads, indexed by video frame."""
-    names, q, markers = scoring._by_frame(run_dir)
+    names, q, markers = scoring.by_frame(run_dir)
     joints = {name: q[:, i] for i, name in enumerate(names)}
     points = {f"{name}_{axis}": xyz[:, k] for name, xyz in markers.items()
               for k, axis in enumerate("xyz")}
@@ -40,22 +42,33 @@ def _series(joints, points, neutral):
     return out
 
 
+def _neutral(joints, points, who):
+    start = lambda table: {key: values[rp.NEUTRAL_FRAMES] for key, values in table.items()}
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore", RuntimeWarning)      # all-NaN start, reported below
+        neutral = rp.neutral_from(start(joints), start(points))
+    missing = sorted(key for key, value in neutral.items() if not np.isfinite(value))
+    if missing:
+        raise ValueError(f"no neutral posture for the {who}: {', '.join(missing)} missing over "
+                         f"its first {rp.NEUTRAL_FRAMES.stop} frames")
+    return neutral
+
+
 def paired_scores(run_dir, reference, clock_offset):
     """Per-frame REBA of a run and its reference, for every pairing and angle reference.
 
     Returns ``{(pairing, angles): {"frame", "est", "ref"}}`` and the run's lag in frames
-    beyond the clock offset. ``frame`` is the reference frame of each pair.
+    beyond the clock offset. ``frame`` is the reference frame of each pair. Raises
+    ValueError for a trial without a neutral posture or without a frame both series score.
     """
     names, q, joints, points = _tables(run_dir)
     ref_names, q_ref, ref_joints, ref_points = _tables(reference)
     if names != ref_names:
         raise ValueError(f"{run_dir}: joint columns differ from the reference")
-    lag, _ = scoring._joint_lag(scoring.load_eval(), names, q, q_ref)
-
-    start = lambda table: {key: values[rp.NEUTRAL_FRAMES] for key, values in table.items()}
-    own = rp.neutral_from(start(joints), start(points))
-    ref = rp.neutral_from(start(ref_joints), start(ref_points))
-    neutrals = {"absolute": (None, None), "neutral_reference": (ref, ref),
+    own = _neutral(joints, points, "estimate")
+    ref = _neutral(ref_joints, ref_points, "reference")
+    lag = scoring.joint_lag(run_dir, reference)
+    neutrals = {"absolute": (rp.ABSOLUTE, rp.ABSOLUTE), "neutral_reference": (ref, ref),
                 "neutral_own": (own, ref)}
 
     pairs = {}
@@ -66,7 +79,10 @@ def paired_scores(run_dir, reference, clock_offset):
         for pairing, shift in (("causal", clock_offset), ("aligned", lag)):
             pair = {"est": {}, "ref": {}}
             for key in est:
-                pair["est"][key], pair["ref"][key] = scoring._shift(est[key], truth[key], shift)
+                pair["est"][key], pair["ref"][key] = scoring.shift(est[key], truth[key], shift)
+            if not (np.isfinite(pair["est"]["reba"]) & np.isfinite(pair["ref"]["reba"])).any():
+                raise ValueError(f"no frame scored by both estimate and reference "
+                                 f"({pairing}, {angles})")
             pair["frame"] = frames[max(0, -shift):][:len(pair["ref"]["reba"])]
             pairs[pairing, angles] = pair
     return pairs, lag - clock_offset
@@ -129,11 +145,26 @@ def _longest_run(mask):
     return int(starts[k]), int(ends[k] - 1)
 
 
+def held_peak(reba, hold_frames):
+    """Highest score held for ``hold_frames``: ``(score, frame)``, or None if none is.
+
+    A score is held where the series stays at or above it; the frame is the one at
+    exactly that score nearest the middle of the longest such spell.
+    """
+    valid = np.isfinite(reba)
+    for score in np.unique(reba[valid])[::-1]:
+        first, last = _longest_run(valid & (reba >= score))
+        if last - first + 1 >= hold_frames:
+            at = first + np.flatnonzero(reba[first:last + 1] == score)
+            return float(score), int(at[np.argmin(np.abs(at - (first + last) / 2))])
+    return None
+
+
 def representative_postures(pair, hold_frames):
     """Postures picked from the estimate alone, with what the reference says at those frames.
 
-    ``peak``          middle of the longest spell at the highest REBA the estimate holds
-                      for ``hold_frames``
+    ``peak``          the ``held_peak`` of the estimate, ``held_reba`` its score; absent
+                      when the estimate holds no score for ``hold_frames``
     ``level_<name>``  per risk level the estimate visits, the frame closest to that
                       level's median posture; ``typical`` marks its most frequent level
     """
@@ -143,20 +174,20 @@ def representative_postures(pair, hold_frames):
     if not valid.any():
         return []
 
-    def row(selection, i, share, typical):
+    def row(selection, i, share, typical, held=np.nan):
         out = {"selection": selection, "frame": int(pair["frame"][i]),
-               "est_share_pct": float(share), "typical": bool(typical)}
+               "est_share_pct": float(share), "typical": bool(typical), "held_reba": held}
         for name, series in (("est", est), ("ref", ref)):
             scored = np.isfinite(series["reba"][i])
             for key in ("reba", "risk", *COMPONENTS):
                 out[f"{name}_{key}"] = float(series[key][i]) if scored else np.nan
         return out
 
-    for score in np.unique(reba[valid])[::-1]:
-        first, last = _longest_run(valid & (reba >= score))
-        if last - first + 1 >= hold_frames:
-            break
-    rows = [row("peak", (first + last) // 2, 100 * np.mean(reba[valid] >= score), False)]
+    rows = []
+    peak = held_peak(reba, hold_frames)
+    if peak:
+        score, frame = peak
+        rows.append(row("peak", frame, 100 * np.mean(reba[valid] >= score), False, score))
 
     shares = np.array([100 * np.mean(est["risk"][valid] == k) for k in range(LEVELS)])
     for level in np.flatnonzero(shares):
