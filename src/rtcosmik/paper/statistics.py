@@ -7,6 +7,7 @@ from scipy import stats
 EQUIVALENCE_MARGIN_DEG = 1.0    # stated in advance; joint-angle errors only
 ALPHA = 0.05
 MIN_PARTICIPANTS = 5
+RANK_DECIMALS = 9               # differences are ranked after rounding: ties must not hinge on float noise
 
 
 @dataclass(frozen=True)
@@ -36,33 +37,55 @@ FAMILIES = {f.name: f for f in (
 
 
 def holm(pvalues):
-    """Holm step-down adjusted p-values, in the order given."""
+    """Holm step-down adjusted p-values, in the order given.
+
+    NaN is an untested member of the family: it counts in m as p = 1 and stays NaN.
+    """
     p = np.asarray(pvalues, dtype=float)
-    order = np.argsort(p)
+    untested = np.isnan(p)
+    filled = np.where(untested, 1.0, p)
+    order = np.argsort(filled, kind="stable")
     adjusted = np.empty(len(p))
-    adjusted[order] = np.minimum(1.0, np.maximum.accumulate(p[order] * (len(p) - np.arange(len(p)))))
+    adjusted[order] = np.minimum(1.0, np.maximum.accumulate(filled[order] * (len(p) - np.arange(len(p)))))
+    adjusted[untested] = np.nan
     return adjusted
 
 
 def _signed_rank(d, alternative="two-sided"):
-    return 1.0 if np.allclose(d, 0) else float(stats.wilcoxon(d, alternative=alternative).pvalue)
+    """Signed-rank p and the method used. Zero differences are dropped (Wilcoxon's rule);
+    exact null distribution without ties or zeros, normal approximation otherwise."""
+    d = np.round(d, RANK_DECIMALS)
+    if not np.any(d):
+        return 1.0, "none (all differences zero)"
+    exact = np.all(d != 0) and len(np.unique(np.abs(d))) == len(d)
+    p = stats.wilcoxon(d, alternative=alternative, zero_method="wilcox", correction=False,
+                       method="exact" if exact else "approx").pvalue
+    return float(p), "exact" if exact else "normal approximation"
+
+
+def _t_interval(d, level):
+    half = stats.t.ppf(0.5 + level / 2, len(d) - 1) * d.std(ddof=1) / np.sqrt(len(d))
+    return [float(d.mean() - half), float(d.mean() + half)]
 
 
 def paired_difference(diff):
-    """Wilcoxon signed-rank p, mean difference with its t-based 95% CI, rank-biserial effect."""
+    """Signed-rank p and its method, mean difference with unadjusted t intervals, rank-biserial effect."""
     d = np.asarray(diff, dtype=float)
-    se = d.std(ddof=1) / np.sqrt(len(d))
-    half = stats.t.ppf(0.975, len(d) - 1) * se
-    nonzero = d[d != 0]
+    rounded = np.round(d, RANK_DECIMALS)
+    nonzero = rounded[rounded != 0]
     ranks = stats.rankdata(np.abs(nonzero))
     rbc = float((ranks[nonzero > 0].sum() - ranks[nonzero < 0].sum()) / ranks.sum()) if ranks.size else 0.0
+    p, method = _signed_rank(d)
     return {"n": len(d), "mean_diff": float(d.mean()),
-            "ci95": [float(d.mean() - half), float(d.mean() + half)],
-            "p": _signed_rank(d), "rank_biserial": rbc}
+            "ci95": _t_interval(d, 0.95), "ci90": _t_interval(d, 0.90),
+            "p": p, "wilcoxon_method": method, "rank_biserial": rbc}
 
 
 def tost(diff, margin):
-    """Two one-sided tests of |mean difference| < margin: paired t, and signed-rank beside it."""
+    """Two one-sided tests of |mean difference| < margin: paired t, and signed-rank beside it.
+
+    With no spread the t statistic is undefined: p is 0 inside the margin and 1 otherwise.
+    """
     d = np.asarray(diff, dtype=float)
     se = d.std(ddof=1) / np.sqrt(len(d))
     if se == 0:
@@ -70,34 +93,50 @@ def tost(diff, margin):
     else:
         df = len(d) - 1
         p = max(stats.t.sf((d.mean() + margin) / se, df), stats.t.cdf((d.mean() - margin) / se, df))
-    rank = max(_signed_rank(d + margin, "greater"), _signed_rank(d - margin, "less"))
+    rank = max(_signed_rank(d + margin, "greater")[0], _signed_rank(d - margin, "less")[0])
     return {"p": float(p), "p_wilcoxon": rank}
 
 
-def run_family(name, by_arm, margin=None):
-    """Every comparison of a declared family, Holm-corrected over those the data allow.
+def matched_differences(a, b):
+    """Participant mean of a - b over the trials both arms have, and the number of such trials.
 
-    ``by_arm`` maps arm -> {participant: value}. With ``margin``, each comparison
-    also gets its TOST p-values, Holm-corrected over the same family.
+    ``a`` and ``b`` map (participant, trial) -> value.
+    """
+    per_participant = {}
+    for key in sorted(set(a) & set(b)):
+        per_participant.setdefault(key[0], []).append(a[key] - b[key])
+    return (np.array([np.mean(v) for v in per_participant.values()]),
+            sum(len(v) for v in per_participant.values()))
+
+
+def run_family(name, by_arm, margin=None):
+    """Every comparison of a declared family, Holm-corrected over the family as declared.
+
+    ``by_arm`` maps arm -> {(participant, trial): value}. A comparison the data do not
+    allow is listed in ``missing`` and still counts in the correction, as p = 1.
+    With ``margin``, each comparison also gets its TOST p-values, corrected the same way.
     """
     family = FAMILIES[name]
-    rows, missing = [], []
+    slots, missing = [], []
     for a, b in family.comparisons:
-        common = sorted(set(by_arm.get(a) or {}) & set(by_arm.get(b) or {}))
-        if len(common) < MIN_PARTICIPANTS:
+        diff, trials = matched_differences(by_arm.get(a) or {}, by_arm.get(b) or {})
+        if len(diff) < MIN_PARTICIPANTS:
             missing.append((a, b))
+            slots.append(None)
             continue
-        diff = np.array([by_arm[a][q] - by_arm[b][q] for q in common])
-        row = {"a": a, "b": b, **paired_difference(diff)}
+        row = {"a": a, "b": b, **paired_difference(diff), "trials": trials}
         if margin is not None:
             eq = tost(diff, margin)
             row.update(tost_p=eq["p"], tost_p_wilcoxon=eq["p_wilcoxon"])
-        rows.append(row)
+        slots.append(row)
+    rows = [r for r in slots if r is not None]
     for raw, adjusted in (("p", "p_holm"), ("tost_p", "tost_p_holm"),
                           ("tost_p_wilcoxon", "tost_p_wilcoxon_holm")):
-        if rows and raw in rows[0]:
-            for row, p in zip(rows, holm([r[raw] for r in rows])):
-                row[adjusted] = float(p)
+        if raw == "p" or margin is not None:
+            corrected = holm([np.nan if r is None else r[raw] for r in slots])
+            for row, p in zip(slots, corrected):
+                if row is not None:
+                    row[adjusted] = float(p)
     for row in rows:
         row["significant"] = bool(row["p_holm"] < ALPHA)
         if margin is not None:
@@ -105,15 +144,3 @@ def run_family(name, by_arm, margin=None):
     return {"family": family.name, "title": family.title, "correction": "Holm",
             "declared": len(family.comparisons), "tested": len(rows), "margin": margin,
             "missing": missing, "comparisons": rows}
-
-
-def omnibus(name, by_arm):
-    """Friedman test over a declared family's arms, on the participants all of them cover."""
-    arms = [a for a in dict.fromkeys(x for pair in FAMILIES[name].comparisons for x in pair)
-            if by_arm.get(a)]
-    common = sorted(set.intersection(*(set(by_arm[a]) for a in arms))) if arms else []
-    if len(arms) < 3 or len(common) < MIN_PARTICIPANTS:
-        return {"family": name, "arms": arms, "n": len(common), "chi2": None, "p": None, "df": None}
-    chi2, p = stats.friedmanchisquare(*[[by_arm[a][q] for q in common] for a in arms])
-    return {"family": name, "arms": arms, "n": len(common), "chi2": float(chi2), "p": float(p),
-            "df": len(arms) - 1}

@@ -409,7 +409,7 @@ def aggregate(args, agg):
                 else:
                     cell = agg.fmt(stats["agree"], 1)
                 if t is None:
-                    by_arm[arm] = per_participant(sel, f_mae)
+                    by_arm[arm] = agg.trial_values(sel, lambda r: number(r[f_mae]))
                 summary[name][arm][t or "all"] = stats
                 line += [agg.fmt(stats["ref"]), agg.fmt(stats["est"]), agg.fmt(stats["mae"]), cell]
             body.append(line)
@@ -418,11 +418,10 @@ def aggregate(args, agg):
         tex_table(tables / f"{name}.tex", caption, len(lead), groups, tex_header, body)
 
         # The declared family of arm comparisons on each participant's all-task MAE.
-        stat = {"family": agg.statistics.run_family("arms", by_arm),
-                "friedman": agg.statistics.omnibus("arms", by_arm)}
+        stat = {"family": agg.statistics.run_family("arms", by_arm)}
         summary[name]["stats"] = stat
         agg.write_family(tables / f"stats_{name}_mae", [stat["family"]], "REBA points",
-                         lambda a: ", ".join(label(a)), omnibus=stat["friedman"])
+                         lambda a: ", ".join(label(a)))
     import json
     (args.out / "reba_events" / "summary.json").write_text(json.dumps(summary, indent=2) + "\n")
     print(f"tables written to {tables}", flush=True)

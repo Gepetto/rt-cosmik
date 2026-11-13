@@ -4,7 +4,7 @@
 
 **Blocked by:** 04
 
-**Status:** ready-for-agent
+**Status:** families `ik_filter` and `fusion` run on the out-of-fold studies; family `arms` waits for the out-of-fold arms (tickets 06, 08)
 
-- [ ] Every reported p-value belongs to a declared family with Holm correction
-- [ ] Equivalence claims use TOST at ±1°
+- [x] Every reported p-value belongs to a declared family with Holm correction
+- [x] Equivalence claims use TOST at ±1°
