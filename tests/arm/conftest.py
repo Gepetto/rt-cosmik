@@ -17,6 +17,9 @@ for path in (REPO / "src", REPO / "scripts" / "python" / "paper"):
         sys.path.insert(0, str(path))
 
 needs_comfi = pytest.mark.skipif(not TRUTH_RUN.exists(), reason="COMFI campaign outputs not mounted")
+needs_mesh_store = pytest.mark.skipif(
+    not (COMFI / "fastsam" / "results_multicam").is_dir() or not TRUTH_RUN.exists(),
+    reason="COMFI FastSAM-3D mesh store not mounted")
 
 
 def _git(repo, *args):
@@ -77,44 +80,79 @@ def synthetic_trial(tmp_path):
     return build_trial(tmp_path)
 
 
-def build_mesh_trial(root, frames=40, fold=0, participant=PARTICIPANT, cameras=(2, 4, 6),
-                     labels=(2, 4, 6)):
-    """A FastSAM-3D mesh store holding one Lifting trial: 1012's archived landmarks planted
-    at fold ``fold``'s vertices, seen by ``cameras`` and stored under ``labels``."""
-    import json
-    from rtcosmik import landmark_maps
+def _camera_views(participant, cameras, frames):
+    """1012's archived landmarks as ``{name: (frames, 3)}`` in the world, and a function
+    giving one landmark in each of ``cameras``' frames."""
     from rtcosmik.camera.cam_utils import load_camera_parameters, load_world_transformation
-    from rtcosmik.paper import fastsam_meshes
 
-    vertices_of = landmark_maps.load("fastsam", fold).vertices
     table = np.genfromtxt(TRUTH_RUN / "markers.csv", delimiter=",", names=True)[:frames]
     world = {n[:-2]: np.stack([table[f"{n[:-2]}_{a}"] for a in "xyz"], -1)
              for n in table.dtype.names if n.endswith("_x")}
     cam_dir = COMFI / "cam_params" / participant
     _, _, projections, _, _ = load_camera_parameters(cam_dir, list(cameras))
     R, T = (np.asarray(a) for a in load_world_transformation(cam_dir, cameras[0]))
+    projections = [np.asarray(P) for P in projections]
+    in_camera = lambda name, P: ((world[name] - T) @ R) @ P[:, :3].T + P[:, 3]
+    return world, projections, in_camera
+
+
+def _dataset(root):
     dataset = root / "dataset"
-    store = dataset / fastsam_meshes.STORE
-    store.mkdir(parents=True)
+    dataset.mkdir(parents=True)
     for name in ("metadata", "cam_params", "output"):
         (dataset / name).symlink_to(COMFI / name)
+    return dataset
+
+
+def build_export_trial(root, frames=40, cameras=(0, 2)):
+    """COMFI-style FastSAM-3D marker exports of one 1012/Lifting trial, and no mesh store."""
+    world, projections, in_camera = _camera_views(PARTICIPANT, cameras, frames)
+    dataset = _dataset(root)
+    trial_dir = dataset / "fastsam" / PARTICIPANT / TASK
+    trial_dir.mkdir(parents=True)
+    names = [n for n in world if n != "Head"]
+    header = "frame_id,person_id,valid," + ",".join(f"{n}_{a}[m]" for n in names for a in "XYZ")
+    for camera, P in zip(cameras, projections):
+        xyz = np.stack([in_camera(n, P) for n in names], 1).reshape(frames, -1)
+        meta = np.column_stack([np.arange(frames), np.zeros(frames), np.ones(frames)])
+        np.savetxt(trial_dir / f"cosmik_mhr_markers_cam{camera}.csv", np.hstack([meta, xyz]),
+                   delimiter=",", header=header, comments="")
+    return {"dataset": dataset, "participant": PARTICIPANT, "task": TASK,
+            "cameras": list(cameras), "frames": frames, "out_dir": root / "run", "world": world}
+
+
+def build_mesh_trial(root, frames=40, fold=0, participant=PARTICIPANT, cameras=(2, 4, 6),
+                     labels=(2, 4, 6), frame_ids=None, invalid=()):
+    """A FastSAM-3D mesh store holding one Lifting trial: 1012's archived landmarks planted
+    at fold ``fold``'s vertices, seen by ``cameras`` and stored under ``labels``."""
+    import json
+    from rtcosmik import landmark_maps
+    from rtcosmik.paper import fastsam_meshes
+
+    vertices_of = landmark_maps.load("fastsam", fold).vertices
+    world, projections, in_camera = _camera_views(participant, cameras, frames)
+    dataset = _dataset(root)
+    store = dataset / fastsam_meshes.STORE
+    store.mkdir(parents=True)
     (store / fastsam_meshes.STORE_INDEX).write_text(json.dumps(
         {"subject_ids": {"someone": "1012"}, "task_directories": {"lifting": TASK}}))
     folder = "someone" if participant == "1012" else "unlisted"
+    valid = np.ones(frames, bool)
+    valid[list(invalid)] = False
     for label, P in zip(labels, projections):
-        P = np.asarray(P)
-        in_camera = lambda name: ((world[name] - T) @ R) @ P[:, :3].T + P[:, 3]
         vertices = np.zeros((frames, 18439, 3), np.float32)
         for name, vertex in vertices_of.items():
             if name in world:
-                vertices[:, vertex] = in_camera(name)
+                vertices[:, vertex] = in_camera(name, P)
         keypoints = np.zeros((frames, 70, 3), np.float32)
         for name, index in fastsam_meshes.FACE_KEYPOINTS.items():
-            keypoints[:, index] = in_camera(name)
+            keypoints[:, index] = in_camera(name, P)
         result = store / folder / "lifting" / f"camera_{label}" / "calibrated"
         result.mkdir(parents=True)
         np.save(result / "vertices_cam.npy", vertices)
         np.save(result / "keypoints70_cam.npy", keypoints)
+        np.save(result / "frame_ids.npy", np.arange(frames) if frame_ids is None else frame_ids)
+        np.save(result / "valid.npy", valid)
     return {"dataset": dataset, "participant": participant, "task": TASK,
             "cameras": list(cameras), "frames": frames, "out_dir": root / "run", "world": world}
 

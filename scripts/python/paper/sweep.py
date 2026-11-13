@@ -15,6 +15,7 @@ mean here and a mean there are the same number.
 """
 import argparse
 import csv
+import json
 import logging
 import sys
 import time
@@ -37,6 +38,8 @@ from rtcosmik.paper.scoring import ROW_FIELDS
 
 FIELDS = (["arm", "participant", "task", "cameras", "n_horizon", "frames"] + ROW_FIELDS
           + ["ik_ms_median", "ik_ms_p95", "fps", "status"])
+#: A sweep's own summary also records the calibrated cameras a configuration ran with.
+SUMMARY_FIELDS = FIELDS[:4] + ["cameras_used"] + FIELDS[4:]
 
 
 def _start(out_dir, settings, name, dataset, participant, task, cameras, landmark_map=None,
@@ -309,22 +312,27 @@ def run_fastsam(dataset, participant, task, cameras, out_dir, settings,
 
     The arm reads stored FastSAM-3D output rather than running a network: the
     participant's fold map applied to the stored meshes, or COMFI's marker export
-    for the submitted map. The timings it reports are the IK's alone and are not
-    comparable with the end-to-end fps of the arms that include a detector.
+    for the submitted map. With a fold map ``cameras`` names mesh labels, and the
+    run uses the calibrated cameras those meshes hold. The timings it reports are
+    the IK's alone and are not comparable with the end-to-end fps of the arms that
+    include a detector.
     """
     from collections import OrderedDict
     from rtcosmik import landmark_maps
-    from rtcosmik.paper.fastsam_source import build_source
+    from rtcosmik.paper.fastsam_source import build_source, mesh_cameras
     from rtcosmik.pipeline.solver import HumanSolver
     from rtcosmik.saver.csv_saver import CSVSaver
 
     landmark_map = landmark_maps.select(settings, participant, "fastsam")
     landmark_maps.require_out_of_fold(landmark_map, participant, settings)
+    configuration = list(cameras)
+    if landmark_map.fold is not None:
+        cameras = mesh_cameras(participant, cameras)
     source, meta = build_source(dataset, participant, task, cameras, settings, landmark_map)
     solver = HumanSolver(settings, gender=meta["gender"][0], height=meta["height"],
                          weight=meta["weight"], logger=logging.getLogger("solve"))
     _start(out_dir, settings, "fastsam", dataset, participant, task, cameras,
-           landmark_map.identity(participant), repo=repo)
+           landmark_map.identity(participant), repo=repo, configuration=configuration)
     out_dir.mkdir(parents=True, exist_ok=True)
     saver = CSVSaver(str(out_dir),
                      markers_header=["Frame_0"] + list(settings.marker_names),
@@ -420,8 +428,13 @@ def main():
                 done.add((row["arm"], row["participant"], row["task"],
                           row["cameras"], row["n_horizon"]))
     fresh = not summary.exists()
+    if not fresh:                     # a summary started before cameras_used keeps its columns
+        with open(summary) as handle:
+            fields = next(csv.reader(handle), SUMMARY_FIELDS)
+    else:
+        fields = SUMMARY_FIELDS
     out = open(summary, "a", newline="")
-    writer = csv.DictWriter(out, fieldnames=FIELDS)
+    writer = csv.DictWriter(out, fieldnames=fields, extrasaction="ignore")
     if fresh:
         writer.writeheader()
 
@@ -435,14 +448,15 @@ def main():
         if key in done:
             continue
         out_dir = (args.output_dir or Path(settings.output_dir)) / participant / task / tag
-        row = dict.fromkeys(FIELDS, "")
+        row = dict.fromkeys(SUMMARY_FIELDS, "")
         row.update(arm=args.arm, participant=participant, task=task,
                    cameras=cameras_key, n_horizon=settings.N)
         try:
             extra = {"views_cache": args.views_cache} if args.views_cache and args.arm == "nlf" else {}
             frames, ik_ms, seconds = ARMS[args.arm](
                 args.dataset, participant, task, args.cameras, out_dir, settings, **extra)
-            row.update(frames=frames,
+            used = json.loads((out_dir / "run_info.json").read_text())["arm"]["cameras"]
+            row.update(frames=frames, cameras_used="-".join(str(c) for c in used),
                        ik_ms_median=round(float(np.median(ik_ms)), 2) if len(ik_ms) else "",
                        ik_ms_p95=round(float(np.percentile(ik_ms, 95)), 2) if len(ik_ms) else "",
                        fps=round(frames / seconds, 1))

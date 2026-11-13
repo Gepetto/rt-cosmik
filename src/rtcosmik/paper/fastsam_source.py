@@ -84,6 +84,17 @@ EXPORT_CAMERA = {
     "3361": {0: 4, 2: 6, 4: 0, 6: 2},
 }
 
+
+def mesh_cameras(participant, cameras):
+    """Calibrated cameras giving a configuration's geometry with the stored meshes.
+
+    ``cameras`` names mesh labels; a relabelled participant runs the cameras those hold,
+    the mirror image on this symmetric rig.
+    """
+    held = {label: camera for camera, label in EXPORT_CAMERA.get(participant, {}).items()}
+    return [held.get(camera, camera) for camera in cameras]
+
+
 #: Columns that carry no marker.
 META_COLUMNS = ("frame_id", "person_id", "valid")
 
@@ -225,13 +236,13 @@ class FastsamMarkerSource:
             yield frame, dict(zip(self.marker_names, points))
 
 
-def build_source(dataset, participant, task, cameras, settings, landmark_map=None, logger=None):
+def build_source(dataset, participant, task, cameras, settings, landmark_map, logger=None):
     """Assemble the marker source for one trial, with its subject metadata.
 
     Calibration is loaded exactly as the NLF arm loads it: projections for the
     requested cameras, and the world pose of the first one, which is the
     reference frame the views are fused into. A fold's ``landmark_map`` reads the
-    markers from the stored meshes; without one they come from the COMFI exports.
+    markers from the stored meshes; the submitted one reads the COMFI exports.
     """
     import yaml
 
@@ -245,7 +256,7 @@ def build_source(dataset, participant, task, cameras, settings, landmark_map=Non
     cam_dir = root / "cam_params" / participant
     relabel = EXPORT_CAMERA.get(participant, {})
     labels = [relabel.get(camera, camera) for camera in cameras]
-    if landmark_map is None or landmark_map.fold is None:
+    if landmark_map.fold is None:
         trial_dir = root / "fastsam" / participant / task
         views = [load_fastsam_markers(fastsam_csv(trial_dir, label)) for label in labels]
     else:

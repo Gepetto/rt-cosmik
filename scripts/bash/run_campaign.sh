@@ -40,14 +40,16 @@ PARTICIPANTS="${*:-$(ls "$DATASET/mmpose/output")}"
 TIMING_PARTICIPANTS="$(echo $PARTICIPANTS | tr ' ' '\n' | head -3 | tr '\n' ' ')"
 
 # tag = <arm>_<cameras joined by ->, e.g. nlf_0-2-4-6
+# FastSAM-3D: the out-of-fold configurations (no camera-0 meshes are stored); the
+# submitted ones (0 2 4 6, 0 2, 0 4, 0) exist only with landmark_map = "submitted".
 DIRECT=(
     "mocap 0"
     "mmpose 0 2 4 6"   "mmpose 0 2"   "mmpose 0 4"
     "nlf 0 2 4 6"
-    "fastsam 0 2 4 6"  "fastsam 0 2"  "fastsam 0 4"  "fastsam 0"
+    "fastsam 2 4 6"  "fastsam 4 6"  "fastsam 2 4"  "fastsam 2"
 )
 TIMED=( "nlf2d 0 2 4 6"  "nlf2d 0 2"  "nlf2d 0 4"  "nlf 0 2"  "nlf 0 4"  "nlf 0" )
-SCORED="mmpose_0-2-4-6 mmpose_0-2 mmpose_0-4 nlf2d_0-2-4-6 nlf2d_0-2 nlf2d_0-4 nlf_0-2-4-6 nlf_0-2 nlf_0-4 nlf_0 fastsam_0-2-4-6 fastsam_0-2 fastsam_0-4 fastsam_0"
+SCORED="mmpose_0-2-4-6 mmpose_0-2 mmpose_0-4 nlf2d_0-2-4-6 nlf2d_0-2 nlf2d_0-4 nlf_0-2-4-6 nlf_0-2 nlf_0-4 nlf_0 fastsam_2-4-6 fastsam_4-6 fastsam_2-4 fastsam_2"
 
 GOVERNORS=/sys/devices/system/cpu/cpufreq/policy*/scaling_governor
 PREVIOUS_GOVERNOR="$(cat /sys/devices/system/cpu/cpu0/cpufreq/scaling_governor 2>/dev/null)"

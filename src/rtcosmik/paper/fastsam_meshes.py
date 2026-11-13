@@ -24,9 +24,13 @@ def result_dir(dataset, participant, task, label):
     store = Path(dataset) / STORE
     index = json.loads((store / STORE_INDEX).read_text())
     ids = index["subject_ids"]
-    owner = lambda name: next((ids[c] for c in (name, name.rstrip("_"), name + "_") if c in ids),
-                              UNLISTED)
-    folders = [p for p in sorted(store.iterdir()) if p.is_dir() and owner(p.name) == participant]
+
+    def participant_of(folder):
+        spellings = (folder, folder.rstrip("_"), folder + "_")
+        return next((ids[name] for name in spellings if name in ids), UNLISTED)
+
+    folders = [p for p in sorted(store.iterdir())
+               if p.is_dir() and participant_of(p.name) == participant]
     tasks = [raw for raw, name in index["task_directories"].items() if name == task]
     if len(folders) != 1 or len(tasks) != 1:
         raise FileNotFoundError(f"no single mesh folder for {participant}/{task} in {store}")
@@ -43,11 +47,12 @@ def load_mesh_markers(directory, landmark_map):
     names = list(landmark_map.vertices) + list(FACE_KEYPOINTS)
     xyz = np.concatenate([vertices[:, list(landmark_map.vertices.values())],
                           keypoints[:, list(FACE_KEYPOINTS.values())]], axis=1).astype(float)
-    frames = directory / "frame_ids.npy"
-    if frames.exists() and not np.array_equal(np.load(frames).ravel(), np.arange(len(xyz))):
+    # Row i must be video frame i: the fusion and the scoring index frames by row.
+    if not np.array_equal(np.load(directory / "frame_ids.npy").ravel(), np.arange(len(xyz))):
         raise ValueError(f"{directory}: rows are not consecutive frames")
-    flags = directory / "valid.npy"
-    valid = np.load(flags).astype(bool).ravel() if flags.exists() else np.ones(len(xyz), bool)
+    valid = np.load(directory / "valid.npy").astype(bool).ravel()
+    if len(valid) != len(xyz):
+        raise ValueError(f"{directory}: {len(valid)} validity flags for {len(xyz)} frames")
     valid = valid & np.isfinite(xyz).all(axis=(1, 2))
     xyz[~valid] = np.nan
     return names, xyz, valid.astype(int)

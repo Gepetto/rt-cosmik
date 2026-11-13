@@ -72,18 +72,31 @@ were made with the submitted map. It reads the stored full meshes
 landmarks and the `Head` reconstruction are unchanged. Meshes are stored under
 the camera labels 2, 4 and 6 only, so the out-of-fold configurations are:
 
-| tag | views | 3361 |
+| tag | views | cameras 3361 runs |
 |---|---|---|
 | `fastsam_2` | 1 camera | 6 |
 | `fastsam_4-6` | 2 cameras, same side | 0-2 |
 | `fastsam_2-4` | 2 cameras, opposed | 6-0 |
 | `fastsam_2-4-6` | 3 cameras | 6-0-2 |
 
+The submitted configurations (`fastsam_0`, `fastsam_0-2`, `fastsam_0-4`,
+`fastsam_0-2-4-6`) exist only with `landmark_map = "submitted"`.
+
 3361's meshes carry the swapped labels too: the folders labelled 2, 4, 6 hold
-cameras 6, 0, 2 (64, 85 and 61 mm median marker error against the reference,
-0.3-0.9 m with any other pairing). Its camera-4 view is therefore not stored,
-and it runs the mirror image of each configuration, which is the same geometry
-on this symmetric rig. A camera with no stored mesh is refused.
+cameras 6, 0, 2 (59, 81 and 52 mm median marker error against the reference on
+Screwing, 0.2-2 m with any other camera; an opt-in test checks it on the store).
+Its camera-4 view is therefore not stored, and it runs the mirror image of each
+configuration, which is the same geometry on this symmetric rig
+(`fastsam_source.mesh_cameras`). The sweep applies this itself, so one
+`--cameras 2 4 6` covers all 18 participants under the common tag: the summary's
+`cameras` column and run_info's `configuration` keep the configuration, and
+`cameras_used` and run_info's `cameras` the calibrated cameras the run used. A
+camera with no stored mesh is refused, as is a mesh folder whose rows are not
+consecutive frames.
+
+```bash
+bash scripts/bash/run_fastsam_oof.sh [dataset] [runs dir] [summaries dir]
+```
 
 **Its fps column is not comparable with the others.** FastSAM's own inference is
 not run here -- the 3D arrives precomputed -- so the figure covers fusion and IK
