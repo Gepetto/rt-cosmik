@@ -101,7 +101,7 @@ Frames the reference rates high risk:
 
 - About half of the high-risk frames are rated one level down, almost all to "medium". Neither series reaches "very high".
 - Confusion matrix (inverse variance, own neutral), share of each reference level rated correctly: negligible 92 %, low 70 %, medium 74 %, high 44 %.
-- Postures selected on the estimate (what a user sees) are slightly overstated against the reference (+0.2 to +1.0 points); frames selected where the reference is high are understated (−1.1 to −1.3). A figure must say which selection it uses.
+- Postures selected on the estimate (what a user sees: the highest score held for 0.5 s) are slightly overstated against the reference (+0.1 to +0.9 points); frames selected where the reference is high are understated (−1.1 to −1.3). A figure must say which selection it uses.
 - Absolute mode does not score shoulder raise (it is a distance with no absolute zero), so it has fewer high-risk frames and is not directly comparable with the neutral-referenced rows.
 
 **To decide:** how to state the underestimation of high-risk postures as a limitation; which angle reference is the main one (own neutral is what a deployed system would use).
@@ -121,15 +121,33 @@ Close-approach frames missed (reference below the threshold, estimate above), in
 
 - The submitted text's "as close as 105 mm" does not match these trials: the reference hand comes as close as 63 mm and is below 105 mm for 16 to 20 % of the time, because the participant holds the tool. How the 105 mm figure was obtained has not been checked.
 - Per-trial bias ranges from about −56 to +75 mm.
+- Approaches (reference below the threshold for at least 5 frames, 125 ms), inverse variance, left / right hand: at 105 mm, 37 / 37 approaches, 12 / 12 never detected, 13 / 15 detected late (median delay 2.4 s / 0.35 s, 95th percentile 13 s / 21 s); at 200 mm, 88 / 69 approaches, 1 / 2 never detected, late ones after 0.2 s / 0.1 s (median); at 300 mm, 49 / 34 approaches, none missed, detected within 75 to 100 ms (median) and 135 to 175 ms (95th percentile).
 - Proposed rule, written before the out-of-fold numbers were computed: keep the application claim only if, for both hands, the 99th percentile of absolute error is below 105 mm, the 95th percentile of overestimation is below 52.5 mm, and the miss rate at 105 mm is below 5 %. Every arm fails it. The miss-rate criterion fails by a factor of ten; the 99th-percentile criterion by 8 mm for inverse variance.
 - Measured end-to-end latency (ticket 19) is not included.
 
 **To decide:** drop the application, or reword it as proximity monitoring at a 300 mm scale with these error and miss rates. The rule's limits are a proposal to confirm.
 
-## 7. Still to come
+## 7. FastSAM-3D out of fold (ticket 06)
 
-- FastSAM-3D out-of-fold arm (ticket 06), cameras 2, 4, 6 (camera-0 meshes are not stored).
+Markers read from the stored meshes at each fold's map. Camera-0 meshes are not stored, so there is no four-camera configuration. 108 trials per configuration, 0 solver failures.
+
+| Configuration | Cameras | Causal | Aligned | Marker error (causal) |
+|---|---|---|---|---|
+| 1 camera | 2 | 9.71° ± 1.28° | 9.41° | 90 mm |
+| 2 cameras, same side | 4, 6 | 9.26° ± 1.27° | 9.07° | 94 mm |
+| 2 cameras, opposed | 2, 4 | 8.80° ± 1.24° | 8.50° | 51 mm |
+| 3 cameras | 2, 4, 6 | 8.77° ± 1.26° | 8.50° | 58 mm |
+
+- For reference, NLF-S with four cameras: 9.14° (inverse variance), 8.82° (unweighted mean). Not paired comparisons: the NLF arms at cameras 2, 2-4, 4-6 and 2-4-6 come from replays (ticket 08).
+- 3361's stored labels 2, 4, 6 hold calibrated cameras 6, 0, 2 (checked against the reference), so it runs the mirror image of each configuration, which is the same geometry on this rig. n stays 18.
+- One trial (1508 Polishing, cameras 4-6) has an alignment lag of 61 frames: the knee-flexion lock fails there (correlation 0.29). Its causal error is unaffected (8.50°); its aligned error (11.44°) is not meaningful.
+- FastSAM-3D remains an offline arm (about 390 ms per view).
+
+**To decide:** keep 3361 with mirrored cameras (n = 18) or drop it from this arm (n = 17).
+
+## 8. Still to come
+
 - NLF arms by replay: camera configurations, NLF-2D triangulation, MHE weights (ticket 08); 1€ filter (09); fusion validation, including whether NLF's uncertainty is reliable (10).
-- Arm-level statistics (ticket 11 code is ready; it needs 06 and 08).
+- Arm-level statistics (ticket 11 code is ready; it needs the NLF arms of ticket 08).
 - Calibration in the toolbox, human-pose calibration on COMFI and OpenCap (14 to 17); toolbox simplification (18); sustained timing (19).
 - To confirm with the COMFI authors: how COMFI synchronizes mocap and video in hardware.
