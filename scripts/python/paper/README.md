@@ -214,6 +214,22 @@ starts with the participant in the calibration pose, so the neutral is the
 median over each trial's first 0.5 s -- either the reference's (offsets of the
 arm count as error) or the arm's own (what a deployed system would do).
 
+`reba_analyses.py` (`rtcosmik/paper/reba_analysis.py`) is the resubmission's
+analysis. The comparison is causal (same frame after the clock offset only),
+with the knee-lag-aligned one beside it, for three angle references: absolute
+model angles (shoulder raise, a distance, is then unscored), and angles relative
+to the reference's or the arm's own neutral. Per arm it writes agreement and
+linear-weighted kappa as participant mean ± SD, the risk-level confusion matrix
+(frames, and shares per reference level), the underestimation of frames the
+reference rates high or very high, and representative postures picked on the
+estimate alone -- the highest REBA it holds for `paper["reba_hold_s"]`, and the
+frame closest to the median posture of each risk level it visits -- with the
+reference's score at those frames.
+
+    python3 scripts/python/paper/reba_analyses.py --runs /root/workspace/oof/runs \
+        --dataset /root/workspace/COMFI --out /root/workspace/oof/t12 \
+        --arms nlf_0-2-4-6 fusion_mean
+
 **Human-robot distance** (`robot_distance.py`) uses COMFI's Panda joint states,
 which carry camera 0's timestamps and so match video frames exactly. In both
 robot tasks the participant hand-guides the robot, so a whole-body minimum
