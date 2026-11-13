@@ -110,7 +110,7 @@ class Settings:
     yolo_path: str = field(init=False)
     yolo_conf = 0.2
     yolo_imgsz = 640
-    detection_mode: str = "per_view"  # or "tiled": all the views in one detector image
+    detection_mode: str = "tiled"  # or "tiled": all the views in one detector image
     yolo_tiled_imgsz = (736, 1280)  # (height, width) of the tiled detector image
 
     #### IK AND DATA HANDLING ###
