@@ -83,7 +83,7 @@ class Settings:
     ### NLF ###
     cano_path: str = field(init=False)
     nlf_path: str = field(init=False)
-    nlf_backend: str = "torchscript"  # or "tensorrt" (scripts/python/core/export_nlf_engine.py)
+    nlf_backend: str = "tensorrt"  # or "tensorrt" (scripts/python/core/export_nlf_engine.py)
     nlf_engine_path: str = field(init=False)
     nlf_indices = [             # For SMPLX model
         8421, 5727, 8371, 5677, # pelvis: RASI, LASI, RPSI, LPSI 
