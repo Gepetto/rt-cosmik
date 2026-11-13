@@ -36,7 +36,8 @@ where a view reported none, or None. ``valid_cam_ids`` lists the cameras that
 saw the person.
 """
 
-from rtcosmik.model_weights import resolve_detector_engine
+from rtcosmik.model_weights import estimator_arguments
+from rtcosmik.nlf import tiling
 
 
 def extract_views(nlf_out, num_cameras):
@@ -109,10 +110,16 @@ class NLFEstimator:
     of ``indices`` -- RT-COSMIK's landmarks -- with its 2D projection and its
     uncertainty.
 
+    With ``backend="tensorrt"`` the crops of every view go through one
+    TensorRT engine in a single pass (:mod:`rtcosmik.nlf.crop_network`)
+    instead of the TorchScript model.
+
     Args:
         yolo_path: detector weights, a TensorRT engine built for this number of
-            cameras (see :func:`~rtcosmik.model_weights.resolve_detector_engine`).
+            cameras (see :func:`~rtcosmik.model_weights.estimator_arguments`).
         nlf_path: NLF TorchScript model.
+        backend: ``"torchscript"`` or ``"tensorrt"`` (``settings.nlf_backend``).
+        engine_path: NLF TensorRT engine, for the ``"tensorrt"`` backend.
         cano_path: canonical vertices of the SMPL-X template (``.npy``).
         image_size: ``(width, height)`` of the images, in pixels.
         cam_Ks: per-camera 3x3 intrinsic matrices, in camera order.
@@ -120,6 +127,11 @@ class NLFEstimator:
             (``settings.nlf_indices``).
         conf: minimum detection confidence.
         imgsz: detector input size, in pixels.
+        detection: ``"per_view"`` gives the detector one image per view;
+            ``"tiled"`` gives it all the views in one image, in one call
+            (``settings.detection_mode``). A single view is always per view.
+        tiled_imgsz: (height, width) of the detector image of the tiled mode;
+            ``yolo_path`` must be a batch-1 engine built for it.
         device: torch device; a CUDA device is required.
         logger: optional logger.
         warmup: run a few inferences on random images at construction, so that
@@ -141,7 +153,15 @@ class NLFEstimator:
         logger=None,
         warmup=True,
         warmup_iters=10,
+        backend="torchscript",
+        engine_path=None,
+        detection="per_view",
+        tiled_imgsz=(736, 1280),
     ):
+        if backend not in ("torchscript", "tensorrt"):
+            raise ValueError(f"unknown nlf_backend {backend!r}")
+        if detection not in ("per_view", "tiled"):
+            raise ValueError(f"unknown detection_mode {detection!r}")
         if not torch.cuda.is_available():
             raise RuntimeError("CUDA not available")
 
@@ -155,14 +175,23 @@ class NLFEstimator:
         self.logger.info(f"[INFO] Loading YOLO detector model at {yolo_path}")
         self.yolo = YOLO(yolo_path, task="detect")
 
-        self.logger.info(f"[INFO] Loading NLF model at {nlf_path}")
-        self.nlf0 = self.load_nlf(nlf_path)
+        self.backend = backend
+        self.sync_timings = False   # True: wait for the GPU at each stage boundary
+        if backend == "tensorrt":
+            from rtcosmik.nlf.crop_network import CropEngine, landmark_rows
+            self.logger.info(f"[INFO] Loading NLF engine at {engine_path}")
+            self.engine = CropEngine(engine_path, self.device)
+            self.rows = torch.tensor(landmark_rows(self.engine.vertices, self.indices),
+                                     device=self.device)
+        else:
+            self.logger.info(f"[INFO] Loading NLF model at {nlf_path}")
+            self.nlf0 = self.load_nlf(nlf_path)
 
-        self.logger.info(f"[INFO] Loading canonical vertices at {cano_path}")
-        cano = np.load(cano_path)
-        pts = torch.from_numpy(cano[self.indices]).float().to(self.device)
-        with torch.inference_mode():
-            self.weights = self.nlf0.get_weights_for_canonical_points(pts)
+            self.logger.info(f"[INFO] Loading canonical vertices at {cano_path}")
+            cano = np.load(cano_path)
+            pts = torch.from_numpy(cano[self.indices]).float().to(self.device)
+            with torch.inference_mode():
+                self.weights = self.nlf0.get_weights_for_canonical_points(pts)
 
         self.geom_dtype = torch.float32
         K_stack = np.stack(cam_Ks, axis=0) 
@@ -188,6 +217,12 @@ class NLFEstimator:
         self._gpu_fp16 = torch.empty((self.C, 3, self.H, self.W), device=self.device, dtype=torch.float16)
 
         self._inv255 = 1.0 / 255.0
+
+        self.layout = None
+        if detection == "tiled" and self.C > 1:
+            self.layout = tiling.layout(self.C, (self.H, self.W), tuple(tiled_imgsz))
+            self._canvas = torch.full((1, 3, *self.layout.canvas), tiling.PAD,
+                                      device=self.device, dtype=torch.float16)
 
         if warmup:
             self.logger.info("[INFO] Starting to warm up all the models")
@@ -223,26 +258,60 @@ class NLFEstimator:
         boxes_list = [dummy_xywh.clone() for _ in range(self.C)]
 
         with torch.inference_mode():
-            for _ in range(iters):
-                _ = self.yolo.predict(
-                    frames, imgsz=self.imgsz, classes=0, conf=self.conf,
-                    device=self.device, verbose=False, half=True,
-                )
-
-        with torch.inference_mode():
             imgs = self.preprocess_batch(frames)  # (C,3,H,W)
 
             for _ in range(iters):
-                # One single batched call
-                _ = self.nlf0.estimate_poses_batched(
-                    imgs,
-                    boxes_list,
-                    intrinsic_matrix=self.Kt,   # see note below if shape mismatch
-                    weights=self.weights,
-                    num_aug=1,
-                )
+                self.detect(frames, imgs)
+            for _ in range(iters):
+                self.landmarks(imgs, boxes_list, {})
         torch.cuda.synchronize()
-    
+
+    def detect(self, frames_bgr, imgs):
+        """People in each view: one detector image per view, or all views tiled in one."""
+        if self.layout is None:
+            return self.yolo.predict(
+                frames_bgr, imgsz=self.imgsz, classes=0, conf=self.conf,
+                device=self.device, verbose=False, half=True)
+        found = self.yolo.predict(
+            tiling.tile(imgs, self.layout, self._canvas), imgsz=list(self.layout.canvas),
+            classes=0, conf=self.conf, device=self.device, verbose=False, half=True)[0].boxes
+        return tiling.split_boxes(found.xyxy, found.conf, self.layout)
+
+    @torch.inference_mode()
+    def landmarks(self, imgs, boxes, timings):
+        """NLF's output for the tracked box of each view; adds its stages to ``timings``."""
+        t0 = time.perf_counter()
+        if self.backend == "torchscript":
+            out = self.nlf0.estimate_poses_batched(
+                imgs, boxes, intrinsic_matrix=self.Kt, weights=self.weights, num_aug=1)
+            timings["nlf_ms"] = self._elapsed_ms(t0)
+            return out
+
+        from rtcosmik.nlf import crops
+        counts = [len(b) for b in boxes]
+        ids = [i for i, n in enumerate(counts) for _ in range(n)]
+        n_landmarks = len(self.indices)
+        if not ids:
+            poses3d = torch.zeros((0, n_landmarks, 3), device=self.device)
+            poses2d, sigma = poses3d[..., :2], poses3d[..., 0]
+            timings["crop_ms"] = timings["nlf_ms"] = 0.0
+        else:
+            K = self.Kt[ids]
+            K_crop, R, zoom = crops.crop_cameras(K, torch.cat(boxes))
+            images = crops.perspective_crops(imgs, K, K_crop, R, zoom, ids)
+            timings["crop_ms"] = self._elapsed_ms(t0)
+            t1 = time.perf_counter()
+            points, sigma = self.engine(images, K_crop, self.rows)
+            poses3d, poses2d = crops.to_camera_frame(points, R, K)
+            timings["nlf_ms"] = self._elapsed_ms(t1)
+        return {"poses3d": list(poses3d.split(counts)), "poses2d": list(poses2d.split(counts)),
+                "uncertainties": list(sigma.split(counts))}
+
+    def _elapsed_ms(self, since):
+        if self.sync_timings:
+            torch.cuda.synchronize()
+        return (time.perf_counter() - since) * 1000.0
+
 
 
     def _xyxy_to_xywh(self, box_xyxy):
@@ -366,40 +435,39 @@ class NLFEstimator:
             output, from which :func:`extract_views` takes the per-view
             landmarks: ``poses3d`` in millimetres in each camera's frame,
             ``poses2d`` in pixels, ``uncertainties``. ``timings`` gives the
-            duration of each step in milliseconds, ``detections`` the raw YOLO
-            results, and ``boxes`` the box tracked in each view.
+            duration of each step in milliseconds (the crop apart from NLF on
+            the TensorRT backend only; the tiling inside ``yolo_ms``),
+            ``detections`` the detector's boxes per view, and ``boxes`` the
+            box tracked in each view.
         """
-        # --- CPU preprocess timing (stacking etc.) ---
         t_cpu0 = time.perf_counter()
-
         t0 = time.perf_counter()
-
-        # YOLO
-        yres = self.yolo.predict(
-            frames_bgr, imgsz=self.imgsz, classes=0, conf=self.conf,
-            device=self.device, verbose=False, half=True
-        )
+        tiled = self.layout is not None
+        imgs = None
+        if tiled:      # the tiles are cut from the uploaded images
+            imgs = self.preprocess_batch(frames_bgr)
+            upload_ms = self._elapsed_ms(t0)
 
         t1 = time.perf_counter()
+        yres = self.detect(frames_bgr, imgs)
+        yolo_ms = self._elapsed_ms(t1)
 
         boxes = [self._select_locked_box_xywh(y, i) for i, y in enumerate(yres)]
 
-        # preprocess_batch includes H2D; count it separately
-        t2 = time.perf_counter()
-        imgs = self.preprocess_batch(frames_bgr)
-        t3 = time.perf_counter()
+        if not tiled:
+            t2 = time.perf_counter()
+            imgs = self.preprocess_batch(frames_bgr)
+            upload_ms = self._elapsed_ms(t2)
 
-        # NLF
-        out = self.nlf0.estimate_poses_batched(
-            imgs, boxes, intrinsic_matrix=self.Kt, weights=self.weights, num_aug=1
-        )
-        t4 = time.perf_counter()
+        stages = {}
+        out = self.landmarks(imgs, boxes, stages)
+        t_end = time.perf_counter()
 
         timings = {
-            "yolo_ms": (t1 - t0) * 1000.0,
-            "h2d+pre_ms": (t3 - t2) * 1000.0,
-            "nlf_ms": (t4 - t3) * 1000.0,
-            "total_ms": (t4 - t0) * 1000.0,
+            "yolo_ms": yolo_ms,
+            "h2d+pre_ms": upload_ms,
+            **stages,
+            "total_ms": (t_end - t0) * 1000.0,
             "cpu_overhead_ms": (time.perf_counter() - t_cpu0) * 1000.0,  # small sanity
         }
         return out, timings, yres, boxes
@@ -561,8 +629,7 @@ class DisplayConsumerNLF(Process):
         self.last_frame_counters = [0] * self.num_cameras
         self.frame_counters = frame_counters
 
-        self.yolo_path=resolve_detector_engine(settings.yolo_path, num_cameras)
-        self.nlf_path=settings.nlf_path
+        self.estimator_args=estimator_arguments(settings, num_cameras)
         self.cano_path=settings.cano_path
         self.marker_names=settings.marker_names
 
@@ -585,8 +652,7 @@ class DisplayConsumerNLF(Process):
         """Estimate and display until ``stop_event`` is set."""
 
         est = NLFEstimator(
-            yolo_path=self.yolo_path,
-            nlf_path=self.nlf_path,
+            **self.estimator_args,
             cano_path=self.cano_path,
             image_size=(self.frame_shape[1], self.frame_shape[0]),
             cam_Ks=self.mtxs,

@@ -22,7 +22,7 @@ from rtcosmik.camera.camera import Camera
 from rtcosmik.utils.mp_utils import create_camera_shared_ressources
 from rtcosmik.utils.VideoReader import OfflineVideoSource
 from rtcosmik.utils.dataset import TRIAL_CLI_EPILOG, add_trial_arguments, resolve_trial
-from rtcosmik.model_weights import resolve_detector_engine
+from rtcosmik.model_weights import estimator_arguments
 
 from multiprocessing import set_start_method
 
@@ -120,8 +120,7 @@ def main(args):
 
 
             est = NLFEstimator(
-                yolo_path=resolve_detector_engine(settings.yolo_path, len(paths)),
-                nlf_path=settings.nlf_path,
+                **estimator_arguments(settings, len(paths)),
                 cano_path=settings.cano_path,
                 image_size=(W, H),
                 cam_Ks=mtxs,

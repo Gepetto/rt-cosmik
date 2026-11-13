@@ -124,10 +124,14 @@ class DefaultSettings:
     # MODELS
     cano_path: str = field(init=False)
     nlf_path: str = field(init=False)
+    nlf_backend: str = "torchscript"  # or "tensorrt"
+    nlf_engine_path: str = field(init=False)
     yolo_model: str = "yolov10n"
     yolo_path: str = field(init=False)
     yolo_conf: float = 0.2
     yolo_imgsz: int = 640
+    detection_mode: str = "per_view"  # or "tiled"
+    yolo_tiled_imgsz: tuple = (736, 1280)
 
     # IK
     ik_type: str = "mhe"
@@ -214,6 +218,7 @@ class DefaultSettings:
         self.cam_calib_path = str(root / "config" / "cam_params")
         self.cano_path = str(root / "weights" / "canonical_verts" / "smplx.npy")
         self.nlf_path = str(root / "weights" / "nlf" / "nlf_s_multi_0.2.2.torchscript")
+        self.nlf_engine_path = str(Path(self.nlf_path).with_suffix(".fp16.engine"))
         self.yolo_path = str(root / "weights" / "yolo" / f"{self.yolo_model}.engine")
         self.dt = 1 / self.fs
         from rtcosmik.marker_sets import apply_evaluation

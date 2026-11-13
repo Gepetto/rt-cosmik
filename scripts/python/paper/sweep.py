@@ -4,7 +4,9 @@
 Writes one summary row per trial to a CSV, and the usual joint_angles.csv /
 markers.csv per run. Resumable: a trial already present in the summary is
 skipped, so a long sweep can be interrupted and restarted, and a crash on one
-trial costs only that trial.
+trial costs only that trial. A pass with another NLF backend or detection mode
+needs its own --tag and --summary: the default tag carries ``_trt`` / ``_tiled``,
+and a run folder made with another estimator is refused.
 
     python3 scripts/python/paper/sweep.py --arm mmpose --cameras 0 2 4 6 \
         --dataset /root/workspace/COMFI --summary results/mmpose_4cam.csv
@@ -93,6 +95,14 @@ def run_mmpose(dataset, participant, task, cameras, out_dir, settings,
 _ESTIMATORS = {}
 
 
+def set_torch_flags():
+    """run_pipeline's torch backend flags; they change NLF's numerics, not only its speed."""
+    import torch
+    torch.backends.cudnn.benchmark = False
+    torch.backends.cuda.matmul.allow_tf32 = True
+    torch.backends.cudnn.allow_tf32 = True
+
+
 def _nlf_estimator(mtxs, num_cameras, settings, indices=None):
     """One NLFEstimator per (camera count, intrinsics), reused across trials.
 
@@ -106,24 +116,19 @@ def _nlf_estimator(mtxs, num_cameras, settings, indices=None):
     on the same trial -- small, but a systematic offset rather than noise, and
     enough to make the sweep measure something other than the shipped pipeline.
     """
-    import torch
-
     from rtcosmik.nlf.nlf import NLFEstimator
-    from rtcosmik.model_weights import resolve_detector_engine
+    from rtcosmik.model_weights import estimator_arguments
 
-    torch.backends.cudnn.benchmark = False
-    torch.backends.cuda.matmul.allow_tf32 = True
-    torch.backends.cudnn.allow_tf32 = True
-
+    set_torch_flags()
     if indices is None:
         indices = settings.nlf_indices
-    key = (num_cameras, tuple(indices),
+    key = (settings.nlf_backend, settings.nlf_engine_path, settings.detection_mode,
+           tuple(settings.yolo_tiled_imgsz), num_cameras, tuple(indices),
            tuple(np.asarray(m).round(4).tobytes() for m in mtxs))
     if key not in _ESTIMATORS:
         _ESTIMATORS.clear()          # only ever keep one on the GPU
         _ESTIMATORS[key] = NLFEstimator(
-            yolo_path=resolve_detector_engine(settings.yolo_path, num_cameras),
-            nlf_path=settings.nlf_path, cano_path=settings.cano_path,
+            **estimator_arguments(settings, num_cameras), cano_path=settings.cano_path,
             image_size=(settings.width, settings.height), cam_Ks=mtxs,
             indices=indices, conf=settings.yolo_conf,
             imgsz=settings.yolo_imgsz, device=settings.device)
@@ -197,7 +202,9 @@ def run_nlf(dataset, participant, task, cameras, out_dir, settings,
     recorder = None
     if views_cache is not None:
         from rtcosmik.paper.nlf_views import ViewsRecorder
-        recorder = ViewsRecorder(cameras, len(settings.marker_names), landmark_map)
+        from rtcosmik.provenance import estimator_identity
+        recorder = ViewsRecorder(cameras, len(settings.marker_names), landmark_map,
+                                 estimator_identity(settings, len(cameras)))
     started = time.perf_counter()
     try:
         while True:
@@ -351,6 +358,41 @@ def run_fastsam(dataset, participant, task, cameras, out_dir, settings,
     return rows, np.asarray(ik_ms), time.perf_counter() - started
 
 
+NLF_ARMS = ("nlf", "nlf2d")
+_ESTIMATOR_KEYS = ("nlf_backend", "detection_mode", "tiled_imgsz")
+
+
+def _estimator(settings, cameras):
+    from rtcosmik.provenance import estimator_identity
+    identity = estimator_identity(settings, len(cameras))
+    return {k: identity.get(k) for k in _ESTIMATOR_KEYS}
+
+
+def default_tag(arm, cameras, settings):
+    """``<n>cam_<arm>``, with ``_trt`` and ``_tiled`` when an NLF arm runs them."""
+    tag = f"{len(cameras)}cam_{arm}"
+    if arm in NLF_ARMS:
+        estimator = _estimator(settings, cameras)
+        tag += "_trt" * (estimator["nlf_backend"] == "tensorrt")
+        tag += "_tiled" * (estimator["detection_mode"] == "tiled")
+    return tag
+
+
+def require_same_estimator(out_dir, cameras, settings):
+    """Refuse a run folder made with another NLF backend or detection mode."""
+    import json
+    path = Path(out_dir) / "run_info.json"
+    if not path.exists():
+        return
+    made = {"nlf_backend": "torchscript", "detection_mode": "per_view",
+            **json.loads(path.read_text()).get("estimator", {})}
+    made = {k: made.get(k) for k in _ESTIMATOR_KEYS}
+    now = _estimator(settings, cameras)
+    if made != now:
+        raise RuntimeError(f"{out_dir} was run with {made}, the settings now give {now}; "
+                           "pass another --tag and --summary")
+
+
 ARMS = {"mmpose": run_mmpose, "nlf": run_nlf, "nlf2d": run_nlf2d,
         "fastsam": run_fastsam, "mocap": run_mocap}
 
@@ -390,7 +432,7 @@ def main():
     ap.add_argument("--participants", nargs="*", default=None)
     ap.add_argument("--tasks", nargs="*", default=None)
     ap.add_argument("--tag", default=None,
-                    help="Run directory name; defaults to <n>cam_<arm>")
+                    help="Run directory name; defaults to <n>cam_<arm>[_trt][_tiled]")
     ap.add_argument("--output-dir", type=Path, default=None,
                     help="where run folders go; defaults to settings.output_dir")
     ap.add_argument("--views-cache", type=Path, default=None,
@@ -408,7 +450,7 @@ def main():
         apply_marker_set(settings, "mocap")
     from rtcosmik.paper.scoring import score_run
 
-    tag = args.tag or f"{len(args.cameras)}cam_{args.arm}"
+    tag = args.tag or default_tag(args.arm, args.cameras, settings)
     cameras_key = "-".join(str(c) for c in args.cameras)
     summary = Path(args.summary)
     summary.parent.mkdir(parents=True, exist_ok=True)
@@ -426,6 +468,10 @@ def main():
         writer.writeheader()
 
     trials = discover(args.dataset, args.participants, args.tasks, args.arm)
+    runs_root = args.output_dir or Path(settings.output_dir)
+    if args.arm in NLF_ARMS:
+        for participant, task in trials:
+            require_same_estimator(runs_root / participant / task / tag, args.cameras, settings)
     LOGGER.info(f"{len(trials)} trials; {len(done)} already summarised; "
                 f"cameras {cameras_key}; N={settings.N}; "
                 f"marker_set={settings.marker_set}")
@@ -434,7 +480,7 @@ def main():
         key = (args.arm, participant, task, cameras_key, str(settings.N))
         if key in done:
             continue
-        out_dir = (args.output_dir or Path(settings.output_dir)) / participant / task / tag
+        out_dir = runs_root / participant / task / tag
         row = dict.fromkeys(FIELDS, "")
         row.update(arm=args.arm, participant=participant, task=task,
                    cameras=cameras_key, n_horizon=settings.N)

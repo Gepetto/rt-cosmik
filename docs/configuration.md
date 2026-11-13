@@ -48,6 +48,9 @@ Offline runs of a dataset read the person from the dataset's metadata instead
 | `yolo_model` | `"yolov10n"` | Person detector. Run `fetch_models.sh` again after changing it. |
 | `yolo_conf` | `0.2` | Minimum detection confidence. |
 | `yolo_imgsz` | `640` | Detector input size (pixels). |
+| `detection_mode` | `"per_view"` | `"per_view"`: one detector image per view. `"tiled"`: all the views in one detector image, one call whatever the number of views. |
+| `yolo_tiled_imgsz` | `(736, 1280)` | (height, width) of the detector image of the tiled mode, multiples of 32. The default gives each of four views 640 x 360, as in per-view detection. Its engine is built by `bash scripts/bash/fetch_models.sh` when `detection_mode` is `"tiled"`. |
+| `nlf_backend` | `"torchscript"` | `"torchscript"`: the released NLF model. `"tensorrt"`: the crops of all views through one fp16 engine in one pass; build it once with `python3 scripts/python/core/export_nlf_engine.py`. |
 | `nlf_indices` | 43 vertex indices | Points of the SMPL-X template NLF is queried at, one per landmark of `marker_names`. |
 | `nlf_path`, `cano_path`, `yolo_path` | *computed* | Model files under `weights/`. |
 | `device` | *computed* | `"cuda:0"` when a GPU is available, else `"cpu"`. |

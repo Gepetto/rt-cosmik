@@ -16,12 +16,25 @@ def _per_frame_settings():
     return s
 
 
-def _replay(trial, repo, arm=None):
+def _replay(trial, repo, arm=None, settings=None):
     from replay_nlf_arms import replay_trial
     arm = arm or {"name": "nlf", "tag": "nlf_0-2-4-6", "reconstruction": "fuse3d",
                   "cameras": trial["cameras"]}
     return replay_trial(trial["dataset"], trial["views"], trial["out_dir"], trial["participant"],
-                        trial["task"], arm, _per_frame_settings(), repo=repo)
+                        trial["task"], arm, settings or _per_frame_settings(), repo=repo)
+
+
+@needs_comfi
+def test_replay_records_the_estimator_of_the_recording_not_of_the_replay(synthetic_trial, clean_repo):
+    s = _per_frame_settings()
+    s.nlf_backend, s.detection_mode = "tensorrt", "tiled"     # the recording predates both
+
+    _replay(synthetic_trial, clean_repo, settings=s)
+
+    info = json.loads((synthetic_trial["out_dir"] / "run_info.json").read_text())
+    assert info["estimator"] == {"nlf_backend": "torchscript", "detection_mode": "per_view"}
+    assert info["settings"]["nlf_backend"] == "torchscript"
+    assert info["settings"]["detection_mode"] == "per_view"
 
 
 @needs_comfi

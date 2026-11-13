@@ -83,6 +83,8 @@ class Settings:
     ### NLF ###
     cano_path: str = field(init=False)
     nlf_path: str = field(init=False)
+    nlf_backend: str = "torchscript"  # or "tensorrt" (scripts/python/core/export_nlf_engine.py)
+    nlf_engine_path: str = field(init=False)
     nlf_indices = [             # For SMPLX model
         8421, 5727, 8371, 5677, # pelvis: RASI, LASI, RPSI, LPSI 
         5484, 5489, 5500, 6629, 3878, 7040, 4302, 7105, 4369, 7584, 4848, 7457, 4721, # upper: C7, T11, T6,  RSHO, LSHO, RELB, LELB, RMELB, LMELB, RWRI, LWRI, RMWRI, LMWRI
@@ -108,6 +110,8 @@ class Settings:
     yolo_path: str = field(init=False)
     yolo_conf = 0.2
     yolo_imgsz = 640
+    detection_mode: str = "per_view"  # or "tiled": all the views in one detector image
+    yolo_tiled_imgsz = (736, 1280)  # (height, width) of the tiled detector image
 
     #### IK AND DATA HANDLING ###
     # For whole body model :
@@ -196,6 +200,7 @@ class Settings:
         self.SAVE_DIR = str(Path(self.output_dir) / self.no_trial)
         self.cano_path = str(Path(self.cosmik_path) / "weights/canonical_verts/smplx.npy")
         self.nlf_path = str(Path(self.cosmik_path) / "weights/nlf/nlf_s_multi_0.2.2.torchscript")
+        self.nlf_engine_path = str(Path(self.nlf_path).with_suffix(".fp16.engine"))
         self.yolo_path = str(Path(self.cosmik_path) / "weights" / "yolo"
                              / f"{self.yolo_model}.engine")
         self.dt = 1 / self.fs

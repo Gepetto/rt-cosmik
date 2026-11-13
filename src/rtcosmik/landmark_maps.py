@@ -102,6 +102,14 @@ def nlf_indices(landmark_map, settings):
             for name, base in zip(settings.full_marker_names, settings.paper["nlf_indices"])]
 
 
+def all_vertices(settings):
+    """Every vertex an NLF landmark map queries: toolbox, submitted and fold maps."""
+    vertices = set(settings.toolbox_nlf_indices) | set(settings.paper["nlf_indices"])
+    for fold_path in sorted(MAPS_DIR.glob("nlf_fold*.json")):
+        vertices |= set(LandmarkMap.from_dict(json.loads(fold_path.read_text())).vertices.values())
+    return sorted(int(v) for v in vertices)
+
+
 def apply(landmark_map, settings):
     """A copy of ``settings`` querying NLF at the map's vertices."""
     import copy

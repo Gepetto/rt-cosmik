@@ -146,11 +146,12 @@ def replay(job):
     meta = yaml.safe_load((DATASET / "metadata" / f"{participant}.yaml").read_text())
     solver = HumanSolver(settings, gender=meta["gender"][0], height=meta["height"],
                          weight=meta["weight"], logger=logging.getLogger("solve"))
-    from rtcosmik.provenance import start_run, update_run_info
+    from rtcosmik.provenance import recorded_estimator, start_run, update_run_info
     run_dir = runs_root / participant / task / tag(variant)
     start_run(run_dir, settings, {"name": "nlf", "tag": tag(variant), "variant": repr(variant),
                                   "participant": participant, "task": task},
-              landmark_map=landmark_map)
+              landmark_map=landmark_map,
+              estimator=recorded_estimator(views_root / participant / f"{task}.npz"))
     saver = CSVSaver(str(run_dir), markers_header=["Frame_0"] + list(settings.marker_names),
                      joint_angles_header=list(settings.joint_angles_names))
     solve_ms, failed, q_last = [], 0, None

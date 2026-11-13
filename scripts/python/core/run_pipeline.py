@@ -35,7 +35,7 @@ from rtcosmik.viewer.async_display import AsyncDisplay
 from rtcosmik.viewer.comfi_scene import ComfiScene, TrialAssets
 from rtcosmik.utils.dataset import (
     TRIAL_CLI_EPILOG, add_trial_arguments, load_subject, resolve_trial, run_variant)
-from rtcosmik.model_weights import resolve_detector_engine
+from rtcosmik.model_weights import estimator_arguments
 from rtcosmik.pipeline.pipeline import PipelineProcess
 
 from multiprocessing import set_start_method, Value, Event as MPEvent
@@ -234,8 +234,7 @@ def main(args):
             frames_written = 0
 
             est = NLFEstimator(
-                yolo_path=resolve_detector_engine(settings.yolo_path, NUM_CAMERAS),
-                nlf_path=settings.nlf_path,
+                **estimator_arguments(settings, NUM_CAMERAS),
                 cano_path=settings.cano_path,
                 image_size=(W, H),
                 cam_Ks=mtxs,
@@ -491,7 +490,8 @@ def main(args):
                 ],
             }
             from rtcosmik.provenance import collect_provenance
-            run_info["provenance"] = collect_provenance(settings, {"script": "run_pipeline"})
+            run_info["provenance"] = collect_provenance(
+                settings, {"script": "run_pipeline", "num_cameras": NUM_CAMERAS})
             with open(Path(out_dir) / "run_info.json", "w") as handle:
                 json.dump(run_info, handle, indent=2)
         LOGGER.info(

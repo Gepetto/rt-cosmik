@@ -21,9 +21,9 @@ import numpy as np
 class ViewsRecorder:
     """Accumulate one trial's per-camera NLF output, frame by frame."""
 
-    def __init__(self, cameras, markers, landmark_map=None):
+    def __init__(self, cameras, markers, landmark_map=None, estimator=None):
         self.cameras, self.markers = list(cameras), markers
-        self.landmark_map = landmark_map
+        self.landmark_map, self.estimator = landmark_map, estimator
         self.keypoints, self.poses3d, self.uncertainties = [], [], []
 
     def append(self, views):
@@ -48,6 +48,8 @@ class ViewsRecorder:
         extra = {}
         if self.landmark_map is not None:
             extra["landmark_map"] = json.dumps(self.landmark_map.to_dict())
+        if self.estimator is not None:        # provenance.estimator_identity
+            extra["estimator"] = json.dumps(self.estimator)
         np.savez_compressed(path, cameras=np.asarray(self.cameras),
                             keypoints=np.asarray(self.keypoints, dtype=np.float32),
                             poses3d=np.asarray(self.poses3d, dtype=np.float32),
