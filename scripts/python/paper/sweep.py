@@ -40,14 +40,14 @@ FIELDS = (["arm", "participant", "task", "cameras", "n_horizon", "frames"] + ROW
 
 
 def _start(out_dir, settings, name, dataset, participant, task, cameras, landmark_map=None,
-           **extra):
+           repo=REPO, **extra):
     from rtcosmik.paper import require_paper_evaluation
     from rtcosmik.provenance import start_run
     require_paper_evaluation(settings)
     start_run(out_dir, settings, dict(name=name, tag=Path(out_dir).name, cameras=list(cameras),
                                       participant=participant, task=task, dataset=str(dataset),
                                       **extra),
-              landmark_map=landmark_map)
+              repo=repo, landmark_map=landmark_map)
 
 
 def run_mmpose(dataset, participant, task, cameras, out_dir, settings,
@@ -304,13 +304,13 @@ def run_nlf2d(dataset, participant, task, cameras, out_dir, settings,
 
 
 def run_fastsam(dataset, participant, task, cameras, out_dir, settings,
-                depth_aware=False):
+                depth_aware=False, repo=REPO):
     """One FastSAM-3D trial. Returns (frames, ik_ms, seconds).
 
-    COMFI exports this modality as metric 3D markers in the reference camera's
-    frame, so the arm reads a file rather than running a network: the timings it
-    reports are the IK's alone and are not comparable with the end-to-end fps of
-    the arms that include a detector.
+    The arm reads stored FastSAM-3D output rather than running a network: the
+    participant's fold map applied to the stored meshes, or COMFI's marker export
+    for the submitted map. The timings it reports are the IK's alone and are not
+    comparable with the end-to-end fps of the arms that include a detector.
     """
     from collections import OrderedDict
     from rtcosmik import landmark_maps
@@ -318,13 +318,13 @@ def run_fastsam(dataset, participant, task, cameras, out_dir, settings,
     from rtcosmik.pipeline.solver import HumanSolver
     from rtcosmik.saver.csv_saver import CSVSaver
 
-    landmark_map = landmark_maps.submitted(settings, "fastsam")     # the COMFI exports
+    landmark_map = landmark_maps.select(settings, participant, "fastsam")
     landmark_maps.require_out_of_fold(landmark_map, participant, settings)
-    source, meta = build_source(dataset, participant, task, cameras, settings)
+    source, meta = build_source(dataset, participant, task, cameras, settings, landmark_map)
     solver = HumanSolver(settings, gender=meta["gender"][0], height=meta["height"],
                          weight=meta["weight"], logger=logging.getLogger("solve"))
     _start(out_dir, settings, "fastsam", dataset, participant, task, cameras,
-           landmark_map.identity(participant))
+           landmark_map.identity(participant), repo=repo)
     out_dir.mkdir(parents=True, exist_ok=True)
     saver = CSVSaver(str(out_dir),
                      markers_header=["Frame_0"] + list(settings.marker_names),

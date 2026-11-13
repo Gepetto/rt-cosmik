@@ -65,6 +65,26 @@ python3 scripts/python/paper/study_head_offset.py measure       # where Head sit
 python3 scripts/python/paper/study_head_offset.py sensitivity   # does it matter
 ```
 
+With `landmark_map = "out_of_fold"` the arm does not read those exports, which
+were made with the submitted map. It reads the stored full meshes
+(`fastsam/results_multicam`) at the vertices of the participant's fold map
+(`src/rtcosmik/paper/fastsam_meshes.py`), so no inference is run again; the face
+landmarks and the `Head` reconstruction are unchanged. Meshes are stored under
+the camera labels 2, 4 and 6 only, so the out-of-fold configurations are:
+
+| tag | views | 3361 |
+|---|---|---|
+| `fastsam_2` | 1 camera | 6 |
+| `fastsam_4-6` | 2 cameras, same side | 0-2 |
+| `fastsam_2-4` | 2 cameras, opposed | 6-0 |
+| `fastsam_2-4-6` | 3 cameras | 6-0-2 |
+
+3361's meshes carry the swapped labels too: the folders labelled 2, 4, 6 hold
+cameras 6, 0, 2 (64, 85 and 61 mm median marker error against the reference,
+0.3-0.9 m with any other pairing). Its camera-4 view is therefore not stored,
+and it runs the mirror image of each configuration, which is the same geometry
+on this symmetric rig. A camera with no stored mesh is refused.
+
 **Its fps column is not comparable with the others.** FastSAM's own inference is
 not run here -- the 3D arrives precomputed -- so the figure covers fusion and IK
 and nothing else. Its inference time is read from the export logs instead
@@ -104,7 +124,8 @@ python3 scripts/python/paper/fit_fastsam_landmark_map.py --results /root/workspa
 ```
 
 Every arm run selects the map named by `settings.paper["landmark_map"]`, and so
-does every replay of recorded views. `"out_of_fold"` gives the participant's own
+does every replay of recorded views. The FastSAM-3D arm applies its fold map to
+the stored meshes when it runs. `"out_of_fold"` gives the participant's own
 fold map. The runner refuses any map fitted on the participant being evaluated.
 The one exception is `"submitted"`, which exists only to reproduce the
 manuscript, and its run information then records `in_sample: true`.

@@ -166,8 +166,8 @@ class FastsamMarkerSource:
     world with the reference camera's pose, then low-passed one frame at a time.
     """
 
-    def __init__(self, trial_dir, cameras, marker_names, projections,
-                 world_R, world_T, iir=None, export_camera=None):
+    def __init__(self, views, cameras, marker_names, projections,
+                 world_R, world_T, iir=None):
         from rtcosmik.triangulation.triangulation import fuse_camera_poses3d
 
         self._fuse = fuse_camera_poses3d
@@ -178,15 +178,12 @@ class FastsamMarkerSource:
         self.world_T = np.asarray(world_T, dtype=float)
         self.iir = iir
 
-        export_camera = export_camera or {}
         self.views = []
-        for camera in self.cameras:
-            path = fastsam_csv(trial_dir, export_camera.get(camera, camera))
-            names, xyz, valid = load_fastsam_markers(path)
+        for camera, (names, xyz, valid) in zip(self.cameras, views):
             keep = [name for name in names if name not in DROPPED_MARKERS]
             missing = (set(self.marker_names) - set(keep)) - {"Head"}
             if missing:
-                raise ValueError(f"{path} is missing {sorted(missing)}")
+                raise ValueError(f"camera {camera}'s view is missing {sorted(missing)}")
             index = {name: i for i, name in enumerate(names)}
             columns = {name: index[name] for name in keep}
             needs_head = "Head" in self.marker_names and "Head" not in index
@@ -228,31 +225,38 @@ class FastsamMarkerSource:
             yield frame, dict(zip(self.marker_names, points))
 
 
-def build_source(dataset, participant, task, cameras, settings, logger=None):
+def build_source(dataset, participant, task, cameras, settings, landmark_map=None, logger=None):
     """Assemble the marker source for one trial, with its subject metadata.
 
     Calibration is loaded exactly as the NLF arm loads it: projections for the
     requested cameras, and the world pose of the first one, which is the
-    reference frame the views are fused into.
+    reference frame the views are fused into. A fold's ``landmark_map`` reads the
+    markers from the stored meshes; without one they come from the COMFI exports.
     """
     import yaml
 
     from rtcosmik.camera.cam_utils import (load_camera_parameters,
                                            load_world_transformation)
     from rtcosmik.filtering.iir import MarkerFilter
+    from rtcosmik.paper import fastsam_meshes
 
     root = Path(dataset)
     meta = yaml.safe_load((root / "metadata" / f"{participant}.yaml").read_text())
     cam_dir = root / "cam_params" / participant
+    relabel = EXPORT_CAMERA.get(participant, {})
+    labels = [relabel.get(camera, camera) for camera in cameras]
+    if landmark_map is None or landmark_map.fold is None:
+        trial_dir = root / "fastsam" / participant / task
+        views = [load_fastsam_markers(fastsam_csv(trial_dir, label)) for label in labels]
+    else:
+        views = fastsam_meshes.load_views(root, participant, task, labels, landmark_map)
     _, _, projections, _, _ = load_camera_parameters(cam_dir, cameras)
     world_R, world_T = load_world_transformation(cam_dir, cameras[0])
 
     iir = MarkerFilter(len(settings.marker_names), settings)
 
-    source = FastsamMarkerSource(
-        root / "fastsam" / participant / task, cameras, settings.marker_names,
-        projections, world_R, world_T, iir=iir,
-        export_camera=EXPORT_CAMERA.get(participant))
+    source = FastsamMarkerSource(views, cameras, settings.marker_names,
+                                 projections, world_R, world_T, iir=iir)
     (logger or LOGGER).info(
         f"FastSAM {participant}/{task}: {len(source)} frames, cameras "
         f"{list(cameras)}, {len(settings.marker_names)} markers")
