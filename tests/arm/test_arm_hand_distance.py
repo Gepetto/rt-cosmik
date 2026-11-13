@@ -97,12 +97,82 @@ def test_a_late_detection_is_a_missed_event_but_not_an_undetected_approach():
 
 def test_an_estimate_below_the_threshold_alone_is_a_false_alarm():
     reference = _dips()
-    estimate = _dips((100, 110, 0.090), (300, 304, 0.100))
+    estimate = _dips((100, 110, 0.090), (300, 306, 0.100), (350, 353, 0.100))
     row, _ = hd.score_hand(estimate, reference, _still_effector(), 0, 0)
-    assert row["causal_105mm_false_alarm_frames"] == 14
-    assert row["causal_105mm_false_alarm_events"] == 2
+    assert row["causal_105mm_false_alarm_frames"] == 19
+    assert row["causal_105mm_false_alarm_events"] == 2      # the 3-frame flicker is no event
     assert row["causal_105mm_missed_frames"] == 0
     assert row["causal_105mm_approaches"] == 0
+
+
+def test_a_close_frame_without_an_estimate_is_missed():
+    reference = _dips((40, 60, 0.100))
+    estimate = _dips((40, 60, 0.100))
+    estimate[45:55] = np.nan                                  # dropped frames
+    row, series = hd.score_hand(estimate, reference, _still_effector(), 0, 0)
+    assert row["causal_105mm_close_frames"] == 20
+    assert row["causal_105mm_missed_frames"] == 10
+    assert row["causal_105mm_undetected"] == 0
+    assert row["missing_frames"] == 10
+    assert hd.pool([series])["causal_105mm_missed_pct"] == pytest.approx(50.0)
+
+
+def test_a_threshold_is_evaluable_on_reference_frames_alone():
+    reference = _dips((100, 220, 0.100))                      # 120 frames below 105 mm
+    estimate = _dips()
+    estimate[100:220] = np.nan
+    pooled = hd.pool([hd.score_hand(estimate, reference, _still_effector(), 0, 0)[1]])
+    assert pooled["causal_105mm_close_frames"] == 120
+    assert pooled["causal_105mm_missed_pct"] == pytest.approx(100.0)
+    verdict = hd.decide(pooled)
+    assert verdict["missed_threshold_mm"] == 105 and not verdict["missed_ok"]
+
+
+def test_detection_delay_of_late_approaches():
+    reference = _dips((40, 60, 0.100), (120, 150, 0.090), (200, 230, 0.090), (300, 320, 0.1))
+    estimate = _dips((45, 60, 0.100), (129, 150, 0.090), (200, 230, 0.090))
+    row, series = hd.score_hand(estimate, reference, _still_effector(), 0, 0)
+    assert row["causal_105mm_approaches"] == 4
+    assert row["causal_105mm_undetected"] == 1
+    assert row["causal_105mm_late"] == 2                      # 5 and 9 frames
+    assert row["causal_105mm_delay_median_frames"] == pytest.approx(7.0)
+    assert row["causal_105mm_delay_p95_frames"] == pytest.approx(8.8)
+    pooled = hd.pool([series, series])
+    assert pooled["causal_105mm_late"] == 4
+    assert pooled["causal_105mm_delay_median_ms"] == pytest.approx(175.0)
+    assert pooled["causal_105mm_delay_p95_ms"] == pytest.approx(225.0)
+
+
+def test_no_late_approach_gives_no_delay():
+    reference = _dips((40, 60, 0.100))
+    row, _ = hd.score_hand(reference, reference, _still_effector(), 0, 0)
+    assert row["causal_105mm_late"] == 0 and np.isnan(row["causal_105mm_delay_median_frames"])
+
+
+def test_a_missing_reference_frame_or_a_brief_gap_does_not_split_an_approach():
+    reference = _dips((40, 60, 0.100), (63, 80, 0.100))       # 3 frames apart
+    reference[50] = np.nan
+    row, _ = hd.score_hand(_dips(), reference, _still_effector(), 0, 0)
+    assert row["causal_105mm_close_frames"] == 36
+    assert row["causal_105mm_approaches"] == 1
+    assert row["causal_105mm_undetected"] == 1
+    assert row["causal_105mm_missed_events"] == 1
+
+
+def test_a_flicker_shorter_than_the_minimum_is_not_an_approach():
+    assert hd.MIN_EVENT_FRAMES == 5
+    reference = _dips((100, 104, 0.100), (200, 205, 0.100))
+    row, _ = hd.score_hand(_dips(), reference, _still_effector(), 0, 0)
+    assert row["causal_105mm_close_frames"] == 9
+    assert row["causal_105mm_approaches"] == 1
+    assert row["causal_105mm_missed_frames"] == 9
+    assert row["causal_105mm_missed_events"] == 1
+
+
+def test_a_hand_with_no_scored_frame_is_refused():
+    estimate = np.full((FRAMES, 3), np.nan)
+    with pytest.raises(ValueError, match="no scored frame"):
+        hd.score_hand(estimate, _dips(), _still_effector(), 0, 0)
 
 
 def test_the_stated_thresholds_include_105_mm():
@@ -141,3 +211,60 @@ def test_decision_rule():
     assert fallback["keep"] and fallback["missed_threshold_mm"] == 150
     nothing = hd.decide(_pooled(60.0, 30.0, 40, 50.0))
     assert not nothing["keep"] and nothing["missed_threshold_mm"] is None
+
+
+# ----------------------------------------------------------------------- script
+
+def _script():
+    import importlib.util
+    from .conftest import REPO
+    path = REPO / "scripts" / "python" / "paper" / "hand_distance.py"
+    spec = importlib.util.spec_from_file_location("hand_distance_script", path)
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+def _read(path):
+    import csv
+    with open(path) as handle:
+        return list(csv.DictReader(handle))
+
+
+def test_script_records_skipped_trials_and_counts_them_in_the_pool(tmp_path):
+    script = _script()
+    series = hd.score_hand(_dips(), _dips((40, 60, 0.100)), _still_effector(), 0, 0)
+    rows = [{"arm": "arm", "participant": "0001", "task": "RobotWelding", "hand": h, **series[0]}
+            for h in script.HANDS]
+    distances = {("arm", h, t): [series[1]] for h in script.HANDS for t in ("all", "RobotWelding")}
+    skipped = [script.skip("0002", "RobotWelding", "no robot states"),
+               script.skip("0003", "RobotPolishing", "no scored frame", "arm", "left")]
+    script.write_outputs(tmp_path, ["arm"], rows, distances, skipped)
+    assert _read(tmp_path / "skipped.csv") == [
+        {"participant": "0002", "task": "RobotWelding", "arm": "all", "hand": "all",
+         "reason": "no robot states"},
+        {"participant": "0003", "task": "RobotPolishing", "arm": "arm", "hand": "left",
+         "reason": "no scored frame"}]
+    pooled = {(r["hand"], r["task"]): r for r in _read(tmp_path / "pooled.csv")}
+    assert (pooled["left", "all"]["trials"], pooled["left", "all"]["skipped"]) == ("1", "2")
+    assert pooled["right", "all"]["skipped"] == "1"
+    assert pooled["left", "RobotWelding"]["skipped"] == "1"
+
+
+def test_script_writes_its_files_when_nothing_was_scored(tmp_path):
+    script = _script()
+    script.write_outputs(tmp_path, ["arm"], [], {}, [script.skip("0002", "RobotWelding", "x")])
+    assert len(_read(tmp_path / "skipped.csv")) == 1
+    assert _read(tmp_path / "pooled.csv") == []
+
+
+def test_script_skips_a_trial_whose_reference_run_is_missing(tmp_path, monkeypatch):
+    script = _script()
+    monkeypatch.setattr(script.rd, "robot_frames", lambda *a: {0: np.zeros(7)})
+    job = (tmp_path / "runs", tmp_path / "data", "0001", "RobotWelding", ["arm"],
+           tmp_path / "frames")
+    rows, series, skipped = script.one_trial(job)
+    assert (rows, series) == ([], {})
+    assert [(s["participant"], s["task"], s["arm"]) for s in skipped] == [
+        ("0001", "RobotWelding", "all")]
+    assert "reference" in skipped[0]["reason"]

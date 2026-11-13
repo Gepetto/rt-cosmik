@@ -106,6 +106,16 @@ def _joint_lag(ev, names, q, q_ref):
     return best, score
 
 
+def by_frame(frame_table):
+    """Joint names, angles and markers of a run folder, indexed by video frame."""
+    return _by_frame(frame_table)
+
+
+def shift(run_frames, reference_frames, lag):
+    """Pair run frame ``i + lag`` with reference frame ``i``."""
+    return _shift(run_frames, reference_frames, lag)
+
+
 def joint_lag(run_dir, reference):
     """Frames ``run_dir`` trails the reference run by, clock offset included."""
     names, q, _ = _by_frame(run_dir)

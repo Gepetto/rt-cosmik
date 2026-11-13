@@ -114,14 +114,14 @@ def load_eval():
 class Robot:
     """The Panda's collision geometry in the world, for one participant's rig."""
 
-    def __init__(self, participant):
+    def __init__(self, participant, dataset=None):
         import example_robot_data as erd
         import yaml
         panda = erd.load("panda")
         self.model, self.geometry = panda.model, panda.collision_model
         self.data = self.model.createData()
         self.geometry_data = self.geometry.createData()
-        pose = yaml.safe_load((DATASET / "robot" / "robot_in_world" / participant
+        pose = yaml.safe_load((Path(dataset or DATASET) / "robot" / "robot_in_world" / participant
                                / "robot_base_pose.yaml").read_text())["world_T_robot"]
         self.world_T_robot = np.asarray(pose["matrix_4x4"], dtype=float)
         self.shapes = [g.geometry for g in self.geometry.geometryObjects]
@@ -145,16 +145,17 @@ class Robot:
         return placements, R0 @ self.data.oMf[self.hand_frame].translation + t0
 
 
-def robot_frames(participant, task):
+def robot_frames(participant, task, dataset=None):
     """Video frame index -> 7 joint positions, from COMFI's aligned robot states."""
     import pandas as pd
-    path = DATASET / "robot" / "aligned" / participant / f"{participant}_{task}.csv"
+    dataset = Path(dataset or DATASET)
+    path = dataset / "robot" / "aligned" / participant / f"{participant}_{task}.csv"
     if not path.exists():
         return {}
     robot = pd.read_csv(path)
     if robot.empty:
         return {}
-    video = pd.read_csv(DATASET / "videos" / participant / task / "camera_0_timestamps.csv")
+    video = pd.read_csv(dataset / "videos" / participant / task / "camera_0_timestamps.csv")
     video_ns = pd.to_datetime(video["timestamp"], utc=True).astype("int64").to_numpy()
     robot_ns = pd.to_datetime(robot["_cam_time"], utc=True).astype("int64").to_numpy()
     index = np.clip(np.searchsorted(video_ns, robot_ns), 0, len(video_ns) - 1)
