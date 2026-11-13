@@ -219,6 +219,20 @@ without forearms and hands (usually the head) and each hand's distance to the
 robot's hand frame. The human is the model's joint-centre skeleton, rebuilt per
 run exactly as the IK scaled it.
 
+**Hand-to-end-effector statistics** (`hand_distance.py`, `rtcosmik/paper/hand_distance.py`)
+are what the paper's distance application rests on: per hand, the signed error
+(estimate minus reference, positive when the estimate says the hand is farther
+than it is), its SD, the 95th and 99th percentiles of the absolute and of the
+signed error, and missed close approaches and false alarms at
+`THRESHOLDS_MM` (105, 150, 200, 300 mm), as frames and as contiguous runs.
+Causal figures pair estimate, reference and robot at the same instant after
+removing the trial's clock offset; aligned figures sit beside them. `pooled.csv`
+pools the frames of all trials per arm and applies the keep-or-drop rule of
+`docs/tickets/13-robot-distance.md`.
+
+    python3 scripts/python/paper/hand_distance.py --runs /root/workspace/oof/runs \
+        --out /root/workspace/oof/t13 --arms nlf_0-2-4-6 fusion_mean
+
 ## Reading the timing columns
 
 **The sweep's mmpose fps column is post-2D only.** That arm reads COMFI's

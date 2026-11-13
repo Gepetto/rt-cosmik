@@ -106,6 +106,12 @@ def _joint_lag(ev, names, q, q_ref):
     return best, score
 
 
+def joint_lag(run_dir, reference):
+    """Frames ``run_dir`` trails the reference run by, clock offset included."""
+    names, q, _ = _by_frame(run_dir)
+    return _joint_lag(load_eval(), names, q, _by_frame(reference)[1])[0]
+
+
 def _marker_error(markers, ref_markers, lag):
     """Per-frame Euclidean marker errors (m), all markers pooled."""
     errors = []
