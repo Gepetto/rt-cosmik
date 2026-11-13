@@ -19,14 +19,17 @@ Reads ``per_trial/<arm>.csv`` and ``per_dof/<arm>.csv`` written by
 * ``timing``          throughput and IK time from the sweep summaries (for replayed
                       arms, from their direct timing runs); FastSAM's inference time
                       per view from its logs (``fastsam_timing.py``)
-* ``study_ik``, ``study_horizon``, ``study_filter``
+* ``study_ik``, ``study_horizon``, ``study_filter``, ``study_fusion``
                       E3 / E4 / E5 on the NLF-3D 4-camera pipeline
-                      (``ik_filter_studies.py``), each variant against the baseline
-* ``stats_*``         Friedman across the real-time arms, then the planned comparisons
-                      (:data:`PLANNED`): Wilcoxon signed-rank with Holm correction,
-                      rank-biserial effect size, bootstrap 95% CI of the paired
-                      difference. FastSAM is offline and outside that family: its
-                      comparisons at matched camera counts are reported uncorrected.
+                      (``ik_filter_studies.py``) and the fusion rules
+                      (``study_fusion.py``), each variant against its baseline
+* ``stats_*``         one table per metric and declared family of tests
+                      (``rtcosmik.paper.statistics.FAMILIES``): Wilcoxon signed-rank
+                      with Holm correction over the family as declared, mean paired
+                      difference with its unadjusted 95% and 90% CI, rank-biserial
+                      effect size and, for joint-angle errors, equivalence by two
+                      one-sided tests at +-1 deg. Causal error is the primary metric,
+                      aligned error is beside it.
 
 and ``summary.json`` holding all of it.
 
@@ -42,8 +45,10 @@ DoF cancel when averaged, which would make a biased arm look unbiased.
 
 Statistics use one value per participant, never per trial: trials from the same
 participant are not independent, and treating 108 trials as 108 observations
-overstates significance. Each comparison uses the participants both arms cover,
-and the count is stated; the Friedman test uses those all its arms cover.
+overstates significance. Within a comparison a participant's value is the mean
+over the trials both arms have for that participant, so the two means cover the
+same tasks; both counts are stated. No p-value is computed outside a declared
+family, and a declared comparison without data still counts in the correction.
 
     python3 scripts/python/paper/aggregate_results.py --arms nlf_0 fastsam_0 ...
 """
@@ -55,8 +60,11 @@ from collections import defaultdict
 from pathlib import Path
 
 REPO = Path(__file__).resolve().parents[3]
+sys.path.insert(0, str(REPO / "src"))
 
 import numpy as np
+
+from rtcosmik.paper import statistics
 
 GROUPS = ("lower", "trunk", "upper")
 TASKS = ("Screwing", "Polishing", "SideOverhead", "RobotPolishing", "RobotWelding", "Lifting")
@@ -70,15 +78,6 @@ LABELS = {
     "fastsam_0": "FastSAM-3D, 1 cam", "fastsam_0-2": "FastSAM-3D, 2 cams same side",
     "fastsam_0-4": "FastSAM-3D, 2 cams opposed", "fastsam_0-2-4-6": "FastSAM-3D, 4 cams",
 }
-#: The planned comparisons, Holm-corrected as one family: the proposed pipeline
-#: against the previous architecture and against triangulating the same
-#: detector's 2D, the camera-count ladder, and camera placement.
-PLANNED = [("nlf_0-2-4-6", "mmpose_0-2-4-6"), ("nlf_0-2-4-6", "nlf2d_0-2-4-6"),
-           ("nlf_0", "nlf_0-2"), ("nlf_0-2", "nlf_0-2-4-6"), ("nlf_0", "nlf_0-2-4-6"),
-           ("nlf_0-2", "nlf_0-4")]
-#: FastSAM (offline) against NLF-3D at the same cameras; reported, not corrected.
-OFFLINE = [("fastsam_0", "nlf_0"), ("fastsam_0-2", "nlf_0-2"), ("fastsam_0-4", "nlf_0-4"),
-           ("fastsam_0-2-4-6", "nlf_0-2-4-6")]
 MARKER_FIELDS = ("marker_raw_mm", "marker_depth_mm", "marker_lateral_mm",
                  "marker_translation_mm", "marker_shape_mm")
 #: Participants excluded from marker geometry for every arm. Empty since 3361's
@@ -103,6 +102,25 @@ def mean_sd(values):
             "n": int(len(v))}
 
 
+def trial_values(rows, value, where=lambda r: True):
+    """(participant, task) -> ``value(row)``, for the rows that pass ``where``."""
+    buckets = defaultdict(list)
+    for r in rows:
+        if where(r):
+            x = value(r)
+            if np.isfinite(x):
+                buckets[r["participant"], r["task"]].append(x)
+    return {k: float(np.mean(v)) for k, v in buckets.items()}
+
+
+def over_trials(per_trial):
+    """Participant -> mean over their trials of a (participant, task) -> value map."""
+    buckets = defaultdict(list)
+    for (p, _), x in per_trial.items():
+        buckets[p].append(x)
+    return {p: float(np.mean(v)) for p, v in buckets.items()}
+
+
 def participant_means(rows, value, where=lambda r: True):
     """Participant -> mean of ``value(row)`` over the rows that pass ``where``."""
     buckets = defaultdict(list)
@@ -114,8 +132,8 @@ def participant_means(rows, value, where=lambda r: True):
     return {p: float(np.mean(v)) for p, v in buckets.items()}
 
 
-def dof_participant_means(dof_rows, field, group=None, absolute=False):
-    """Mean over DoF within a trial, then over trials within a participant."""
+def dof_trial_means(dof_rows, field, group=None, absolute=False):
+    """(participant, task) -> mean over DoF within the trial."""
     per_trial = defaultdict(list)
     for r in dof_rows:
         if group and r["group"] != group:
@@ -123,10 +141,12 @@ def dof_participant_means(dof_rows, field, group=None, absolute=False):
         x = float(r[field])
         if np.isfinite(x):
             per_trial[(r["participant"], r["task"])].append(abs(x) if absolute else x)
-    per_participant = defaultdict(list)
-    for (p, _), values in per_trial.items():
-        per_participant[p].append(float(np.mean(values)))
-    return {p: float(np.mean(v)) for p, v in per_participant.items()}
+    return {k: float(np.mean(v)) for k, v in per_trial.items()}
+
+
+def dof_participant_means(dof_rows, field, group=None, absolute=False):
+    """Mean over DoF within a trial, then over trials within a participant."""
+    return over_trials(dof_trial_means(dof_rows, field, group, absolute))
 
 
 def weighted_kappa(a, b, levels):
@@ -144,57 +164,57 @@ def weighted_kappa(a, b, levels):
     return float(1 - (weights * observed).sum() / denominator) if denominator > 0 else np.nan
 
 
-def holm(pvalues):
-    order = np.argsort(pvalues)
-    adjusted = np.empty(len(pvalues))
-    running = 0.0
-    for rank, i in enumerate(order):
-        running = max(running, min(1.0, (len(pvalues) - rank) * pvalues[i]))
-        adjusted[i] = running
-    return adjusted
+STATS_HEADER = ["family", "a", "b", "participants", "common trials", "mean diff (a - b)", "95% CI", "90% CI",
+                "p", "p Holm", "sig", "signed-rank method", "rank-biserial", "TOST p", "TOST p Holm",
+                "TOST Wilcoxon p Holm", "equivalent"]
+STATS_NOTE = ("Confidence intervals are unadjusted 95% t-intervals on participant mean differences (the 90% "
+              "interval beside them); the difference test is the Wilcoxon signed-rank test with Holm correction, "
+              "exact without ties or zero differences, normal approximation otherwise, zero differences dropped, "
+              "differences ranked after rounding to 1e-9; "
+              "equivalence by TOST at alpha = 0.05 corresponds to the 90% interval lying inside the margin, "
+              "and the verdict uses the Holm-corrected TOST p. A participant's difference is the mean over the "
+              "trials both arms have. A p-value printed as 0 is exact: the differences have no spread and lie "
+              "inside the margin.")
 
 
-def friedman(by_arm, arms):
-    """Friedman test over ``arms``, on the participants every one of them covers."""
-    from scipy import stats
-    arms = [a for a in arms if by_arm.get(a)]
-    common = sorted(set.intersection(*(set(by_arm[a]) for a in arms))) if arms else []
-    if len(arms) < 3 or len(common) < 5:
-        return {"arms": arms, "n": len(common), "chi2": None, "p": None, "df": None}
-    chi2, p = stats.friedmanchisquare(*np.array([[by_arm[a][q] for a in arms] for q in common]).T)
-    return {"arms": arms, "n": len(common), "chi2": float(chi2), "p": float(p), "df": len(arms) - 1}
+def fmt_p(p):
+    if p == 0:
+        return "0"
+    return f"{p:.4f}" if p >= 1e-4 else f"{p:.1e}"
 
 
-def compare(by_arm, pairs, rng, correct):
-    """Wilcoxon signed-rank for each pair, on the participants both arms cover.
+def family_rows(result, label=lambda a: a, digits=2):
+    """Table rows of a ``statistics.run_family`` result, under :data:`STATS_HEADER`."""
+    def p(c, key):
+        return fmt_p(c[key]) if key in c else "--"
 
-    Also the mean paired difference with a bootstrap 95% CI and the rank-biserial
-    effect size. With ``correct``, p-values are Holm-adjusted across ``pairs``.
-    """
-    from scipy import stats
-    out = []
-    for a, b in pairs:
-        if not (by_arm.get(a) and by_arm.get(b)):
-            continue
-        common = sorted(set(by_arm[a]) & set(by_arm[b]))
-        if len(common) < 5:
-            continue
-        diff = np.array([by_arm[a][q] - by_arm[b][q] for q in common])
-        p = 1.0 if np.allclose(diff, 0) else float(stats.wilcoxon(diff).pvalue)
-        nonzero = diff[diff != 0]
-        ranks = stats.rankdata(np.abs(nonzero))
-        rbc = (float(ranks[nonzero > 0].sum() - ranks[nonzero < 0].sum()) / float(ranks.sum())
-               if ranks.size else 0.0)
-        boots = diff[rng.integers(0, len(diff), size=(10000, len(diff)))].mean(axis=1)
-        out.append({"a": a, "b": b, "n": len(common), "mean_diff": float(diff.mean()),
-                    "ci95": [float(np.percentile(boots, 2.5)), float(np.percentile(boots, 97.5))],
-                    "p": p, "rank_biserial": rbc})
-    adjusted = holm(np.asarray([c["p"] for c in out])) if (correct and out) else [c["p"] for c in out]
-    for c, p_adj in zip(out, adjusted):
-        c["p_adjusted"] = float(p_adj)
-        c["correction"] = "Holm" if correct else "none"
-        c["significant_0.05"] = bool(p_adj < 0.05)
-    return out
+    def interval(ci):
+        return f"[{ci[0]:+.{digits}f}, {ci[1]:+.{digits}f}]"
+
+    rows = [[result["family"], label(c["a"]), label(c["b"]), c["n"], c["trials"],
+             f"{c['mean_diff']:+.{digits}f}", interval(c["ci95"]), interval(c["ci90"]), p(c, "p"), p(c, "p_holm"),
+             "yes" if c["significant"] else "no", c["wilcoxon_method"], f"{c['rank_biserial']:+.2f}",
+             p(c, "tost_p"), p(c, "tost_p_holm"), p(c, "tost_p_wilcoxon_holm"),
+             ("yes" if c["equivalent"] else "no") if "equivalent" in c else "--"]
+            for c in result["comparisons"]]
+    rows += [[result["family"], label(a), label(b), "not tested"] + ["--"] * (len(STATS_HEADER) - 4)
+             for a, b in result["missing"]]
+    return rows
+
+
+def write_family(path_stem, results, unit, label=lambda a: a, digits=2):
+    """One table for one or several family results on the same metric, the family stated."""
+    rows = [r for result in results for r in family_rows(result, label, digits)]
+    header = [f"mean diff (a - b) {unit}" if h.startswith("mean diff") else h for h in STATS_HEADER]
+    write_table(path_stem, header, rows)
+    notes = [f"Family `{r['family']}`: {r['title']}. Holm over the {r['declared']} comparisons declared, "
+             f"{r['tested']} tested"
+             + ("; those not tested count in the correction as p = 1" if r["missing"] else "")
+             + (f"; equivalence by TOST at +-{r['margin']:g} {unit}, Holm over the same family."
+                if r["margin"] is not None else "; no equivalence margin declared for this metric.")
+             for r in results]
+    with open(path_stem.with_suffix(".md"), "a") as handle:
+        handle.write("\n" + "\n".join(notes + [STATS_NOTE]) + "\n")
 
 
 def filter_delay_ms(frequency_hz=1.0):
@@ -232,10 +252,8 @@ def main():
     ap.add_argument("--results", type=Path, default=None,
                     help="folder whose vs_mocap/ holds the sweep summaries; "
                          "defaults to the parent of --root")
-    ap.add_argument("--seed", type=int, default=0)
     args = ap.parse_args()
 
-    rng = np.random.default_rng(args.seed)
     trials = {a: read(args.root / "per_trial" / f"{a}.csv") for a in args.arms}
     dofs = {a: read(args.root / "per_dof" / f"{a}.csv") for a in args.arms}
     arms = [a for a in args.arms if trials[a]]
@@ -253,20 +271,22 @@ def main():
                                   "participants": len({r["participant"] for r in trials[a]})}
 
     # Joint angles: whole body and per group.
-    joint_rows, by_arm_rmse = [], {}
+    joint_rows, by_arm_rmse, by_arm_causal = [], {}, {}
     for a in arms:
         entry = {}
         for scope in (None,) + GROUPS:
             key = scope or "all"
-            rmse = dof_participant_means(dofs[a], "rmse_deg", scope)
+            rmse = dof_trial_means(dofs[a], "rmse_deg", scope)
             entry[key] = {
-                "rmse_deg": mean_sd(rmse.values()),
+                "rmse_deg": mean_sd(over_trials(rmse).values()),
                 "abs_bias_deg": mean_sd(dof_participant_means(dofs[a], "bias_deg", scope, True).values()),
                 "sd_deg": mean_sd(dof_participant_means(dofs[a], "sd_deg", scope).values()),
                 "r": mean_sd(dof_participant_means(dofs[a], "r", scope).values()),
             }
             if scope is None:
                 by_arm_rmse[a] = rmse
+                if dofs[a] and "causal_rmse_deg" in dofs[a][0]:
+                    by_arm_causal[a] = dof_trial_means(dofs[a], "causal_rmse_deg")
         summary["joint"][a] = entry
         row = [LABELS.get(a, a)]
         for key in ("all",) + GROUPS:
@@ -357,7 +377,7 @@ def main():
             entry["reba_ref_mean"] = mean_sd(participant_means(sel, lambda r: float(r["reba_ref_mean"])).values())
             summary["reba"].setdefault(mode, {})[a] = entry
             if mode == "own":
-                by_arm_reba[a] = participant_means(sel, lambda r: float(r["reba_mae"]))
+                by_arm_reba[a] = trial_values(sel, lambda r: float(r["reba_mae"]))
             rows_out.append([LABELS.get(a, a), fmt(entry["reba_mae"]), fmt(entry["reba_bias"]),
                              fmt(entry["reba_exact_pct"], 1), fmt(entry["risk_agree_pct"], 1),
                              fmt(entry["risk_kappa_linear"], 2), fmt(entry["time_in_level_err_pct"], 1)]
@@ -439,10 +459,10 @@ def main():
                                             else None)
             summary["robot_distance"].setdefault(measure, {})[a] = entry
             if measure == "body":
-                by_arm_body[a] = participant_means(sel, lambda r: float(r["rmse_mm"]))
+                by_arm_body[a] = trial_values(sel, lambda r: float(r["rmse_mm"]))
             if measure.endswith("hand_ee"):
-                for p, v in participant_means(sel, lambda r: float(r["rmse_mm"])).items():
-                    by_arm_hands.setdefault(a, {}).setdefault(p, []).append(v)
+                for k, v in trial_values(sel, lambda r: float(r["rmse_mm"])).items():
+                    by_arm_hands.setdefault(a, {}).setdefault(k, []).append(v)
             number = lambda x, d=0: f"{x:.{d}f}" if x is not None and np.isfinite(x) else "--"
             rows_out.append([LABELS.get(a, a), fmt(entry["bias_mm"], 1), fmt(entry["mae_mm"], 1),
                              fmt(entry["rmse_mm"], 1), fmt(entry["sd_mm"], 1), fmt(entry["r"], 3),
@@ -460,45 +480,51 @@ def main():
                          "latency margin mm", "total margin (p95) mm", "closest approach err mm",
                          "contact agree %", "<100 mm agree %", "<200 mm agree %", "<300 mm agree %",
                          "closest segment agree %"], rows_out)
-    by_arm_hands = {a: {p: float(np.mean(v)) for p, v in d.items() if len(v) == 2}
+    by_arm_hands = {a: {k: float(np.mean(v)) for k, v in d.items() if len(v) == 2}
                     for a, d in by_arm_hands.items()}
 
-    # Statistics, one value per participant.
-    realtime = [a for a in arms if not a.startswith("fastsam")]
-
-    def stats_table(name, by_arm, unit, digits=2):
-        stat = {"friedman": friedman(by_arm, realtime),
-                "planned": compare(by_arm, PLANNED, rng, correct=True),
-                "offline": compare(by_arm, OFFLINE, rng, correct=False)}
+    # Statistics, one value per participant, one declared family per table.
+    def stats_table(name, by_arm, unit, digits=2, margin=None):
+        stat = {"family": statistics.run_family("arms", by_arm, margin)}
         summary["stats"][name] = stat
-        rows = [["family", "a", "b", "n", f"mean diff (a - b) {unit}", "95% CI", "p", "p adjusted",
-                 "correction", "rank-biserial", "sig"]]
-        for family in ("planned", "offline"):
-            for c in stat[family]:
-                rows.append([family, LABELS.get(c["a"], c["a"]), LABELS.get(c["b"], c["b"]), c["n"],
-                             f"{c['mean_diff']:+.{digits}f}",
-                             f"[{c['ci95'][0]:+.{digits}f}, {c['ci95'][1]:+.{digits}f}]",
-                             f"{c['p']:.4f}", f"{c['p_adjusted']:.4f}", c["correction"],
-                             f"{c['rank_biserial']:+.2f}", "yes" if c["significant_0.05"] else "no"])
-        f = stat["friedman"]
-        rows.append(["friedman", f"{len(f['arms'])} real-time arms", "", f["n"], "", "",
-                     f"{f['p']:.2e}" if f["p"] is not None else "--", "", "",
-                     f"chi2({f['df']}) = {f['chi2']:.1f}" if f["chi2"] is not None else "--", ""])
-        write_table(tables / f"stats_{name}", rows[0], rows[1:])
-        return stat
+        write_family(tables / f"stats_{name}", [stat["family"]], unit, lambda a: LABELS.get(a, a), digits)
 
     # Design-choice studies (E3 IK type, E4 horizon, E5 filter).
     study_fields = ("aligned_rmse_mean", "causal_rmse_mean", "upper_rmse_deg", "lower_rmse_deg",
                     "trunk_rmse_deg", "shoulder_flip_pct", "lag", "jitter_deg",
                     "jerk_rms_deg_s3", "near_limit_pct", "violation_pct", "solve_ms_p50",
                     "solve_ms_p95", "solve_ms_max", "solver_failures")
+    margin = statistics.EQUIVALENCE_MARGIN_DEG
     study_rows = {f.stem: read(f) for f in sorted((args.root / "studies").glob("*.csv"))}
     study_rows = {k: v for k, v in study_rows.items() if v}
     if study_rows:
         summary["studies"] = {}
-        baseline = participant_means(study_rows.get("mhe_N7_o4c5", []), lambda r: float(r["causal_rmse_mean"]))
+        study_stats = {}
+        for family in ("ik_filter", "fusion"):
+            for metric in ("causal_rmse_mean", "aligned_rmse_mean"):
+                by_variant = {v: trial_values(rows, lambda r, m=metric: float(r[m] or "nan"))
+                              for v, rows in study_rows.items()}
+                study_stats[family, metric] = statistics.run_family(family, by_variant, margin)
+            summary["stats"][f"study_{family}"] = {"causal": study_stats[family, "causal_rmse_mean"],
+                                                   "aligned": study_stats[family, "aligned_rmse_mean"]}
+            for metric, tag in (("causal_rmse_mean", "causal"), ("aligned_rmse_mean", "aligned")):
+                if study_stats[family, metric]["comparisons"]:
+                    write_family(tables / f"stats_study_{family}_{tag}", [study_stats[family, metric]], "deg",
+                                 digits=3)
+
+        def against_baseline(family, variant):
+            """Table cells: the variant's causal and aligned comparisons in its family."""
+            cells = []
+            for metric in ("causal_rmse_mean", "aligned_rmse_mean"):
+                c = next((c for c in study_stats[family, metric]["comparisons"] if c["a"] == variant), None)
+                cells += ([f"{c['mean_diff']:+.3f} [{c['ci95'][0]:+.3f}, {c['ci95'][1]:+.3f}]",
+                           fmt_p(c["p_holm"]), fmt_p(c["tost_p_holm"])] if c else ["--"] * 3)
+            return cells
+
+        family_header = [f"{m} {h}" for m in ("causal", "aligned")
+                         for h in ("- baseline deg [95% CI]", "p Holm", "TOST p Holm (+-1 deg)")]
         for study, name in (("E3", "study_ik"), ("E4", "study_horizon"), ("E5", "study_filter")):
-            variants = [v for v, rows in study_rows.items() if rows[0]["study"] in (study, "baseline")]
+            variants = [v for v, rows in study_rows.items() if rows[0].get("study") in (study, "baseline")]
             order = {"E3": lambda v: study_rows[v][0]["ik_type"] != "mhe",
                      "E4": lambda v: int(study_rows[v][0]["N"]),
                      "E5": lambda v: float(study_rows[v][0]["filter_delay_1hz_ms"])}[study]
@@ -508,43 +534,52 @@ def main():
                 rows = study_rows[v]
                 entry = {f: mean_sd(participant_means(rows, lambda r, f=f: float(r[f] or "nan")).values())
                          for f in study_fields}
-                mine = participant_means(rows, lambda r: float(r["causal_rmse_mean"]))
-                common = sorted(set(mine) & set(baseline))
-                entry["rmse_minus_baseline_deg"] = mean_sd([mine[p] - baseline[p] for p in common])
-                if len(common) >= 5 and v != "mhe_N7_o4c5":
-                    from scipy import stats as st
-                    diff = [mine[p] - baseline[p] for p in common]
-                    entry["wilcoxon_p_vs_baseline"] = (1.0 if np.allclose(diff, 0)
-                                                       else float(st.wilcoxon(diff).pvalue))
                 entry["filter_delay_1hz_ms"] = float(rows[0]["filter_delay_1hz_ms"])
                 summary["studies"].setdefault(study, {})[v] = entry
-                table.append([v, rows[0]["ik_type"], rows[0]["N"], rows[0]["filter"],
-                              fmt(entry["causal_rmse_mean"]), fmt(entry["rmse_minus_baseline_deg"]),
-                              fmt(entry["aligned_rmse_mean"]), fmt(entry["lag"], 1),
+                table.append(["ik_filter", v, rows[0]["ik_type"], rows[0]["N"], rows[0]["filter"],
+                              fmt(entry["causal_rmse_mean"]), fmt(entry["aligned_rmse_mean"]),
+                              *against_baseline("ik_filter", v), fmt(entry["lag"], 1),
                               f"{entry['filter_delay_1hz_ms']:.0f}", fmt(entry["jitter_deg"], 3),
                               fmt(entry["jerk_rms_deg_s3"], 0), fmt(entry["near_limit_pct"], 1),
                               fmt(entry["violation_pct"], 2), fmt(entry["solve_ms_p50"], 2),
                               fmt(entry["solve_ms_p95"], 2), fmt(entry["solve_ms_max"], 1),
-                              fmt(entry["solver_failures"], 1), fmt(entry["shoulder_flip_pct"], 1),
-                              f"{entry['wilcoxon_p_vs_baseline']:.4f}" if "wilcoxon_p_vs_baseline" in entry else "--"])
-            write_table(tables / name,
-                        ["variant", "IK", "N", "filter", "causal error deg", "causal - baseline deg",
-                         "aligned error deg", "lag frames", "filter delay at 1 Hz ms",
-                         "jitter deg/frame", "RMS jerk deg/s^3", "near limit %", "limit violation %",
-                         "solve ms p50", "solve ms p95", "solve ms max", "solver failures",
-                         "shoulder flip %", "Wilcoxon p vs baseline"], table)
+                              fmt(entry["solver_failures"], 1), fmt(entry["shoulder_flip_pct"], 1)])
+            if table:
+                write_table(tables / name,
+                            ["family", "variant", "IK", "N", "filter", "causal error deg", "aligned error deg",
+                             *family_header, "lag frames", "filter delay at 1 Hz ms",
+                             "jitter deg/frame", "RMS jerk deg/s^3", "near limit %", "limit violation %",
+                             "solve ms p50", "solve ms p95", "solve ms max", "solver failures",
+                             "shoulder flip %"], table)
 
-    stat = stats_table("joint_rmse", by_arm_rmse, "deg")
+        fusion_fields = ("causal_rmse_mean", "aligned_rmse_mean", "causal_marker_mm", "aligned_marker_mm",
+                         "lag", "jitter_deg", "shoulder_flip_pct", "fuse_ms_p50", "fuse_ms_p95")
+        table = []
+        for v in sorted(k for k in study_rows if k.startswith("fusion_")):
+            rows = study_rows[v]
+            entry = {f: mean_sd(participant_means(rows, lambda r, f=f: float(r.get(f) or "nan")).values())
+                     for f in fusion_fields}
+            summary["studies"].setdefault("fusion", {})[v] = entry
+            table.append(["fusion", v, rows[0].get("label", ""), fmt(entry["causal_rmse_mean"]),
+                          fmt(entry["aligned_rmse_mean"]), *against_baseline("fusion", v),
+                          fmt(entry["causal_marker_mm"], 1), fmt(entry["aligned_marker_mm"], 1),
+                          fmt(entry["lag"], 1), fmt(entry["jitter_deg"], 3),
+                          fmt(entry["shoulder_flip_pct"], 1), fmt(entry["fuse_ms_p50"], 3),
+                          fmt(entry["fuse_ms_p95"], 3)])
+        if table:
+            write_table(tables / "study_fusion",
+                        ["family", "variant", "rule", "causal error deg", "aligned error deg", *family_header,
+                         "causal marker mm", "aligned marker mm", "lag frames", "jitter deg/frame",
+                         "shoulder flip %", "fuse ms p50", "fuse ms p95"], table)
+
+    stats_table("joint_causal_rmse", by_arm_causal, "deg", margin=margin)
+    stats_table("joint_rmse", by_arm_rmse, "deg", margin=margin)
     stats_table("reba_mae_own", by_arm_reba, "REBA points")
     stats_table("robot_body_rmse", by_arm_body, "mm", 1)
     stats_table("robot_hand_ee_rmse", by_arm_hands, "mm", 1)
 
     (args.root / "summary.json").write_text(json.dumps(summary, indent=2) + "\n")
     print(f"arms: {len(arms)} ({', '.join(arms)})" + (f"; missing: {missing}" if missing else ""))
-    f = stat["friedman"]
-    if f["chi2"] is not None:
-        print(f"Friedman on whole-body RMSE over {len(f['arms'])} real-time arms, n = {f['n']}: "
-              f"chi2({f['df']}) = {f['chi2']:.1f}, p = {f['p']:.2e}")
     print(f"tables written to {tables}")
     return 0
 

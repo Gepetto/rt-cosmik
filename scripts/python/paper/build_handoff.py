@@ -346,12 +346,6 @@ def readme(campaign, summary, coverage_rows, figures_made, commit, dirty):
         f"| {LABELS.get(a, a)} | {fmt(joint[a]['all']['rmse_deg'])} | {fmt(joint[a]['lower']['rmse_deg'])} | "
         f"{fmt(joint[a]['trunk']['rmse_deg'])} | {fmt(joint[a]['upper']['rmse_deg'])} |"
         for a in ARMS if a in joint)
-    friedman = summary.get("stats", {}).get("joint_rmse", {}).get("friedman") or {}
-    friedman_line = (f"Friedman on whole-body RMSE over the {len(friedman['arms'])} real-time arms, "
-                     f"{friedman['n']} participants: chi2({friedman['df']}) = {friedman['chi2']:.1f}, "
-                     f"p = {friedman['p']:.2e}."
-                     if friedman.get("chi2") is not None
-                     else "Friedman test not computed (fewer than 5 common participants).")
     coverage = "\n".join(f"| {LABELS.get(a, a)} | {t} | {p} |" for a, t, p in coverage_rows)
     return f"""# RT-COSMIK results handoff: `{campaign}`
 
@@ -366,7 +360,8 @@ Every number here is aggregated by `aggregate_results.py` from the per-trial row
 |---|---|---|---|---|
 {headline}
 
-{friedman_line} Planned comparisons: `tables/stats_joint_rmse.md`.
+Family `arms`, Holm-corrected: `tables/stats_joint_causal_rmse.md`
+(causal error, primary) and `tables/stats_joint_rmse.md` (aligned error).
 
 ## Coverage
 
@@ -441,14 +436,21 @@ are in `data/sweep_summaries/timing_run_*.csv` for comparison.
 * **Markers**: RMS error against the raw Vicon markers (29 body markers; facial
   markers have no Vicon counterpart), split exactly two ways: depth (along camera
   0's optical axis) / lateral, and whole-body translation / shape.
-* **Statistics**: one value per participant. Friedman across the real-time arms
-  (FastSAM excluded), then a small family of **planned comparisons**, Holm-
-  corrected: NLF-3D 4 cams vs mmpose+LSTM 4 cams; NLF-3D vs NLF-2D tri at 4 cams;
-  NLF-3D 1 vs 2 (same side), 2 vs 4, 1 vs 4; NLF-3D 2 cams same side vs opposed.
-  Wilcoxon signed-rank on the participants both arms cover, rank-biserial effect
-  size, bootstrap 95% CI (10 000 resamples) of the paired difference. FastSAM
-  runs offline (below 3 Hz), so it is outside the family: its comparisons with
-  NLF-3D at matched camera counts are reported uncorrected.
+* **Statistics**: one value per participant. Every p-value belongs to a family
+  declared in `rtcosmik.paper.statistics.FAMILIES` and is Holm-corrected over
+  the family as declared, per metric: a declared comparison without data is
+  listed as not tested and still counts. Each table names its family; there is
+  no omnibus test. `arms`: NLF-3D 4 cams vs
+  mmpose+LSTM 4 cams; NLF-3D vs NLF-2D tri at 4 cams; NLF-3D 1 vs 2 (same side),
+  2 vs 4, 1 vs 4; NLF-3D 2 cams same side vs opposed; FastSAM-3D vs NLF-3D at
+  matched views. `ik_filter`: every IK, horizon and filter variant against the
+  paper setting. `fusion`: every fusion rule against inverse variance. Wilcoxon
+  signed-rank (exact without ties or zero differences, normal approximation
+  otherwise) on participant means over the trials both arms have, rank-biserial
+  effect size, mean paired difference with its unadjusted t-based 95% CI. Equivalence is claimed only
+  from two one-sided tests (paired t) against a margin of +-1 deg stated in
+  advance, Holm-corrected within the same family; a non-significant difference
+  is not read as equivalence. Causal error is primary, aligned error beside it.
 * **Shoulder flip rate**: share of frames in which any shoulder DoF is more than
   90 deg from the reference. With the arms overhead, shoulder flexion reaches the
   model's +-180 deg limit (kept on purpose: it follows human range of motion) and
@@ -516,8 +518,9 @@ On the proposed pipeline (NLF-3D, 4 cameras), every trial. The sweep saved each
 frame's per-camera NLF output, and each variant replays it through the same
 reconstruction, filter and IK; only the setting under study changes. The
 baseline replay (MHE, N = 7, 4th order at 5 Hz) reproduces the sweep's own run
-(`logs/studies.log`). Reported per variant: RMSE (lag-compensated and at zero
-lag), difference to the baseline with a Wilcoxon p-value, residual lag, the
+(`logs/studies.log`). Reported per variant: causal and aligned error, each with
+its difference to the baseline, Holm-corrected p-value and TOST p-value at
++-1 deg within family `ik_filter` (`tables/stats_study_*.md`), residual lag, the
 filter's analytic group delay at 1 Hz, jitter (median |frame-to-frame change|),
 RMS jerk, share of frames near a joint limit (0.5 deg) and beyond one, IK solve
 time p50/p95/max (measured with several replays sharing the CPU: comparable
@@ -571,7 +574,8 @@ def checklist(paper, figures_made):
          "tables/joint_overall, joint_tasks, joint_per_dof, markers, freeflyer, stats_joint_rmse; "
          "FastSAM (offline) and an opposed 2-camera pair added"),
         ("Statistics: Friedman, Wilcoxon + Holm, effect size, CI (brief §4)", "done, restricted",
-         "Holm over a planned family of 6 comparisons, not all pairs; FastSAM reported outside it"),
+         "Holm over declared families, FastSAM included, not all pairs, no Friedman omnibus; "
+         "TOST at +-1 deg for equivalence"),
         ("Zero-lag scoring as default (brief §4.2.1)", "decided otherwise",
          "lag-compensated scoring kept: COMFI video trails mocap by ~3 frames; residual lag reported"),
         ("COMFI published angles as secondary reference (brief §4)", "decided otherwise",

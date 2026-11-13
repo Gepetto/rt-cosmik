@@ -57,7 +57,7 @@ Writes, under ``--out``:
                                 top-decile means, MAE, risk agreement
     tables/reba_events.*        mean (SD) across participants per task
     tables/reba_peak.*          the same for the top decile
-    tables/stats_reba_*.*       planned comparisons on the all-task MAE
+    tables/stats_reba_*.*       family `arms` on the all-task MAE, Holm-corrected
 
     python3 scripts/python/paper/reba_events.py --output-dir output/campaign \\
         --results results/campaign --out results/campaign/paper
@@ -370,7 +370,6 @@ def tex_table(path, caption, lead, header_groups, header, body):
 
 def aggregate(args, agg):
     """tables/reba_events.* and tables/reba_peak.*, own neutral; stats on all-task MAE."""
-    rng = np.random.default_rng(0)
     data = args.out / "reba_events"
     rows = {arm: [r for r in csv.DictReader(open(data / f"{arm}.csv")) if r["neutral"] == "own"]
             for arm in ARMS if (data / f"{arm}.csv").exists()}
@@ -410,7 +409,7 @@ def aggregate(args, agg):
                 else:
                     cell = agg.fmt(stats["agree"], 1)
                 if t is None:
-                    by_arm[arm] = per_participant(sel, f_mae)
+                    by_arm[arm] = agg.trial_values(sel, lambda r: number(r[f_mae]))
                 summary[name][arm][t or "all"] = stats
                 line += [agg.fmt(stats["ref"]), agg.fmt(stats["est"]), agg.fmt(stats["mae"]), cell]
             body.append(line)
@@ -418,27 +417,11 @@ def aggregate(args, agg):
         agg.write_table(tables / name, header, body)
         tex_table(tables / f"{name}.tex", caption, len(lead), groups, tex_header, body)
 
-        # Planned comparisons on each participant's all-task MAE, as for the other tables.
-        realtime = [a for a in by_arm if not a.startswith("fastsam")]
-        stat = {"friedman": agg.friedman(by_arm, realtime),
-                "planned": agg.compare(by_arm, agg.PLANNED, rng, correct=True),
-                "offline": agg.compare(by_arm, agg.OFFLINE, rng, correct=False)}
+        # The declared family of arm comparisons on each participant's all-task MAE.
+        stat = {"family": agg.statistics.run_family("arms", by_arm)}
         summary[name]["stats"] = stat
-        srows = []
-        for family in ("planned", "offline"):
-            for c in stat[family]:
-                fa, fb = label(c["a"]), label(c["b"])
-                srows.append([family, f"{fa[0]}, {fa[1]}", f"{fb[0]}, {fb[1]}", c["n"],
-                              f"{c['mean_diff']:+.2f}", f"[{c['ci95'][0]:+.2f}, {c['ci95'][1]:+.2f}]",
-                              f"{c['p']:.4f}", f"{c['p_adjusted']:.4f}", c["correction"],
-                              f"{c['rank_biserial']:+.2f}", "yes" if c["significant_0.05"] else "no"])
-        f = stat["friedman"]
-        srows.append(["friedman", f"{len(f['arms'])} real-time arms", "", f["n"], "", "",
-                      f"{f['p']:.2e}" if f["p"] is not None else "--", "", "",
-                      f"chi2({f['df']}) = {f['chi2']:.1f}" if f["chi2"] is not None else "--", ""])
-        agg.write_table(tables / f"stats_{name}_mae",
-                        ["family", "a", "b", "n", "mean diff (a - b) REBA points", "95% CI", "p",
-                         "p adjusted", "correction", "rank-biserial", "sig"], srows)
+        agg.write_family(tables / f"stats_{name}_mae", [stat["family"]], "REBA points",
+                         lambda a: ", ".join(label(a)))
     import json
     (args.out / "reba_events" / "summary.json").write_text(json.dumps(summary, indent=2) + "\n")
     print(f"tables written to {tables}", flush=True)

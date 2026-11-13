@@ -172,7 +172,10 @@ bash scripts/bash/run_campaign.sh campaign            # everyone
 mocap reference), and `paper/`, which holds per-trial tables (`trial_metrics.py`,
 `reba_agreement.py`, `robot_distance.py`, `fastsam_timing.py`) and the aggregated
 tables and statistics (`aggregate_results.py`: participant means, mean (SD),
-Friedman then Wilcoxon with Holm correction).
+Wilcoxon with Holm correction over each family declared in
+`rtcosmik.paper.statistics`, counting declared comparisons that could not be
+tested; paired differences over the trials both arms have; two one-sided tests
+at ±1° for equivalence; no omnibus test).
 
 `sweep.py` skips trials already in the summary, so it can be stopped and
 restarted, and one failing trial does not lose the batch.
