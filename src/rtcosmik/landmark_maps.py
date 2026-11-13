@@ -61,13 +61,13 @@ def submitted(settings, front_end="nlf"):
     return LandmarkMap(front_end, None, SUBMITTED_FITTED_ON, vertices)
 
 
-def select(settings, participant):
-    """The NLF map ``settings.paper["landmark_map"]`` asks for, for one participant."""
+def select(settings, participant, front_end="nlf"):
+    """The map ``settings.paper["landmark_map"]`` asks for, for one participant."""
     choice = settings.paper["landmark_map"]
     if choice == "submitted":
-        return submitted(settings)
+        return submitted(settings, front_end)
     if choice == "out_of_fold":
-        return load("nlf", fold_of(participant))
+        return load(front_end, fold_of(participant))
     raise ValueError(f"unknown landmark_map {choice!r}")
 
 

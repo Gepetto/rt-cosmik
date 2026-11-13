@@ -7,6 +7,9 @@
 # sweeps were produced; everything is resumable, since sweep.py skips trials
 # already present in its summary CSV.
 #
+# Submitted configuration only: needs landmark_map = "submitted" in settings.py.
+# The out-of-fold pass is run_fastsam_oof.sh.
+#
 #   bash scripts/bash/run_fastsam_sweep.sh [dataset]
 
 set -u

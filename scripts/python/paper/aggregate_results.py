@@ -77,6 +77,8 @@ LABELS = {
     "nlf_0-2-4-6": "NLF-3D, 4 cams",
     "fastsam_0": "FastSAM-3D, 1 cam", "fastsam_0-2": "FastSAM-3D, 2 cams same side",
     "fastsam_0-4": "FastSAM-3D, 2 cams opposed", "fastsam_0-2-4-6": "FastSAM-3D, 4 cams",
+    "fastsam_2": "FastSAM-3D, 1 cam", "fastsam_4-6": "FastSAM-3D, 2 cams same side",
+    "fastsam_2-4": "FastSAM-3D, 2 cams opposed", "fastsam_2-4-6": "FastSAM-3D, 3 cams",
 }
 MARKER_FIELDS = ("marker_raw_mm", "marker_depth_mm", "marker_lateral_mm",
                  "marker_translation_mm", "marker_shape_mm")
