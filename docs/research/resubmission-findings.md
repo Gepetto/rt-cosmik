@@ -97,7 +97,7 @@ The arms on cameras 2 / 4-6 / 2-4 / 2-4-6 of the first table are now produced by
 | None | 8.45° | 8.46° | −0.4 | 0.279° |
 | 1-euro, cross-validated | 8.46° | 8.46° | 0.4 | 0.153° |
 
-By the rule recorded before these runs (no filter unless the 1-euro arm has lower causal error), the headline is the MHE without filter, by 0.007°. The 1-euro arm reaches the no-filter accuracy with the Butterworth's jitter. **To decide:** follow the rule, or state the rule and its outcome and present the 1-euro arm as the recommended setting.
+By the rule recorded before these runs (no filter unless the 1-euro arm has lower causal error), the headline is the MHE without filter, by 0.007°. The 1-euro arm reaches the no-filter accuracy with the Butterworth's jitter. **Decided (2026-11-14):** the headline results use the tuned 1-euro filter. The paper reports the three (none, 5 Hz Butterworth, tuned 1-euro) and says the 1-euro filter gives less jitter than the Butterworth without its lag and the accuracy the lag costs. Every arm is to be regenerated with this filter.
 
 **Fusion validation (ticket 10)**, details in `docs/research/fusion-validation.md`:
 

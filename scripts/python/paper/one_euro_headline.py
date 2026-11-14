@@ -38,7 +38,7 @@ def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--studies", type=Path, required=True, help="folder of the study tables")
     args = ap.parse_args()
-    from ik_filter_studies import ONE_EURO
+    from ik_filter_studies import ONE_EURO, VARIANTS
     from rtcosmik.folds import FOLDS, fold_of
     from rtcosmik.paper import one_euro_selection as sel
 
@@ -46,10 +46,17 @@ def main():
     candidates = {v: by_participant(r) for v, r in rows.items()}
     reference, no_filter = (by_participant(rows_of(args.studies, v)) for v in (REFERENCE, NO_FILTER))
     chosen = sel.choose_per_fold(candidates, reference)
+    butterworths = {v: by_participant(rows_of(args.studies, v)) for v, spec in VARIANTS.items()
+                    if spec[0] in ("baseline", "E5") and spec[3] is not None}
+    butterworth_chosen = sel.choose_per_fold(butterworths, reference)
+    butterworth_arm = sel.cross_validated(butterworths, butterworth_chosen)
     arm = sel.cross_validated(candidates, chosen)
     mean = lambda table, column: float(np.mean([v[column] for v in table.values()]))
     result = {"chosen_per_fold": chosen, "folds": [list(f) for f in FOLDS],
               "parameters": {v: ONE_EURO[v] for v in set(chosen) if v},
+              "butterworth_chosen_per_fold": butterworth_chosen,
+              "butterworth_tuned": butterworth_arm and {"causal_deg": mean(butterworth_arm, 0),
+                                                        "jitter_deg": mean(butterworth_arm, 1)},
               "headline": sel.headline(arm, no_filter),
               "causal_deg": {"one_euro": arm and mean(arm, 0), "no_filter": mean(no_filter, 0),
                              "butterworth": mean(reference, 0)},
