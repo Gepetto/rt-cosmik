@@ -23,6 +23,10 @@ anatomical angles:
   neutral posture is subtracted. Every COMFI trial starts with the participant
   standing in the calibration pose, so the neutral is taken there, per trial.
   ``scores`` with ``ABSOLUTE`` in its place gives the absolute-angle REBA, for comparison.
+* **Shoulder angles describe the arm's direction.** A raised arm has two
+  descriptions in the model's three shoulder angles; flexion and abduction are
+  read in the one with abduction within 90 deg, and an arm above the horizontal
+  scores as above shoulder level.
 * **Thresholds REBA leaves unspecified** ("twisted or side-bent", "abducted",
   "shoulder raised") keep the values of the toolbox's earlier implementation:
   15 deg for the neck, 5 deg for the trunk, 15 deg of shoulder abduction, and a
@@ -77,6 +81,19 @@ def _marker(markers, name):
     return np.column_stack([markers[f"{name}_{a}"] for a in "xyz"]).astype(float)
 
 
+def _wrap(degrees):
+    return (degrees + 180.0) % 360.0 - 180.0
+
+
+def _arm_direction(flexion, abduction):
+    """Shoulder flexion and abduction with abduction within 90 deg, whichever
+    of the two descriptions of the posture was stored."""
+    abduction = _wrap(abduction)
+    other = np.abs(abduction) > 90
+    return (np.where(other, _wrap(flexion + 180), flexion),
+            np.where(other, _wrap(180 - abduction), abduction))
+
+
 def raw_inputs(joints, markers):
     """Per-frame REBA inputs before neutral correction: degrees and metres.
 
@@ -84,6 +101,9 @@ def raw_inputs(joints, markers):
     equal length (e.g. pandas DataFrames already trimmed to the same frames).
     """
     out = {key: np.degrees(np.asarray(joints[col], dtype=float)) for key, col in ANGLES.items()}
+    for side in "rl":
+        out[f"{side}_sh_flex"], out[f"{side}_sh_abd"] = _arm_direction(
+            out[f"{side}_sh_flex"], out[f"{side}_sh_abd"])
 
     asis = (_marker(markers, "RASI") + _marker(markers, "LASI")) / 2
     psis = (_marker(markers, "RPSI") + _marker(markers, "LPSI")) / 2
@@ -147,8 +167,7 @@ def scores(joints, markers, neutral):
     legs = 1 + np.select([knee > 60, knee > 30], [2, 1], default=0)
 
     def upper(flex, abd, raise_):
-        base = np.select([(flex >= -20) & (flex <= 20), (flex < -20) | (flex <= 45), flex <= 90],
-                         [1, 2, 3], default=4)
+        base = np.select([np.abs(flex) > 90, np.abs(flex) <= 20, flex <= 45], [4, 1, 2], default=3)
         return np.clip(base + (abd > ABDUCTION_DEG) + (raise_ > SHOULDER_RAISE_M), 1, 6)
     upper_arm = np.maximum(upper(x["r_sh_flex"], x["r_sh_abd"], x["r_raise"]),
                            upper(x["l_sh_flex"], x["l_sh_abd"], x["l_raise"]))

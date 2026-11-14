@@ -12,4 +12,5 @@
 - [x] On the eight trials tested outside the repo (rule compared with wider limits and with the unchanged solver, estimate and reference regenerated alike): error over the 29 DoF 11.9 to 10.1 degrees, shoulder orientation error 24 to 17 degrees, a trial without flips unchanged; wider flexion and rotation limits were rejected (a trial without flips went from 9.1 to 10.4 degrees)
 - [ ] Reference regenerated for the 108 trials with this solver
 - [ ] Headline, FastSAM-3D, fusion and study runs regenerated and the findings file updated
-- [ ] REBA reads the raw flexion and abduction angles, which now change branch on purpose: make its upper-arm score independent of the branch before any REBA number is regenerated
+- [x] Freeing the flexion limit alone, as a rule-free alternative, was tested on the same eight trials and rejected: 10.9 degrees against 10.1 for the re-seed, the rotation limit still holds the shoulder
+- [x] REBA reads shoulder flexion and abduction in the description with abduction within 90 degrees, and scores an arm above the horizontal as above shoulder level; on the regenerated reference and fusion runs no frame with abduction within 90 degrees changes score (0.2 to 0.4 % of frames change, all in SideOverhead)
