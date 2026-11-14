@@ -245,13 +245,17 @@ def test_family_table_lists_untested_comparisons_and_states_the_method(family, t
 def test_declared_families():
     assert st.EQUIVALENCE_MARGIN_DEG == 1.0
     arms = st.FAMILIES["arms"].comparisons
-    assert ("fastsam_0", "nlf_0") in arms and ("nlf_0-2-4-6", "mmpose_0-2-4-6") in arms
+    assert ("nlf_0-2-4-6", "mmpose_0-2-4-6") in arms
+    assert {(f"fastsam_{c}", f"nlf_{c}") for c in ("2", "4-6", "2-4", "2-4-6")} <= set(arms)
+    assert not any(a == "fastsam_0" for a, _ in arms)      # no camera-0 meshes are stored
     ik = st.FAMILIES["ik_filter"].comparisons
     assert all(b == "mhe_N7_o4c5" for _, b in ik)
     assert {"sbs_o4c5", "mhe_N3_o4c5", "mhe_N20_o4c5", "mhe_N7_nofilter"} <= {a for a, _ in ik}
     fusion = st.FAMILIES["fusion"].comparisons
-    assert {a for a, _ in fusion} == {"fusion_mean", "fusion_reproj", "fusion_reproj_sym"}
-    assert all(b == "fusion_invvar" for _, b in fusion)
+    assert {a for a, _ in fusion} == {"fusion_invvar", "fusion_reproj", "fusion_reproj_sym"}
+    assert all(b == "fusion_mean" for _, b in fusion)
+    weights = st.FAMILIES["mhe_weights"].comparisons
+    assert len(weights) == 4 and all(b == "mhe_N7_o4c5" for _, b in weights)
     for fam in st.FAMILIES.values():
         assert len(set(fam.comparisons)) == len(fam.comparisons)
 
@@ -274,3 +278,14 @@ def test_no_statistical_test_outside_the_statistics_module():
             if path != STATISTICS_MODULE and hits:
                 offenders[path] = hits
     assert offenders == {}
+
+
+def test_fastsam_matched_nlf_arms_run_the_cameras_holding_the_meshes():
+    import importlib.util
+    spec = importlib.util.spec_from_file_location(
+        "replay_nlf_arms", REPO / "scripts" / "python" / "paper" / "replay_nlf_arms.py")
+    arms = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(arms)
+    assert arms.arm_cameras("nlf_2-4-6", "1012") == [2, 4, 6]
+    assert arms.arm_cameras("nlf_2-4-6", "3361") == [6, 0, 2]
+    assert arms.arm_cameras("nlf_0-2", "3361") == [0, 2]

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Produce the NLF arms that differ from the 4-camera run only after NLF, by replay.
+"""Produce the NLF arms from the 4-camera recording, by replay.
 
 The NLF-3D 4-camera sweep records every camera's NLF output
 (``sweep.py --views-cache``). The other NLF arms -- fewer cameras, and NLF's 2D
@@ -35,13 +35,29 @@ import numpy as np
 DATASET = Path("/root/workspace/COMFI")
 #: tag -> (sweep arm name, reconstruction, cameras)
 ARMS = OrderedDict([
+    ("nlf_0-2-4-6", ("nlf", "fuse3d", [0, 2, 4, 6])),
     ("nlf_0", ("nlf", "fuse3d", [0])),
     ("nlf_0-2", ("nlf", "fuse3d", [0, 2])),
     ("nlf_0-4", ("nlf", "fuse3d", [0, 4])),
     ("nlf2d_0-2-4-6", ("nlf2d", "tri2d", [0, 2, 4, 6])),
     ("nlf2d_0-2", ("nlf2d", "tri2d", [0, 2])),
     ("nlf2d_0-4", ("nlf2d", "tri2d", [0, 4])),
+    ("nlf_2", ("nlf", "fuse3d", [2])),
+    ("nlf_4-6", ("nlf", "fuse3d", [4, 6])),
+    ("nlf_2-4", ("nlf", "fuse3d", [2, 4])),
+    ("nlf_2-4-6", ("nlf", "fuse3d", [2, 4, 6])),
 ])
+#: Arms run on the cameras the FastSAM-3D arm has meshes for, participant by participant.
+FASTSAM_MATCHED = ("nlf_2", "nlf_4-6", "nlf_2-4", "nlf_2-4-6")
+
+
+def arm_cameras(tag, participant):
+    """Calibrated cameras an arm runs for a participant."""
+    cameras = list(ARMS[tag][2])
+    if tag in FASTSAM_MATCHED:
+        from rtcosmik.paper.fastsam_source import mesh_cameras
+        return mesh_cameras(participant, cameras)
+    return cameras
 
 
 def replay_trial(dataset, views_path, out_dir, participant, task, arm, settings, repo=REPO):
@@ -104,7 +120,8 @@ def replay(job):
 
     runs_root, views_root, participant, task, tag = job
     name, reconstruction, cameras = ARMS[tag]
-    arm = {"name": name, "tag": tag, "reconstruction": reconstruction, "cameras": cameras}
+    arm = {"name": name, "tag": tag, "reconstruction": reconstruction,
+           "cameras": arm_cameras(tag, participant)}
     try:
         row = replay_trial(DATASET, views_root / participant / f"{task}.npz",
                            runs_root / participant / task / tag, participant, task, arm, settings)

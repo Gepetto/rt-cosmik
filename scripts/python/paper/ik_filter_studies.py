@@ -75,7 +75,14 @@ VARIANTS = OrderedDict([
     ("mhe_N7_o4c10", ("E5", "mhe", 7, 4, 10.0)),
     ("mhe_N7_o4c4", ("E5", "mhe", 7, 4, 4.0)),
     ("mhe_N7_o4c3", ("E5", "mhe", 7, 4, 3.0)),
+    ("mhe_N7_o4c5_ws1e-4", ("E6", "mhe", 7, 4, 5.0)),
+    ("mhe_N7_o4c5_ws1e-2", ("E6", "mhe", 7, 4, 5.0)),
+    ("mhe_N7_o4c5_wu1e-6", ("E6", "mhe", 7, 4, 5.0)),
+    ("mhe_N7_o4c5_wu1e-4", ("E6", "mhe", 7, 4, 5.0)),
 ])
+#: MHE cost weights (markers, state, control) of the variants that change them.
+WEIGHTS = {"mhe_N7_o4c5_ws1e-4": [1, 1e-4, 1e-5], "mhe_N7_o4c5_ws1e-2": [1, 1e-2, 1e-5],
+           "mhe_N7_o4c5_wu1e-6": [1, 1e-3, 1e-6], "mhe_N7_o4c5_wu1e-4": [1, 1e-3, 1e-4]}
 LIMIT_NEAR_RAD = np.radians(0.5)
 FIELDS = (["variant", "study", "ik_type", "N", "filter", "participant", "task", "frames"]
           + ROW_FIELDS + ["upper_rmse_deg", "lower_rmse_deg", "trunk_rmse_deg",
@@ -135,6 +142,8 @@ def replay(job):
     if root is not None:
         os.environ["RTCOSMIK_OCP_DIR"] = str(root)
     settings.ik_type, settings.N = ik_type, horizon
+    if variant in WEIGHTS:
+        settings.cost_weights = WEIGHTS[variant]
     if order is not None:
         settings.order, settings.cutoff_freq = order, cutoff
     from rtcosmik.landmark_maps import checked_recording
