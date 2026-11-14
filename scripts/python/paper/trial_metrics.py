@@ -75,7 +75,7 @@ def trial_metrics(ev, run_dir, ref_dir, truth_dir, participant, lag=None):
     ones come from ``rtcosmik.paper.scoring``.
     """
     from rtcosmik.config_loader import settings
-    from rtcosmik.paper.scoring import clock_offset, score_trial
+    from rtcosmik.paper.scoring import clock_offset, match_shoulder_branch, score_trial
     offset = clock_offset(settings, participant, Path(truth_dir).name)
     scores, causal = score_trial(run_dir, ref_dir, offset)
     causal = {d["dof"]: d for d in causal}
@@ -88,6 +88,7 @@ def trial_metrics(ev, run_dir, ref_dir, truth_dir, participant, lag=None):
 
     header, A, B = a["joint_header"], a["joint_values"], b["joint_values"]
     n = min(len(A), len(B))
+    A = match_shoulder_branch(list(header), A[:n], B[:n])
     dof_rows, shoulder = [], []
     for i, name in enumerate(header):
         if not name.endswith("[rad]") or name in locked or group_of(name) is None:

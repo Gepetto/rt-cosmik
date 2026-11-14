@@ -2,14 +2,19 @@
 import csv
 import importlib.util
 import json
+import os
 from pathlib import Path
 
 import numpy as np
 
+from rtcosmik.ik.shoulder_branch import nearest_branch
+
 REPO = Path(__file__).resolve().parents[3]
 REFERENCE_TAG = "mocap_reference"      # folder name of the reference runs
+REFERENCE_ENV = "RTCOSMIK_REFERENCE_DIR"   # root of regenerated reference runs
 CLOCK_OFFSETS = REPO / "config" / "clock_offsets.json"
 LIMIT_VIOLATION_RAD = 1e-3
+SHOULDER_DOF = ("Flexion_Extension", "Abduction_Adduction", "Internal_External_Rotation")
 
 ROW_FIELDS = ["lag", "marker_lag", "sync_r", "causal_rmse_mean", "aligned_rmse_mean",
               "aligned_rmse_median", "causal_bias_abs_mean", "causal_sd_mean", "scored_dof",
@@ -21,7 +26,8 @@ DOF_FIELDS = ["dof", "causal_rmse_deg", "causal_bias_deg", "causal_sd_deg",
 
 def reference_dir(dataset, participant, task):
     """The reference run of a trial: the reference markers through our model and IK."""
-    return Path(dataset) / "output" / "campaign" / participant / task / REFERENCE_TAG
+    root = os.getenv(REFERENCE_ENV, "").strip() or Path(dataset) / "output" / "campaign"
+    return Path(root) / participant / task / REFERENCE_TAG
 
 
 def clock_offset(settings, participant, task):
@@ -140,9 +146,19 @@ def _marker_lag(ev, markers, ref_markers):
     return min(lags, key=lambda lag: _marker_error(markers, ref_markers, lag).mean())
 
 
-def _errors(q, q_ref, column, lag):
-    x, y = _shift(q[:, column], q_ref[:, column], lag)
-    d = (np.degrees(x - y) + 180.0) % 360.0 - 180.0
+def match_shoulder_branch(names, q, q_ref):
+    """Frame-paired ``q`` with each shoulder in the angle branch nearest the reference's."""
+    q = q.copy()
+    for side in ("Left", "Right"):
+        triple = [names.index(f"{side}_Shoulder_{dof}[rad]") for dof in SHOULDER_DOF
+                  if f"{side}_Shoulder_{dof}[rad]" in names]
+        if len(triple) == 3:
+            q[:, triple] = nearest_branch(q[:, triple].T, q_ref[:, triple].T).T
+    return q
+
+
+def _errors(q, q_ref, column):
+    d = (np.degrees(q[:, column] - q_ref[:, column]) + 180.0) % 360.0 - 180.0
     return d[np.isfinite(d)]
 
 
@@ -177,11 +193,15 @@ def score_trial(run_dir, reference, clock_offset):
     scored = [i for i, n in enumerate(names) if n.endswith("[rad]") and n not in locked
               and "quaternion" not in n.lower()]
 
+    paired = {}
+    for kind, shift in (("causal", clock_offset), ("aligned", lag)):
+        run, reference = _shift(q, q_ref, shift)
+        paired[kind] = match_shoulder_branch(names, run, reference), reference
     dofs = []
     for i in scored:
         row = {"dof": names[i].replace("[rad]", "")}
-        for kind, shift in (("causal", clock_offset), ("aligned", lag)):
-            d = _errors(q, q_ref, i, shift)
+        for kind in ("causal", "aligned"):
+            d = _errors(*paired[kind], i)
             row.update({f"{kind}_rmse_deg": float(np.sqrt((d ** 2).mean())),
                         f"{kind}_bias_deg": float(d.mean()), f"{kind}_sd_deg": float(d.std())})
         row["frames"] = int(np.isfinite(q[:, i]).sum())

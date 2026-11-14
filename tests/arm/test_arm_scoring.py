@@ -86,3 +86,52 @@ def test_clock_offset_is_measured_on_the_recording_and_not_charged_to_the_arm(tm
 
     assert offset == LAG
     assert row["marker_lag"] == 0
+
+
+def _write_run(path, names, q):
+    path.mkdir(parents=True)
+    with open(path / "joint_angles.csv", "w", newline="") as f:
+        writer = csv.writer(f)
+        writer.writerow(names)
+        writer.writerows(q.tolist())
+    with open(path / "markers.csv", "w", newline="") as f:
+        writer = csv.writer(f)
+        writer.writerow(["Frame_0", "C7_x", "C7_y", "C7_z"])
+        writer.writerows([[i, 0.0, 0.0, 1.0] for i in range(len(q))])
+
+
+def _score_left_shoulder(tmp_path, run_deg, reference_deg):
+    from rtcosmik.config_loader import settings
+    from rtcosmik.paper.scoring import score_trial
+    names = list(settings.joint_angles_names)
+    t = np.linspace(0, 6, 200)
+    q = np.zeros((len(t), len(names)))
+    q[:, 6] = 1.0
+    for i, name in enumerate(names):
+        if name.endswith("[rad]"):
+            q[:, i] = 0.3 * np.sin(t + i)
+    shoulder = [i for i, name in enumerate(names) if name.startswith("Left_Shoulder")]
+    run, reference = q.copy(), q.copy()
+    run[:, shoulder], reference[:, shoulder] = np.radians(run_deg), np.radians(reference_deg)
+    _write_run(tmp_path / "ref", names, reference)
+    _write_run(tmp_path / "run", names, run)
+    _, dofs = score_trial(tmp_path / "run", tmp_path / "ref", 0)
+    return {d["dof"]: d["causal_rmse_deg"] for d in dofs}
+
+
+def test_a_shoulder_in_the_other_branch_scores_as_the_same_posture(tmp_path):
+    errors = _score_left_shoulder(tmp_path, (40, 120, -30), (-140, 60, 150))
+    assert max(errors.values()) < 1e-6
+
+
+def test_shoulders_either_side_of_90_degrees_of_abduction_score_their_true_difference(tmp_path):
+    errors = _score_left_shoulder(tmp_path, (40, 95, -30), (-140, 95, 150))
+    assert errors["Left_Shoulder_Abduction_Adduction"] == pytest.approx(10.0, abs=1e-6)
+    assert errors["Left_Shoulder_Flexion_Extension"] < 1e-6
+
+
+def test_reference_runs_can_live_outside_the_dataset(tmp_path, monkeypatch):
+    from rtcosmik.paper.scoring import reference_dir
+    assert reference_dir("/data", "1012", "Lifting").parts[:2] == ("/", "data")
+    monkeypatch.setenv("RTCOSMIK_REFERENCE_DIR", str(tmp_path))
+    assert reference_dir("/data", "1012", "Lifting") == tmp_path / "1012" / "Lifting" / "mocap_reference"

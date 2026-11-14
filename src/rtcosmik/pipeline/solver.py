@@ -21,6 +21,7 @@ from rtcosmik.human_model.model_utils import (
     apply_joint_locks)
 from rtcosmik.ik.ik import RT_IK, RT_SWIKA_FATROP, RT_SWIKA_ACADOS
 from rtcosmik.ik import ocp_model
+from rtcosmik.ik.shoulder_branch import BranchReseed
 
 LOGGER = logging.getLogger(__name__)
 
@@ -65,6 +66,7 @@ class HumanSolver:
         self.calibrated = False
 
         self._ik = None
+        self._reseed = None
         self._x = None
         self._u = None
         self._window = None
@@ -154,6 +156,7 @@ class HumanSolver:
 
     def _calibrate_mhe(self, mks_dict):
         settings = self.settings
+        self._reseed = None
         self._ik = RT_SWIKA_FATROP(self.model, settings.keys_to_track_list,
                                    settings.N)
         self._x = np.zeros((self.model.nq + self.model.nv, settings.N))
@@ -169,6 +172,7 @@ class HumanSolver:
         self.model = recalibrate_marker_frames_in_joint_space(
             self.model, q, mks_dict, settings.marker_names)
         self._ik = self._build_mhe_solver()
+        self._reseed = BranchReseed(self.model)
         return q
 
     def _build_mhe_solver(self):
@@ -307,6 +311,8 @@ class HumanSolver:
         self._x, self._u = self._ik.solve(
             self._x, self._u, measurements, self._x[:, -1],
             settings.cost_weights, settings.dt)
+        if self._reseed is not None:
+            self._reseed(self._x, self._u)
 
         q = pin.neutral(self.model)
         q[:] = np.array(self._x[:self.model.nq, -1]).flatten()
