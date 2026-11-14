@@ -42,13 +42,13 @@ This section supersedes the figures of sections 1, 3, 5 and 7 where they differ.
 | Variant | Causal | Aligned | Lag (frames) | Jitter |
 |---|---|---|---|---|
 | MHE, horizon 7, 5 Hz order 4 (paper setting) | 8.70° ± 0.84° | 8.45° | 2.9 | 0.156° |
-| Per-frame IK, same filter | 10.34° ± 1.57° | 10.06° | 3.3 | 0.154° |
+| Per-frame IK, same filter | 10.31° ± 1.59° | 10.04° | 3.3 | 0.154° |
 | MHE, horizon 3 / 5 / 10 / 15 / 20 | 8.68 / 8.69 / 8.71 / 8.73 / 8.74° | 8.45 to 8.46° | 2.6 to 3.0 | 0.165 to 0.147° |
 | MHE, no filter | 8.45° | 8.46° | −0.4 | 0.279° |
 | MHE, 3 / 4 / 8 / 10 Hz, order 4 | 9.07 / 8.83 / 8.54 / 8.50° | 8.45 to 8.46° | 5.4 / 3.8 / 1.5 / 0.9 | 0.133 / 0.145 / 0.186 / 0.203° |
 | MHE, order 2 at 6 / 8 / 10 Hz | 8.50 / 8.48 / 8.47° | 8.46° | 1.0 / 0.5 / 0.4 | 0.169 / 0.187 / 0.204° |
 
-- MHE against per-frame IK: +1.64° [1.16, 2.11], signed-rank p < 0.001 (not yet Holm-corrected within the family). The gap was +1.13° before. The shoulder rule exists only in the MHE, so part of the increase may come from SideOverhead (11.85° against 9.80°); the gap is also large where no shoulder flips occur (Lifting 11.50° against 8.47°).
+- MHE against per-frame IK: +1.61° [1.13, 2.09], Holm p < 0.001, not equivalent. The per-frame IK has the shoulder rule too (10.31° ± 1.59°; 10.34° without it), so the gap is not an effect of that rule. It was +1.13° before ticket 26.
 - Horizon length: every horizon from 3 to 20 is within 0.04° of horizon 7.
 - The filter still does not change aligned error; it trades lag against jitter. No filter: −0.25° causal, jitter 0.279° against 0.156°. Order 2 at 6 Hz: −0.20° causal, lag 1.0 frame, jitter 0.169°.
 
@@ -62,7 +62,39 @@ This section supersedes the figures of sections 1, 3, 5 and 7 where they differ.
 
 The three are interchangeable for accuracy. The trial that tiled detection degraded with the earlier solver (4665 RobotWelding) is now within 0.21° like the others.
 
-**Still on the earlier solver:** the arm-level statistics of ticket 11 (Holm correction, equivalence tests) for the tables above.
+**Arms by replay of the recorded views (ticket 08)**, 108 trials each, causal:
+
+| Arm | Cameras | Causal | Aligned | Marker error | Jitter |
+|---|---|---|---|---|---|
+| NLF-S, 3D fused | 0, 2, 4, 6 | 8.70° ± 0.84° | 8.45° | 55 mm | 0.16° |
+| NLF-S, 3D fused | 0, 4 (opposed) | 8.91° ± 0.88° | 8.66° | 62 mm | 0.19° |
+| NLF-S, 3D fused | 0, 2 (same side) | 9.21° ± 0.92° | 8.97° | 108 mm | 0.19° |
+| NLF-S, 3D fused | 0 | 9.50° ± 0.98° | 9.29° | 118 mm | 0.24° |
+| NLF-S, 2D triangulated | 0, 2, 4, 6 | 9.57° ± 0.97° | 9.32° | 74 mm | 0.22° |
+| NLF-S, 2D triangulated | 0, 2 | 12.96° ± 1.25° | 12.76° | 96 mm | 0.47° |
+| NLF-S, 2D triangulated | 0, 4 | 22.18° ± 8.19° | 22.08° | 105 mm | 0.29° |
+| mmpose and LSTM augmenter (submitted baseline) | 0, 2, 4, 6 | 12.81° ± 1.07° | 12.53° | 80 mm | 0.20° |
+
+The arms on cameras 2 / 4-6 / 2-4 / 2-4-6 of the first table are now produced by the same repository script, with the same figures.
+
+**MHE weights** (state and control weight a decade either side of 1e-3 and 1e-5): control weight, no effect (8.70° both ways); state weight 1e-4, 9.68° ± 1.52°; state weight 1e-2, 12.25° ± 1.05°. The result depends on the state weight within a decade; the text must not claim robustness to it.
+
+**Fusion rules, all four on this solver:** mean 8.70°, inverse variance 8.81°, reprojection weights 9.18°, reprojection weights with symmetry refinement 9.83°.
+
+**Statistics (ticket 11), on participant means, Holm within each family, equivalence at ±1°:**
+
+- Arms (10 comparisons). Proposed against mmpose: −4.12° [−4.68, −3.55], p < 0.001. 3D fusion against 2D triangulation, four cameras: −0.87° [−1.28, −0.46], p = 0.001. Camera ladder: 1 against 2 same-side +0.29°, 2 same-side against 4 +0.51°, 1 against 4 +0.80°, same-side against opposed pair +0.30°, all p ≤ 0.014. FastSAM-3D against NLF-S on matched cameras: −0.32°, −0.53°, −0.43°, −0.40°, none significant (Holm p = 0.27 each); equivalence within ±1° is not established after correction either (Holm p = 0.07 to 0.11).
+- IK and filter (14 comparisons): per-frame IK as above; every horizon equivalent to 7 (differences up to 0.04°, significant); every filter variant equivalent to the paper setting and significantly different (−0.25° without filter, +0.37° at 3 Hz).
+- MHE weights (4): state weight 1e-4 +0.98° [0.54, 1.42], p = 0.002; 1e-2 +3.55°, p < 0.001; control weight equivalent, not different.
+- Fusion against the mean (3): inverse variance +0.11°, p = 0.97, equivalent; reprojection weights +0.48° [0.12, 0.84], p = 0.028, equivalent; with symmetry refinement +1.13° [0.67, 1.58], p < 0.001.
+- The families were redeclared on this date: fusion rules are compared with the mean (the headline rule) and FastSAM-3D with NLF-S on the cameras that have meshes.
+
+**Fusion validation (ticket 10)**, details in `docs/research/fusion-validation.md`:
+
+- NLF's uncertainty is weakly related to a view's 3D error: rank correlation 0.13 over time and across views; the lowest-uncertainty view is the best one 29 % of the time (chance 25 %). Same on robot tasks.
+- Held-out participants (12), causal error, mean / inverse variance / median: clean 8.60 / 8.66 / 8.69°; views masked half the time 9.21 / 9.27 / 9.39°; a 1 m outlier on one limb of one view 11.64 / 11.63 / 8.90°.
+- The unweighted median is offered as an option (`settings.fusion = "median"`): about 0.1° worse on clean data, and it removes a gross outlier (−2.75°, p < 0.001). It gives nothing at 0.3 m or below. The uncertainty-weighted median is unusable (15 to 18°).
+- Limits: the outliers are synthetic; how often NLF produces such errors on real data was not measured; these p-values are unadjusted.
 
 ## 1. Headline
 

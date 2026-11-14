@@ -4,8 +4,8 @@
 
 **Blocked by:** 04, 07
 
-**Status:** ready-for-agent
+**Status:** done (runs in /root/workspace/oof/runs26, tables in /root/workspace/oof/t26/results; findings section 0)
 
-- [ ] All arms scored out-of-fold with causal and aligned error
-- [ ] Per-frame IK uses exactly the headline arm's inputs and filter
-- [ ] MHE weight sensitivity reported
+- [x] All arms scored out-of-fold with causal and aligned error
+- [x] Per-frame IK uses exactly the headline arm's inputs and filter
+- [x] MHE weight sensitivity reported
