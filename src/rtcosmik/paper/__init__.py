@@ -9,4 +9,4 @@ def require_paper_evaluation(settings):
     """Refuse to produce paper results unless settings.py selects the paper evaluation."""
     if not getattr(settings, "paper_evaluation", False):
         raise SystemExit("settings.paper_evaluation is False: paper results need the paper "
-                         "configuration (parity markers, fitted vertices, 5 Hz, N = 7).")
+                         "configuration (parity markers, fitted vertices, tuned 1-euro filter, N = 7).")

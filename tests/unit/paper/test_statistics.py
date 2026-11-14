@@ -249,13 +249,13 @@ def test_declared_families():
     assert {(f"fastsam_{c}", f"nlf_{c}") for c in ("2", "4-6", "2-4", "2-4-6")} <= set(arms)
     assert not any(a == "fastsam_0" for a, _ in arms)      # no camera-0 meshes are stored
     ik = st.FAMILIES["ik_filter"].comparisons
-    assert all(b == "mhe_N7_o4c5" for _, b in ik)
-    assert {"sbs_o4c5", "mhe_N3_o4c5", "mhe_N20_o4c5", "mhe_N7_nofilter"} <= {a for a, _ in ik}
+    assert all(b == "mhe_N7_1e_c2_b15" for _, b in ik)
+    assert {"sbs_1e", "mhe_N3_1e", "mhe_N20_1e", "mhe_N7_nofilter", "mhe_N7_o4c5"} <= {a for a, _ in ik}
     fusion = st.FAMILIES["fusion"].comparisons
     assert {a for a, _ in fusion} == {"fusion_invvar", "fusion_reproj", "fusion_reproj_sym"}
     assert all(b == "fusion_mean" for _, b in fusion)
     weights = st.FAMILIES["mhe_weights"].comparisons
-    assert len(weights) == 4 and all(b == "mhe_N7_o4c5" for _, b in weights)
+    assert len(weights) == 4 and all(b == "mhe_N7_1e_c2_b15" for _, b in weights)
     for fam in st.FAMILIES.values():
         assert len(set(fam.comparisons)) == len(fam.comparisons)
 

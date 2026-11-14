@@ -42,6 +42,8 @@ def apply_evaluation(target):
     if target.paper_evaluation:
         p = target.paper
         target.order, target.cutoff_freq, target.N = p["order"], p["cutoff_freq"], p["N"]
+        target.filter_type = p["filter_type"]
+        target.one_euro_min_cutoff, target.one_euro_beta = p["one_euro_min_cutoff"], p["one_euro_beta"]
         target.nlf_indices = list(p["nlf_indices"])
         target.marker_set = p["marker_set"]
     return apply_marker_set(target, target.marker_set)

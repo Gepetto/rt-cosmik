@@ -14,7 +14,7 @@ def _settings(clock_offset=0):
     s = copy.deepcopy(settings)
     s.ik_type = "sbs"
     s.paper["landmark_map"] = "submitted"      # synthetic trials predate fold maps
-    s.order = None                             # no low-pass: any lag is the injected one
+    s.filter_type, s.order = "lowpass", None   # no low-pass: any lag is the injected one
     s.paper["clock_offset"] = clock_offset     # built from the reference: no clock offset
     return s
 

@@ -58,16 +58,20 @@ DATASET = Path("/root/workspace/COMFI")
 SOURCE_TAG = "nlf_0-2-4-6"
 FS = 40.0
 
-#: name -> (study, ik_type, N, filter order or None, cutoff Hz)
+#: The headline setting: MHE, N = 7, 1-euro filter at 2 Hz at rest and beta 15.
+HEADLINE = "mhe_N7_1e_c2_b15"
+#: name -> (study, ik_type, N, Butterworth order or None, cutoff Hz). Without a
+#: Butterworth, a variant runs the headline 1-euro filter, unless listed below.
 VARIANTS = OrderedDict([
-    ("mhe_N7_o4c5", ("baseline", "mhe", 7, 4, 5.0)),
-    ("sbs_o4c5", ("E3", "sbs", 7, 4, 5.0)),
-    ("mhe_N3_o4c5", ("E4", "mhe", 3, 4, 5.0)),
-    ("mhe_N5_o4c5", ("E4", "mhe", 5, 4, 5.0)),
-    ("mhe_N10_o4c5", ("E4", "mhe", 10, 4, 5.0)),
-    ("mhe_N15_o4c5", ("E4", "mhe", 15, 4, 5.0)),
-    ("mhe_N20_o4c5", ("E4", "mhe", 20, 4, 5.0)),
+    (HEADLINE, ("baseline", "mhe", 7, None, None)),
+    ("sbs_1e", ("E3", "sbs", 7, None, None)),
+    ("mhe_N3_1e", ("E4", "mhe", 3, None, None)),
+    ("mhe_N5_1e", ("E4", "mhe", 5, None, None)),
+    ("mhe_N10_1e", ("E4", "mhe", 10, None, None)),
+    ("mhe_N15_1e", ("E4", "mhe", 15, None, None)),
+    ("mhe_N20_1e", ("E4", "mhe", 20, None, None)),
     ("mhe_N7_nofilter", ("E5", "mhe", 7, None, None)),
+    ("mhe_N7_o4c5", ("E5", "mhe", 7, 4, 5.0)),
     ("mhe_N7_o2c6", ("E5", "mhe", 7, 2, 6.0)),
     ("mhe_N7_o2c8", ("E5", "mhe", 7, 2, 8.0)),
     ("mhe_N7_o2c10", ("E5", "mhe", 7, 2, 10.0)),
@@ -75,18 +79,31 @@ VARIANTS = OrderedDict([
     ("mhe_N7_o4c10", ("E5", "mhe", 7, 4, 10.0)),
     ("mhe_N7_o4c4", ("E5", "mhe", 7, 4, 4.0)),
     ("mhe_N7_o4c3", ("E5", "mhe", 7, 4, 3.0)),
-    ("mhe_N7_o4c5_ws1e-4", ("E6", "mhe", 7, 4, 5.0)),
-    ("mhe_N7_o4c5_ws1e-2", ("E6", "mhe", 7, 4, 5.0)),
-    ("mhe_N7_o4c5_wu1e-6", ("E6", "mhe", 7, 4, 5.0)),
-    ("mhe_N7_o4c5_wu1e-4", ("E6", "mhe", 7, 4, 5.0)),
+    ("mhe_N7_1e_ws1e-4", ("E6", "mhe", 7, None, None)),
+    ("mhe_N7_1e_ws1e-2", ("E6", "mhe", 7, None, None)),
+    ("mhe_N7_1e_wu1e-6", ("E6", "mhe", 7, None, None)),
+    ("mhe_N7_1e_wu1e-4", ("E6", "mhe", 7, None, None)),
 ])
-#: 1-euro variants (study E7): name -> (cutoff at rest in Hz, beta in Hz per m/s).
+UNFILTERED = ("mhe_N7_nofilter",)
+#: 1-euro grid (study E7): name -> (cutoff at rest in Hz, beta in Hz per m/s).
 ONE_EURO = OrderedDict((f"mhe_N7_1e_c{c:g}_b{b:g}", (c, b))
                        for c in (0.5, 1.0, 2.0, 3.0, 5.0) for b in (0.5, 2.0, 5.0, 15.0))
-VARIANTS.update((name, ("E7", "mhe", 7, None, None)) for name in ONE_EURO)
+VARIANTS.update((name, ("E7", "mhe", 7, None, None)) for name in ONE_EURO if name != HEADLINE)
 #: MHE cost weights (markers, state, control) of the variants that change them.
-WEIGHTS = {"mhe_N7_o4c5_ws1e-4": [1, 1e-4, 1e-5], "mhe_N7_o4c5_ws1e-2": [1, 1e-2, 1e-5],
-           "mhe_N7_o4c5_wu1e-6": [1, 1e-3, 1e-6], "mhe_N7_o4c5_wu1e-4": [1, 1e-3, 1e-4]}
+WEIGHTS = {"mhe_N7_1e_ws1e-4": [1, 1e-4, 1e-5], "mhe_N7_1e_ws1e-2": [1, 1e-2, 1e-5],
+           "mhe_N7_1e_wu1e-6": [1, 1e-3, 1e-6], "mhe_N7_1e_wu1e-4": [1, 1e-3, 1e-4]}
+
+
+def filter_of(variant):
+    """None, ("lowpass", order, cutoff Hz) or ("one_euro", cutoff at rest Hz, beta)."""
+    _, _, _, order, cutoff = VARIANTS[variant]
+    if variant in UNFILTERED:
+        return None
+    if order is not None:
+        return ("lowpass", order, cutoff)
+    return ("one_euro", *ONE_EURO.get(variant, ONE_EURO[HEADLINE]))
+
+
 LIMIT_NEAR_RAD = np.radians(0.5)
 FIELDS = (["variant", "study", "ik_type", "N", "filter", "participant", "task", "frames"]
           + ROW_FIELDS + ["upper_rmse_deg", "lower_rmse_deg", "trunk_rmse_deg",
@@ -123,10 +140,12 @@ def prepare_ocp(horizon):
 
 
 def filter_label(variant):
-    _, _, _, order, cutoff = VARIANTS[variant]
-    if variant in ONE_EURO:
-        return "1 euro, {:g} Hz at rest, beta {:g}".format(*ONE_EURO[variant])
-    return "none" if order is None else f"order {order}, {cutoff:g} Hz"
+    spec = filter_of(variant)
+    if spec is None:
+        return "none"
+    if spec[0] == "one_euro":
+        return "1 euro, {:g} Hz at rest, beta {:g}".format(*spec[1:])
+    return "order {}, {:g} Hz".format(*spec[1:])
 
 
 def filter_delay_ms(order, cutoff):
@@ -155,17 +174,16 @@ def replay(job):
     settings.ik_type, settings.N = ik_type, horizon
     if variant in WEIGHTS:
         settings.cost_weights = WEIGHTS[variant]
-    if order is not None:
-        settings.order, settings.cutoff_freq = order, cutoff
-    if variant in ONE_EURO:
-        settings.filter_type = "one_euro"
-        settings.one_euro_min_cutoff, settings.one_euro_beta = ONE_EURO[variant]
+    spec = filter_of(variant)
+    if spec is not None and spec[0] == "lowpass":
+        settings.filter_type, settings.order, settings.cutoff_freq = spec
+    elif spec is not None:
+        settings.filter_type, settings.one_euro_min_cutoff, settings.one_euro_beta = spec
     from rtcosmik.landmark_maps import checked_recording
     landmark_map = checked_recording(views_root / participant / f"{task}.npz", participant, settings)
     from rtcosmik.paper.nlf_views import replay_markers
     frames = replay_markers(views_root / participant / f"{task}.npz", DATASET / "cam_params" / participant)
-    filtered = order is not None or variant in ONE_EURO
-    marker_filter = MarkerFilter(len(settings.marker_names), settings) if filtered else None
+    marker_filter = MarkerFilter(len(settings.marker_names), settings) if spec is not None else None
 
     meta = yaml.safe_load((DATASET / "metadata" / f"{participant}.yaml").read_text())
     solver = HumanSolver(settings, gender=meta["gender"][0], height=meta["height"],
@@ -242,8 +260,8 @@ def score(job):
                 "participant": participant, "task": task, "frames": trial["frames"],
                 "upper_rmse_deg": by_group("upper"), "lower_rmse_deg": by_group("lower"),
                 "trunk_rmse_deg": by_group("trunk"), "shoulder_flip_pct": trial["shoulder_flip_pct"],
-                "filter_delay_1hz_ms": (float("nan") if variant in ONE_EURO
-                                        else filter_delay_ms(order, cutoff))})
+                "filter_delay_1hz_ms": (filter_delay_ms(order, cutoff) if order is not None or variant in UNFILTERED
+                                        else float("nan"))})
     row.update(smoothness_and_limits(run_dir, [d["dof"] + "[rad]" for d in dofs]))
     row.update(timing)
     return row
@@ -255,7 +273,7 @@ def check(runs_root, trials):
     worst = 0.0
     for participant, task in trials:
         a = runs_root / participant / task / SOURCE_TAG / "joint_angles.csv"
-        b = runs_root / participant / task / tag("mhe_N7_o4c5") / "joint_angles.csv"
+        b = runs_root / participant / task / tag(HEADLINE) / "joint_angles.csv"
         if not (a.exists() and b.exists()):
             continue
         A, B = pd.read_csv(a).to_numpy(float), pd.read_csv(b).to_numpy(float)

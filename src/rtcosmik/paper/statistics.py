@@ -17,7 +17,7 @@ class Family:
     comparisons: tuple      # (a, b): the difference tested is a - b
 
 
-_PAPER_SETTING = "mhe_N7_o4c5"
+_PAPER_SETTING = "mhe_N7_1e_c2_b15"
 FAMILIES = {f.name: f for f in (
     Family("arms", "proposed pipeline against its baselines, camera ladder and placement, FastSAM-3D at matched views", (
         ("nlf_0-2-4-6", "mmpose_0-2-4-6"), ("nlf_0-2-4-6", "nlf2d_0-2-4-6"),
@@ -25,15 +25,15 @@ FAMILIES = {f.name: f for f in (
         ("nlf_0-2", "nlf_0-4"),
         ("fastsam_2", "nlf_2"), ("fastsam_4-6", "nlf_4-6"), ("fastsam_2-4", "nlf_2-4"),
         ("fastsam_2-4-6", "nlf_2-4-6"))),
-    Family("ik_filter", "IK and filter variants against the paper setting (MHE, N = 7, order 4 at 5 Hz)",
+    Family("ik_filter", "IK and filter variants against the paper setting (MHE, N = 7, tuned 1-euro filter)",
            tuple((v, _PAPER_SETTING) for v in (
-               "sbs_o4c5",
-               "mhe_N3_o4c5", "mhe_N5_o4c5", "mhe_N10_o4c5", "mhe_N15_o4c5", "mhe_N20_o4c5",
-               "mhe_N7_nofilter", "mhe_N7_o2c6", "mhe_N7_o2c8", "mhe_N7_o2c10",
+               "sbs_1e",
+               "mhe_N3_1e", "mhe_N5_1e", "mhe_N10_1e", "mhe_N15_1e", "mhe_N20_1e",
+               "mhe_N7_nofilter", "mhe_N7_o4c5", "mhe_N7_o2c6", "mhe_N7_o2c8", "mhe_N7_o2c10",
                "mhe_N7_o4c3", "mhe_N7_o4c4", "mhe_N7_o4c8", "mhe_N7_o4c10"))),
     Family("mhe_weights", "MHE state and control weights a decade either side of the paper setting",
            tuple((v, _PAPER_SETTING) for v in (
-               "mhe_N7_o4c5_ws1e-4", "mhe_N7_o4c5_ws1e-2", "mhe_N7_o4c5_wu1e-6", "mhe_N7_o4c5_wu1e-4"))),
+               "mhe_N7_1e_ws1e-4", "mhe_N7_1e_ws1e-2", "mhe_N7_1e_wu1e-6", "mhe_N7_1e_wu1e-4"))),
     Family("fusion", "fusion rules against the unweighted mean",
            tuple((v, "fusion_mean") for v in ("fusion_invvar", "fusion_reproj", "fusion_reproj_sym"))),
 )}

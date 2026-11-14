@@ -185,7 +185,9 @@ class Settings:
     # horizon, the NLF vertices and the marker set with the values in `paper`.
     paper_evaluation: bool = True
     paper: dict = field(default_factory=lambda: {
-        "order": 4, "cutoff_freq": 5, "N": 7, "marker_set": "parity",
+        "filter_type": "one_euro", "one_euro_min_cutoff": 2.0, "one_euro_beta": 15.0,
+        "order": 4, "cutoff_freq": 5,    # the submitted Butterworth, used when filter_type is "lowpass"
+        "N": 7, "marker_set": "parity",
         "landmark_map": "out_of_fold",   # or "submitted", only to reproduce the manuscript
         "clock_offset": "per_trial",     # config/clock_offsets.json, or a number of frames
         "reba_hold_s": 0.5,              # a peak posture is one the estimate holds this long

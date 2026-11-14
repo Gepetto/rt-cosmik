@@ -34,3 +34,9 @@ def test_front_end_defaults_are_torchscript_and_per_view_detection():
     s = DefaultSettings()
     assert (s.nlf_backend, s.detection_mode) == ("torchscript", "per_view")
     assert tuple(s.yolo_tiled_imgsz) == (736, 1280)   # each of four 16:9 views at 640 x 360
+
+
+def test_paper_evaluation_filters_with_the_tuned_one_euro():
+    from rtcosmik.config_loader import settings
+    assert settings.paper_evaluation
+    assert (settings.filter_type, settings.one_euro_min_cutoff, settings.one_euro_beta) == ("one_euro", 2.0, 15.0)
