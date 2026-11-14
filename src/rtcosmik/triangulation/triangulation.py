@@ -315,8 +315,30 @@ def triangulate_points(keypoints_list, mtxs, dists, projections, uncertainties=N
     return points
 
 
+def _weighted_median(values, weights):
+    """Weighted median over views, per landmark and axis: (C, J, 3), (C, J) -> (J, 3).
+
+    Where the weights split evenly, the two middle values are averaged.
+    """
+    weight = np.broadcast_to(weights[:, :, None], values.shape)
+    value = np.where(weight > 0.0, values, np.inf)      # weightless views sort last
+    order = np.argsort(value, axis=0)
+    value = np.take_along_axis(value, order, axis=0)
+    cumulative = np.cumsum(np.take_along_axis(weight, order, axis=0), axis=0)
+    half = 0.5 * cumulative[-1]
+    tolerance = 1e-9 * cumulative[-1]
+    at = (cumulative < half - tolerance).sum(axis=0)[None]
+    above = np.minimum(at + 1, len(value) - 1)
+    lower = np.take_along_axis(value, at, axis=0)[0]
+    upper = np.take_along_axis(value, above, axis=0)[0]
+    tie = np.take_along_axis(cumulative, at, axis=0)[0] <= half + tolerance
+    with np.errstate(invalid="ignore"):
+        median = np.where(tie, 0.5 * (lower + upper), lower)
+    return np.where(cumulative[-1] > 0.0, median, 0.0)
+
+
 def fuse_camera_poses3d(poses3d_list, projections, uncertainties=None,
-                        power=2.0, eps=1e-3):
+                        power=2.0, eps=1e-3, median=False):
     """Fuse each camera's monocular 3D pose into one estimate in the reference frame.
 
     An alternative to triangulating 2D keypoints. NLF regresses a metric 3D pose
@@ -342,6 +364,8 @@ def fuse_camera_poses3d(poses3d_list, projections, uncertainties=None,
             combined by inverse-variance weights when given, else by plain mean.
         power: exponent of the inverse-uncertainty weighting.
         eps: floor on sigma, guarding against a zero-uncertainty view dominating.
+        median: take the weighted median of the views, per axis of the reference
+            frame, instead of their weighted mean.
 
     Returns:
         np.ndarray: (J, 3) fused pose in the reference camera frame.
@@ -377,11 +401,13 @@ def fuse_camera_poses3d(poses3d_list, projections, uncertainties=None,
         weights[:, dead] = np.isfinite(in_ref[:, dead]).all(axis=2)
         total = weights.sum(axis=0, keepdims=True)
 
+    if median:
+        return _weighted_median(in_ref, weights)
     fused = np.nansum(np.nan_to_num(in_ref) * weights[:, :, None], axis=0)
     return fused / np.maximum(total.T, 1e-12)
 
 
-FUSION_RULES = ("mean", "invvar")
+FUSION_RULES = ("mean", "invvar", "median", "wmedian")
 
 
 def reconstruct_3d(views, projections, weighting="mean", power=2.0):
@@ -396,7 +422,9 @@ def reconstruct_3d(views, projections, weighting="mean", power=2.0):
         views: a :class:`~rtcosmik.nlf.nlf.Views` for this frame.
         projections: per-camera 3x4 ``[R | T]`` mapping reference frame to camera.
         weighting: "mean" for the unweighted mean of the views, "invvar" to weight
-            each view's marker by ``1 / sigma**power``.
+            each view's marker by ``1 / sigma**power``, "median" for the
+            unweighted median of the views, "wmedian" for their median under
+            the inverse-uncertainty weights.
         power: exponent of the inverse-uncertainty weighting.
 
     Returns:
@@ -407,5 +435,6 @@ def reconstruct_3d(views, projections, weighting="mean", power=2.0):
         raise ValueError(f"fusion rule {weighting!r} is not one of {FUSION_RULES}")
     if not views.valid_cam_ids:
         return np.zeros((0, 3))
-    uncertainties = views.uncertainties if weighting == "invvar" else None
-    return fuse_camera_poses3d(views.poses3d, projections, uncertainties=uncertainties, power=power)
+    uncertainties = views.uncertainties if weighting in ("invvar", "wmedian") else None
+    return fuse_camera_poses3d(views.poses3d, projections, uncertainties=uncertainties,
+                               power=power, median=weighting in ("median", "wmedian"))

@@ -147,9 +147,116 @@ def test_unknown_fusion_rule_is_refused():
     from rtcosmik.triangulation.triangulation import reconstruct_3d
     views, projections = _two_views()
     with pytest.raises(ValueError):
-        reconstruct_3d(views, projections, weighting="median")
+        reconstruct_3d(views, projections, weighting="mode")
 
 
 def test_settings_fuse_by_the_mean():
     from rtcosmik.config_loader import settings
     assert settings.fusion == "mean"
+
+
+def _four_views(x_offsets, sigma=None):
+    """One landmark at (0.2, -0.1, 2.5) m in the reference frame; view i reads it
+    ``x_offsets[i]`` metres off along x. Views 1-3 are rotated and translated."""
+    from rtcosmik.nlf.nlf import Views
+    truth = np.array([0.2, -0.1, 2.5])
+    quarter = np.array([[0.0, -1.0, 0.0], [1.0, 0.0, 0.0], [0.0, 0.0, 1.0]])
+    rotations = [np.eye(3), quarter, quarter @ quarter, quarter.T]
+    translations = [np.zeros(3), np.array([0.5, 0.0, 0.1]), np.array([0.0, 1.0, 0.0]),
+                    np.array([-0.3, 0.2, 0.4])]
+    poses, projections = [], []
+    for offset, R, T in zip(x_offsets, rotations, translations):
+        seen = None if offset is None else (R @ (truth + [offset, 0.0, 0.0]) + T)[None, :]
+        poses.append(seen)
+        projections.append(np.hstack([R, T[:, None]]))
+    valid = [i for i, p in enumerate(poses) if p is not None]
+    sigma = None if sigma is None else np.asarray(sigma, float)[:, None]
+    return Views([None] * 4, poses, sigma, valid), projections, truth
+
+
+def test_median_resists_an_outlier_view():
+    from rtcosmik.triangulation.triangulation import reconstruct_3d
+    # sigma is not read: the outlier view claims to be the most certain
+    views, projections, truth = _four_views([-0.002, 0.0, 0.003, 0.5],
+                                            sigma=[0.03, 0.03, 0.03, 0.01])
+    # midway between the two middle readings, 0 and 3 mm
+    np.testing.assert_allclose(reconstruct_3d(views, projections, weighting="median"),
+                               [truth + [0.0015, 0.0, 0.0]], atol=1e-12)
+    # the mean carries a quarter of the 0.5 m outlier
+    mean = reconstruct_3d(views, projections, weighting="mean")
+    assert abs(mean[0, 0] - truth[0]) > 0.12
+
+
+def test_weighted_median_resists_a_confident_outlier_view():
+    from rtcosmik.triangulation.triangulation import reconstruct_3d
+    # weights 1, 1, 1, 2.25: half the total (2.625) is reached at the 3 mm reading
+    views, projections, truth = _four_views([-0.002, 0.0, 0.003, 0.5],
+                                            sigma=[0.03, 0.03, 0.03, 0.02])
+    np.testing.assert_allclose(reconstruct_3d(views, projections, weighting="wmedian"),
+                               [truth + [0.003, 0.0, 0.0]], atol=1e-12)
+    invvar = reconstruct_3d(views, projections, weighting="invvar")
+    assert abs(invvar[0, 0] - truth[0]) > 0.2
+
+
+def test_weighted_median_follows_a_view_holding_most_of_the_weight():
+    from rtcosmik.triangulation.triangulation import reconstruct_3d
+    # weights 1, 1, 1, 9: the last view alone is more than half
+    views, projections, truth = _four_views([-0.002, 0.0, 0.003, 0.5],
+                                            sigma=[0.03, 0.03, 0.03, 0.01])
+    np.testing.assert_allclose(reconstruct_3d(views, projections, weighting="wmedian"),
+                               [truth + [0.5, 0.0, 0.0]], atol=1e-12)
+
+
+def test_medians_ignore_missing_views_and_missing_sigma():
+    from rtcosmik.triangulation.triangulation import reconstruct_3d
+    # view 1 saw nobody; three readings left: the middle one
+    views, projections, truth = _four_views([-0.002, None, 0.003, 0.5], sigma=[0.03] * 4)
+    for rule in ("median", "wmedian"):
+        np.testing.assert_allclose(reconstruct_3d(views, projections, weighting=rule),
+                                   [truth + [0.003, 0.0, 0.0]], atol=1e-12)
+    # a view without sigma has no vote; weights 1, 1, 1 on -2, 0 and 3 mm
+    views, projections, truth = _four_views([-0.002, 0.0, 0.003, 0.5],
+                                            sigma=[0.03, 0.03, 0.03, np.nan])
+    np.testing.assert_allclose(reconstruct_3d(views, projections, weighting="wmedian"),
+                               [truth + [0.0, 0.0, 0.0]], atol=1e-12)
+    # no sigma at all: the unweighted median
+    views, projections, truth = _four_views([-0.002, 0.0, 0.003, 0.5])
+    np.testing.assert_allclose(reconstruct_3d(views, projections, weighting="wmedian"),
+                               [truth + [0.0015, 0.0, 0.0]], atol=1e-12)
+
+
+def _fusion_error_mm(rule, noise_sd, reported_sd, frames=4000, landmarks=5):
+    """RMS error per axis (mm) of a rule on Gaussian views of known noise."""
+    from rtcosmik.nlf.nlf import Views
+    from rtcosmik.triangulation.triangulation import reconstruct_3d
+    rng = np.random.default_rng(10)
+    identity = np.hstack([np.eye(3), np.zeros((3, 1))])
+    truth = rng.uniform(-1.0, 1.0, (landmarks, 3)) + [0.0, 0.0, 3.0]
+    sigma = np.repeat(np.asarray(reported_sd, float)[:, None], landmarks, axis=1)
+    squared = []
+    for _ in range(frames):
+        poses = [truth + rng.normal(0.0, sd, truth.shape) for sd in noise_sd]
+        views = Views([None] * 4, poses, sigma, [0, 1, 2, 3])
+        squared.append((reconstruct_3d(views, [identity] * 4, weighting=rule) - truth) ** 2)
+    return 1000.0 * np.sqrt(np.mean(squared))
+
+
+def test_inverse_variance_beats_the_mean_when_sigma_is_truthful():
+    noise = reported = [0.010, 0.010, 0.040, 0.040]
+    # closed form: mean sqrt(2*10^2 + 2*40^2)/4 = 14.58 mm; inverse variance
+    # 1/sqrt(2/10^2 + 2/40^2) = 6.86 mm
+    assert _fusion_error_mm("mean", noise, reported) == pytest.approx(14.58, rel=0.03)
+    assert _fusion_error_mm("invvar", noise, reported) == pytest.approx(6.86, rel=0.03)
+
+
+def test_inverse_variance_does_not_beat_the_mean_when_sigma_is_uninformative():
+    noise, reported = [0.020] * 4, [0.010, 0.010, 0.040, 0.040]
+    # closed form: mean 20/sqrt(4) = 10 mm; weights 16, 16, 1, 1 over 34 give
+    # 20*sqrt(2*16^2 + 2)/34 = 13.34 mm
+    assert _fusion_error_mm("mean", noise, reported) == pytest.approx(10.0, rel=0.03)
+    assert _fusion_error_mm("invvar", noise, reported) == pytest.approx(13.34, rel=0.03)
+
+
+def test_medians_are_fusion_rules_of_the_settings():
+    from rtcosmik.triangulation.triangulation import FUSION_RULES
+    assert FUSION_RULES == ("mean", "invvar", "median", "wmedian")

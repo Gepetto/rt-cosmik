@@ -94,8 +94,9 @@ class Settings:
         9120,9002,616,6,9929,9448,  # face: Nose, Head, REar, LEar, REye, LEye
     ]
 
-    # How the views' 3D poses are fused: "mean" (unweighted) or "invvar"
-    # (each view's marker weighted by NLF's inverse variance).
+    # How the views' 3D poses are fused: "mean" (unweighted), "invvar" (each
+    # view's marker weighted by NLF's inverse variance), "median" (unweighted
+    # median) or "wmedian" (median under the inverse-variance weights).
     fusion: str = "mean"
 
     ### YOLO detector ###

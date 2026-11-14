@@ -124,7 +124,7 @@ class DefaultSettings:
     # MODELS
     cano_path: str = field(init=False)
     nlf_path: str = field(init=False)
-    fusion: str = "mean"  # "mean" or "invvar"
+    fusion: str = "mean"  # "mean", "invvar", "median" or "wmedian"
     nlf_backend: str = "torchscript"  # or "tensorrt"
     nlf_engine_path: str = field(init=False)
     yolo_model: str = "yolov10n"
