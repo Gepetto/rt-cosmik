@@ -6,7 +6,7 @@ Where the data are: runs in `/root/workspace/oof/runs/<id>/<task>/<arm>/`, table
 
 ## 0. Update of 2026-11-14: shoulder branch, mean fusion, FastSAM-3D on matched cameras
 
-This section supersedes the figures of sections 1, 3, 5 and 7 where they differ. Sections 2 and 4 still use the earlier solver and inverse-variance fusion and are to be replayed. Runs of this section are in `/root/workspace/oof/runs26`, tables in `/root/workspace/oof/t26`, `t12/v3` and `t13/v3`.
+This section supersedes the figures of sections 1, 3, 5 and 7 where they differ. The tables of sections 2 and 4 are superseded by the replays at the end of this section; the speed figures of section 4 stand. Runs of this section are in `/root/workspace/oof/runs26`, tables in `/root/workspace/oof/t26`, `t12/v3` and `t13/v3`.
 
 **Shoulder branch (ticket 26).** The shoulder is three angles in the order flexion, abduction, rotation, so a raised arm has two descriptions: `(z, x, y)` and `(z + 180, 180 − x, y + 180)`. With one solver iteration per frame, the IK stays in the description it entered near 90° of abduction; a flexion or rotation limit then holds it and the arm stops following the markers. It happened in 12 of the 108 trials in at least one arm, all in SideOverhead (12 of its 18 trials), and in the reference too (7 arm-trials). Two changes:
 
@@ -33,11 +33,36 @@ This section supersedes the figures of sections 1, 3, 5 and 7 where they differ.
 - **Fusion.** Mean against inverse variance: −0.11°, signed-rank p = 0.97. The exponent of the weighting chosen on each fold's 15 fitting participants is 0 (the mean) in 5 of 6 folds; on the held-out participants it gives 8.91° against 9.14° (earlier solver). Weighting does not help the base position (41.2 mm both) or orientation (6.66° against 6.50°, not significant). Per-marker mixes of the two rules are not better. The unweighted mean is now the default (`settings.fusion`).
 - **NLF-S against FastSAM-3D on the same cameras and the same fusion** (2 / 4-6 / 2-4 / 2-4-6): FastSAM-3D is lower by 0.32° / 0.53° / 0.43° / 0.40° (signed-rank p = 0.20 / 0.07 / 0.07 / 0.13 on participant means; 0.5° to 0.7° and p < 0.01 in three of four on the median over trials). By task on 2-4-6, FastSAM-3D is better on Screwing (7.64° against 9.48°) and Polishing (8.49° against 9.30°), NLF-S on SideOverhead. Supported wording: NLF-S is chosen for speed; FastSAM-3D, a slower foundation model, is about 0.4° more accurate on the same cameras; the two are equivalent within ±1°.
 - **Alternatives to fusion followed by IK**, on six validation participants: an IK fitting each view's 2D keypoints directly, 11.19° against 9.01° (NLF-S's 2D keypoints disagree across views by 5 to 8 pixels); an IK fitting each view's 3D pose directly, 9.01°, identical to mean fusion followed by IK and not faster. Both dropped.
-- **Tiled detection**, 108 trials, earlier solver: 107 trials within 0.22° of per-view detection; one trial (4665 RobotWelding) went from 8.8° to 21.7° through a shoulder flip, which the new solver removes on that trial (8.7°). To be confirmed by the replay.
+- **Tiled detection**, 108 trials, earlier solver: 107 trials within 0.22° of per-view detection; one trial (4665 RobotWelding) went from 8.8° to 21.7° through a shoulder flip, which the new solver removes on that trial (8.7°). Confirmed by the replay below.
 - **REBA** (section 5) now reads shoulder flexion and abduction in the description with abduction within 90°, and scores an arm above the horizontal as above shoulder level. Frames with abduction within 90° keep their score; 0.2 to 0.4 % of frames change, all in SideOverhead. Regenerated, causal, mean fusion: mean absolute error 1.07 / 0.91 / 0.72 (absolute / reference's neutral / own neutral), same risk level 59 % / 69 % / 75 %, weighted kappa 0.46 / 0.61 / 0.70; inverse variance: 1.01 / 0.92 for the first two, same risk level 61 % / 68 %. High-risk frames rated lower: 46 % (mean, absolute) and 38 % (inverse variance, absolute). The conclusions of section 5 stand.
 - **Hand-to-robot distance** (section 6) regenerated: unchanged to 0.1 mm in every pooled figure (the robot trials have no flip in these arms).
 
-**Still to regenerate with this solver and the mean:** the filter and IK studies of section 2, the TensorRT and tiled-detection passes of section 4.
+**Filter and IK studies, replayed with this solver and the mean** (supersedes the table of section 2; 108 trials per variant, 0 solver failures, 0 dropped frames):
+
+| Variant | Causal | Aligned | Lag (frames) | Jitter |
+|---|---|---|---|---|
+| MHE, horizon 7, 5 Hz order 4 (paper setting) | 8.70° ± 0.84° | 8.45° | 2.9 | 0.156° |
+| Per-frame IK, same filter | 10.34° ± 1.57° | 10.06° | 3.3 | 0.154° |
+| MHE, horizon 3 / 5 / 10 / 15 / 20 | 8.68 / 8.69 / 8.71 / 8.73 / 8.74° | 8.45 to 8.46° | 2.6 to 3.0 | 0.165 to 0.147° |
+| MHE, no filter | 8.45° | 8.46° | −0.4 | 0.279° |
+| MHE, 3 / 4 / 8 / 10 Hz, order 4 | 9.07 / 8.83 / 8.54 / 8.50° | 8.45 to 8.46° | 5.4 / 3.8 / 1.5 / 0.9 | 0.133 / 0.145 / 0.186 / 0.203° |
+| MHE, order 2 at 6 / 8 / 10 Hz | 8.50 / 8.48 / 8.47° | 8.46° | 1.0 / 0.5 / 0.4 | 0.169 / 0.187 / 0.204° |
+
+- MHE against per-frame IK: +1.64° [1.16, 2.11], signed-rank p < 0.001 (not yet Holm-corrected within the family). The gap was +1.13° before. The shoulder rule exists only in the MHE, so part of the increase may come from SideOverhead (11.85° against 9.80°); the gap is also large where no shoulder flips occur (Lifting 11.50° against 8.47°).
+- Horizon length: every horizon from 3 to 20 is within 0.04° of horizon 7.
+- The filter still does not change aligned error; it trades lag against jitter. No filter: −0.25° causal, jitter 0.279° against 0.156°. Order 2 at 6 Hz: −0.20° causal, lag 1.0 frame, jitter 0.169°.
+
+**TensorRT and tiled detection, replayed with this solver and the mean** (supersedes the accuracy bullets of section 4; 108 trials each, no flip trial):
+
+| Inference | Causal | Aligned | Largest difference to TorchScript on one trial |
+|---|---|---|---|
+| TorchScript, per-view detection | 8.70° ± 0.84° | 8.45° | |
+| TensorRT, per-view detection | 8.70° ± 0.84° | 8.45° | 0.05° |
+| TensorRT, tiled detection | 8.70° ± 0.83° | 8.45° | 0.21° |
+
+The three are interchangeable for accuracy. The trial that tiled detection degraded with the earlier solver (4665 RobotWelding) is now within 0.21° like the others.
+
+**Still on the earlier solver:** the arm-level statistics of ticket 11 (Holm correction, equivalence tests) for the tables above.
 
 ## 1. Headline
 
