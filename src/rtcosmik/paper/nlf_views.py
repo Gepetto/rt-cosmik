@@ -57,12 +57,14 @@ class ViewsRecorder:
                             **extra)
 
 
-def replay_markers(path, cam_dir, cameras=None, reconstruction="fuse3d"):
+def replay_markers(path, cam_dir, cameras=None, reconstruction="fuse3d", fusion=None, edit=None):
     """World-frame markers per frame, rebuilt from a recording.
 
     ``cameras`` selects a subset of the recorded cameras (default: all, in the
     recorded order; the first is the reference frame). ``reconstruction`` is
     "fuse3d" (the shipped path) or "tri2d" (weighted DLT of NLF's 2D keypoints).
+    ``fusion`` overrides ``settings.fusion``; ``edit`` maps the recorded
+    ``(keypoints, poses3d, uncertainties)`` to the arrays to replay.
     Returns a list of ``(frame_index, (M, 3) array)`` for the frames that
     produced markers, as ``run_nlf`` would have kept them.
     """
@@ -76,6 +78,9 @@ def replay_markers(path, cam_dir, cameras=None, reconstruction="fuse3d"):
     cameras = recorded if cameras is None else list(cameras)
     rows = [recorded.index(c) for c in cameras]
     K, P, S = data["keypoints"][:, rows], data["poses3d"][:, rows], data["uncertainties"][:, rows]
+    if edit is not None:
+        K, P, S = edit(K, P, S)
+    fusion = settings.fusion if fusion is None else fusion
     mtxs, dists, projections, _, _ = load_camera_parameters(cam_dir, cameras)
     world_R, world_T = load_world_transformation(cam_dir, cameras[0])
     world_R, world_T = np.asarray(world_R), np.asarray(world_T)
@@ -94,7 +99,7 @@ def replay_markers(path, cam_dir, cameras=None, reconstruction="fuse3d"):
             p3d = triangulate_points(keypoints, mtxs, dists, projections,
                                      uncertainties=views.uncertainties)
         else:
-            p3d = reconstruct_3d(views, projections, settings.fusion)
+            p3d = reconstruct_3d(views, projections, fusion)
         if len(p3d) == 0:
             continue
         frames.append((frame, np.asarray(p3d) @ world_R.T + world_T))
