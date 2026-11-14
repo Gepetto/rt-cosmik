@@ -89,6 +89,16 @@ The arms on cameras 2 / 4-6 / 2-4 / 2-4-6 of the first table are now produced by
 - Fusion against the mean (3): inverse variance +0.11°, p = 0.97, equivalent; reprojection weights +0.48° [0.12, 0.84], p = 0.028, equivalent; with symmetry refinement +1.13° [0.67, 1.58], p < 0.001.
 - The families were redeclared on this date: fusion rules are compared with the mean (the headline rule) and FastSAM-3D with NLF-S on the cameras that have meshes.
 
+**1-euro filter (ticket 09).** Grid of 20 points (cutoff at rest 0.5 to 5 Hz, beta 0.5 to 15), 108 trials each, no solver failure. The point chosen on each fold's fifteen fitting participants (lowest causal error with jitter not above the 5 Hz Butterworth's) is the same in all six folds: 2 Hz at rest, beta 15.
+
+| Filter | Causal | Aligned | Lag (frames) | Jitter |
+|---|---|---|---|---|
+| 5 Hz Butterworth, order 4 (submitted) | 8.70° | 8.45° | 2.9 | 0.156° |
+| None | 8.45° | 8.46° | −0.4 | 0.279° |
+| 1-euro, cross-validated | 8.46° | 8.46° | 0.4 | 0.153° |
+
+By the rule recorded before these runs (no filter unless the 1-euro arm has lower causal error), the headline is the MHE without filter, by 0.007°. The 1-euro arm reaches the no-filter accuracy with the Butterworth's jitter. **To decide:** follow the rule, or state the rule and its outcome and present the 1-euro arm as the recommended setting.
+
 **Fusion validation (ticket 10)**, details in `docs/research/fusion-validation.md`:
 
 - NLF's uncertainty is weakly related to a view's 3D error: rank correlation 0.13 over time and across views; the lowest-uncertainty view is the best one 29 % of the time (chance 25 %). Same on robot tasks.

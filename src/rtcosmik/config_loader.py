@@ -120,6 +120,8 @@ class DefaultSettings:
     order: int = 4
     cutoff_freq: float = 10
     filter_type: str = "lowpass"
+    one_euro_min_cutoff: float = 1.0
+    one_euro_beta: float = 0.0
 
     # MODELS
     cano_path: str = field(init=False)

@@ -80,6 +80,10 @@ VARIANTS = OrderedDict([
     ("mhe_N7_o4c5_wu1e-6", ("E6", "mhe", 7, 4, 5.0)),
     ("mhe_N7_o4c5_wu1e-4", ("E6", "mhe", 7, 4, 5.0)),
 ])
+#: 1-euro variants (study E7): name -> (cutoff at rest in Hz, beta in Hz per m/s).
+ONE_EURO = OrderedDict((f"mhe_N7_1e_c{c:g}_b{b:g}", (c, b))
+                       for c in (0.5, 1.0, 2.0, 3.0, 5.0) for b in (0.5, 2.0, 5.0, 15.0))
+VARIANTS.update((name, ("E7", "mhe", 7, None, None)) for name in ONE_EURO)
 #: MHE cost weights (markers, state, control) of the variants that change them.
 WEIGHTS = {"mhe_N7_o4c5_ws1e-4": [1, 1e-4, 1e-5], "mhe_N7_o4c5_ws1e-2": [1, 1e-2, 1e-5],
            "mhe_N7_o4c5_wu1e-6": [1, 1e-3, 1e-6], "mhe_N7_o4c5_wu1e-4": [1, 1e-3, 1e-4]}
@@ -118,6 +122,13 @@ def prepare_ocp(horizon):
     return f"N={horizon}: generated in {root}"
 
 
+def filter_label(variant):
+    _, _, _, order, cutoff = VARIANTS[variant]
+    if variant in ONE_EURO:
+        return "1 euro, {:g} Hz at rest, beta {:g}".format(*ONE_EURO[variant])
+    return "none" if order is None else f"order {order}, {cutoff:g} Hz"
+
+
 def filter_delay_ms(order, cutoff):
     """Group delay of the causal Butterworth at 1 Hz, in ms."""
     if order is None:
@@ -146,11 +157,15 @@ def replay(job):
         settings.cost_weights = WEIGHTS[variant]
     if order is not None:
         settings.order, settings.cutoff_freq = order, cutoff
+    if variant in ONE_EURO:
+        settings.filter_type = "one_euro"
+        settings.one_euro_min_cutoff, settings.one_euro_beta = ONE_EURO[variant]
     from rtcosmik.landmark_maps import checked_recording
     landmark_map = checked_recording(views_root / participant / f"{task}.npz", participant, settings)
     from rtcosmik.paper.nlf_views import replay_markers
     frames = replay_markers(views_root / participant / f"{task}.npz", DATASET / "cam_params" / participant)
-    marker_filter = MarkerFilter(len(settings.marker_names), settings) if order is not None else None
+    filtered = order is not None or variant in ONE_EURO
+    marker_filter = MarkerFilter(len(settings.marker_names), settings) if filtered else None
 
     meta = yaml.safe_load((DATASET / "metadata" / f"{participant}.yaml").read_text())
     solver = HumanSolver(settings, gender=meta["gender"][0], height=meta["height"],
@@ -223,11 +238,12 @@ def score(job):
                                 DATASET / "mocap" / "aligned" / participant / task, participant)
     study, ik_type, horizon, order, cutoff = VARIANTS[variant]
     row.update({"variant": variant, "study": study, "ik_type": ik_type, "N": horizon,
-                "filter": "none" if order is None else f"order {order}, {cutoff:g} Hz",
+                "filter": filter_label(variant),
                 "participant": participant, "task": task, "frames": trial["frames"],
                 "upper_rmse_deg": by_group("upper"), "lower_rmse_deg": by_group("lower"),
                 "trunk_rmse_deg": by_group("trunk"), "shoulder_flip_pct": trial["shoulder_flip_pct"],
-                "filter_delay_1hz_ms": filter_delay_ms(order, cutoff)})
+                "filter_delay_1hz_ms": (float("nan") if variant in ONE_EURO
+                                        else filter_delay_ms(order, cutoff))})
     row.update(smoothness_and_limits(run_dir, [d["dof"] + "[rad]" for d in dofs]))
     row.update(timing)
     return row

@@ -133,7 +133,11 @@ class MarkerFilter:
     def __init__(self, marker_count, settings):
         self.marker_count = marker_count
         self.channels = 3 * marker_count
-        self.iir = None
+        self.iir = self.one_euro = None
+        if settings.filter_type == "one_euro":
+            from rtcosmik.filtering.one_euro import OneEuro
+            self.one_euro = OneEuro(settings.fs, settings.one_euro_min_cutoff, settings.one_euro_beta)
+            return
         if settings.order is None:                 # no low-pass
             return
         self.iir = IIR(num_channel=self.channels,
@@ -147,6 +151,8 @@ class MarkerFilter:
         The first call seeds the filter state from that frame, so the output
         starts at the signal rather than ramping up from zero.
         """
+        if self.one_euro is not None:
+            return self.one_euro(frame)
         if self.iir is None:
             return np.asarray(frame, dtype=float)
         flat = np.asarray(frame, dtype=float).reshape(1, self.channels)
