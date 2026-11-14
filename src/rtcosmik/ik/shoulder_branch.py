@@ -35,7 +35,7 @@ class BranchReseed:
     """Move a horizon whose shoulder is pinned on a limit to the branch that is free."""
 
     def __init__(self, model):
-        self.nq = model.nq
+        self.nq, self.nv = model.nq, model.nv
         self.shoulders = []
         for side in SIDES:
             cq, cv = columns(model, side)
@@ -62,3 +62,9 @@ class BranchReseed:
             self.frames_since_move[side] = 0
             moved.append(side)
         return moved
+
+    def posture(self, q):
+        """One posture, treated as a one-node horizon; returns it, moved or not."""
+        X = np.concatenate([q, np.zeros(self.nv)])[:, None]
+        self(X, np.zeros((self.nv, 1)))
+        return X[:self.nq, 0]

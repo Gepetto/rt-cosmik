@@ -93,3 +93,11 @@ def test_a_moved_shoulder_is_held_for_a_while(model):
     for _ in range(sb.HOLD_FRAMES - 1):
         reseed(X.copy(), U)
     assert reseed(X, U) == ["left"]
+
+
+def test_a_single_pinned_posture_moves_to_the_free_branch(model):
+    q = _pose(model, (179.5, 150, -45), (10, 20, 30))
+    moved = sb.BranchReseed(model).posture(q.copy())
+    cq, _ = sb.columns(model, "left")
+    np.testing.assert_allclose(np.degrees(moved[cq]), (-0.5, 30, 135), atol=1e-9)
+    np.testing.assert_allclose(_placements(model, moved), _placements(model, q), atol=1e-9)

@@ -132,7 +132,7 @@ class HumanSolver:
             raise RuntimeError("HumanSolver.step called before calibrate")
         if self.settings.ik_type == "sbs":
             self._ik._dict_m = mks_dict
-            q = self._ik.solve_ik_sample_quadprog()
+            q = self._reseed.posture(self._ik.solve_ik_sample_quadprog())
             self._ik._q0 = q
             return q
         return self._solve_mhe(mks_dict)
@@ -152,6 +152,7 @@ class HumanSolver:
             self.model, q, mks_dict, self.settings.marker_names)
         self._ik = RT_IK(self.model, mks_dict, q, self.settings.keys_to_track_list,
                          self.settings.dt, omega)
+        self._reseed = BranchReseed(self.model)
         return q
 
     def _calibrate_mhe(self, mks_dict):
