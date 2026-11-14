@@ -37,6 +37,8 @@ def apply_marker_set(target, name):
 
 def apply_evaluation(target):
     """Apply ``target.paper_evaluation``: the paper's filter, horizon, vertices and markers."""
+    if not hasattr(target, "toolbox_nlf_indices"):
+        target.toolbox_nlf_indices = list(target.nlf_indices)
     if target.paper_evaluation:
         p = target.paper
         target.order, target.cutoff_freq, target.N = p["order"], p["cutoff_freq"], p["N"]

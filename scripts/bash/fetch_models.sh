@@ -67,6 +67,10 @@ YOLO_SELECTED="$(PYTHONPATH="${SRC_DIR}" python3 -c \
   'from rtcosmik.config_loader import settings; print(settings.yolo_model)' \
   2>/dev/null || echo yolo11n)"
 YOLO_EXPORT_MODELS="${YOLO_EXPORT_MODELS:-${YOLO_SELECTED}}"
+# <height>x<width> of the tiled detector image when settings.py selects tiled detection.
+TILED_IMGSZ="$(PYTHONPATH="${SRC_DIR}" python3 -c \
+  'from rtcosmik.config_loader import settings as s; print("%dx%d" % tuple(s.yolo_tiled_imgsz) if s.detection_mode == "tiled" else "")' \
+  2>/dev/null || true)"
 
 for MODEL in ${YOLO_MODELS}; do
   MODEL_PT="${YOLO_DIR}/${MODEL}.pt"
@@ -153,6 +157,24 @@ for BATCH in ${BATCHES}; do
   echo "${BATCH},${IMGSZ}" > "${META_PATH}"
   echo "[OK] ${MODEL} engine for ${BATCH} camera(s) saved to: ${ENGINE}"
 done
+
+# Tiled detection: one batch-1 engine at settings.yolo_tiled_imgsz, unless the
+# single-camera engine already has that size.
+if [[ -n "${TILED_IMGSZ}" && "${TILED_IMGSZ}" != "${IMGSZ}x${IMGSZ}" ]]; then
+  TILED_ENGINE="${YOLO_DIR}/${MODEL}_tiled_${TILED_IMGSZ}.engine"
+  if [[ -f "${TILED_ENGINE}" && "$(cat "${TILED_ENGINE}.meta" 2>/dev/null)" == "1,${TILED_IMGSZ}" ]]; then
+    echo "[OK] ${MODEL} tiled engine ${TILED_IMGSZ} already present"
+  else
+    echo "[INFO] Exporting ${MODEL} tiled TensorRT engine ${TILED_IMGSZ} on device=${DEVICE}"
+    rm -f "${TILED_ENGINE}" "${TILED_ENGINE}.meta"
+    yolo export model="${YOLO_PT}" format=engine device="${DEVICE}" \
+      imgsz="${TILED_IMGSZ/x/,}" batch=1 dynamic=False simplify=False
+    [[ -f "${YOLO_ENGINE}" ]] || { echo "[ERR] Tiled export produced no artifact at ${YOLO_ENGINE}" >&2; exit 2; }
+    mv -f "${YOLO_ENGINE}" "${TILED_ENGINE}"
+    echo "1,${TILED_IMGSZ}" > "${TILED_ENGINE}.meta"
+    echo "[OK] ${MODEL} tiled engine saved to: ${TILED_ENGINE}"
+  fi
+fi
 done
 
 echo "[OK] All engines ready in ${YOLO_DIR}"

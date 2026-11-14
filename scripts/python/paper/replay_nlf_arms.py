@@ -52,7 +52,7 @@ def replay_trial(dataset, views_path, out_dir, participant, task, arm, settings,
     from rtcosmik.landmark_maps import checked_recording
     from rtcosmik.paper.nlf_views import replay_markers
     from rtcosmik.pipeline.solver import HumanSolver
-    from rtcosmik.provenance import start_run, update_run_info
+    from rtcosmik.provenance import recorded_estimator, start_run, update_run_info
     from rtcosmik.saver.csv_saver import CSVSaver
 
     dataset, out_dir = Path(dataset), Path(out_dir)
@@ -62,7 +62,7 @@ def replay_trial(dataset, views_path, out_dir, participant, task, arm, settings,
     landmark_map = checked_recording(views_path, participant, settings)
     start_run(out_dir, settings, dict(arm, participant=participant, task=task,
                                       views=str(views_path), dataset=str(dataset)), repo=repo,
-              landmark_map=landmark_map)
+              landmark_map=landmark_map, estimator=recorded_estimator(views_path))
     row = dict.fromkeys(sweep.FIELDS, "")
     row.update(arm=arm["name"], participant=participant, task=task,
                cameras="-".join(map(str, cameras)), n_horizon=settings.N)

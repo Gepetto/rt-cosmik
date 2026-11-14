@@ -15,7 +15,7 @@ from rtcosmik.saver.recorder import Recorder
 from rtcosmik.viewer.async_display import AsyncDisplay
 from rtcosmik.viewer.viewer import Viewer
 from rtcosmik.camera.cam_utils import load_camera_parameters,load_world_transformation
-from rtcosmik.model_weights import resolve_detector_engine
+from rtcosmik.model_weights import estimator_arguments
 
 import logging
 
@@ -161,8 +161,7 @@ class PipelineProcess(Process):
         viewer = None
 
         est = NLFEstimator(
-            yolo_path=resolve_detector_engine(self.settings.yolo_path, self.num_cameras),
-            nlf_path=self.settings.nlf_path,
+            **estimator_arguments(self.settings, self.num_cameras),
             cano_path=self.settings.cano_path,
             image_size=(self.frame_shape[1], self.frame_shape[0]),
             cam_Ks=self.mtxs,

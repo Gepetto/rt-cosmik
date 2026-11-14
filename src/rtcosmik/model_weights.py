@@ -86,3 +86,54 @@ def resolve_detector_engine(base_path, num_cameras):
         f"bash scripts/bash/fetch_models.sh\n"
         f"(the detector is chosen by settings.yolo_model)"
     )
+
+
+def tiled_engine_path(base_path, imgsz):
+    """Engine of the tiled detection for a (height, width) detector image."""
+    base = Path(base_path)
+    return base.with_name(f"{base.stem}_tiled_{imgsz[0]}x{imgsz[1]}{base.suffix}")
+
+
+def tiled_detector_engine(base_path, imgsz):
+    """The batch-1 engine recorded as built for a detector image of ``imgsz``.
+
+    The engine built for that size, or the single-camera engine for a square of its size.
+    """
+    rebuild = ('Rebuild it with: bash scripts/bash/fetch_models.sh '
+               '(detection_mode = "tiled" in settings.py)')
+    size = f"{imgsz[0]}x{imgsz[1]}"
+    candidates = [(tiled_engine_path(base_path, imgsz), f"1,{size}")]
+    if imgsz[0] == imgsz[1]:
+        candidates.append((engine_path_for(base_path, 1), f"1,{imgsz[0]}"))
+    for engine, expected in candidates:
+        if not engine.is_file():
+            continue
+        meta = Path(f"{engine}.meta")
+        recorded = meta.read_text().strip() if meta.is_file() else None
+        if recorded == expected:
+            return str(engine)
+        if engine == candidates[0][0]:
+            raise RuntimeError(
+                f"{engine} is named for a {size} detector image but records "
+                f"{recorded or 'no size'} ({meta}). {rebuild}")
+    raise FileNotFoundError(
+        f"No detector engine for tiled detection at {size} ({candidates[0][0]}).\n{rebuild}")
+
+
+def detector_arguments(settings, num_cameras):
+    """The estimator's detector arguments for ``settings.detection_mode``."""
+    mode = settings.detection_mode
+    if mode not in ("per_view", "tiled"):
+        raise ValueError(f"unknown detection_mode {mode!r}")
+    imgsz = tuple(settings.yolo_tiled_imgsz)
+    if mode == "per_view" or num_cameras == 1:
+        path = resolve_detector_engine(settings.yolo_path, num_cameras)
+        return {"yolo_path": path, "detection": "per_view", "tiled_imgsz": imgsz}
+    return {"yolo_path": tiled_detector_engine(settings.yolo_path, imgsz),
+            "detection": "tiled", "tiled_imgsz": imgsz}
+
+
+def estimator_arguments(settings, num_cameras):
+    """The estimator's detector and NLF backend arguments for ``settings``."""
+    return {**detector_arguments(settings, num_cameras), "nlf_path": settings.nlf_path,
+            "backend": settings.nlf_backend, "engine_path": settings.nlf_engine_path}

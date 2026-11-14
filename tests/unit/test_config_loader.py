@@ -28,3 +28,9 @@ def test_default_settings_match_settings_py():
     names.discard("device")  # settings.py picks CUDA; the fallback avoids torch
     for name in sorted(names):
         assert getattr(fallback, name, None) == getattr(project, name, None), name
+
+
+def test_front_end_defaults_are_torchscript_and_per_view_detection():
+    s = DefaultSettings()
+    assert (s.nlf_backend, s.detection_mode) == ("torchscript", "per_view")
+    assert tuple(s.yolo_tiled_imgsz) == (736, 1280)   # each of four 16:9 views at 640 x 360
