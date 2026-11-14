@@ -4,7 +4,9 @@
 
 **Blocked by:** 04, 07
 
-**Status:** ready-for-agent
+**Status:** code done; rule recorded below before any 1-euro run was scored
+
+**Rule, fixed before the 1-euro results exist.** Grid: cutoff at rest 0.5, 1, 2, 3, 5 Hz by beta 0.5, 2, 5, 15 Hz per m/s, each coordinate of each fused landmark filtered on its own, derivative cutoff 1 Hz. For each fold, on its fifteen fitting participants, the chosen point is the one with the lowest causal error among those whose jitter does not exceed that of the 5 Hz order-4 Butterworth on the same participants. The cross-validated 1-euro arm takes each participant from its own fold's choice. The headline arm is the MHE without filter unless the cross-validated 1-euro arm has a lower mean causal error over the 18 participants; if a fold has no admissible point, the headline is the MHE without filter. The no-filter, Butterworth and horizon results were already known when this was written (8.45 deg causal without filter, 8.70 deg with the 5 Hz Butterworth); the 1-euro results were not.
 
 - [ ] Filter is causal and fed one frame at a time
 - [ ] Parameters fitted per fold on the other fifteen participants

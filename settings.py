@@ -78,7 +78,9 @@ class Settings:
     ### FILTER PARAMS ###
     order: int = 4
     cutoff_freq: float = 10
-    filter_type: str = "lowpass"
+    filter_type: str = "lowpass"  # or "one_euro", which ignores order and cutoff_freq
+    one_euro_min_cutoff: float = 1.0  # Hz, cutoff at rest
+    one_euro_beta: float = 0.0  # Hz per (m/s), how fast the cutoff rises with speed
 
     ### NLF ###
     cano_path: str = field(init=False)
