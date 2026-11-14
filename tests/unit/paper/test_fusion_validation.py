@@ -71,6 +71,11 @@ def test_rank_correlation_of_monotone_and_reversed_series():
     assert rho[3] == pytest.approx(0.8)
 
 
+def test_tied_values_share_their_average_rank():
+    np.testing.assert_allclose(fv.ranks(np.array([10.0, 30.0, 10.0, 20.0, 30.0, 30.0])),
+                               [1.5, 5.0, 1.5, 3.0, 5.0, 5.0])
+
+
 def test_calibration_bins_errors_by_sigma():
     sigma = np.array([0.01, 0.02, 0.05, 0.06, 0.07])
     error = np.array([0.03, 0.04, 0.01, 0.02, 0.09])

@@ -61,8 +61,13 @@ def inject_outliers(poses, names, size, rate, mean_length, rng):
 
 def ranks(values):
     """Average ranks along the first axis."""
-    from scipy.stats import rankdata
-    return rankdata(values, axis=0)
+    values = np.asarray(values, float)
+    flat = values.reshape(len(values), -1)
+    out = np.empty(flat.shape)
+    for column in range(flat.shape[1]):
+        _, inverse, counts = np.unique(flat[:, column], return_inverse=True, return_counts=True)
+        out[:, column] = (np.cumsum(counts) - (counts - 1) / 2.0)[inverse]
+    return out.reshape(values.shape)
 
 
 def rank_correlation(a, b):
