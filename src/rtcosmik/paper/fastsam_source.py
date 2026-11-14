@@ -11,10 +11,9 @@ So there is no detector to run here, but there is a reconstruction, and it is
 the NLF arm's, step for step: each view stays in its camera's frame, the views
 are fused into the reference camera's frame by the same
 :func:`fuse_camera_poses3d`, the result is mapped into the world with the
-reference camera's pose, and it is low-passed one frame at a time. The one
-unavoidable difference is the fusion weights: NLF reports a per-point
-uncertainty and its views are combined by inverse variance, while FastSAM
-reports none, so its views are averaged with equal weight.
+reference camera's pose, and it is low-passed one frame at a time. FastSAM
+reports no per-point uncertainty, so its views are averaged with equal weight,
+as the NLF arm's are by default.
 
 A single camera goes through the same fusion. The reference camera's projection
 is the identity, so one view comes out unchanged, and ``cameras=[0]`` reproduces

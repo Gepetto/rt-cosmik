@@ -138,8 +138,8 @@ def run_nlf(dataset, participant, task, cameras, out_dir, settings,
     """One NLF trial, mirroring run_pipeline's offline path. Returns (frames, ik_ms, seconds).
 
     ``reconstruction`` selects what is done with NLF's output. "fuse3d" is the
-    shipped path: inverse-variance fusion of the metric 3D pose each view
-    regresses. "tri2d" instead triangulates NLF's own 2D keypoints with the same
+    shipped path: fusion of the metric 3D pose each view regresses, by the rule
+    in ``settings.fusion``. "tri2d" instead triangulates NLF's own 2D keypoints with the same
     weighted DLT the mmpose arm uses, which holds the reconstruction fixed and
     leaves the detector as the only difference between the two arms.
 
@@ -218,7 +218,7 @@ def run_nlf(dataset, participant, task, cameras, out_dir, settings,
                 p3d = triangulate_points(views.keypoints, mtxs, dists, projections,
                                          uncertainties=views.uncertainties)
             else:
-                p3d = reconstruct_3d(views, projections)
+                p3d = reconstruct_3d(views, projections, settings.fusion)
             if len(p3d) == 0:
                 continue
             p3d = np.asarray(p3d) @ np.asarray(world_R).T + np.asarray(world_T)

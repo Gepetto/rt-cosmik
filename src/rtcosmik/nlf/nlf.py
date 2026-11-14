@@ -563,6 +563,7 @@ class DisplayConsumerNLF(Process):
 
         self.yolo_path=resolve_detector_engine(settings.yolo_path, num_cameras)
         self.nlf_path=settings.nlf_path
+        self.fusion=settings.fusion
         self.cano_path=settings.cano_path
         self.marker_names=settings.marker_names
 
@@ -653,7 +654,7 @@ class DisplayConsumerNLF(Process):
                     nlf_out, infer_ms, yres, boxes = est.estimate_from_frames(frames)
 
                     views = extract_views(nlf_out, self.num_cameras)
-                    p3d = reconstruct_3d(views, self.projections)
+                    p3d = reconstruct_3d(views, self.projections, self.fusion)
                     if len(p3d) == 0:
                         continue
 

@@ -1,8 +1,43 @@
 # Resubmission findings to discuss before rewriting the paper (ticket 21)
 
-State on 2026-11-13. Every number is on COMFI, 18 participants, six tasks, 108 trials, four cameras (0, 2, 4, 6), out-of-fold landmark maps, participant mean ± SD unless stated. "Causal" error compares estimate and reference at the same frame after removing only the per-trial clock offset between mocap and video (2 or 3 frames). "Aligned" error first removes the lag estimated on knee flexion, as the submitted paper did.
+State on 2026-11-13, with an update on 2026-11-14 (section 0). Every number is on COMFI, 18 participants, six tasks, 108 trials, four cameras (0, 2, 4, 6), out-of-fold landmark maps, participant mean ± SD unless stated. "Causal" error compares estimate and reference at the same frame after removing only the per-trial clock offset between mocap and video (2 or 3 frames). "Aligned" error first removes the lag estimated on knee flexion, as the submitted paper did.
 
 Where the data are: runs in `/root/workspace/oof/runs/<id>/<task>/<arm>/`, tables in `results/oof/` of the main checkout and in `/root/workspace/oof/t11`, `t12`, `t13` (not in git).
+
+## 0. Update of 2026-11-14: shoulder branch, mean fusion, FastSAM-3D on matched cameras
+
+This section supersedes the figures of sections 1, 3, 5 and 7 where they differ. Sections 2 and 4 still use the earlier solver and inverse-variance fusion and are to be replayed. Runs of this section are in `/root/workspace/oof/runs26`, tables in `/root/workspace/oof/t26`, `t12/v3` and `t13/v3`.
+
+**Shoulder branch (ticket 26).** The shoulder is three angles in the order flexion, abduction, rotation, so a raised arm has two descriptions: `(z, x, y)` and `(z + 180, 180 − x, y + 180)`. With one solver iteration per frame, the IK stays in the description it entered near 90° of abduction; a flexion or rotation limit then holds it and the arm stops following the markers. It happened in 12 of the 108 trials in at least one arm, all in SideOverhead (12 of its 18 trials), and in the reference too (7 arm-trials). Two changes:
+
+- The IK moves a shoulder to the other description when it is within 3° of a limit and the other description fits the limits. Trials without a flip are unchanged (median difference 0.000°).
+- Joint error is measured with the estimate's shoulder in the description nearer the reference's at each frame.
+- Tested and rejected: wider flexion and rotation limits (a trial without flips went from 9.1° to 10.4°), and a free flexion limit alone (10.9° against 10.1° for the adopted rule on eight trials; the rotation limit still holds the shoulder). A ball joint at the shoulder would remove the cause; it changes the model, the solver, the saved angles and every script that names the shoulder joints, and is left for after the resubmission.
+
+**Results with this solver, causal, 18 participants.**
+
+| Arm | Cameras | Causal | Aligned | SideOverhead | Marker error |
+|---|---|---|---|---|---|
+| NLF-S, unweighted mean | 0, 2, 4, 6 | 8.70° ± 0.84° | 8.45° | 9.79° | 54 mm |
+| NLF-S, inverse variance | 0, 2, 4, 6 | 8.81° ± 0.87° | 8.56° | 9.91° | 53 mm |
+| NLF-S, unweighted mean | 2, 4, 6 | 8.89° ± 0.83° | 8.66° | 10.01° | 65 mm |
+| NLF-S, unweighted mean | 2, 4 | 8.95° ± 0.85° | 8.68° | 10.08° | 57 mm |
+| NLF-S, unweighted mean | 4, 6 | 9.53° ± 0.89° | 9.32° | 10.68° | 112 mm |
+| NLF-S, unweighted mean | 2 | 9.57° ± 0.91° | 9.35° | 11.16° | 109 mm |
+| FastSAM-3D | 2, 4, 6 | 8.50° ± 1.08° | 8.22° | 10.68° | 55 mm |
+| FastSAM-3D | 2, 4 | 8.52° ± 1.07° | 8.21° | 10.69° | 47 mm |
+| FastSAM-3D | 4, 6 | 9.00° ± 1.08° | 8.80° | 11.02° | 94 mm |
+| FastSAM-3D | 2 | 9.25° ± 1.10° | 8.93° | 11.89° | 91 mm |
+
+- Flip trials (more than 1 % of frames): 0 in every arm, except 1 for NLF-S on camera 2.
+- **Fusion.** Mean against inverse variance: −0.11°, signed-rank p = 0.97. The exponent of the weighting chosen on each fold's 15 fitting participants is 0 (the mean) in 5 of 6 folds; on the held-out participants it gives 8.91° against 9.14° (earlier solver). Weighting does not help the base position (41.2 mm both) or orientation (6.66° against 6.50°, not significant). Per-marker mixes of the two rules are not better. The unweighted mean is now the default (`settings.fusion`).
+- **NLF-S against FastSAM-3D on the same cameras and the same fusion** (2 / 4-6 / 2-4 / 2-4-6): FastSAM-3D is lower by 0.32° / 0.53° / 0.43° / 0.40° (signed-rank p = 0.20 / 0.07 / 0.07 / 0.13 on participant means; 0.5° to 0.7° and p < 0.01 in three of four on the median over trials). By task on 2-4-6, FastSAM-3D is better on Screwing (7.64° against 9.48°) and Polishing (8.49° against 9.30°), NLF-S on SideOverhead. Supported wording: NLF-S is chosen for speed; FastSAM-3D, a slower foundation model, is about 0.4° more accurate on the same cameras; the two are equivalent within ±1°.
+- **Alternatives to fusion followed by IK**, on six validation participants: an IK fitting each view's 2D keypoints directly, 11.19° against 9.01° (NLF-S's 2D keypoints disagree across views by 5 to 8 pixels); an IK fitting each view's 3D pose directly, 9.01°, identical to mean fusion followed by IK and not faster. Both dropped.
+- **Tiled detection**, 108 trials, earlier solver: 107 trials within 0.22° of per-view detection; one trial (4665 RobotWelding) went from 8.8° to 21.7° through a shoulder flip, which the new solver removes on that trial (8.7°). To be confirmed by the replay.
+- **REBA** (section 5) now reads shoulder flexion and abduction in the description with abduction within 90°, and scores an arm above the horizontal as above shoulder level. Frames with abduction within 90° keep their score; 0.2 to 0.4 % of frames change, all in SideOverhead. Regenerated, causal, mean fusion: mean absolute error 1.07 / 0.91 / 0.72 (absolute / reference's neutral / own neutral), same risk level 59 % / 69 % / 75 %, weighted kappa 0.46 / 0.61 / 0.70; inverse variance: 1.01 / 0.92 for the first two, same risk level 61 % / 68 %. High-risk frames rated lower: 46 % (mean, absolute) and 38 % (inverse variance, absolute). The conclusions of section 5 stand.
+- **Hand-to-robot distance** (section 6) regenerated: unchanged to 0.1 mm in every pooled figure (the robot trials have no flip in these arms).
+
+**Still to regenerate with this solver and the mean:** the filter and IK studies of section 2, the TensorRT and tiled-detection passes of section 4.
 
 ## 1. Headline
 

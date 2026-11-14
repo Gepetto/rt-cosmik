@@ -164,7 +164,7 @@ def main(args):
                 nlf_out, infer_ms, yres, boxes = est.estimate_from_frames(frames)
 
                 views = extract_views(nlf_out, NUM_CAMERAS)
-                p3d = reconstruct_3d(views, projections)
+                p3d = reconstruct_3d(views, projections, settings.fusion)
                 if len(p3d) == 0:
                     continue
 

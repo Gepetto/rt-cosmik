@@ -381,24 +381,31 @@ def fuse_camera_poses3d(poses3d_list, projections, uncertainties=None,
     return fused / np.maximum(total.T, 1e-12)
 
 
-def reconstruct_3d(views, projections, power=2.0):
+FUSION_RULES = ("mean", "invvar")
+
+
+def reconstruct_3d(views, projections, weighting="mean", power=2.0):
     """Turn one frame of per-camera observations into 3D points in the reference frame.
 
-    Views are combined by fusing the metric 3D pose each one regresses, weighted
-    by inverse variance. That keeps each view's body-model coherence, so segment
-    lengths stay stable, while combining views cancels the depth bias a single
-    view has. It works with any number of cameras, one included.
+    Views are combined by fusing the metric 3D pose each one regresses. That keeps
+    each view's body-model coherence, so segment lengths stay stable, while
+    combining views cancels the depth bias a single view has. It works with any
+    number of cameras, one included.
 
     Args:
         views: a :class:`~rtcosmik.nlf.nlf.Views` for this frame.
         projections: per-camera 3x4 ``[R | T]`` mapping reference frame to camera.
+        weighting: "mean" for the unweighted mean of the views, "invvar" to weight
+            each view's marker by ``1 / sigma**power``.
         power: exponent of the inverse-uncertainty weighting.
 
     Returns:
         np.ndarray: (J, 3) points in the reference camera frame, empty when no
         view saw the subject.
     """
+    if weighting not in FUSION_RULES:
+        raise ValueError(f"fusion rule {weighting!r} is not one of {FUSION_RULES}")
     if not views.valid_cam_ids:
         return np.zeros((0, 3))
-    return fuse_camera_poses3d(
-        views.poses3d, projections, uncertainties=views.uncertainties, power=power)
+    uncertainties = views.uncertainties if weighting == "invvar" else None
+    return fuse_camera_poses3d(views.poses3d, projections, uncertainties=uncertainties, power=power)

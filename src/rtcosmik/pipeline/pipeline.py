@@ -209,7 +209,7 @@ class PipelineProcess(Process):
                     t_pose = time.perf_counter()
 
                     views = extract_views(nlf_out, self.num_cameras)
-                    p3d = reconstruct_3d(views, self.projections)
+                    p3d = reconstruct_3d(views, self.projections, self.settings.fusion)
                     t_rec = time.perf_counter()
                     if len(p3d) == 0:
                         continue

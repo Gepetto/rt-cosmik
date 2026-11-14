@@ -65,6 +65,7 @@ def replay_markers(path, cam_dir, cameras=None, reconstruction="fuse3d"):
     produced markers, as ``run_nlf`` would have kept them.
     """
     from rtcosmik.camera.cam_utils import load_camera_parameters, load_world_transformation
+    from rtcosmik.config_loader import settings
     from rtcosmik.nlf.nlf import Views
     from rtcosmik.triangulation.triangulation import reconstruct_3d, triangulate_points
 
@@ -91,7 +92,7 @@ def replay_markers(path, cam_dir, cameras=None, reconstruction="fuse3d"):
             p3d = triangulate_points(keypoints, mtxs, dists, projections,
                                      uncertainties=views.uncertainties)
         else:
-            p3d = reconstruct_3d(views, projections)
+            p3d = reconstruct_3d(views, projections, settings.fusion)
         if len(p3d) == 0:
             continue
         frames.append((frame, np.asarray(p3d) @ world_R.T + world_T))

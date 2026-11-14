@@ -124,6 +124,7 @@ class DefaultSettings:
     # MODELS
     cano_path: str = field(init=False)
     nlf_path: str = field(init=False)
+    fusion: str = "mean"  # "mean" or "invvar"
     yolo_model: str = "yolov10n"
     yolo_path: str = field(init=False)
     yolo_conf: float = 0.2

@@ -121,3 +121,35 @@ def test_triangulate_points_torch_native_matches_numpy_when_available():
     result_numpy = triangulate_points(keypoints_list, mtxs, dists, projections)
 
     np.testing.assert_allclose(result_torch_native, result_numpy, rtol=1e-10, atol=1e-10)
+
+def _two_views():
+    from rtcosmik.nlf.nlf import Views
+    identity = np.hstack([np.eye(3), np.zeros((3, 1))])
+    poses = [np.array([[0.0, 0.0, 2.0]]), np.array([[0.3, 0.0, 2.0]])]
+    sigma = np.array([[1.0], [3.0]])
+    return Views([None, None], poses, sigma, [0, 1]), [identity, identity]
+
+
+def test_views_are_fused_by_their_mean_by_default():
+    from rtcosmik.triangulation.triangulation import reconstruct_3d
+    views, projections = _two_views()
+    np.testing.assert_allclose(reconstruct_3d(views, projections), [[0.15, 0.0, 2.0]])
+
+
+def test_inverse_variance_fusion_favours_the_certain_view():
+    from rtcosmik.triangulation.triangulation import reconstruct_3d
+    views, projections = _two_views()
+    fused = reconstruct_3d(views, projections, weighting="invvar")
+    np.testing.assert_allclose(fused, [[0.03, 0.0, 2.0]])
+
+
+def test_unknown_fusion_rule_is_refused():
+    from rtcosmik.triangulation.triangulation import reconstruct_3d
+    views, projections = _two_views()
+    with pytest.raises(ValueError):
+        reconstruct_3d(views, projections, weighting="median")
+
+
+def test_settings_fuse_by_the_mean():
+    from rtcosmik.config_loader import settings
+    assert settings.fusion == "mean"

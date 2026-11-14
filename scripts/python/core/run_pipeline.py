@@ -281,7 +281,7 @@ def main(args):
                 pose_parts["nlf"].append(infer_ms.get("nlf_ms", float("nan")))
 
                 views = extract_views(nlf_out, NUM_CAMERAS)
-                p3d = reconstruct_3d(views, projections)
+                p3d = reconstruct_3d(views, projections, settings.fusion)
                 t_rec=time.perf_counter()
                 if len(p3d) == 0:
                     continue
