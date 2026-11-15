@@ -108,6 +108,26 @@ def per_task(runs):
     return markdown(["Front end"] + tasks, rows)
 
 
+def reba_tests(root):
+    """Wilcoxon signed-rank tests of NLF-3D against RTMPose+LSTM on participant means."""
+    from scipy.stats import wilcoxon
+    rows = []
+    whole, peak = {}, {}
+    for arm in (HEADLINE, BASELINE):
+        people = pd.read_csv(root / arm / "participants.csv")
+        whole[arm] = people[(people.pairing == "causal") & (people.task == "all")
+                            & (people.angles == "neutral_own")].set_index("participant")
+        chosen = pd.read_csv(root / arm / "representative.csv")
+        chosen = chosen[(chosen.selection == "peak") & (chosen.angles == "neutral_own")]
+        peak[arm] = (chosen.est_reba - chosen.ref_reba).abs().groupby(chosen.participant).mean()
+    for label, a, b in (("MAE over whole trials", whole[HEADLINE].reba_mae, whole[BASELINE].reba_mae),
+                        ("Weighted kappa", whole[HEADLINE].risk_kappa, whole[BASELINE].risk_kappa),
+                        ("MAE at the peak posture", peak[HEADLINE], peak[BASELINE])):
+        a, b = a.align(b, join="inner")
+        rows.append([label, f"{a.mean():.2f}", f"{b.mean():.2f}", f"{wilcoxon(a, b).pvalue:.2g}"])
+    return markdown(["Quantity (own neutral posture)", "NLF-3D", "RTMPose+LSTM", "p"], rows)
+
+
 def reba(root):
     rows, peaks = [], []
     for arm, (front_end, cameras) in ARMS.items():
@@ -126,7 +146,8 @@ def reba(root):
         for task, g in list(chosen.groupby("task")) + [("All tasks", chosen)]:
             peaks.append([front_end, cameras, task, len(g), cell(g.ref_reba), cell(g.est_reba),
                           cell(g.error), f"{g.same.mean():.1f}"])
-    return (markdown(["Front end", "Cameras", "Angles", "MAE (points)", "Same risk level (%)",
+    tests = reba_tests(root)
+    return (tests, markdown(["Front end", "Cameras", "Angles", "MAE (points)", "Same risk level (%)",
                       "Weighted kappa", "High-risk frames rated lower (%)"], rows),
             markdown(["Front end", "Cameras", "Task", "Postures", "Reference score",
                       "Estimated score", "MAE (points)", "Same risk level (%)"], peaks))
@@ -161,7 +182,7 @@ def main():
     args = parser.parse_args()
 
     table, provenance = accuracy(args.runs, args.summaries)
-    agreement, peaks = reba(args.reba)
+    tests, agreement, peaks = reba(args.reba)
     lines = ["# Tables of the paper (COMFI)", "",
              "Mean (SD) over the 18 participants; errors are causal (no time alignment). "
              "Produced by `scripts/python/paper/paper_tables.py`.", "",
@@ -169,6 +190,8 @@ def main():
     lines += ["## Per degree of freedom, NLF-3D, four cameras (deg)", ""] + per_dof(args.runs)
     lines += ["## Per task, four cameras (deg)", ""] + per_task(args.runs)
     lines += ["## Posture-only REBA over whole trials", ""] + agreement
+    lines += ["## Posture-only REBA, NLF-3D against RTMPose+LSTM, four cameras (not corrected)",
+              ""] + tests
     lines += ["## Posture-only REBA at the peak posture picked on the estimate "
               "(own neutral posture)", ""] + peaks
     lines += ["## Hand to end effector on the robot tasks, all trials pooled", ""] + hand(args.hand)

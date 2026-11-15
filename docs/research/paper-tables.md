@@ -79,6 +79,14 @@ Mean (SD) over the 18 participants; errors are causal (no time alignment). Produ
 | NLF-3D | 1 | neutral_reference | 0.86 (0.18) | 70.7 (6.5) | 0.64 (0.08) | 48.6 (19.6) |
 | NLF-3D | 1 | neutral_own | 0.78 (0.16) | 72.4 (6.1) | 0.67 (0.06) | 54.9 (22.2) |
 
+## Posture-only REBA, NLF-3D against RTMPose+LSTM, four cameras (not corrected)
+
+| Quantity (own neutral posture) | NLF-3D | RTMPose+LSTM | p |
+|---|---|---|---|
+| MAE over whole trials | 0.71 | 1.00 | 7.6e-06 |
+| Weighted kappa | 0.70 | 0.57 | 7.6e-06 |
+| MAE at the peak posture | 0.77 | 1.19 | 0.0074 |
+
 ## Posture-only REBA at the peak posture picked on the estimate (own neutral posture)
 
 | Front end | Cameras | Task | Postures | Reference score | Estimated score | MAE (points) | Same risk level (%) |
