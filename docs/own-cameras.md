@@ -63,6 +63,27 @@ both against the room. The images are kept in `output/calibration/`; add
 `--from-images` to calibrate from them again, and `--no-show` without a
 display.
 
+### Without a checkerboard: from a person walking
+
+When a checkerboard cannot be shown to two cameras at once, for instance cameras
+that face each other across the workspace, the cameras can be placed from a
+recording of one person walking through the working area for about a minute:
+
+```bash
+python3 scripts/python/calibration/calibrate_from_human.py --videos output/walk
+```
+
+It needs the intrinsics of each camera (from `calibrate_cameras.py`) and
+replaces the camera pairs and the world frame: z up from the floor, x along the
+first camera's viewing direction, origin on the floor under that camera. Run
+`set_world_frame.py` afterwards for another world frame. A recording in which
+the person stays in place is refused.
+
+This calibration is less accurate than the checkerboard: on COMFI it places
+cameras 5 m apart within about 0.2 m and 1.6° of the reference calibration. Joint
+angles are almost unaffected, positions in the room shift by a few centimetres
+(see [Accuracy](accuracy.md)).
+
 Camera ids are the `/dev/video<id>` numbers when you calibrate; the
 calibration also records which USB port each camera is on, so a recabled rig is
 recognised later (see [Live capture](live.md#which-cameras-are-used)). The
