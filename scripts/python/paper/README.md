@@ -301,3 +301,11 @@ runs at 30 Hz or more from what can only run offline; they are not a latency
 benchmark of the live pipeline. Arms run one at a time on a GPU nothing else is
 using -- an earlier sweep shared the GPU with another job and its NLF timings
 were lower bounds.
+
+## OpenCap LabValidation
+
+`opencap_eval.py` runs the paper pipeline on the OpenCap laboratory validation
+data (stages `record`, `sync`, `reference`, `replay`, `report`); the dataset's
+layout, marker mapping and synchronisation live in `src/rtcosmik/paper/opencap.py`
+and what differs from COMFI in `settings.opencap`. Method and results:
+`docs/research/opencap-evaluation.md`.

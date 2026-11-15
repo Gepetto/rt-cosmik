@@ -1,12 +1,10 @@
 """Calibrate on the OpenCap static trial, then start a trial that begins seated."""
 import copy
-import sys
 from pathlib import Path
 
 import numpy as np
 import pytest
 
-from .conftest import REPO
 
 SUBJECT = Path("/root/workspace/OpenCap/data/LabValidation_withVideos/subject4")
 needs_opencap = pytest.mark.skipif(not SUBJECT.is_dir(), reason="OpenCap LabValidation not mounted")
