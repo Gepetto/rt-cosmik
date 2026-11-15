@@ -21,9 +21,13 @@ from rtcosmik.human_model.model_utils import (
     apply_joint_locks)
 from rtcosmik.ik.ik import RT_IK, RT_SWIKA_FATROP, RT_SWIKA_ACADOS
 from rtcosmik.ik import ocp_model
-from rtcosmik.ik.shoulder_branch import BranchReseed
+from rtcosmik.ik.shoulder_branch import BranchReseed, HOLD_SECONDS
 
 LOGGER = logging.getLogger(__name__)
+
+#: Solves of a trial's first frame, each anchored on the last: the anchor's pull
+#: on the weakly observed DoF halves at each.
+START_PASSES = 5
 
 
 class HumanSolver:
@@ -70,6 +74,9 @@ class HumanSolver:
         self._x = None
         self._u = None
         self._window = None
+        self._seed_ik = None
+        self._seed_q = None
+        self._seed_markers = None
 
     # -- properties -------------------------------------------------------
 
@@ -108,8 +115,10 @@ class HumanSolver:
 
         self.model = scale_human_model(
             self.model, mks_dict, gender=self.gender, subject_height=self.height)
+        # Markers outside the tracked set only help scaling and the segment frames.
         self.model = mks_registration(
-            self.model, mks_dict, gender=self.gender, subject_height=self.height)
+            self.model, mks_dict, gender=self.gender, subject_height=self.height,
+            markers=self.settings.keys_to_track_list)
 
         ik_type = self.settings.ik_type
         if ik_type == "sbs":
@@ -125,6 +134,37 @@ class HumanSolver:
         self.calibrated = True
         self.logger.info("[INFO] Model calibration finished, ready to process...")
         return q
+
+    def start_trial(self, mks_dict):
+        """Re-seed the horizon on the first frame of a new trial, keeping the calibration.
+
+        The calibration posture is moved onto the frame's markers and the
+        horizon converged on that frame, so a trial need not start standing.
+        """
+        if not self.calibrated:
+            raise RuntimeError("HumanSolver.start_trial called before calibrate")
+        if self.settings.ik_type != "mhe":
+            raise ValueError("start_trial supports the MHE only")
+        settings = self.settings
+        keys = settings.keys_to_track_list
+        centre = lambda frame: np.mean([frame[k] for k in keys], axis=0)
+        self._x = np.zeros((self.model.nq + self.model.nv, settings.N))
+        self._x[:self.model.nq] = self._seed_q[:, None]
+        self._x[:3] += (centre(mks_dict) - centre(self._seed_markers))[:, None]
+        self._u = np.zeros((self.model.nv, settings.N))
+        self._window = deque([mks_dict] * settings.N, maxlen=settings.N)
+        measurements = np.array([np.hstack([mks_dict[k] for k in keys])] * settings.N).T
+        self._seed_ik.set_model_params(self.model)
+        for _ in range(START_PASSES):
+            x, u = self._seed_ik.solve(self._x, self._u, measurements, self._x[:, -1],
+                                       settings.cost_weights, settings.dt)
+            self._x, self._u = np.array(x), np.array(u)
+        self._reseed = self._branch_reseed()
+        self._reseed(self._x, self._u)
+        return np.array(self._x[:self.model.nq, -1]).flatten()
+
+    def _branch_reseed(self):
+        return BranchReseed(self.model, round(HOLD_SECONDS * self.settings.fs))
 
     def step(self, mks_dict):
         """Solve one frame against the calibrated model."""
@@ -152,7 +192,7 @@ class HumanSolver:
             self.model, q, mks_dict, self.settings.marker_names)
         self._ik = RT_IK(self.model, mks_dict, q, self.settings.keys_to_track_list,
                          self.settings.dt, omega)
-        self._reseed = BranchReseed(self.model)
+        self._reseed = self._branch_reseed()
         return q
 
     def _calibrate_mhe(self, mks_dict):
@@ -172,8 +212,9 @@ class HumanSolver:
         # Recalibrate briefly the markers translation in joint frames
         self.model = recalibrate_marker_frames_in_joint_space(
             self.model, q, mks_dict, settings.marker_names)
+        self._seed_ik, self._seed_q, self._seed_markers = self._ik, np.array(q), mks_dict
         self._ik = self._build_mhe_solver()
-        self._reseed = BranchReseed(self.model)
+        self._reseed = self._branch_reseed()
         return q
 
     def _build_mhe_solver(self):

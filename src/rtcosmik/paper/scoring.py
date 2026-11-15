@@ -95,12 +95,13 @@ def _shift(run, reference, lag):
     return run[:n], reference[:n]
 
 
-def _joint_lag(ev, names, q, q_ref):
+def _joint_lag(ev, names, q, q_ref, max_lag=None):
     """Lag maximising the knee-flexion cross-correlation, and that correlation."""
     columns = [i for i, n in enumerate(names) if ev.SYNC_SIGNAL in n]
     a, b = np.nanmean(q[:, columns], 1), np.nanmean(q_ref[:, columns], 1)
     best, score = 0, -np.inf
-    for lag in range(-ev.SYNC_MAX_LAG, ev.SYNC_MAX_LAG + 1):
+    max_lag = ev.SYNC_MAX_LAG if max_lag is None else max_lag
+    for lag in range(-max_lag, max_lag + 1):
         x, y = _shift(a, b, lag)
         ok = np.isfinite(x) & np.isfinite(y)
         if ok.sum() < len(a) // 2:
@@ -138,10 +139,11 @@ def _marker_error(markers, ref_markers, lag):
     return np.concatenate(errors) if errors else np.array([])
 
 
-def _marker_lag(ev, markers, ref_markers):
+def _marker_lag(ev, markers, ref_markers, max_lag=None):
     """Lag minimising the mean marker error: before IK, so the delay-free signal."""
     span = len(next(iter(markers.values())))
-    lags = [lag for lag in range(-ev.SYNC_MAX_LAG, ev.SYNC_MAX_LAG + 1)
+    max_lag = ev.SYNC_MAX_LAG if max_lag is None else max_lag
+    lags = [lag for lag in range(-max_lag, max_lag + 1)
             if _marker_error(markers, ref_markers, lag).size > span // 2]
     return min(lags, key=lambda lag: _marker_error(markers, ref_markers, lag).mean())
 
@@ -177,10 +179,22 @@ def _violation_pct(q, columns):
     return float(100 * beyond.any(1).mean()) if len(x) else np.nan
 
 
-def score_trial(run_dir, reference, clock_offset):
+def _window(q, markers, frames):
+    """Frames ``first .. last`` (inclusive) of a run's angles and markers."""
+    if frames is None:
+        return q, markers
+    rows = slice(frames[0], frames[1] + 1)
+    return q[rows], {name: xyz[rows] for name, xyz in markers.items()}
+
+
+def score_trial(run_dir, reference, clock_offset, unscored=(), max_lag=None, frames=None,
+                marker_frame=None):
     """Score one run folder. Returns a ``ROW_FIELDS`` dict and the per-DoF rows.
 
     Causal error removes only ``clock_offset``, so the arm's own lag counts as error.
+    ``unscored`` names further joint columns left out, ``max_lag`` bounds the lag
+    search (frames), ``frames`` restricts scoring to ``(first, last)``, and
+    ``marker_frame`` is the ``(R, t)`` taking the run's markers into the reference's frame.
     """
     ev = load_eval()
     run_dir = Path(run_dir)
@@ -188,8 +202,13 @@ def score_trial(run_dir, reference, clock_offset):
     ref_names, q_ref, ref_markers = _by_frame(reference)
     if names != ref_names:
         raise ValueError(f"{run_dir}: joint columns differ from the reference")
-    lag, sync_r = _joint_lag(ev, names, q, q_ref)
-    locked = ev.locked_angle_columns()
+    if marker_frame is not None:
+        R, t = (np.asarray(a, float) for a in marker_frame)
+        markers = {name: xyz @ R.T + t for name, xyz in markers.items()}
+    q, markers = _window(q, markers, frames)
+    q_ref, ref_markers = _window(q_ref, ref_markers, frames)
+    lag, sync_r = _joint_lag(ev, names, q, q_ref, max_lag)
+    locked = ev.locked_angle_columns() | set(unscored)
     scored = [i for i, n in enumerate(names) if n.endswith("[rad]") and n not in locked
               and "quaternion" not in n.lower()]
 
@@ -215,7 +234,7 @@ def score_trial(run_dir, reference, clock_offset):
     marker_mm = lambda shift: round(float(_marker_error(markers, ref_markers, shift).mean()) * 1000, 2)
     return {
         "lag": lag - clock_offset,
-        "marker_lag": _marker_lag(ev, markers, ref_markers) - clock_offset,
+        "marker_lag": _marker_lag(ev, markers, ref_markers, max_lag) - clock_offset,
         "sync_r": round(sync_r, 4),
         "causal_rmse_mean": mean("causal_rmse_deg"), "aligned_rmse_mean": mean("aligned_rmse_deg"),
         "aligned_rmse_median": round(float(np.median([d["aligned_rmse_deg"] for d in dofs])), 3),

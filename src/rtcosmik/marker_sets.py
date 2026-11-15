@@ -7,6 +7,21 @@ PARITY_DROPPED_MARKERS = ("T11", "T6", "RTHU", "LTHU", "RMID", "LMID", "RPIN", "
 PARITY_LOCKED_JOINTS = ("middle_thoracic_Z", "middle_thoracic_X", "middle_thoracic_Y",
                         "left_wrist_Z", "left_wrist_X", "right_wrist_Z", "right_wrist_X")
 MOCAP_DROPPED_MARKERS = ("Nose", "REye", "LEye")
+#: OpenCap's mocap has no head markers, and medial knee and ankle markers in the
+#: static trial only: "opencap_mocap" drops them from "mocap" and locks the
+#: cervical DoF; "opencap_parity" is "parity" without the head.
+HEAD_MARKERS = ("Nose", "Head", "REar", "LEar", "REye", "LEye")
+MEDIAL_LEG_MARKERS = ("RMKNE", "LMKNE", "RMANK", "LMANK")
+CERVICAL_JOINTS = ("middle_cervical_Z", "middle_cervical_X", "middle_cervical_Y")
+#: marker set -> (markers dropped from the full list, joints locked)
+MARKER_SETS = {
+    "parity": (PARITY_DROPPED_MARKERS, PARITY_LOCKED_JOINTS),
+    "mocap": (PARITY_DROPPED_MARKERS + MOCAP_DROPPED_MARKERS, PARITY_LOCKED_JOINTS),
+    "opencap_mocap": (PARITY_DROPPED_MARKERS + HEAD_MARKERS + MEDIAL_LEG_MARKERS,
+                      PARITY_LOCKED_JOINTS + CERVICAL_JOINTS),
+    "opencap_parity": (PARITY_DROPPED_MARKERS + HEAD_MARKERS,
+                       PARITY_LOCKED_JOINTS + CERVICAL_JOINTS),
+}
 
 
 def apply_marker_set(target, name):
@@ -22,16 +37,14 @@ def apply_marker_set(target, name):
     if name == "nlf":
         target.locked_joints = []
         return target
-    if name not in ("parity", "mocap"):
+    if name not in MARKER_SETS:
         raise ValueError(f"unknown marker set {name!r}")
-    dropped = set(PARITY_DROPPED_MARKERS)
-    if name == "mocap":
-        dropped |= set(MOCAP_DROPPED_MARKERS)
+    dropped, locked = MARKER_SETS[name]
     keep = [i for i, m in enumerate(target.marker_names) if m not in dropped]
     target.nlf_indices = [target.nlf_indices[i] for i in keep]
     target.marker_names = [target.marker_names[i] for i in keep]
     target.keys_to_track_list = [k for k in target.keys_to_track_list if k not in dropped]
-    target.locked_joints = list(PARITY_LOCKED_JOINTS)
+    target.locked_joints = list(locked)
     return target
 
 

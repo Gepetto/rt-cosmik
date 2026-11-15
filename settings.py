@@ -200,6 +200,21 @@ class Settings:
             9120, 9002, 616, 6, 9929, 9448,
         ],
     })
+    # OpenCap LabValidation evaluation (rtcosmik.paper.opencap): what differs from COMFI.
+    opencap: dict = field(default_factory=lambda: {
+        "fs": 60, "width": 720, "height": 1280,   # native video rate, portrait images
+        "clock_offset": 0,                        # frames; the reference is sampled on the video clock
+        "max_lag_s": 0.2,                         # alignment search; half a gait cycle is 0.5 s
+        # The released clips are cut at key frames, each camera on its own: the cameras
+        # are synchronised on their landmarks and the video clock set on the mocap's.
+        "sync_margin_frames": (60, 24),           # read before and after each clip
+        "max_camera_lag_frames": 14,              # key frames are 12 frames apart
+        "clock_search_s": (-0.5, 1.0),            # around the clip's nominal start
+        # A view whose landmarks sit this far (m) from the cameras' median holds a
+        # bystander: it is replayed as a view that saw nobody.
+        "far_view_m": 1.0,
+        "marker_set": "parity",                   # the estimate's; the reference tracks "opencap_mocap"
+    })
     locked_joints: list = field(init=False)  # set from marker_set
 
     def __post_init__(self):

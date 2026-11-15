@@ -4,9 +4,9 @@
 
 **Blocked by:** 02, 04
 
-**Status:** ready-for-agent
+**Status:** done (branch `ticket-16`; results in `docs/research/opencap-evaluation.md`)
 
-- [ ] Only participants with released videos used
-- [ ] Marker set mapped onto ours and documented
-- [ ] Headline arm scored on two and five cameras
-- [ ] Comparison with OpenCap's released joint angles
+- [x] Only participants with released videos used
+- [x] Marker set mapped onto ours and documented
+- [x] Headline arm scored on two and five cameras
+- [x] Comparison with OpenCap's released joint angles

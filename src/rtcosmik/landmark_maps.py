@@ -6,7 +6,8 @@ from pathlib import Path
 
 import numpy as np
 
-from rtcosmik.folds import PARTICIPANTS, fitting_participants, fold_of
+from rtcosmik.folds import (EXTERNAL_PARTICIPANTS, PARTICIPANTS, fitting_participants,
+                            fold_of)
 
 MAPS_DIR = Path(__file__).resolve().parents[2] / "config" / "landmark_maps"
 
@@ -39,7 +40,8 @@ class LandmarkMap:
         digest = hashlib.sha256(json.dumps(sorted(self.vertices.items())).encode()).hexdigest()
         return {"front_end": self.front_end, "fold": self.fold,
                 "fitted_on": list(self.fitted_on), "sha256": digest,
-                "in_sample": str(participant) in self.fitted_on}
+                "in_sample": str(participant) in self.fitted_on,
+                "external_participant": str(participant) in EXTERNAL_PARTICIPANTS}
 
 
 def path(front_end, fold):
@@ -72,7 +74,13 @@ def select(settings, participant, front_end="nlf"):
 
 
 def require_out_of_fold(landmark_map, participant, settings):
-    """Refuse a map fitted on ``participant``, unless the submitted map was asked for."""
+    """Refuse a map fitted on ``participant``, unless the submitted map was asked for.
+
+    A participant of another dataset passes only if declared in ``folds.EXTERNAL_PARTICIPANTS``.
+    """
+    if str(participant) not in PARTICIPANTS + EXTERNAL_PARTICIPANTS:
+        raise LeakageError(f"participant {participant} is neither a COMFI participant nor a "
+                           "declared external one: cannot tell what its map was fitted on")
     if str(participant) not in landmark_map.fitted_on:
         return
     if landmark_map.fold is None and settings.paper["landmark_map"] == "submitted":

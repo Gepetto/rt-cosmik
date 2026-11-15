@@ -95,6 +95,20 @@ def test_a_moved_shoulder_is_held_for_a_while(model):
     assert reseed(X, U) == ["left"]
 
 
+def test_hold_follows_the_frame_rate(model):
+    X, U, cq, _ = _window(model, (179.5, 150, -45))
+    reseed = sb.BranchReseed(model, hold_frames=round(sb.HOLD_SECONDS * 60))   # 60 Hz
+    assert reseed(X, U) == ["left"]
+    X[cq, :] = np.radians([[179.5], [150], [-45]])
+    for _ in range(30):
+        assert reseed(X.copy(), U) == []
+    assert reseed(X, U) == ["left"]
+
+
+def test_hold_at_the_default_rate_is_half_a_second():
+    assert sb.HOLD_FRAMES == round(sb.HOLD_SECONDS * 40)
+
+
 def test_a_single_pinned_posture_moves_to_the_free_branch(model):
     q = _pose(model, (179.5, 150, -45), (10, 20, 30))
     moved = sb.BranchReseed(model).posture(q.copy())

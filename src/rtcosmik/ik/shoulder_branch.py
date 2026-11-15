@@ -4,7 +4,8 @@ import numpy as np
 SIDES = ("left", "right")
 AXES = "ZXY"
 MARGIN = np.radians(3.0)     # how close to a limit counts as pinned
-HOLD_FRAMES = 20             # frames a moved shoulder is left alone
+HOLD_FRAMES = 20             # frames a moved shoulder is left alone, at 40 Hz
+HOLD_SECONDS = 0.5
 
 
 def wrap(angle):
@@ -34,14 +35,15 @@ def columns(model, side):
 class BranchReseed:
     """Move a horizon whose shoulder is pinned on a limit to the branch that is free."""
 
-    def __init__(self, model):
+    def __init__(self, model, hold_frames=HOLD_FRAMES):
         self.nq, self.nv = model.nq, model.nv
+        self.hold_frames = hold_frames
         self.shoulders = []
         for side in SIDES:
             cq, cv = columns(model, side)
             self.shoulders.append((side, cq, cv, np.array(model.lowerPositionLimit[cq]),
                                    np.array(model.upperPositionLimit[cq])))
-        self.frames_since_move = {side: HOLD_FRAMES for side in SIDES}
+        self.frames_since_move = {side: hold_frames for side in SIDES}
 
     def __call__(self, X, U):
         """Rewrite states ``X`` (nx, N) and controls ``U`` (nv, N) in place; return the sides moved."""
@@ -51,7 +53,7 @@ class BranchReseed:
             current = np.array(X[cq, :])
             newest = current[:, -1]
             pinned = np.any((newest < low + MARGIN) | (newest > high - MARGIN))
-            if not pinned or self.frames_since_move[side] <= HOLD_FRAMES:
+            if not pinned or self.frames_since_move[side] <= self.hold_frames:
                 continue
             other = other_branch(current)
             if not np.all((other > low[:, None] + MARGIN) & (other < high[:, None] - MARGIN)):
