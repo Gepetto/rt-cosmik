@@ -167,6 +167,24 @@ No conclusion of section 0 changes.
 
 **Not regenerated with the 1-euro filter:** the TensorRT and tiled-detection replays (interchangeable with TorchScript to 0.05° and 0.21° per trial with the Butterworth; the filter acts after inference) and the fusion-validation study of ticket 10 (it compares fusion rules under one common filter).
 
+## 0c. OpenCap LabValidation (ticket 16), 2026-11-15
+
+The paper pipeline, unchanged (NLF-S, mean fusion, tuned 1-euro filter, MHE horizon 7, landmark map of fold 0), on the nine subjects of OpenCap's laboratory validation set that have videos: 144 trials at 60 Hz, reference from the dataset's mocap markers through our model and IK. Method, tables and limits in `docs/research/opencap-evaluation.md`; outputs in `/root/workspace/oof/t16`.
+
+| Arm | Causal | Marker error | Squat | Sit-to-stand | Drop jump | Walking |
+|---|---|---|---|---|---|---|
+| 5 cameras | 8.8° ± 1.0° | 58 mm | 8.4° | 8.6° | 10.4° | 7.4° |
+| 3 cameras | 9.3° ± 1.0° | 71 mm | | | | |
+| 2 cameras (±45°) | 9.2° ± 1.0° | 68 mm | 8.6° | 9.0° | 10.6° | 8.0° |
+
+- 26 scored DoF: the paper's 29 without the neck, which the dataset's markers do not observe. No solver failure; 7 dropped frames in the two-camera arm. Lag 0.3 frame, so causal and aligned error coincide. COMFI, four cameras: 8.46° ± 0.84°.
+- Forearm pronation has a +28° bias (30° RMSE) on both sides in every subject; without these two DoF the error is 7.05° ± 0.80° (five cameras) and 7.41° ± 0.87° (two). Cause not investigated: to settle before the figure goes in the paper.
+- OpenCap's released angles against its own mocap angles, recomputed from its files on the same trials (HRNet, 2 / 5 cameras): 5.5° / 5.3° RMSE on its 18 lower-body and trunk rotations, 14.3° / 13.7° on its 10 arm rotations.
+- On the 11 DoF both models have (ours against our reference, OpenCap's against its own): ours 6.6° (five cameras) and 7.0° (two), OpenCap HRNet 8.0° and 8.4°. Without shoulder and elbow: ours 5.9° and 6.2°, OpenCap 5.5° and 5.7°. So: comparable on the lower body and trunk, ours lower on the arm. The models and references differ, and OpenCap's processing is offline; ours is causal.
+- The released video clips are not frame-synchronous (cameras 8 to 10 frames apart on average, each clip cut at a key frame). The evaluation synchronises the cameras from the body's motion and sets the video clock on the mocap's per trial, as on COMFI; the paper must say so.
+- In 6 walking trials the frontal camera follows a bystander; a view whose person is more than 1 m from the other views' is treated as empty.
+- NLF under-sizes tall subjects (10 % at 1.96 m); marker error follows height, joint error does not.
+
 ## 1. Headline
 
 | Configuration | Causal | Aligned |
