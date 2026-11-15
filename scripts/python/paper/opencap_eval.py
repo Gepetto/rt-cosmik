@@ -267,6 +267,7 @@ def sync_subject(job):
         synced.with_suffix(".json").write_text(json.dumps(
             {"camera_offsets_frames": offsets.tolist(), "clock_offset_s": offset,
              "clock_offset_from_nominal_s": offset - nominal, "residual_mm": residual * 1000,
+             "far_views_share": oc.far_views(world[keep]).tolist(),
              "frames": int(keep.sum()), "mocap_s": float(mocap_times[-1] - mocap_times[0])}))
         done += 1
     return subject, done

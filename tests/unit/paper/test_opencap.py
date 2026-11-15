@@ -96,6 +96,13 @@ def test_aligned_cameras_show_the_same_instant_on_each_row():
     assert aligned[0, 1, 0] == first == 4               # in the rows of the camera with offset 0
 
 
+def test_view_holding_someone_else_or_nobody_is_counted_as_far():
+    views = np.zeros((10, 3, 4, 3))
+    views[:4, 1] += [2.0, 0.0, 0.0]            # a bystander in camera 1 for 4 rows
+    views[8:, 2] = np.nan                      # nobody in camera 2 for 2 rows
+    np.testing.assert_allclose(oc.far_views(views), [0.0, 0.4, 0.2])
+
+
 def test_clock_offset_places_the_video_rows_on_the_mocap_clock():
     from scipy.spatial.transform import Rotation
     at, _ = _trajectory(1, 8, seed=3)

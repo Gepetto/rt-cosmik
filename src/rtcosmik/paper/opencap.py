@@ -293,6 +293,17 @@ def align_cameras(array, offsets):
     return aligned, int(offsets.max())
 
 
+def far_views(views, distance=1.0):
+    """Per camera, the share of rows whose landmarks' centre is ``distance`` (m) from the cameras' median.
+
+    Such a view holds someone else, or nobody.
+    """
+    centre = np.nanmean(views, axis=2)
+    with np.errstate(all="ignore"):
+        gap = np.linalg.norm(centre - np.nanmedian(centre, axis=1, keepdims=True), axis=-1)
+    return (~(gap < distance)).mean(0)
+
+
 def _clock_cost(rows, fs, mocap_times, mocap, offset, coverage):
     times = np.arange(len(rows)) / fs + offset
     inside = (times >= mocap_times[0]) & (times <= mocap_times[-1])
