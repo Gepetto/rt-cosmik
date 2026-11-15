@@ -4,7 +4,7 @@
 
 **Blocked by:** 21 (comes after every ticket planned for the resubmission)
 
-**Status:** ready-for-agent
+**Status:** dropped (2026-11-15, author's decision): no accuracy or pronation gain over NLF-S, see the findings.
 
 - [ ] InstantHMR medium runs on COMFI crops with the calibrated focal length and returns camera-frame metric landmarks
 - [ ] A landmark map on its mesh is fitted on fifteen participants and used on the three of one fold (18 trials)

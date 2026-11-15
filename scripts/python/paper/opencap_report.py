@@ -33,15 +33,17 @@ def _complete(run_dir):
     return path.exists() and "frames" in json.loads(path.read_text())
 
 
-def session_frames(dataset, out, subject, tag="nlf_5cam"):
+def session_frames(dataset, out, subject, tag="nlf_5cam", references=None):
     """Per session, the rigid transform from the checkerboard frame to the mocap frame.
 
     Fitted once on the five-camera arm's markers against the reference's, all
-    trials of the session pooled, and used for every arm.
+    trials of the session pooled, and used for every arm. ``references`` is the
+    folder holding the reference runs when it is not ``out``.
     """
     pairs = {}
     for trial in oc.trials(dataset / subject):
-        run, reference = _run(out, subject, trial.name, tag), _run(out, subject, trial.name, scoring.REFERENCE_TAG)
+        run = _run(out, subject, trial.name, tag)
+        reference = _run(references or out, subject, trial.name, scoring.REFERENCE_TAG)
         if not (_complete(run) and _complete(reference)):
             continue
         markers, ref_markers = scoring.by_frame(run)[2], scoring.by_frame(reference)[2]

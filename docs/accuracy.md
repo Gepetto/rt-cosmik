@@ -46,6 +46,11 @@ What the evaluation suggests when setting up a workcell:
   the position of the body does: two facing cameras come close to four, whereas
   two cameras side by side double the position error, which is mostly along
   their common viewing direction.
+- **Calibrate with the checkerboard when positions matter.** With the cameras
+  placed from a walking person instead, joint angles were unchanged (8.16°
+  either way) but the position error of the body doubled, from 50 to 98 mm.
+  Joint angles also tolerated extrinsics off by 5° or 100 mm; positions
+  tolerated about 1° and 50 mm.
 - **The pose estimator sets the rate.** The inverse kinematics takes a few
   milliseconds per frame; the estimator takes most of the rest.
 - **Keep the moving-horizon inverse kinematics.** It was 1.4° more accurate

@@ -4,7 +4,7 @@
 
 **Blocked by:** 14, 16
 
-**Status:** ready-for-agent
+**Status:** done (2026-11-15): `scripts/python/paper/opencap_calibration.py`, tables in `docs/research/calibration-opencap.md`, walking session only (findings 0f).
 
-- [ ] Extrinsic differences reported
-- [ ] Downstream joint-angle and marker errors under both calibrations
+- [x] Extrinsic differences reported
+- [x] Downstream joint-angle and marker errors under both calibrations

@@ -4,9 +4,9 @@
 
 **Blocked by:** 07, 14
 
-**Status:** ready-for-agent
+**Status:** done (2026-11-15): `scripts/python/paper/calibration_eval.py`, tables in `docs/research/calibration-comfi.md`, decision in findings 0f (no method change).
 
-- [ ] Geometric errors per camera pair with protocol
-- [ ] Downstream errors versus reference calibration
-- [ ] Extrinsic perturbation sensitivity
-- [ ] Written decision on a method change
+- [x] Geometric errors per camera pair with protocol
+- [x] Downstream errors versus reference calibration
+- [x] Extrinsic perturbation sensitivity
+- [x] Written decision on a method change

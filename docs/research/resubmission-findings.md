@@ -272,6 +272,56 @@ Workstation (RTX 4500 Ada, 32 cores, idle), frames released at the camera rate, 
 - **COMFI timestamps**, 108 trials, 265,037 frames per camera: mean interval 25.07 ms. The timestamps are arrival times at the recording computer, not exposure times, and arrivals are bursty, so dropped frames can only be bounded: between 0.29 % (frames missing against 40 Hz) and 1.4 to 2.5 % (intervals longer than 1.5 periods, longest 83 ms, usually followed by shorter ones). The four cameras' times within a frame differ by 17.1 ms (median), 23.9 ms (95th percentile) and 27.8 ms (99th), 69 ms at most: the software synchronisation between webcams is about one camera period. OpenCap's videos carry no acquisition timestamps.
 - The laptop (RTX 3050 Ti) and the RTX 4070 desktop remain to be measured by the author with the same procedure.
 
+## 0f. Calibration (tickets 14, 15, 17), 2026-11-15
+
+Full tables: `docs/research/calibration-comfi.md`, `docs/research/calibration-opencap.md`; scratch in `/root/workspace/oof/t15` and `t17`.
+
+**In the toolbox.** Checkerboard, wand and human-pose calibration are now part of RT-COSMIK (`rtcosmik.calibration`, `scripts/python/calibration/`); the separate repository is no longer needed.
+
+**Method.** The human-pose calibration registers each camera's metric 3D landmarks rigidly onto the reference camera's, over a recording of one person walking. It replaces the essential-matrix method of the calibration repository: on the 18 circular walks the two are equally accurate, but on straight walks the essential matrix fails for the adjacent pair (6.0° and 340 mm against 0.66° and 42 mm). It needs no 2D keypoints and no stature. A recording in which the body centre stays within 0.5 m is refused: none of the 36 walks, 102 of the 108 evaluation-task recordings.
+
+**Protocol (COMFI).** For each of the 18 participants, NLF with the participant's out-of-fold map on the CircularWalking recording (2,100 to 3,600 frames, not an evaluation task), cameras 0, 2, 4, 6, camera 0 as reference. Errors are those of each camera's pose relative to camera 0 against the dataset calibration. The six evaluation tasks are then replayed from the recorded NLF output with these extrinsics; camera 0 keeps its dataset world pose, so the comparison isolates the error between cameras.
+
+| Pair | Baseline | Rotation, median (quartiles; max) | Camera position | Baseline length |
+|---|---|---|---|---|
+| Adjacent (camera 2), n = 18 | 0.81 m | 0.84° (0.62, 1.27; 1.99) | 40 mm (29, 58; 113) | 4.3 % |
+| Opposite (cameras 4, 6), n = 36 | 5.34 m | 1.58° (0.92, 2.15; 3.62) | 195 mm (128, 239; 317) | 2.9 % |
+
+**Downstream (COMFI, 108 trials).**
+
+| Calibration | Joint angles | Markers | Hand-to-robot distance, SD (left, right) |
+|---|---|---|---|
+| Dataset | 8.16° | 50 mm | 38, 33 mm |
+| Human pose | 8.16° (−0.004°; largest participant difference 0.03°) | 98 mm | 52, 48 mm |
+
+- Joint angles do not depend on the calibration. Positions do: the error doubles, to the level of one camera or two cameras on the same side (115 and 104 mm). Registering every view onto the reference camera makes the views agree at that camera's own estimate, so its depth bias is no longer averaged out by the opposite cameras.
+- At 300 mm the hand-distance check keeps under 0.3 % of missed frames; false alarms on the left hand go from 8.6 % to 12.0 %.
+- The essential-matrix method gives the same positions (99 mm); with the scale set from stature, 71 mm on average but 144 mm for the worst participant.
+
+**Sensitivity to extrinsic errors (COMFI, 108 trials, cameras 2, 4, 6 perturbed in random directions, seeded per trial).**
+
+| Perturbation | Joint angles | Markers |
+|---|---|---|
+| none | 8.16° | 50.0 mm |
+| rotation 0.5°, 1°, 2°, 5° | 8.16° throughout | 50.5, 52.6, 59.0, 93.6 mm |
+| shift 10, 20, 50, 100 mm | 8.16° throughout | 50.3, 50.5, 53.9, 62.9 mm |
+
+Joint angles change by at most 0.02° for any participant. Positions tolerate 1° and 50 mm (under 4 mm of extra error); hand-distance SD stays within 2 mm of the unperturbed value up to 1° and 20 mm.
+
+**OpenCap (ticket 17).** The dataset calibration is a checkerboard, so the OpenCap results of section 0c already are results under a deployment calibration. Human-pose calibration was computed for each walking trial from the subject's five other walking clips (about 430 frames, 7 s), nine subjects. The clips cover a short stretch (travel 0.43 to 0.50 m), below the 0.5 m rule, which was lifted for this measurement; the squat, sit-to-stand and most drop-jump trials are refused.
+
+| | Checkerboard | Human pose |
+|---|---|---|
+| Extrinsics relative to Cam0 (median over subjects) | reference | 2.0° to 4.0°, 106 to 344 mm on baselines of 1.5 to 6.0 m |
+| Walking, 5 cameras: joint angles | 7.45° | 7.47° |
+| Walking, 3 cameras | 8.01° | 8.04° |
+| Walking, 2 cameras | 7.95° | 7.98° |
+| Walking, 5 cameras: markers | 53.5 mm | 175 mm (62 mm with the frame refitted) |
+
+Markers on OpenCap are compared through one rigid transform per session to the mocap frame; with the transform fitted under the checkerboard calibration the human-pose calibration shows its global offset, with the transform refitted it shows what is left (62 mm against 53.5).
+
+**Decision (story 36).** No change of method. The cost on joint angles is nil on both datasets, and the cost on positions comes from the monocular depth bias of the reference view, which no calibration from the same landmarks removes (the 2D-based alternative gives the same positions). For the paper: human-pose calibration is validated for joint angles and ergonomic scoring; position-critical uses (robot distances) need the checkerboard calibration, whose pipeline results are those of OpenCap. Not validated: the checkerboard and wand procedure on COMFI itself (no checkerboard images of that rig exist, and no new recordings are made).
+
 ## 1. Headline
 
 | Configuration | Causal | Aligned |
@@ -417,5 +467,5 @@ Markers read from the stored meshes at each fold's map. Camera-0 meshes are not 
 
 - NLF arms by replay: camera configurations, NLF-2D triangulation, MHE weights (ticket 08); 1€ filter (09); fusion validation, including whether NLF's uncertainty is reliable (10).
 - Arm-level statistics (ticket 11 code is ready; it needs the NLF arms of ticket 08).
-- Calibration in the toolbox, human-pose calibration on COMFI and OpenCap (14 to 17); toolbox simplification (18); sustained timing (19).
+- Toolbox simplification (18). Calibration (14, 15, 17) is in section 0f, timing (19) in 0e.
 - To confirm with the COMFI authors: how COMFI synchronizes mocap and video in hardware.

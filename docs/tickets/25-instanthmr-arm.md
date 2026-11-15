@@ -4,7 +4,7 @@
 
 **Blocked by:** 24
 
-**Status:** ready-for-agent
+**Status:** dropped (2026-11-15, author's decision): no accuracy or pronation gain over NLF-S, see the findings.
 
 - [ ] Six fold maps fitted on its mesh, guarded like the NLF and FastSAM-3D maps
 - [ ] Out-of-fold pass on the 108 trials, scored like the other arms and included in the statistics

@@ -314,3 +314,5 @@ and what differs from COMFI in `settings.opencap`. Method and results:
 ## Timing
 
 `sustained_timing.py` times every pipeline stage on recorded video released at the camera rate, the two IK solvers, and reads the COMFI timestamp files; `timing_report.py` writes the report. Procedure: `docs/research/timing.md`.
+
+`calibration_eval.py` evaluates the human-pose calibration on COMFI (extrinsics against the dataset calibration, the evaluation tasks replayed under it and under perturbed extrinsics); `opencap_calibration.py` compares it with OpenCap's checkerboard calibration on the walking trials. Results: `docs/research/calibration-comfi.md`, `docs/research/calibration-opencap.md`.

@@ -115,6 +115,7 @@ def score(dataset, evaluation, out):
     frames = json.loads((evaluation / "results" / "session_frames.json").read_text())
     rows = []
     for subject in oc.SUBJECTS:
+        own = opencap_report.session_frames(dataset, out, subject, references=evaluation)
         for trial in oc.trials(dataset / subject):
             reference = evaluation / "runs" / subject / trial.name / scoring.REFERENCE_TAG
             for tag in oc.ARMS:
@@ -128,7 +129,11 @@ def score(dataset, evaluation, out):
                 row, _ = scoring.score_trial(
                     run, reference, settings.paper["clock_offset"], unscored=oc.UNSCORED,
                     max_lag=max_lag, frames=window, marker_frame=(frame["R"], frame["t"]))
-                rows.append(dict(arm=tag, subject=subject, trial=trial.name, **row))
+                refitted, _ = scoring.score_trial(
+                    run, reference, settings.paper["clock_offset"], unscored=oc.UNSCORED,
+                    max_lag=max_lag, frames=window, marker_frame=own[trial.session])
+                rows.append(dict(arm=tag, subject=subject, trial=trial.name, **row,
+                                 refitted_marker_mm=refitted["causal_marker_mm"]))
     pd.DataFrame(rows).to_csv(out / "trials.csv", index=False)
 
 
@@ -158,13 +163,17 @@ def report(evaluation, out):
                      f"{g.travel_m.min():.2f} to {g.travel_m.max():.2f} |")
     lines += ["", "## Walking trials under both calibrations (mean over subjects)", "",
               "| Arm | Subjects | Trials | Joint angles, board (deg) | human (deg) | "
-              "Markers, board (mm) | human (mm) |", "|---|---|---|---|---|---|---|"]
+              "Markers, board (mm) | human (mm) | human, frame refitted (mm) |",
+              "|---|---|---|---|---|---|---|---|"]
     for arm, g in both.groupby("arm"):
         s = g.groupby("subject").mean(numeric_only=True)
         lines.append(f"| {arm} | {len(s)} | {len(g)} | {s.causal_rmse_mean_board.mean():.2f} | "
                      f"{s.causal_rmse_mean_human.mean():.2f} | "
                      f"{s.causal_marker_mm_board.mean():.1f} | "
-                     f"{s.causal_marker_mm_human.mean():.1f} |")
+                     f"{s.causal_marker_mm_human.mean():.1f} | {s.refitted_marker_mm.mean():.1f} |")
+    lines += ["", "Markers are compared in the mocap frame through one rigid transform per session, "
+              "fitted on the five-camera arm: under the checkerboard calibration, or refitted "
+              "under the human-pose calibration (last column)."]
     (out / "calibration.md").write_text("\n".join(lines) + "\n")
     print("\n".join(lines))
 

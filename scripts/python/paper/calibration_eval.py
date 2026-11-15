@@ -7,7 +7,7 @@ Stages, each resumable, all under ``--out``:
     calibrate  extrinsics from the circular walk -> cam_params/, geometry.csv, recordings.csv
     replay     the six evaluation tasks under that calibration -> runs/, results/
     perturb    the same tasks under perturbed dataset extrinsics -> results/
-    report     calibration.md
+    report     calibration.md (--baseline, --baseline-hand)
 
     python3 scripts/python/paper/calibration_eval.py extract --out /root/workspace/oof/t15
 """
@@ -208,18 +208,84 @@ def replay(out, views, tags, workers):
         handle.close()
 
 
+def _by_participant(frame, columns):
+    return frame.groupby("participant")[columns].mean()
+
+
+def report(out, baseline, baseline_hand):
+    """calibration.md: geometry, refusals, and errors under each calibration."""
+    import pandas as pd
+    geometry = pd.read_csv(out / "geometry.csv")
+    recordings = pd.read_csv(out / "recordings.csv")
+    geometry["pair"] = np.where(geometry.camera == 2, "adjacent", "opposite")
+    lines = ["# Human-pose calibration on COMFI", "",
+             "## Extrinsics against the dataset calibration (median, quartiles, maximum)", "",
+             "| Recording | Pair | Cameras | Baseline (m) | Rotation (deg) | Position (mm) | "
+             "Length (%) |", "|---|---|---|---|---|---|---|"]
+
+    def spread(values):
+        q1, q2, q3 = np.percentile(values, [25, 50, 75])
+        return f"{q2:.2f} ({q1:.2f}, {q3:.2f}; {np.max(values):.2f})"
+
+    for (task, pair), g in geometry[geometry.task.isin(WALKS)].groupby(["task", "pair"]):
+        lines.append(f"| {task} | {pair} | {len(g)} | {g.baseline_m.median():.2f} | "
+                     f"{spread(g.rotation_deg)} | {spread(g.position_mm)} | "
+                     f"{spread(g.length_pct.abs())} |")
+    lines += ["", "## Recordings refused", "", "| Recording | Trials | Refused | Travel (m) |",
+              "|---|---|---|---|"]
+    for task, g in recordings.groupby("task"):
+        lines.append(f"| {task} | {len(g)} | {(g.refused == 'yes').sum()} | "
+                     f"{g.travel_m.min():.2f} to {g.travel_m.max():.2f} |")
+
+    columns = ["causal_rmse_mean", "causal_marker_mm"]
+    keys = ["participant", "task"]
+    reference = pd.read_csv(baseline)
+    lines += ["", "## Evaluation tasks under each calibration (mean over participants)", "",
+              "| Calibration | Trials | Joint angles (deg) | Difference (deg, mean; largest "
+              "participant) | Markers (mm) | Worst participant (mm) |", "|---|---|---|---|---|---|"]
+    rows = [("dataset", reference)] + [(tag, pd.read_csv(out / "results" / f"{tag}.csv"))
+                                       for tag in [HUMAN] + list(PERTURBATIONS)]
+    for tag, frame in rows:
+        both = frame[frame.status == "ok"].merge(reference, on=keys, suffixes=("", "_ref"))
+        mean = _by_participant(both, columns + [c + "_ref" for c in columns])
+        difference = mean.causal_rmse_mean - mean.causal_rmse_mean_ref
+        lines.append(f"| {tag} | {len(both)} | {mean.causal_rmse_mean.mean():.2f} | "
+                     f"{difference.mean():+.3f}; {difference.abs().max():.2f} | "
+                     f"{mean.causal_marker_mm.mean():.1f} | {mean.causal_marker_mm.max():.0f} |")
+
+    hands = [pd.read_csv(f) for f in (baseline_hand, out / "hand" / "pooled.csv") if f.exists()]
+    if hands:
+        hand = pd.concat(hands)
+        hand = hand[hand.task == "all"]
+        lines += ["", "## Hand-to-robot distance on the robot tasks", "",
+                  "| Calibration | Hand | Trials | Bias (mm) | SD (mm) | 95th pct. of abs. error "
+                  "(mm) | Missed at 300 mm (%) | False alarms at 300 mm (%) |",
+                  "|---|---|---|---|---|---|---|---|"]
+        for _, r in hand.iterrows():
+            lines.append(f"| {r.arm} | {r.hand} | {r.trials} | {r.causal_bias_mm:+.1f} | "
+                         f"{r.causal_sd_mm:.1f} | {r.causal_abs_p95_mm:.1f} | "
+                         f"{r.causal_300mm_missed_pct:.2f} | "
+                         f"{r.causal_300mm_false_alarm_pct:.2f} |")
+    (out / "calibration.md").write_text("\n".join(lines) + "\n")
+    print("\n".join(lines))
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__,
                                      formatter_class=argparse.RawDescriptionHelpFormatter)
-    parser.add_argument("stage", choices=["extract", "calibrate", "replay", "perturb"])
+    parser.add_argument("stage", choices=["extract", "calibrate", "replay", "perturb", "report"])
     parser.add_argument("--out", type=Path, required=True)
     parser.add_argument("--views", type=Path, help="recorded views of the evaluation trials")
+    parser.add_argument("--baseline", type=Path, help="summary of the arm under the dataset calibration")
+    parser.add_argument("--baseline-hand", type=Path, help="its pooled hand-distance table")
     parser.add_argument("--workers", type=int, default=8)
     args = parser.parse_args()
     if args.stage == "extract":
         extract(args.out)
     elif args.stage == "calibrate":
         calibrate(args.out, args.views)
+    elif args.stage == "report":
+        report(args.out, args.baseline, args.baseline_hand)
     elif args.stage == "replay":
         replay(args.out, args.views, [HUMAN], args.workers)
     else:
