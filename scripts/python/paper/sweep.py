@@ -276,10 +276,11 @@ def run_mocap(dataset, participant, task, cameras, out_dir, settings,
     root = Path(dataset)
     meta = yaml.safe_load((root / "metadata" / f"{participant}.yaml").read_text())
     source = MocapMarkerSource(root / "mocap" / "aligned" / participant / task,
-                               settings.marker_names, head_raise=head_raise(participant))
+                               settings.marker_names, raise_m=head_raise(participant))
     solver = HumanSolver(settings, gender=meta["gender"][0], height=meta["height"],
                          weight=meta["weight"], logger=logging.getLogger("solve"))
-    _start(out_dir, settings, "mocap", dataset, participant, task, cameras)
+    _start(out_dir, settings, "mocap", dataset, participant, task, cameras,
+           head_raise_m=head_raise(participant))
     out_dir.mkdir(parents=True, exist_ok=True)
     saver = CSVSaver(str(out_dir),
                      markers_header=["Frame_0"] + list(settings.marker_names),

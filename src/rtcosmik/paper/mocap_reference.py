@@ -46,9 +46,7 @@ HEAD_DIRECT = {"REar": "RHD", "LEar": "LHD"}
 #: is on it but below the top of the head, which tilts the axis forward.
 HEAD_DERIVED = "Head"
 
-#: The model's Head is the top of the head, above the band: the centroid is raised
-#: along the band's normal by the distance to the NLF head-top landmark, measured
-#: on each fold's fitting participants (scripts/python/paper/fit_head_raise.py).
+#: Height of Head above the band's centroid, per fold (scripts/python/paper/fit_head_raise.py).
 HEAD_RAISE_M = (0.0793, 0.0773, 0.0834, 0.0793, 0.0806, 0.0791)
 
 MM_TO_M = 1e-3
@@ -60,7 +58,20 @@ def head_raise(participant):
     return HEAD_RAISE_M[fold_of(participant)]
 
 
-def load_mocap_markers(mocap_dir, marker_names, head_raise=0.0):
+def fold_raises(heights):
+    """Per fold, the mean of ``heights`` ({participant: metres}) over its fitting participants."""
+    from rtcosmik.folds import FOLDS, fitting_participants
+    return tuple(float(np.mean([heights[p] for p in fitting_participants(fold)]))
+                 for fold in range(len(FOLDS)))
+
+
+def band_up(band):
+    """Unit normal(s) of the head band towards the top of the head; ``band`` maps HEAD_BAND names to xyz."""
+    up = np.cross(np.subtract(band["FHD"], band["BHD"]), np.subtract(band["LHD"], band["RHD"]))
+    return up / np.linalg.norm(up, axis=-1, keepdims=True)
+
+
+def load_mocap_markers(mocap_dir, marker_names, raise_m=0.0):
     """Read one trial's mocap markers, named and scaled as the pipeline wants.
 
     COMFI writes ``<NAME>_X[mm]`` columns in millimetres; the pipeline works in
@@ -112,10 +123,8 @@ def load_mocap_markers(mocap_dir, marker_names, head_raise=0.0):
                 continue
             data[f, m, :] = [value(row, c) for c in axes]
         for m in derived:
-            front, back, left, right = ([value(row, c) for c in band[n]] for n in HEAD_BAND)
-            up = np.cross(np.subtract(front, back), np.subtract(left, right))
-            data[f, m, :] = (np.mean([front, back, left, right], axis=0)
-                             + head_raise * up / np.linalg.norm(up))
+            xyz = {n: [value(row, c) for c in band[n]] for n in HEAD_BAND}
+            data[f, m, :] = np.mean(list(xyz.values()), axis=0) + raise_m * band_up(xyz)
     return len(body), wanted, data
 
 
@@ -127,9 +136,9 @@ class MocapMarkerSource:
     would make the reference something other than what the dataset recorded.
     """
 
-    def __init__(self, mocap_dir, marker_names, logger=None, head_raise=0.0):
+    def __init__(self, mocap_dir, marker_names, logger=None, raise_m=0.0):
         self.frames, self.names, self.data = load_mocap_markers(
-            mocap_dir, marker_names, head_raise)
+            mocap_dir, marker_names, raise_m)
         self.logger = logger or LOGGER
         missing = [n for n in marker_names if n not in self.names]
         if missing:

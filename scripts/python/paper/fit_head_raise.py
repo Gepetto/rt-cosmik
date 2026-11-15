@@ -18,8 +18,8 @@ sys.path.insert(0, str(REPO / "src"))
 import numpy as np
 import pandas as pd
 
-from rtcosmik.folds import FOLDS, PARTICIPANTS, fitting_participants
-from rtcosmik.paper.mocap_reference import HEAD_BAND
+from rtcosmik.folds import PARTICIPANTS
+from rtcosmik.paper.mocap_reference import HEAD_BAND, MM_TO_M, band_up, fold_raises
 
 
 def height(run_dir, mocap_dir):
@@ -28,12 +28,11 @@ def height(run_dir, mocap_dir):
     mocap = pd.read_csv(mocap_dir / "markers_trajectories.csv")
     frames = run["Frame_0"].to_numpy().astype(int)
     keep = frames < len(mocap)
-    band = {name: mocap[[f"{name}_{axis}[mm]" for axis in "XYZ"]].to_numpy()[frames[keep]] * 1e-3
+    band = {name: mocap[[f"{name}_{axis}[mm]" for axis in "XYZ"]].to_numpy()[frames[keep]] * MM_TO_M
             for name in HEAD_BAND}
-    up = np.cross(band["FHD"] - band["BHD"], band["LHD"] - band["RHD"])
-    up /= np.linalg.norm(up, axis=1, keepdims=True)
     head = run[["Head_x", "Head_y", "Head_z"]].to_numpy()[keep]
-    return float(np.nanmedian(((head - np.mean(list(band.values()), axis=0)) * up).sum(1)))
+    above = ((head - np.mean(list(band.values()), axis=0)) * band_up(band)).sum(1)
+    return float(np.nanmedian(above))
 
 
 def main():
@@ -43,15 +42,15 @@ def main():
     ap.add_argument("--arm", required=True)
     ap.add_argument("--dataset", type=Path, required=True)
     args = ap.parse_args()
-    per = {}
+    heights = {}
     for participant in PARTICIPANTS:
         trials = sorted((args.runs / participant).glob(f"*/{args.arm}"))
-        per[participant] = np.mean([height(t, args.dataset / "mocap" / "aligned" / participant
-                                           / t.parent.name) for t in trials])
-        print(f"{participant}: {1e3 * per[participant]:.0f} mm over {len(trials)} trials")
-    print("HEAD_RAISE_M = (" + ", ".join(
-        f"{np.mean([per[p] for p in fitting_participants(fold)]):.4f}"
-        for fold in range(len(FOLDS))) + ")")
+        if not trials:
+            raise FileNotFoundError(f"no {args.arm} run for {participant} in {args.runs}")
+        heights[participant] = np.mean([height(trial, args.dataset / "mocap" / "aligned" / participant
+                                               / trial.parent.name) for trial in trials])
+        print(f"{participant}: {1e3 * heights[participant]:.0f} mm over {len(trials)} trials")
+    print("HEAD_RAISE_M = (" + ", ".join(f"{value:.4f}" for value in fold_raises(heights)) + ")")
     return 0
 
 
