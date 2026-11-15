@@ -64,21 +64,22 @@ def register_pair(poses3d_a, poses3d_b):
     return R, T, float(np.median(residual))
 
 
-def calibrate(poses3d):
+def calibrate(poses3d, min_travel=MIN_TRAVEL):
     """Extrinsics of every camera relative to the first, from one recording.
 
     Args:
         poses3d: (F, C, J, 3) metric landmarks in each camera's own frame, NaN
             where a camera saw no one.
+        min_travel: least spread of the body centre accepted, in metres.
 
     Raises:
         DegenerateRecording: the person stayed in place, or too few frames are shared.
     """
     poses3d = np.asarray(poses3d, float)
     distance = travel(poses3d[:, 0])
-    if distance < MIN_TRAVEL:
+    if distance < min_travel:
         raise DegenerateRecording(
-            f"the person stayed within {distance:.2f} m (need {MIN_TRAVEL} m): record them "
+            f"the person stayed within {distance:.2f} m (need {min_travel} m): record them "
             f"walking across the area the cameras cover")
     poses, residuals = [(np.eye(3), np.zeros(3))], [0.0]
     for camera in range(1, poses3d.shape[1]):

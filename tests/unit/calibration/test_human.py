@@ -104,6 +104,11 @@ def test_a_person_who_stays_in_place_is_rejected():
         calibrate(observe(walk(np.zeros((240, 2)))))
 
 
+def test_the_travel_required_can_be_lowered():
+    result = calibrate(observe(walk(circuit() * 0.3)), min_travel=0.2)
+    assert errors(result.poses)[0].max() < 1e-4
+
+
 def test_too_few_shared_frames_are_rejected():
     poses3d = observe(walk(circuit()))
     poses3d[5:, 2] = np.nan

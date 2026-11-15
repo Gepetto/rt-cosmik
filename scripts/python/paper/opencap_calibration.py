@@ -76,7 +76,8 @@ def calibrate(dataset, evaluation, out):
                                      for t in walks if t.name != trial.name])
             for tag, cameras in oc.ARMS.items():
                 order = [cameras[0]] + [c for c in oc.CAMERAS if c != cameras[0]]
-                result = human.calibrate(others[:, order])
+                # The released clips cover a short stretch of each walk: measured, not refused.
+                result = human.calibrate(others[:, order], min_travel=0.0)
                 _write(out / "calibration" / subject / trial.name / tag, board_dir, cameras[0],
                        dict(zip(order, result.poses)))
                 if tag != "nlf_5cam":
@@ -88,6 +89,7 @@ def calibrate(dataset, evaluation, out):
                     errors = pose_errors(pose, (R.T @ R0, R.T @ (T0 - T)))
                     geometry.append(dict(subject=subject, trial=trial.name, camera=camera,
                                          frames=len(others),
+                                         travel_m=round(result.travel_m, 3),
                                          residual_mm=round(1e3 * residual, 1),
                                          **{k: round(v, 3) for k, v in errors.items()}))
     out.mkdir(parents=True, exist_ok=True)
