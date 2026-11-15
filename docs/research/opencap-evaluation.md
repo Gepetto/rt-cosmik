@@ -183,7 +183,7 @@ Causal RMSE, aligned RMSE (± SD over subjects) and mean signed error, in degree
 | Right_Ankle_Plantarflexion_Dorsiflexion | 6.1 ± 1.5 | 6.0 ± 1.4 | 1.7 | 6.9 ± 1.4 | 6.7 ± 1.4 | 1.4 | 6.7 ± 1.3 | 6.6 ± 1.3 | 1.4 |
 | Right_Ankle_Inversion_Eversion | 8.7 ± 1.9 | 8.7 ± 1.9 | 4.6 | 9.1 ± 2.1 | 9.1 ± 2.2 | 5.2 | 8.5 ± 2.0 | 8.6 ± 2.0 | 4.3 |
 
-- Forearm pronation: the estimate sits 28° from the reference on both sides, in every subject (SD of the RMSE over subjects 6° to 10°). The wrist landmarks are the two styloid vertices of the landmark map, fitted on COMFI's wrist markers; the calibration posture agrees between estimate and reference (66° to 68° against 68° to 69° on subject4), the offset appears in the dynamic trials. Not investigated further.
+- Forearm pronation: the estimate sits 28° from the reference on both sides. The twist between NLF's elbow and wrist landmarks is nearly constant (correlation with the mocap's below 0.3), so the estimated pronation stays at its calibration value (58° to 76° over subjects). The reference is calibrated at 36° to 53° in 8 of 9 subjects (69° on subject4) and stays near that value. The same holds on COMFI (pronation RMSE 27.9°), where the reference moves around the estimate's value so no constant offset shows. OpenCap's video angles have 16° to 22° of RMSE on pronation against its mocap angles.
 - Left ankle inversion carries an 11° offset, the right one 5°.
 
 ### 3.4 OpenCap's released angles against its own mocap angles
