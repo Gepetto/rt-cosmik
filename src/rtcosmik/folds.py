@@ -17,9 +17,17 @@ FOLDS = (
 
 assert sorted(p for fold in FOLDS for p in fold) == list(PARTICIPANTS)
 
+#: Participants of other datasets (OpenCap LabValidation, those with videos). No
+#: choice was fitted on them, so every fold's choices are out of fold for them;
+#: they take those of EXTERNAL_FOLD.
+EXTERNAL_PARTICIPANTS = tuple(f"subject{i}" for i in (2, 3, 4, 5, 7, 8, 9, 10, 11))
+EXTERNAL_FOLD = 0
+
 
 def fold_of(participant):
-    """Index of the fold holding ``participant``."""
+    """Index of the fold holding ``participant``, or whose choices an external one takes."""
+    if str(participant) in EXTERNAL_PARTICIPANTS:
+        return EXTERNAL_FOLD
     for index, fold in enumerate(FOLDS):
         if str(participant) in fold:
             return index

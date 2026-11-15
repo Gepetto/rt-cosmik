@@ -1104,7 +1104,7 @@ def apply_joint_locks(model, locked_joints):
     return model
 
 
-def mks_registration(model, mks_dict, gender='m', subject_height=1.80):
+def mks_registration(model, mks_dict, gender='m', subject_height=1.80, markers=None):
     """
     Registers marker frames to a Pinocchio model using a hardcoded marker->joint mapping.
 
@@ -1121,6 +1121,9 @@ def mks_registration(model, mks_dict, gender='m', subject_height=1.80):
     
     subject_height: float
         Height of the person in meters
+
+    markers: list, optional
+        Markers to register; the others in ``mks_dict`` only build the segment frames.
 
     Returns
     -------
@@ -1145,6 +1148,8 @@ def mks_registration(model, mks_dict, gender='m', subject_height=1.80):
             # frame with no data behind it; register_marker_frames applies the
             # same filter so the structural model keeps identical frame ids.
             if marker_name not in mks_local_positions:
+                continue
+            if markers is not None and marker_name not in markers:
                 continue
             # Get joint name from hardcoded mapping
             joint_name = MKS_COSMIK_2_JOINTS[marker_name]

@@ -200,6 +200,13 @@ class Settings:
             9120, 9002, 616, 6, 9929, 9448,
         ],
     })
+    # OpenCap LabValidation evaluation (rtcosmik.paper.opencap): what differs from COMFI.
+    opencap: dict = field(default_factory=lambda: {
+        "fs": 60, "width": 720, "height": 1280,   # native video rate, portrait images
+        "clock_offset": 0,                        # frames; the synced videos are taken as given
+        "max_lag_s": 0.5,                         # alignment search; a walking trial lasts 1.3 s
+        "marker_set": "parity",                   # the estimate's; the reference tracks "opencap_mocap"
+    })
     locked_joints: list = field(init=False)  # set from marker_set
 
     def __post_init__(self):
