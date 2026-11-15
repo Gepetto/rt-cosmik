@@ -1,6 +1,6 @@
 # Resubmission findings to discuss before rewriting the paper (ticket 21)
 
-State on 2026-11-13, with an update on 2026-11-14 (section 0). Every number is on COMFI, 18 participants, six tasks, 108 trials, four cameras (0, 2, 4, 6), out-of-fold landmark maps, participant mean ± SD unless stated. "Causal" error compares estimate and reference at the same frame after removing only the per-trial clock offset between mocap and video (2 or 3 frames). "Aligned" error first removes the lag estimated on knee flexion, as the submitted paper did.
+State on 2026-11-13, with updates on 2026-11-14 (section 0) and 2026-11-15 (section 0b, the current figures). Every number is on COMFI, 18 participants, six tasks, 108 trials, four cameras (0, 2, 4, 6), out-of-fold landmark maps, participant mean ± SD unless stated. "Causal" error compares estimate and reference at the same frame after removing only the per-trial clock offset between mocap and video (2 or 3 frames). "Aligned" error first removes the lag estimated on knee flexion, as the submitted paper did.
 
 Where the data are: runs in `/root/workspace/oof/runs/<id>/<task>/<arm>/`, tables in `results/oof/` of the main checkout and in `/root/workspace/oof/t11`, `t12`, `t13` (not in git).
 
@@ -105,6 +105,67 @@ By the rule recorded before these runs (no filter unless the 1-euro arm has lowe
 - Held-out participants (12), causal error, mean / inverse variance / median: clean 8.60 / 8.66 / 8.69°; views masked half the time 9.21 / 9.27 / 9.39°; a 1 m outlier on one limb of one view 11.64 / 11.63 / 8.90°.
 - The unweighted median is offered as an option (`settings.fusion = "median"`): about 0.1° worse on clean data, and it removes a gross outlier (−2.75°, p < 0.001). It gives nothing at 0.3 m or below. The uncertainty-weighted median is unusable (15 to 18°).
 - Limits: the outliers are synthetic; how often NLF produces such errors on real data was not measured; these p-values are unadjusted.
+
+## 0b. Update of 2026-11-15: every result with the tuned 1-euro filter
+
+The paper setting is now the 1-euro filter at 2 Hz at rest, beta 15 (commit `209511c`). Everything below was regenerated from that commit: 108 trials per arm, no solver failure, no dropped frame. These figures supersede section 0 wherever a figure there was produced with the 5 Hz Butterworth; the reference is unchanged. Runs in `/root/workspace/oof/runs27` (arms) and `runs26` (study variants), tables in `/root/workspace/oof/t27`.
+
+**Arms, causal, 18 participants.**
+
+| Arm | Cameras | Causal | Aligned | Marker error | Jitter |
+|---|---|---|---|---|---|
+| NLF-S, 3D fused (headline) | 0, 2, 4, 6 | 8.46° ± 0.84° | 8.46° | 52 mm | 0.15° |
+| NLF-S, 3D fused | 0, 4 (opposed) | 8.67° ± 0.88° | 8.66° | 59 mm | 0.19° |
+| NLF-S, 3D fused | 0, 2 (same side) | 8.98° ± 0.92° | 8.97° | 105 mm | 0.19° |
+| NLF-S, 3D fused | 0 | 9.30° ± 0.98° | 9.29° | 116 mm | 0.24° |
+| NLF-S, 2D triangulated | 0, 2, 4, 6 | 9.33° ± 0.99° | 9.32° | 70 mm | 0.22° |
+| NLF-S, 2D triangulated | 0, 2 | 12.84° ± 1.28° | 12.83° | 94 mm | 0.49° |
+| NLF-S, 2D triangulated | 0, 4 | 22.41° ± 8.34° | 22.43° | 102 mm | 0.28° |
+| mmpose and LSTM augmenter (submitted baseline) | 0, 2, 4, 6 | 12.57° ± 1.08° | 12.53° | 77 mm | 0.19° |
+| NLF-S, 3D fused | 2, 4, 6 | 8.66° ± 0.84° | 8.66° | 61 mm | 0.17° |
+| NLF-S, 3D fused | 2, 4 | 8.70° ± 0.85° | 8.69° | 54 mm | 0.19° |
+| NLF-S, 3D fused | 4, 6 | 9.33° ± 0.89° | 9.32° | 106 mm | 0.19° |
+| NLF-S, 3D fused | 2 | 9.35° ± 0.91° | 9.35° | 102 mm | 0.24° |
+| FastSAM-3D | 2, 4, 6 | 8.24° ± 1.08° | 8.23° | 55 mm | 0.15° |
+| FastSAM-3D | 2, 4 | 8.24° ± 1.06° | 8.21° | 47 mm | 0.17° |
+| FastSAM-3D | 4, 6 | 8.78° ± 1.08° | 8.81° | 92 mm | 0.16° |
+| FastSAM-3D | 2 | 8.97° ± 1.10° | 8.94° | 88 mm | 0.21° |
+
+- Causal and aligned error now coincide (lag 0.4 frame for the headline), so the paper needs one error figure, not two. Every arm gains what the Butterworth's lag cost, about 0.24°; the ranking of arms and the gaps between them are those of section 0.
+- Headline by task: Lifting 8.00°, Polishing 8.86°, Screwing 8.96°, SideOverhead 9.35°, RobotPolishing 7.73°, RobotWelding 7.88°.
+
+**IK, horizon, filter and weights** (four cameras, mean fusion):
+
+| Variant | Causal | Aligned | Lag (frames) | Jitter |
+|---|---|---|---|---|
+| MHE, horizon 7, tuned 1-euro (paper setting) | 8.46° ± 0.84° | 8.46° | 0.4 | 0.153° |
+| Per-frame IK, same filter | 10.05° ± 1.58° | 10.03° | 1.0 | 0.145° |
+| MHE, horizon 3 / 5 / 10 / 15 / 20 | 8.46 / 8.46 / 8.46 / 8.47 / 8.47° | 8.45 to 8.46° | 0.3 to 0.6 | 0.160 to 0.144° |
+| MHE, no filter | 8.45° | 8.46° | −0.4 | 0.279° |
+| MHE, 5 Hz Butterworth, order 4 (submitted) | 8.70° | 8.45° | 2.9 | 0.156° |
+| MHE, state weight 1e-4 / 1e-2 | 9.46° ± 1.51° / 11.99° ± 1.06° | | 0.3 / 0.6 | 0.161 / 0.132° |
+| MHE, control weight 1e-6 / 1e-4 | 8.46° / 8.46° | | 0.4 | 0.153° |
+
+- The three-way filter comparison for the paper: none 8.45°, jitter 0.279°; 5 Hz Butterworth 8.70°, jitter 0.156°, lag 2.9 frames; tuned 1-euro 8.46°, jitter 0.153°, lag 0.4 frame.
+- The 1-euro grid (20 points) is flat around the chosen point: causal error 8.46° to 8.84°, the worst being the slowest setting (0.5 Hz, beta 0.5; lag 3.8 frames).
+- Horizon length has no effect on accuracy with this filter (all within 0.01°); a longer horizon lowers jitter slightly.
+
+**Fusion rules:** mean 8.46°, inverse variance 8.57°, reprojection weights 8.94°, with symmetry refinement 9.59°.
+
+**Statistics**, on participant means, Holm within each family, equivalence at ±1°:
+
+- Arms (10). Proposed against mmpose: −4.11° [−4.68, −3.54], p < 0.001. 3D fusion against 2D triangulation, four cameras: −0.87° [−1.28, −0.45], p = 0.002. Camera ladder: 1 against 2 same-side +0.32°, 2 same-side against 4 +0.52°, 1 against 4 +0.84°, same-side against opposed pair +0.30°, all p ≤ 0.006. FastSAM-3D against NLF-S on cameras 2 / 4-6 / 2-4 / 2-4-6: −0.37° / −0.54° / −0.46° / −0.42°, none significant (Holm p = 0.27 each); equivalence within ±1° not established after correction (Holm p = 0.11 to 0.14).
+- IK and filter (14). MHE against per-frame IK: +1.59° [1.11, 2.07], p < 0.001, not equivalent. Every horizon equivalent to 7 (largest difference 0.009°). No filter: −0.007°, equivalent. 5 Hz Butterworth: +0.24° [0.22, 0.26], p < 0.001, equivalent within ±1°.
+- MHE weights (4). State weight 1e-4: +1.00° [0.56, 1.44], p = 0.002; 1e-2: +3.53°, p < 0.001; control weight: equivalent (differences below 0.003°).
+- Fusion against the mean (3). Inverse variance +0.11°, p = 1.0, equivalent; reprojection weights +0.48° [0.11, 0.84], p = 0.028, equivalent; with symmetry refinement +1.13° [0.66, 1.59], p < 0.001.
+
+No conclusion of section 0 changes.
+
+**REBA**, headline arm, causal (absolute / reference's neutral / own neutral): mean absolute error 1.05 / 0.89 / 0.70, same risk level 59 % / 70 % / 75 %, weighted kappa 0.47 / 0.62 / 0.71. High-risk frames rated lower, absolute angles: 45 % ± 21 % by participant, 56 % pooled. Within 0.02 of the Butterworth figures; the conclusions of section 5 stand.
+
+**Hand-to-robot distance**, headline arm, causal, all robot trials pooled: left hand bias −11 mm, SD 38 mm, 99th percentile of absolute error 134 mm; right hand +7 mm, 33 mm, 113 mm. Close frames missed at the 105 mm threshold: 42 % (left), 58 % (right); at 300 mm: below 0.1 % for both, with 8.6 % (left) and 0.3 % (right) false alarms. The open decision of section 6 is unchanged.
+
+**Not regenerated with the 1-euro filter:** the TensorRT and tiled-detection replays (interchangeable with TorchScript to 0.05° and 0.21° per trial with the Butterworth; the filter acts after inference) and the fusion-validation study of ticket 10 (it compares fusion rules under one common filter).
 
 ## 1. Headline
 
