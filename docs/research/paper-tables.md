@@ -85,7 +85,7 @@ Mean (SD) over the 18 participants; errors are causal (no time alignment). Produ
 |---|---|---|---|
 | MAE over whole trials | 0.71 | 1.00 | 7.6e-06 |
 | Weighted kappa | 0.70 | 0.57 | 7.6e-06 |
-| MAE at the peak posture | 0.77 | 1.19 | 0.0074 |
+| MAE at the peak posture | 0.77 | 1.19 | 0.0064 |
 
 ## Posture-only REBA at the peak posture picked on the estimate (own neutral posture)
 

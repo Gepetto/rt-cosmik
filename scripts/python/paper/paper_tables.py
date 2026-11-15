@@ -9,9 +9,12 @@ the runs behind it.
 """
 import argparse
 import json
+import sys
 from pathlib import Path
 
 import pandas as pd
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[3] / "src"))
 
 #: Arm folder -> (front end, cameras) as the paper names them.
 ARMS = {
@@ -110,7 +113,7 @@ def per_task(runs):
 
 def reba_tests(root):
     """Wilcoxon signed-rank tests of NLF-3D against RTMPose+LSTM on participant means."""
-    from scipy.stats import wilcoxon
+    from rtcosmik.paper.statistics import paired_difference
     rows = []
     whole, peak = {}, {}
     for arm in (HEADLINE, BASELINE):
@@ -124,7 +127,7 @@ def reba_tests(root):
                         ("Weighted kappa", whole[HEADLINE].risk_kappa, whole[BASELINE].risk_kappa),
                         ("MAE at the peak posture", peak[HEADLINE], peak[BASELINE])):
         a, b = a.align(b, join="inner")
-        rows.append([label, f"{a.mean():.2f}", f"{b.mean():.2f}", f"{wilcoxon(a, b).pvalue:.2g}"])
+        rows.append([label, f"{a.mean():.2f}", f"{b.mean():.2f}", f"{paired_difference((a - b).to_numpy())['p']:.2g}"])
     return markdown(["Quantity (own neutral posture)", "NLF-3D", "RTMPose+LSTM", "p"], rows)
 
 
