@@ -221,6 +221,23 @@ def _world_landmarks(poses, cam_dir, cameras):
     return np.stack(world, 1)
 
 
+def _without_far_views(views_path, cam_dir, cameras, settings):
+    """``replay_markers`` edit that blanks the views holding someone else, and their share per camera.
+
+    The five recorded cameras decide, whichever of them the arm replays.
+    """
+    data = np.load(views_path)
+    recorded = [int(c) for c in data["cameras"]]
+    far = oc.far_views(_world_landmarks(data["poses3d"].astype(float), cam_dir, recorded),
+                       settings.opencap["far_view_m"])[:, [recorded.index(c) for c in cameras]]
+
+    def edit(keypoints, poses, sigma):
+        keypoints, poses, sigma = keypoints.copy(), poses.copy(), sigma.copy()
+        keypoints[far], poses[far], sigma[far] = np.nan, np.nan, np.nan
+        return keypoints, poses, sigma
+    return edit, far.mean(0)
+
+
 def sync_subject(job):
     """Synchronise the cameras of each dynamic trial and set its clock on the mocap's.
 
@@ -245,8 +262,10 @@ def sync_subject(job):
         cameras = [int(c) for c in data["cameras"]]
         world = _world_landmarks(data["poses3d"].astype(float),
                                  _calibration(dataset, out, subject, trial.session), cameras)
-        # Offsets from the clip itself; the median keeps a bystander seen by one camera out of the clock.
-        offsets = oc.camera_offsets(world[margin:margin + clip["clip_frames"]],
+        # Offsets from the clip itself, without the views that hold a bystander;
+        # the median keeps one out of the clock too.
+        on_subject = np.where(oc.far_views(world, choice["far_view_m"])[:, :, None, None], np.nan, world)
+        offsets = oc.camera_offsets(on_subject[margin:margin + clip["clip_frames"]],
                                     choice["max_camera_lag_frames"])
         world, first = oc.align_cameras(world, offsets)
         with np.errstate(all="ignore"):
@@ -267,7 +286,7 @@ def sync_subject(job):
         synced.with_suffix(".json").write_text(json.dumps(
             {"camera_offsets_frames": offsets.tolist(), "clock_offset_s": offset,
              "clock_offset_from_nominal_s": offset - nominal, "residual_mm": residual * 1000,
-             "far_views_share": oc.far_views(world[keep]).tolist(),
+             "far_views_share": oc.far_views(world[keep], choice["far_view_m"]).mean(0).tolist(),
              "frames": int(keep.sum()), "mocap_s": float(mocap_times[-1] - mocap_times[0])}))
         done += 1
     return subject, done
@@ -287,8 +306,10 @@ def replay_arm(job):
     todo = [t for t in oc.trials(subject_dir) if not _done(out / "runs" / subject / t.name / tag)]
     if not todo:
         return subject, tag, 0
-    static = replay_markers(_views(out, subject, oc.STATIC), _calibration(
-        dataset, out, subject, oc.session_of(subject_dir, oc.STATIC)), cameras, fusion=settings.fusion)
+    static_dir = _calibration(dataset, out, subject, oc.session_of(subject_dir, oc.STATIC))
+    edit, _ = _without_far_views(_views(out, subject, oc.STATIC), static_dir, cameras, settings)
+    static = replay_markers(_views(out, subject, oc.STATIC), static_dir, cameras,
+                            fusion=settings.fusion, edit=edit)
     posture = np.median([p3d for _, p3d in static], axis=0)
     solver = HumanSolver(settings, **_anthropometry(subject_dir), logger=logging.getLogger("solve"))
     q = solver.calibrate(dict(zip(settings.marker_names, posture)))
@@ -297,15 +318,17 @@ def replay_arm(job):
         run_dir = out / "runs" / subject / trial.name / tag
         views = _views(out, subject, trial.name)
         landmark_map = checked_recording(views, subject, settings)
+        cam_dir = _calibration(dataset, out, subject, trial.session)
+        edit, far = _without_far_views(views, cam_dir, cameras, settings)
         start_run(run_dir, settings, dict(name="nlf", tag=tag, cameras=cameras, participant=subject,
                                           task=trial.name, dataset=str(dataset), views=str(views),
-                                          reconstruction="fuse3d", calibration=oc.STATIC),
+                                          reconstruction="fuse3d", calibration=oc.STATIC,
+                                          far_views_share=far.tolist()),
                   repo=REPO, landmark_map=landmark_map, estimator=recorded_estimator(views))
         marker_filter = MarkerFilter(len(settings.marker_names), settings)
         frames = [(frame, dict(zip(settings.marker_names, marker_filter(p3d))))
-                  for frame, p3d in replay_markers(
-                      views, _calibration(dataset, out, subject, trial.session),
-                      cameras, fusion=settings.fusion)]
+                  for frame, p3d in replay_markers(views, cam_dir, cameras,
+                                                   fusion=settings.fusion, edit=edit)]
         _solve_trial(solver, frames, run_dir, settings)
     return subject, tag, len(todo)
 

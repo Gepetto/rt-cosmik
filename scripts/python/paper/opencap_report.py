@@ -101,9 +101,7 @@ def score(dataset, out, subjects):
                                    camera_offset_span=int(np.ptp(sync["camera_offsets_frames"])),
                                    clock_offset_s=sync["clock_offset_from_nominal_s"],
                                    sync_residual_mm=sync["residual_mm"],
-                                   far_views_pct=100 * float(np.mean(sync["far_views_share"])),
-                                   far_views_pct_arm=100 * float(np.mean(
-                                       [sync["far_views_share"][c] for c in oc.ARMS[tag]])),
+                                   far_views_pct=100 * float(np.mean(info["arm"]["far_views_share"])),
                                    window_first=window[0], window_frames=window[1] - window[0] + 1,
                                    clip_frames=len(times))
                     trials.append({**key, **row})
@@ -289,21 +287,22 @@ def tables(trials, dofs, rel, agreement):
         a = window[window.arm == tag]
         rows.append([tag, f"{a.early_mae_deg.mean():.2f}", f"{a.later_mae_deg.mean():.2f}",
                      f"{a.start_residual_mm.mean():.1f}", f"{a.start_residual_mm.max():.1f}",
-                     f"{a.marker_lag.mean():.2f} ({a.marker_lag.min()} to {a.marker_lag.max()})"])
+                     f"{a.marker_lag.mean():.2f} ({a.marker_lag.min()} to {a.marker_lag.max()})",
+                     f"{a.far_views_pct.mean():.2f}", int((a.far_views_pct > 0).sum()),
+                     int((a.far_views_pct > 99 / len(oc.ARMS[tag])).sum())])
     sync = window[window.arm == next(iter(oc.ARMS))]
     sync_rows = [[name, len(g), f"{g.camera_offset_span.mean():.1f}", int(g.camera_offset_span.max()),
                   f"{g.clock_offset_s.mean():+.3f}", f"{g.clock_offset_s.min():+.3f} to {g.clock_offset_s.max():+.3f}",
-                  f"{g.sync_residual_mm.mean():.0f}", f"{(g.window_frames / g.clip_frames).mean():.2f}",
-                  f"{g.far_views_pct.mean():.2f}", int((g.far_views_pct > 0).sum())]
+                  f"{g.sync_residual_mm.mean():.0f}", f"{(g.window_frames / g.clip_frames).mean():.2f}"]
                  for name, g in sync.groupby("activity")]
     out += [f"### Start of a trial (first {EARLY_S} s of the window against the rest)", "",
             _markdown(rows, ["arm", "MAE first frames deg", "MAE later deg", "start residual mm, mean",
-                             "start residual mm, max", "marker lag frames, mean (range)"]), "",
+                             "start residual mm, max", "marker lag frames, mean (range)",
+                             "views dropped as far %", "trials with any", "trials with a camera dropped throughout"]), "",
             "### Synchronisation of the released clips", "",
             _markdown(sync_rows, ["activity", "trials", "camera offset span frames, mean", "max",
                                   "clock offset from the clip's nominal start s, mean", "range",
-                                  "residual after rigid fit mm", "scored share of the synchronised frames",
-                                  "views far from the others %", "trials with any"]), ""]
+                                  "residual after rigid fit mm", "scored share of the synchronised frames"]), ""]
     return "\n".join(out)
 
 

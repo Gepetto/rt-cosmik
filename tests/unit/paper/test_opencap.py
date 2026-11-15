@@ -84,6 +84,17 @@ def test_camera_offsets_are_recovered_despite_a_constant_bias_per_camera_and_gap
     assert list(offsets - offsets[1]) == true
 
 
+def test_camera_without_landmarks_does_not_disturb_the_offsets_of_the_others():
+    _, track = _trajectory(260, 6)
+    true = [4, 0, -7]
+    views = np.stack([track[20 + o:220 + o] for o in true] + [np.full((200, 6, 3), np.nan)], 1)
+
+    offsets = oc.camera_offsets(views, max_lag=20)
+
+    assert list(offsets[:3] - offsets[1]) == true
+    assert offsets.min() <= offsets[3] <= offsets.max()
+
+
 def test_aligned_cameras_show_the_same_instant_on_each_row():
     instants = np.arange(100.0)
     offsets = np.array([4, 0, -7])
@@ -100,7 +111,7 @@ def test_view_holding_someone_else_or_nobody_is_counted_as_far():
     views = np.zeros((10, 3, 4, 3))
     views[:4, 1] += [2.0, 0.0, 0.0]            # a bystander in camera 1 for 4 rows
     views[8:, 2] = np.nan                      # nobody in camera 2 for 2 rows
-    np.testing.assert_allclose(oc.far_views(views), [0.0, 0.4, 0.2])
+    np.testing.assert_allclose(oc.far_views(views, distance=1.0).mean(0), [0.0, 0.4, 0.2])
 
 
 def test_clock_offset_places_the_video_rows_on_the_mocap_clock():

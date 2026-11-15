@@ -224,6 +224,9 @@ class DefaultSettings:
         "sync_margin_frames": (60, 24),           # read before and after each clip
         "max_camera_lag_frames": 14,              # key frames are 12 frames apart
         "clock_search_s": (-0.5, 1.0),            # around the clip's nominal start
+        # A view whose landmarks sit this far (m) from the cameras' median holds a
+        # bystander: it is replayed as a view that saw nobody.
+        "far_view_m": 1.0,
         "marker_set": "parity",                   # the estimate's; the reference tracks "opencap_mocap"
     })
     locked_joints: list = field(init=False)

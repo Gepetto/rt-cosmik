@@ -245,8 +245,11 @@ def read_frames(path, first, count, size_wh):
 
 
 def _pair_lag(a, b, max_lag):
-    """Rows ``b`` is ahead of ``a`` by: ``a[r]`` and ``b[r + lag]`` show the same instant."""
-    best, cost = 0, np.inf
+    """Rows ``b`` is ahead of ``a`` by: ``a[r]`` and ``b[r + lag]`` show the same instant.
+
+    None when the two share too few rows to tell.
+    """
+    best, cost = None, np.inf
     for lag in range(-max_lag, max_lag + 1):
         x = a[max(-lag, 0):len(a) - max(lag, 0)]
         y = b[max(lag, 0):len(b) - max(-lag, 0)]
@@ -264,19 +267,26 @@ def camera_offsets(views, max_lag):
     """Whole frames each camera's rows are late by, from their world-frame landmarks (F, C, M, 3).
 
     Camera ``c``'s row ``r`` shows instant ``r + offsets[c]``. Every pair of
-    cameras is compared, and the offsets are the least-squares fit to the pair lags.
+    cameras is compared, and the offsets are the least-squares fit to the pair
+    lags. A camera with no landmarks takes the others' median offset.
     """
     cameras = views.shape[1]
-    rows, lags = [], []
+    rows, lags, seen = [], [], set()
     for a in range(cameras):
         for b in range(a + 1, cameras):
+            lag = _pair_lag(views[:, a], views[:, b], max_lag)
+            if lag is None:
+                continue
             row = np.zeros(cameras)
             row[a], row[b] = 1, -1
             rows.append(row)
-            lags.append(_pair_lag(views[:, a], views[:, b], max_lag))
+            lags.append(lag)
+            seen |= {a, b}
     rows.append(np.ones(cameras))
     lags.append(0)
     offsets = np.linalg.lstsq(np.array(rows), np.array(lags, float), rcond=None)[0]
+    seen = sorted(seen)
+    offsets[[c for c in range(cameras) if c not in seen]] = np.median(offsets[seen]) if seen else 0
     return np.round(offsets - offsets.min()).astype(int)
 
 
@@ -293,15 +303,17 @@ def align_cameras(array, offsets):
     return aligned, int(offsets.max())
 
 
-def far_views(views, distance=1.0):
-    """Per camera, the share of rows whose landmarks' centre is ``distance`` (m) from the cameras' median.
+def far_views(views, distance):
+    """``(F, C)`` mask of the views whose landmarks' centre is ``distance`` (m) from the cameras' median.
 
-    Such a view holds someone else, or nobody.
+    Such a view holds someone else, or nobody. ``views`` is (F, C, M, 3), in the world.
     """
-    centre = np.nanmean(views, axis=2)
-    with np.errstate(all="ignore"):
+    import warnings
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore", RuntimeWarning)
+        centre = np.nanmean(views, axis=2)
         gap = np.linalg.norm(centre - np.nanmedian(centre, axis=1, keepdims=True), axis=-1)
-    return (~(gap < distance)).mean(0)
+    return ~(gap < distance)
 
 
 def _clock_cost(rows, fs, mocap_times, mocap, offset, coverage):
