@@ -264,7 +264,9 @@ def sync_subject(job):
                                  _calibration(dataset, out, subject, trial.session), cameras)
         # Offsets from the clip itself, without the views that hold a bystander;
         # the median keeps one out of the clock too.
+        # Centred on the body, so a view's depth error along a walk is not read as a lag.
         on_subject = np.where(oc.far_views(world, choice["far_view_m"])[:, :, None, None], np.nan, world)
+        on_subject = on_subject - on_subject.mean(axis=2, keepdims=True)
         offsets = oc.camera_offsets(on_subject[margin:margin + clip["clip_frames"]],
                                     choice["max_camera_lag_frames"])
         world, first = oc.align_cameras(world, offsets)
@@ -374,7 +376,7 @@ def main():
                            for s in args.subjects], args.workers)
     else:
         import opencap_report
-        opencap_report.write(args.dataset, args.out, args.subjects)
+        opencap_report.write(args.dataset, args.out, args.subjects, args.workers)
     return 0
 
 

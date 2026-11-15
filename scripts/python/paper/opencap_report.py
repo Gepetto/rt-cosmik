@@ -64,48 +64,60 @@ def _early_error(run, reference, columns, frames, early):
     return float(np.nanmean(d[:early])), float(np.nanmean(d[early:]))
 
 
-def score(dataset, out, subjects):
-    """Per-trial and per-DoF scores of every arm, in the released analysis window and on the full clip."""
+def score_subject(job):
+    """Per-trial and per-DoF scores of one subject's arms, in the released window and on the whole trial."""
+    dataset, out, subject = job
     settings = _settings()
     max_lag = round(settings.opencap["max_lag_s"] * settings.fs)
     early = round(EARLY_S * settings.fs)
-    trials, dofs, frames_used = [], [], {}
-    for subject in subjects:
-        transforms = session_frames(dataset, out, subject)
-        frames_used[subject] = {str(k): {"R": R.tolist(), "t": t.tolist()} for k, (R, t) in transforms.items()}
-        for trial in oc.trials(dataset / subject):
-            reference = _run(out, subject, trial.name, scoring.REFERENCE_TAG)
-            if not _complete(reference):
+    trials, dofs = [], []
+    transforms = session_frames(dataset, out, subject)
+    frames_used = {str(k): {"R": R.tolist(), "t": t.tolist()} for k, (R, t) in transforms.items()}
+    for trial in oc.trials(dataset / subject):
+        reference = _run(out, subject, trial.name, scoring.REFERENCE_TAG)
+        if not _complete(reference):
+            continue
+        times = np.load(reference / "frame_times.npy")
+        t_released = oc.read_mot(oc.released_ik(dataset / subject, trial.name))[0]
+        window = oc.window_frames(times, (t_released[0], t_released[-1]))
+        for tag in oc.ARMS:
+            run = _run(out, subject, trial.name, tag)
+            if not _complete(run):
                 continue
-            times = np.load(reference / "frame_times.npy")
-            t_released = oc.read_mot(oc.released_ik(dataset / subject, trial.name))[0]
-            window = oc.window_frames(times, (t_released[0], t_released[-1]))
-            for tag in oc.ARMS:
-                run = _run(out, subject, trial.name, tag)
-                if not _complete(run):
-                    continue
-                info = json.loads((run / "run_info.json").read_text())
-                sync = json.loads((out / "synced" / subject / f"{trial.name}.json").read_text())
-                for scope, frames in (("window", window), ("clip", None)):
-                    row, per_dof = scoring.score_trial(
-                        run, reference, settings.paper["clock_offset"], unscored=oc.UNSCORED,
-                        max_lag=max_lag, frames=frames, marker_frame=transforms[trial.session])
-                    key = dict(arm=tag, subject=subject, trial=trial.name, activity=trial.activity,
-                               scope=scope)
-                    if scope == "window":
-                        names = scoring.by_frame(run)[0]
-                        columns = [names.index(d["dof"] + "[rad]") for d in per_dof]
-                        first, later = _early_error(run, reference, columns, window, early)
-                        row.update(early_mae_deg=first, later_mae_deg=later,
-                                   start_residual_mm=info.get("start_residual_mm"),
-                                   camera_offset_span=int(np.ptp(sync["camera_offsets_frames"])),
-                                   clock_offset_s=sync["clock_offset_from_nominal_s"],
-                                   sync_residual_mm=sync["residual_mm"],
-                                   far_views_pct=100 * float(np.mean(info["arm"]["far_views_share"])),
-                                   window_first=window[0], window_frames=window[1] - window[0] + 1,
-                                   clip_frames=len(times))
-                    trials.append({**key, **row})
-                    dofs += [{**key, **d} for d in per_dof]
+            info = json.loads((run / "run_info.json").read_text())
+            sync = json.loads((out / "synced" / subject / f"{trial.name}.json").read_text())
+            for scope, frames in (("window", window), ("clip", None)):
+                row, per_dof = scoring.score_trial(
+                    run, reference, settings.paper["clock_offset"], unscored=oc.UNSCORED,
+                    max_lag=max_lag, frames=frames, marker_frame=transforms[trial.session])
+                key = dict(arm=tag, subject=subject, trial=trial.name, activity=trial.activity,
+                           scope=scope)
+                if scope == "window":
+                    names = scoring.by_frame(run)[0]
+                    columns = [names.index(d["dof"] + "[rad]") for d in per_dof]
+                    first, later = _early_error(run, reference, columns, window, early)
+                    row.update(early_mae_deg=first, later_mae_deg=later,
+                               start_residual_mm=info.get("start_residual_mm"),
+                               camera_offset_span=int(np.ptp(sync["camera_offsets_frames"])),
+                               clock_offset_s=sync["clock_offset_from_nominal_s"],
+                               sync_residual_mm=sync["residual_mm"],
+                               far_views_pct=100 * float(np.mean(info["arm"]["far_views_share"])),
+                               window_first=window[0], window_frames=window[1] - window[0] + 1,
+                               clip_frames=len(times))
+                trials.append({**key, **row})
+                dofs += [{**key, **d} for d in per_dof]
+    return subject, trials, dofs, frames_used
+
+
+def score(dataset, out, subjects, workers):
+    """Scores of every subject, one process each."""
+    import multiprocessing
+    trials, dofs, frames_used = [], [], {}
+    with multiprocessing.get_context("spawn").Pool(workers) as pool:
+        for subject, t, d, f in pool.map(score_subject, [(dataset, out, s) for s in subjects]):
+            trials += t
+            dofs += d
+            frames_used[subject] = f
     return pd.DataFrame(trials), pd.DataFrame(dofs), frames_used
 
 
@@ -306,10 +318,10 @@ def tables(trials, dofs, rel, agreement):
     return "\n".join(out)
 
 
-def write(dataset, out, subjects):
+def write(dataset, out, subjects, workers=8):
     results = Path(out) / "results"
     results.mkdir(parents=True, exist_ok=True)
-    trials, dofs, frames_used = score(dataset, out, subjects)
+    trials, dofs, frames_used = score(dataset, out, subjects, workers)
     rel = released(dataset, subjects)
     agreement = reference_agreement(dataset, out, subjects)
     trials.to_csv(results / "trials.csv", index=False)
