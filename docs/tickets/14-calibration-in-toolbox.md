@@ -6,6 +6,6 @@
 
 **Status:** ready-for-agent
 
-- [ ] Calibration runs from the toolbox install alone
+- [x] Calibration runs from the toolbox install alone
 - [ ] Synthetic tests: rotation and translation error within tolerance, with and without noise
 - [ ] Degenerate (flat) recordings rejected

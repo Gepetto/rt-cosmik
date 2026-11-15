@@ -50,13 +50,12 @@ docker/run.sh --build                        # rebuild the image, e.g. after a D
 docker/run.sh --cpu python3 -m pytest tests/unit  # without NVIDIA devices or drivers
 ```
 
-**Companion repositories.** Clone them next to `rt-cosmik`, and `docker/run.sh`
-mounts them as well:
+**Companion repository.** Clone it next to `rt-cosmik`, and `docker/run.sh`
+mounts it as well:
 
 ```
 <your folder>/
 ├── rt-cosmik/
-├── cams_calibration/     ->  /root/workspace/cams_calibration
 └── rtcosmik_ros/         ->  /root/workspace/ros_ws/src/rtcosmik_ros
 ```
 
@@ -150,8 +149,8 @@ extension, open the checkout and run **Dev Containers: Reopen in Container**. It
 builds the same image and opens the checkout inside it, with the same access to
 the GPU, the cameras, the network and the display
 ([`.devcontainer/devcontainer.json`](https://github.com/Gepetto/rt-cosmik/blob/main/.devcontainer/devcontainer.json)). The
-companion repositories are not mounted automatically; add them to `runArgs` if
-you need them. Files written from the dev container stay root's on the host
+companion repository is not mounted automatically; add it to `runArgs` if
+you need it. Files written from the dev container stay root's on the host
 until `docker/run.sh true`, run from the host, hands them back.
 
 ## Native install

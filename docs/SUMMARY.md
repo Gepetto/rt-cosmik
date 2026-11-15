@@ -29,6 +29,7 @@
 
 - [API reference](api/README.md)
     - [Cameras and calibration](api/camera.md)
+    - [Calibration](api/calibration.md)
     - [Pose estimation](api/nlf.md)
     - [Multi-view fusion](api/triangulation.md)
     - [Filtering](api/filtering.md)

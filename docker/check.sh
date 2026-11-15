@@ -350,7 +350,6 @@ fi
 # The launcher hands checkout files back to the calling user on container exit.
 PARENT="$(dirname "${REPO_ROOT}")"
 CHECKED=("${REPO_ROOT}")
-[[ -d "${PARENT}/cams_calibration" ]] && CHECKED+=("${PARENT}/cams_calibration")
 ROS_SOURCE="${RTCOSMIK_ROS_DIR:-${PARENT}/rtcosmik_ros}"
 [[ -d "${ROS_SOURCE}" ]] && CHECKED+=("${ROS_SOURCE}")
 if find "${CHECKED[@]}" -xdev ! -user "$(id -u)" > "${LOGS}/ownership.log" 2>&1 \

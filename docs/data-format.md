@@ -2,9 +2,8 @@
 
 RT-COSMIK reads recordings and calibrations in one layout, the one of the
 [COMFI dataset](https://doi.org/10.5281/zenodo.17223909). The
-[sample trial](getting-started.md) is a small example of it, and
-[cams_calibration](https://github.com/Gepetto/cams_calibration) writes
-calibrations in it directly.
+[sample trial](getting-started.md) is a small example of it, and the
+[calibration scripts](own-cameras.md#2-calibrate-them) write calibrations in it.
 
 ## Layout
 
@@ -130,15 +129,15 @@ coordinates.
 
 ## Calibrating a rig
 
-[cams_calibration](https://github.com/Gepetto/cams_calibration) produces this
-layout directly, and installs it here:
+The calibration scripts write this layout into `config/cam_params/`
+(see [Your own cameras](own-cameras.md#2-calibrate-them)):
 
 ```bash
-python3 scripts/calibrate_cameras.py --cameras 0 2 4 6 --install
-python3 scripts/set_world_frame.py   --cameras 0 2 4 6 --install
+python3 scripts/python/calibration/calibrate_cameras.py --cameras 0 2 4 6
+python3 scripts/python/calibration/set_world_frame.py   --cameras 0 2 4 6
 ```
 
-It also records a `cameras.yaml` naming the USB port behind each camera id.
+`calibrate_cameras.py` also records a `cameras.yaml` naming the USB port behind each camera id.
 Live runs match on it instead of trusting the v4l2 index, so a recabled rig is
 remapped rather than silently paired with the wrong calibration. See
 [live.md](live.md#which-cameras-are-used).

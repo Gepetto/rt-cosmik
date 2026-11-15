@@ -285,8 +285,8 @@ def anchor_first(config_path, camera_ids):
     """Order the cameras so that the reference one has a world pose.
 
     Only the reference camera's pose in the world is read; the others are placed
-    relative to it (see :func:`load_world_transformation`). A calibration from
-    cams_calibration anchors a single camera, so when the first camera requested
+    relative to it (see :func:`load_world_transformation`). A wand
+    calibration anchors a single camera, so when the first camera requested
     is not anchored, the anchor would be ignored and every position reported in
     that camera's frame. An anchored camera further down the list is moved to
     the front instead. The set of cameras is unchanged.

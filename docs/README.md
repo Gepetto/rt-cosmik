@@ -34,8 +34,6 @@ collaboration, where the robot needs to know where the operator's body is.
 
 - [rt-cosmik](https://github.com/Gepetto/rt-cosmik): the code, and the place for
   questions and bug reports, through GitHub issues.
-- [cams_calibration](https://github.com/Gepetto/cams_calibration): calibrates a
-  camera rig and installs the result into RT-COSMIK.
 - [rtcosmik_ros](https://github.com/Gepetto/rtcosmik_ros): the ROS 2 node that
   runs the live pipeline and publishes its results.
 - [COMFI](https://doi.org/10.5281/zenodo.17223909): the multimodal industrial

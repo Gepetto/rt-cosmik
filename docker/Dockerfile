@@ -303,7 +303,6 @@ RUN --mount=type=bind,from=sources,target=/tmp/sources \
 RUN mkdir -p /root/workspace/ros_ws \
     && echo "source /opt/ros/${ROS_DISTRO}/setup.bash" >> /root/.bashrc \
     && git config --global --add safe.directory /root/workspace/rt-cosmik \
-    && git config --global --add safe.directory /root/workspace/cams_calibration \
     && git config --global --add safe.directory /root/workspace/ros_ws/src/rtcosmik_ros
 WORKDIR /root/workspace/rt-cosmik
 CMD ["bash"]

@@ -183,21 +183,18 @@ place them for what you measure (see [Accuracy](#accuracy)):
   sides of the workspace. Two facing cameras come close to four, whereas two
   cameras side by side double the position error.
 
-**2. Calibrate them** with
-[cams_calibration](https://github.com/Gepetto/cams_calibration). Clone it
-next to `rt-cosmik` before starting the container, so that `docker/run.sh`
-mounts it. Then, in the container:
+**2. Calibrate them.** Set the checkerboard and wand dimensions in
+`settings.py`. Then, in the container:
 
 ```bash
-cd /root/workspace/cams_calibration
 # checkerboard: each camera, then the camera pairs
-python3 scripts/calibrate_cameras.py --cameras 0 2 4 6 --install
+python3 scripts/python/calibration/calibrate_cameras.py --cameras 0 2 4 6
 # wand: the world frame on the floor (add --robot to put it at the robot base)
-python3 scripts/set_world_frame.py --cameras 0 2 4 6 --install
+python3 scripts/python/calibration/set_world_frame.py --cameras 0 2 4 6
 ```
 
-`--install` writes the calibration into `config/cam_params/`, where RT-COSMIK
-reads it. Camera ids are the `/dev/video<id>` numbers when you calibrate; the
+The calibration is written to `config/cam_params/`, where RT-COSMIK reads it
+(see [Your own cameras](docs/own-cameras.md)). Camera ids are the `/dev/video<id>` numbers when you calibrate; the
 calibration records which USB port each camera is on, so a recabled rig is
 recognised later.
 
@@ -277,7 +274,6 @@ thoracic and wrist joints frozen for the comparison; details are in the paper.
 
 | Repository | What it is for |
 |---|---|
-| [cams_calibration](https://github.com/Gepetto/cams_calibration) | Calibrates a camera rig (checkerboard, then a wand for the world frame) and installs the result here |
 | [rtcosmik_ros](https://github.com/Gepetto/rtcosmik_ros) | ROS 2 node running the live pipeline and publishing joint states, markers and collision capsules |
 | [COMFI](https://doi.org/10.5281/zenodo.17223909) | Multimodal industrial dataset used for validation: videos, motion capture, robot states, forces |
 | [comfi-examples](https://github.com/Gepetto/comfi-examples) | Scripts to download and visualize COMFI |
