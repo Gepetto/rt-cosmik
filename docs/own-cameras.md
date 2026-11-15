@@ -77,7 +77,7 @@ It needs the intrinsics of each camera (from `calibrate_cameras.py`) and
 replaces the camera pairs and the world frame: z up from the floor, x along the
 first camera's viewing direction, origin on the floor under that camera. Run
 `set_world_frame.py` afterwards for another world frame. A recording in which
-the person stays in place is refused.
+the person does not walk across the area is refused.
 
 This calibration is less accurate than the checkerboard: on COMFI it places
 cameras 5 m apart within about 0.2 m and 1.6° of the reference calibration. Joint

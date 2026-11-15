@@ -61,11 +61,11 @@ def calibrate(dataset, evaluation, out):
         for trial in trials:
             poses3d = _poses3d(evaluation, subject, trial.name)
             row = dict(subject=subject, trial=trial.name, activity=trial.activity,
-                       frames=len(poses3d), travel_m=round(human.travel(poses3d[:, 2]), 3),
+                       frames=len(poses3d), travel_m=round(human.travel(poses3d[:, 0]), 3),
                        refused="")
             recordings.append(row)
             try:
-                human.calibrate(poses3d[:, [2, 0, 1, 3, 4]])
+                human.calibrate(poses3d)
             except human.DegenerateRecording:
                 row["refused"] = "yes"
         walks = [t for t in trials if t.activity == WALKING]
@@ -146,8 +146,15 @@ def report(evaluation, out):
     board = board[board.scope == "window"]
     both = human.merge(board, on=["arm", "subject", "trial"], suffixes=("_human", "_board"))
     lines = ["# Human-pose calibration on OpenCap", "",
+             "Extrinsics of each walking trial from the subject's other walking clips, against "
+             "the dataset's checkerboard calibration; then the walking trials replayed under "
+             "them. The travel rule is not applied to these calibrations (the clips are short); "
+             "the refusal table shows what it would refuse, trial by trial. Produced by "
+             "`scripts/python/paper/opencap_calibration.py`; discussion in "
+             "`resubmission-findings.md`, section 0f.", "",
              "## Extrinsics against the checkerboard (walking session, relative to Cam0)", "",
-             "| Camera | Subjects | Rotation (deg) | Position (mm) | Baseline (m) | Length (%) |",
+             "| Camera | Subjects | Rotation (deg) | Position (mm) | Baseline (m) | "
+             "Length, absolute error (%) |",
              "|---|---|---|---|---|---|"]
     per_subject = geometry.groupby(["camera", "subject"]).mean(numeric_only=True).reset_index()
     for camera, g in per_subject.groupby("camera"):

@@ -276,11 +276,11 @@ Workstation (RTX 4500 Ada, 32 cores, idle), frames released at the camera rate, 
 
 Full tables: `docs/research/calibration-comfi.md`, `docs/research/calibration-opencap.md`; scratch in `/root/workspace/oof/t15` and `t17`.
 
-**In the toolbox.** Checkerboard, wand and human-pose calibration are now part of RT-COSMIK (`rtcosmik.calibration`, `scripts/python/calibration/`); the separate repository is no longer needed.
+**In the toolbox.** Checkerboard, wand and human-pose calibration are part of RT-COSMIK (`rtcosmik.calibration`, `scripts/python/calibration/`). The human-pose calibration still needs each camera's intrinsics, which come from the checkerboard.
 
-**Method.** The human-pose calibration registers each camera's metric 3D landmarks rigidly onto the reference camera's, over a recording of one person walking. It replaces the essential-matrix method of the calibration repository: on the 18 circular walks the two are equally accurate, but on straight walks the essential matrix fails for the adjacent pair (6.0° and 340 mm against 0.66° and 42 mm). It needs no 2D keypoints and no stature. A recording in which the body centre stays within 0.5 m is refused: none of the 36 walks, 102 of the 108 evaluation-task recordings.
+**Method.** The human-pose calibration registers each camera's metric 3D landmarks rigidly onto the reference camera's, over a recording of one person walking. It needs no 2D keypoints and no stature. The alternative, an essential matrix on the 2D landmarks with the baseline length from the 3D ones, is as accurate on the 18 circular walks (0.75° and 32 mm on the adjacent pair, 1.93° and 204 mm on the opposite ones, against 0.84° and 40 mm, 1.58° and 195 mm) but fails on straight walks for the adjacent pair (6.0° and 340 mm against 0.66° and 42 mm). A recording is refused when the standard deviation of the body centre along its main direction of travel is under 0.5 m: none of the 36 walks, 102 of the 108 evaluation-task recordings.
 
-**Protocol (COMFI).** For each of the 18 participants, NLF with the participant's out-of-fold map on the CircularWalking recording (2,100 to 3,600 frames, not an evaluation task), cameras 0, 2, 4, 6, camera 0 as reference. Errors are those of each camera's pose relative to camera 0 against the dataset calibration. The six evaluation tasks are then replayed from the recorded NLF output with these extrinsics; camera 0 keeps its dataset world pose, so the comparison isolates the error between cameras.
+**Protocol (COMFI).** For each of the 18 participants, NLF with the participant's out-of-fold map on the CircularWalking recording (1,816 to 5,308 frames, not an evaluation task), cameras 0, 2, 4, 6, camera 0 as reference. Errors are those of each camera's pose relative to camera 0 against the dataset calibration. The six evaluation tasks are then replayed from the recorded NLF output with these extrinsics; camera 0 keeps its dataset world pose, so the comparison isolates the error between cameras.
 
 | Pair | Baseline | Rotation, median (quartiles; max) | Camera position | Baseline length |
 |---|---|---|---|---|
@@ -308,7 +308,7 @@ Full tables: `docs/research/calibration-comfi.md`, `docs/research/calibration-op
 
 Joint angles change by at most 0.02° for any participant. Positions tolerate 1° and 50 mm (under 4 mm of extra error); hand-distance SD stays within 2 mm of the unperturbed value up to 1° and 20 mm.
 
-**OpenCap (ticket 17).** The dataset calibration is a checkerboard, so the OpenCap results of section 0c already are results under a deployment calibration. Human-pose calibration was computed for each walking trial from the subject's five other walking clips (about 430 frames, 7 s), nine subjects. The clips cover a short stretch (travel 0.43 to 0.50 m), below the 0.5 m rule, which was lifted for this measurement; the squat, sit-to-stand and most drop-jump trials are refused.
+**OpenCap (ticket 17).** The dataset calibration is a checkerboard, so the OpenCap results of section 0c already are results under a deployment calibration. Human-pose calibration was computed for each walking trial from the subject's five other walking clips (about 430 frames, 7 s), nine subjects. The clips cover a short stretch (travel 0.43 to 0.51 m, at the 0.5 m rule), so the rule is not applied to these calibrations; taken one by one, the squat and sit-to-stand trials and most drop-jump and walking clips are refused.
 
 | | Checkerboard | Human pose |
 |---|---|---|

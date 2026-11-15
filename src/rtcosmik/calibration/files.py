@@ -1,5 +1,6 @@
 """Writing a calibration in the layout :mod:`rtcosmik.camera.cam_utils` reads."""
 import os
+import shutil
 
 import cv2 as cv
 import numpy as np
@@ -41,6 +42,23 @@ def save_stereo_pose(mtx1, dist1, mtx2, dist2, R, T, rmse, cam_a, cam_b, root):
     return _write_opencv(stereo_pose_path(root, cam_a, cam_b),
                          {"K1": mtx1, "D1": dist1, "K2": mtx2, "D2": dist2,
                           "R": R, "T": T, "rmse": rmse})
+
+
+def save_relative_poses(poses, intrinsics, camera_ids, root):
+    """Write cameras placed relative to the first as the chain of stereo pairs.
+
+    ``poses[i]`` is ``(R, T)`` with ``p_i = R @ p_first + T``; ``intrinsics[i]`` is
+    ``(K, D)``. World poses of the other cameras are removed: they would be read
+    instead of the pairs.
+    """
+    for a in range(len(camera_ids) - 1):
+        (R_a, T_a), (R_b, T_b) = poses[a], poses[a + 1]
+        R = R_b @ R_a.T
+        T = np.asarray(T_b, float).reshape(3) - R @ np.asarray(T_a, float).reshape(3)
+        save_stereo_pose(*intrinsics[a], *intrinsics[a + 1], R, T, float("nan"),
+                         camera_ids[a], camera_ids[a + 1], root)
+    for camera_id in camera_ids[1:]:
+        shutil.rmtree(os.path.dirname(world_pose_path(root, camera_id)), ignore_errors=True)
 
 
 def save_world_pose(world_R_cam, world_T_cam, camera_id, root):

@@ -23,6 +23,8 @@ import numpy as np
 
 DATASET = Path("/root/workspace/COMFI")
 CAMERAS = [0, 2, 4, 6]
+#: The camera next to camera 0; the two others face them across the workspace.
+ADJACENT = 2
 #: The calibration recording, and a second walk to calibrate from.
 WALKS = ("CircularWalking", "StraightWalking")
 
@@ -66,36 +68,38 @@ def extract(out):
 
 
 def reference_poses(participant):
-    """Dataset intrinsics, and each camera's pose relative to camera 0."""
+    """Each camera's pose relative to camera 0 in the dataset calibration."""
     from rtcosmik.camera.cam_utils import load_camera_parameters
-    mtxs, dists, _, rotations, translations = load_camera_parameters(
-        DATASET / "cam_params" / participant, CAMERAS)
-    return mtxs, dists, [(R, T.reshape(3)) for R, T in zip(rotations, translations)]
+    rotations, translations = load_camera_parameters(DATASET / "cam_params" / participant,
+                                                     CAMERAS)[3:]
+    return [(R, T.reshape(3)) for R, T in zip(rotations, translations)]
 
 
-def write_calibration(root, participant, poses=None, world=None):
-    """A calibration folder: dataset intrinsics and camera 0's world pose, with either
-    the stereo chain of ``poses`` or a world pose per camera (``world``)."""
+def _with_intrinsics(root, participant):
+    """An empty calibration folder holding the dataset intrinsics; returns them as (K, D)."""
     import shutil
-    from rtcosmik.calibration.files import save_stereo_pose, save_world_pose
-    from rtcosmik.camera.cam_utils import (cam_to_world_path, intrinsics_path, load_cam_params,
-                                           load_cam_to_world)
+    from rtcosmik.camera.cam_utils import intrinsics_path, load_cam_params
     source = DATASET / "cam_params" / participant
     shutil.rmtree(root, ignore_errors=True)
     for camera in CAMERAS:
         target = Path(intrinsics_path(root, camera))
         target.parent.mkdir(parents=True, exist_ok=True)
         shutil.copy(intrinsics_path(source, camera), target)
-    if world is None:
-        world = {0: load_cam_to_world(cam_to_world_path(source, 0))}
-        intrinsics = [load_cam_params(intrinsics_path(source, c)) for c in CAMERAS]
-        for a in range(len(CAMERAS) - 1):
-            R = poses[a + 1][0] @ poses[a][0].T
-            T = poses[a + 1][1] - R @ poses[a][1]
-            save_stereo_pose(*intrinsics[a], *intrinsics[a + 1], R, T, 0.0,
-                             CAMERAS[a], CAMERAS[a + 1], str(root))
-    for camera, (R, T) in world.items():
-        save_world_pose(np.asarray(R), np.asarray(T).reshape(3), camera, str(root))
+    return [load_cam_params(intrinsics_path(source, c)) for c in CAMERAS]
+
+
+def _dataset_world(participant, camera):
+    from rtcosmik.camera.cam_utils import cam_to_world_path, load_cam_to_world
+    R, T = load_cam_to_world(cam_to_world_path(DATASET / "cam_params" / participant, camera))
+    return np.asarray(R), np.asarray(T).reshape(3)
+
+
+def write_human_calibration(root, participant, poses):
+    """Dataset intrinsics and world pose of camera 0, the other cameras placed by ``poses``."""
+    from rtcosmik.calibration.files import save_relative_poses, save_world_pose
+    intrinsics = _with_intrinsics(root, participant)
+    save_relative_poses(poses, intrinsics, CAMERAS, str(root))
+    save_world_pose(*_dataset_world(participant, CAMERAS[0]), CAMERAS[0], str(root))
 
 
 def calibrate(out, views):
@@ -107,7 +111,7 @@ def calibrate(out, views):
 
     geometry, recordings = [], []
     for participant in PARTICIPANTS:
-        reference = reference_poses(participant)[2]
+        reference = reference_poses(participant)
         paths = [out / "views" / participant / f"{task}.npz" for task in WALKS]
         for path in paths + sorted((views / participant).glob("*.npz")):
             poses3d = np.load(path)["poses3d"]
@@ -120,7 +124,8 @@ def calibrate(out, views):
                 row["refused"] = "yes"
                 continue
             if path.stem == WALKS[0]:
-                write_calibration(out / "cam_params" / participant, participant, result.poses)
+                write_human_calibration(out / "cam_params" / participant, participant,
+                                        result.poses)
             for index in range(1, len(CAMERAS)):
                 errors = pose_errors(result.poses[index], reference[index])
                 geometry.append(dict(participant=participant, task=path.stem,
@@ -144,17 +149,17 @@ HUMAN = "calib_human"
 def perturbed_calibration(out, participant, task, tag):
     """The dataset calibration with cameras 2, 4 and 6 perturbed; seeded per trial."""
     import zlib
-    from rtcosmik.camera.cam_utils import cam_to_world_path, load_cam_to_world
+    from rtcosmik.calibration.files import save_world_pose
     from rtcosmik.paper.calibration_study import perturbed
     angle, shift = PERTURBATIONS[tag]
     rng = np.random.default_rng(zlib.crc32(f"{participant}/{task}/{tag}".encode()))
-    source = DATASET / "cam_params" / participant
-    world = {}
-    for camera in CAMERAS:
-        R, T = load_cam_to_world(cam_to_world_path(source, camera))
-        world[camera] = (R, T) if camera == CAMERAS[0] else perturbed(R, T, angle, shift, rng)
     root = out / "perturbed" / tag / participant / task
-    write_calibration(root, participant, world=world)
+    _with_intrinsics(root, participant)
+    for camera in CAMERAS:
+        R, T = _dataset_world(participant, camera)
+        if camera != CAMERAS[0]:
+            R, T = perturbed(R, T, angle, shift, rng)
+        save_world_pose(R, T, camera, str(root))
     return root
 
 
@@ -208,20 +213,22 @@ def replay(out, views, tags, workers):
         handle.close()
 
 
-def _by_participant(frame, columns):
-    return frame.groupby("participant")[columns].mean()
-
-
 def report(out, baseline, baseline_hand):
     """calibration.md: geometry, refusals, and errors under each calibration."""
     import pandas as pd
     geometry = pd.read_csv(out / "geometry.csv")
     recordings = pd.read_csv(out / "recordings.csv")
-    geometry["pair"] = np.where(geometry.camera == 2, "adjacent", "opposite")
+    geometry["pair"] = np.where(geometry.camera == ADJACENT, "adjacent", "opposite")
     lines = ["# Human-pose calibration on COMFI", "",
+             "Extrinsics from each participant's walking recording (NLF with the participant's "
+             "out-of-fold map, camera 0 as reference), against the dataset calibration; then the "
+             "six evaluation tasks replayed under them and under perturbed dataset extrinsics, "
+             "camera 0 keeping its dataset world pose. Produced by "
+             "`scripts/python/paper/calibration_eval.py`; discussion in "
+             "`resubmission-findings.md`, section 0f.", "",
              "## Extrinsics against the dataset calibration (median, quartiles, maximum)", "",
              "| Recording | Pair | Cameras | Baseline (m) | Rotation (deg) | Position (mm) | "
-             "Length (%) |", "|---|---|---|---|---|---|---|"]
+             "Length, absolute error (%) |", "|---|---|---|---|---|---|---|"]
 
     def spread(values):
         q1, q2, q3 = np.percentile(values, [25, 50, 75])
@@ -247,14 +254,15 @@ def report(out, baseline, baseline_hand):
                                        for tag in [HUMAN] + list(PERTURBATIONS)]
     for tag, frame in rows:
         both = frame[frame.status == "ok"].merge(reference, on=keys, suffixes=("", "_ref"))
-        mean = _by_participant(both, columns + [c + "_ref" for c in columns])
+        mean = both.groupby("participant")[columns + [c + "_ref" for c in columns]].mean()
         difference = mean.causal_rmse_mean - mean.causal_rmse_mean_ref
         lines.append(f"| {tag} | {len(both)} | {mean.causal_rmse_mean.mean():.2f} | "
                      f"{difference.mean():+.3f}; {difference.abs().max():.2f} | "
                      f"{mean.causal_marker_mm.mean():.1f} | {mean.causal_marker_mm.max():.0f} |")
 
-    hands = [pd.read_csv(f) for f in (baseline_hand, out / "hand" / "pooled.csv") if f.exists()]
-    if hands:
+    if baseline_hand is not None:
+        hands = [pd.read_csv(baseline_hand), pd.read_csv(out / "hand" / "pooled.csv")]
+        hands[0] = hands[0].assign(arm="dataset")
         hand = pd.concat(hands)
         hand = hand[hand.task == "all"]
         lines += ["", "## Hand-to-robot distance on the robot tasks", "",
@@ -280,6 +288,10 @@ def main():
     parser.add_argument("--baseline-hand", type=Path, help="its pooled hand-distance table")
     parser.add_argument("--workers", type=int, default=8)
     args = parser.parse_args()
+    if args.stage in ("calibrate", "replay", "perturb") and args.views is None:
+        parser.error(f"{args.stage} needs --views")
+    if args.stage == "report" and args.baseline is None:
+        parser.error("report needs --baseline")
     if args.stage == "extract":
         extract(args.out)
     elif args.stage == "calibrate":

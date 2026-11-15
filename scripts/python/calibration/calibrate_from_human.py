@@ -17,7 +17,7 @@ import argparse
 import numpy as np
 
 from rtcosmik.calibration import human
-from rtcosmik.calibration.files import save_stereo_pose, save_world_pose
+from rtcosmik.calibration.files import save_relative_poses, save_world_pose
 from rtcosmik.camera.cam_utils import intrinsics_path, load_cam_params
 from rtcosmik.config_loader import settings
 
@@ -70,12 +70,7 @@ def main():
     except human.DegenerateRecording as error:
         raise SystemExit(f"cannot calibrate on this recording: {error}")
 
-    for a in range(len(cameras) - 1):
-        (R_a, T_a), (R_b, T_b) = result.poses[a], result.poses[a + 1]
-        R = R_b @ R_a.T
-        T = T_b - R @ T_a
-        save_stereo_pose(*intrinsics[a], *intrinsics[a + 1], R, T, 0.0,
-                         cameras[a], cameras[a + 1], root)
+    save_relative_poses(result.poses, intrinsics, cameras, root)
     for camera, (R, T), residual in zip(cameras[1:], result.poses[1:], result.residual_m[1:]):
         print(f"camera_{camera}: {np.linalg.norm(T):.3f} m from camera_{cameras[0]}, "
               f"views agree to {1e3 * residual:.0f} mm")

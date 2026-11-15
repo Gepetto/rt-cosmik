@@ -7,7 +7,7 @@ from dataclasses import dataclass
 
 import numpy as np
 
-#: Least spread of the body centre along its main direction of travel, in metres.
+#: Least standard deviation of the body centre along its main direction of travel, in metres.
 MIN_TRAVEL = 0.5
 #: Fewest frames in which a camera and the reference must both see the person.
 MIN_SHARED_FRAMES = 30
@@ -32,7 +32,7 @@ class HumanCalibration:
 
 
 def travel(poses3d):
-    """Spread of the body centre along its main direction, in metres, for one camera."""
+    """Standard deviation of the body centre along its main direction, in metres, for one camera."""
     points = np.asarray(poses3d, float)
     centres = points[np.isfinite(points).all(axis=(1, 2))].mean(axis=1)
     if len(centres) < 2:
@@ -70,7 +70,7 @@ def calibrate(poses3d, min_travel=MIN_TRAVEL):
     Args:
         poses3d: (F, C, J, 3) metric landmarks in each camera's own frame, NaN
             where a camera saw no one.
-        min_travel: least spread of the body centre accepted, in metres.
+        min_travel: least standard deviation of the body centre accepted, in metres.
 
     Raises:
         DegenerateRecording: the person stayed in place, or too few frames are shared.
@@ -79,8 +79,9 @@ def calibrate(poses3d, min_travel=MIN_TRAVEL):
     distance = travel(poses3d[:, 0])
     if distance < min_travel:
         raise DegenerateRecording(
-            f"the person stayed within {distance:.2f} m (need {min_travel} m): record them "
-            f"walking across the area the cameras cover")
+            f"the person's position varies by {distance:.2f} m only (standard deviation along "
+            f"the walk; need {min_travel} m): record them walking across the area the "
+            f"cameras cover")
     poses, residuals = [(np.eye(3), np.zeros(3))], [0.0]
     for camera in range(1, poses3d.shape[1]):
         R, T, residual = register_pair(poses3d[:, 0], poses3d[:, camera])
@@ -109,7 +110,7 @@ def floor_frame(points, marker_names):
     if len(feet) < 8:
         raise DegenerateRecording("not enough foot landmarks to fit a floor")
     centre = np.median(feet, axis=0)
-    for _ in range(3):      # the lowest foot landmarks are the ones in contact
+    for _ in range(3):      # leave out the feet in the air
         z = np.linalg.svd(feet - centre)[2][-1]
         height = np.abs((feet - centre) @ z)
         feet = feet[height <= np.percentile(height, 80)]

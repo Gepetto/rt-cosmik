@@ -2,6 +2,7 @@
 import os
 import sys
 
+import cv2
 import numpy as np
 
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "../../../src")))
@@ -76,3 +77,21 @@ def test_manifest_records_the_port_and_label_of_each_camera(tmp_path, monkeypatc
 def test_hardware_info_leaves_out_what_cannot_be_read(monkeypatch):
     monkeypatch.setattr(files, "camera_bus_info", lambda index: None)
     assert files.camera_hardware_info(987654) == {}
+
+
+def test_relative_poses_are_read_back_and_replace_stale_world_poses(tmp_path):
+    from rtcosmik.calibration.files import save_intrinsics, save_relative_poses
+    from rtcosmik.camera.cam_utils import load_camera_parameters
+    cameras, root = [0, 2, 4], str(tmp_path)
+    K, D = np.array([[700.0, 0, 640], [0, 700.0, 360], [0, 0, 1]]), np.zeros((1, 5))
+    turn = cv2.Rodrigues(np.array([0.1, -0.4, 0.2]))[0]
+    poses = [(np.eye(3), np.zeros(3)), (turn, np.array([0.8, 0.0, 0.1])),
+             (turn @ turn, np.array([-0.3, 0.2, 5.0]))]
+    for camera in cameras:
+        save_intrinsics(K, D, 0.0, camera, root)
+        save_world_pose(np.eye(3), np.array([9.0, 9.0, 9.0]), camera, root)
+    save_relative_poses(poses, [(K, D)] * 3, cameras, root)
+    rotations, translations = load_camera_parameters(root, cameras)[3:]
+    for (R, T), rotation, translation in zip(poses, rotations, translations):
+        assert np.allclose(rotation, R)
+        assert np.allclose(np.ravel(translation), T)
