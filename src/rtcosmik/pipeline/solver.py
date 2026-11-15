@@ -25,6 +25,10 @@ from rtcosmik.ik.shoulder_branch import BranchReseed, HOLD_SECONDS
 
 LOGGER = logging.getLogger(__name__)
 
+#: Solves of a trial's first frame, each anchored on the last: the anchor's pull
+#: on the weakly observed DoF halves at each.
+START_PASSES = 5
+
 
 class HumanSolver:
     """Calibrate a human model to a subject, then solve its pose each frame.
@@ -151,9 +155,10 @@ class HumanSolver:
         self._window = deque([mks_dict] * settings.N, maxlen=settings.N)
         measurements = np.array([np.hstack([mks_dict[k] for k in keys])] * settings.N).T
         self._seed_ik.set_model_params(self.model)
-        x, u = self._seed_ik.solve(self._x, self._u, measurements, self._x[:, -1],
-                                   settings.cost_weights, settings.dt)
-        self._x, self._u = np.array(x), np.array(u)
+        for _ in range(START_PASSES):
+            x, u = self._seed_ik.solve(self._x, self._u, measurements, self._x[:, -1],
+                                       settings.cost_weights, settings.dt)
+            self._x, self._u = np.array(x), np.array(u)
         self._reseed = self._branch_reseed()
         self._reseed(self._x, self._u)
         return np.array(self._x[:self.model.nq, -1]).flatten()
