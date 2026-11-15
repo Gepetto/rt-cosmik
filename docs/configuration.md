@@ -20,6 +20,18 @@ loaded; change the ones they are derived from instead.
 | `fourcc` | `"MJPG"` | Camera stream format: `"MJPG"`, or raw `"YUYV"`. |
 | `cam_calib_path` | *computed*: `config/cam_params` | Calibration of live runs. `--cam-params` overrides it. |
 
+## Calibration
+
+Dimensions of the hardware used by the
+[calibration scripts](own-cameras.md#2-calibrate-them).
+
+| Setting | Default | Meaning |
+|---|---|---|
+| `checkerboard_rows`, `checkerboard_columns` | `6`, `7` | Inner corners of the checkerboard: squares minus one, each way. |
+| `checkerboard_square_size` | `0.108` | Side of a square (m). |
+| `wand_marker_size` | `0.176` | Side of the wand's ArUco marker (m), from the 4x4 dictionary. |
+| `wand_tip_offset` | `(0.0, 0.271, 0.0)` | Wand tip in the marker's frame (m): x to the marker's right, y up, z out of it. |
+
 ## Person
 
 | Setting | Default | Meaning |

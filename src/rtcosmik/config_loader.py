@@ -115,6 +115,11 @@ class DefaultSettings:
 
     # PATHS
     cam_calib_path: str = field(init=False)
+    checkerboard_rows: int = 6
+    checkerboard_columns: int = 7
+    checkerboard_square_size: float = 0.108
+    wand_marker_size: float = 0.176
+    wand_tip_offset: tuple = (0.0, 0.271, 0.0)
 
     # FILTER
     order: int = 4

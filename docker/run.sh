@@ -11,8 +11,7 @@
 # container sees the GPU, every camera (/dev), and the host network, so the 3D viewer's
 # http://127.0.0.1:7000 URL opens in the host's browser.
 #
-# The companion repositories, cloned next to this one, are mounted too:
-#   ../cams_calibration  ->  /root/workspace/cams_calibration
+# The companion repository, cloned next to this one, is mounted too:
 #   ../rtcosmik_ros      ->  /root/workspace/ros_ws/src/rtcosmik_ros
 #
 # The container runs as root, but what it writes in these directories (models,
@@ -48,14 +47,10 @@ if [[ -n "${DISPLAY:-}" && -d /tmp/.X11-unix ]]; then
   X11=(-e "DISPLAY=${DISPLAY}" -v /tmp/.X11-unix:/tmp/.X11-unix)
 fi
 
-# The container is removed on exit, so companion repositories live on the host.
+# The container is removed on exit, so the companion repository lives on the host.
 COMPANIONS=()
 MOUNTED=("${MOUNT}")
 PARENT="$(dirname "${REPO_ROOT}")"
-if [[ -d "${PARENT}/cams_calibration" ]]; then
-  COMPANIONS+=(-v "${PARENT}/cams_calibration:/root/workspace/cams_calibration")
-  MOUNTED+=(/root/workspace/cams_calibration)
-fi
 ROS_SOURCE="${RTCOSMIK_ROS_DIR:-${PARENT}/rtcosmik_ros}"
 if [[ -d "${ROS_SOURCE}" ]]; then
   COMPANIONS+=(-v "${ROS_SOURCE}:/root/workspace/ros_ws/src/rtcosmik_ros")

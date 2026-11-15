@@ -23,7 +23,7 @@ the `camera_<id>` of the calibration files. RT-COSMIK lists the attached
 devices, works out which calibrated camera each one is, and opens only the ones
 requested, in the requested order:
 
-- With a `cameras.yaml` in the calibration (cams_calibration writes one), each
+- With a `cameras.yaml` in the calibration (`calibrate_cameras.py` writes one), each
   device is recognised by its USB port, so a camera keeps its calibration when
   the rig is recabled or the computer rebooted.
 - Without it, the id is the `/dev/video<id>` number.

@@ -31,20 +31,39 @@ measure (see [Accuracy](accuracy.md)):
 
 ## 2. Calibrate them
 
-Calibration uses [cams_calibration](https://github.com/Gepetto/cams_calibration).
-Clone it next to `rt-cosmik` before starting the container, so that
-`docker/run.sh` mounts it. Then, in the container:
+Calibration is part of the toolbox. Set the checkerboard (`checkerboard_rows`,
+`checkerboard_columns`, `checkerboard_square_size`) and the wand
+(`wand_marker_size`, `wand_tip_offset`) in `settings.py`
+(see [Configuration](configuration.md#calibration)). Then, in the container:
 
 ```bash
-cd /root/workspace/cams_calibration
 # checkerboard: each camera, then the camera pairs
-python3 scripts/calibrate_cameras.py --cameras 0 2 4 6 --install
+python3 scripts/python/calibration/calibrate_cameras.py --cameras 0 2 4 6
 # wand: the world frame on the floor (add --robot to put it at the robot base)
-python3 scripts/set_world_frame.py --cameras 0 2 4 6 --install
+python3 scripts/python/calibration/set_world_frame.py --cameras 0 2 4 6
 ```
 
-`--install` writes the calibration into `config/cam_params/`, where RT-COSMIK
-reads it. Camera ids are the `/dev/video<id>` numbers when you calibrate; the
+In both, SPACE saves one image per camera and `q` finishes. Move the
+checkerboard through the working area, keeping it visible to both cameras of
+each adjacent pair: cameras are paired in the order given, and a pair needs at
+least 6 shots seen by both. Then point the wand at each position of the world
+frame, in order:
+
+- on the floor: the origin, a point along x, and a point of the floor on the
+  y side;
+- with `--robot`: two points on opposite sides of the base, whose middle is the
+  origin (y points towards the first), then two points whose middle is behind
+  the base on its x axis.
+
+The calibration is written to `config/cam_params/`, where RT-COSMIK reads it.
+Only the first camera gets a world pose; the others are placed from it through
+the camera pairs. `set_world_frame.py` prints where that camera is in the world
+and saves `world_frame_check.png`, the world axes drawn in each view: check
+both against the room. The images are kept in `output/calibration/`; add
+`--from-images` to calibrate from them again, and `--no-show` without a
+display.
+
+Camera ids are the `/dev/video<id>` numbers when you calibrate; the
 calibration also records which USB port each camera is on, so a recabled rig is
 recognised later (see [Live capture](live.md#which-cameras-are-used)). The
 format of the calibration is described in

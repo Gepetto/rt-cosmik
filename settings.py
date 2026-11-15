@@ -74,6 +74,12 @@ class Settings:
 
     ### CALIB ###
     cam_calib_path: str = field(init=False) # relative path to the camera calibration file
+    # Calibration hardware (scripts/python/calibration)
+    checkerboard_rows: int = 6  # inner corners: squares - 1
+    checkerboard_columns: int = 7  # inner corners: squares - 1
+    checkerboard_square_size: float = 0.108  # m
+    wand_marker_size: float = 0.176  # m, side of the wand's ArUco marker
+    wand_tip_offset: tuple = (0.0, 0.271, 0.0)  # m, wand tip in the marker's frame
 
     ### FILTER PARAMS ###
     order: int = 4
