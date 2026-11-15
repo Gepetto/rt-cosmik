@@ -1,6 +1,6 @@
 # Resubmission findings to discuss before rewriting the paper (ticket 21)
 
-State on 2026-11-13, with updates on 2026-11-14 (section 0) and 2026-11-15 (section 0b, the current figures). Every number is on COMFI, 18 participants, six tasks, 108 trials, four cameras (0, 2, 4, 6), out-of-fold landmark maps, participant mean ± SD unless stated. "Causal" error compares estimate and reference at the same frame after removing only the per-trial clock offset between mocap and video (2 or 3 frames). "Aligned" error first removes the lag estimated on knee flexion, as the submitted paper did.
+State on 2026-11-13, with updates on 2026-11-14 (section 0) and 2026-11-15 (sections 0b and 0d; 0d holds the current figures). Every number is on COMFI, 18 participants, six tasks, 108 trials, four cameras (0, 2, 4, 6), out-of-fold landmark maps, participant mean ± SD unless stated. "Causal" error compares estimate and reference at the same frame after removing only the per-trial clock offset between mocap and video (2 or 3 frames). "Aligned" error first removes the lag estimated on knee flexion, as the submitted paper did.
 
 Where the data are: runs in `/root/workspace/oof/runs/<id>/<task>/<arm>/`, tables in `results/oof/` of the main checkout and in `/root/workspace/oof/t11`, `t12`, `t13` (not in git).
 
@@ -184,6 +184,71 @@ The paper pipeline, unchanged (NLF-S, mean fusion, tuned 1-euro filter, MHE hori
 - The released video clips are not frame-synchronous (cameras 8 to 10 frames apart on average, each clip cut at a key frame). The evaluation synchronises the cameras from the body's motion and sets the video clock on the mocap's per trial, as on COMFI; the paper must say so.
 - In 6 walking trials the frontal camera follows a bystander; a view whose person is more than 1 m from the other views' is treated as empty.
 - NLF under-sizes tall subjects (10 % at 1.96 m); marker error follows height, joint error does not.
+
+## 0d. Update of 2026-11-15: reference head point, decisions, current figures
+
+**These are the current figures.** They supersede sections 0 and 0b wherever a number differs; the differences between arms are those of section 0b to 0.03°.
+
+**Neck flexion.** The estimate tracked neck flexion (correlation 0.9 with the reference, 4° of scatter) with a constant offset of −18.5° (−8° to −30° by participant), present from the first frame. Cause: the model takes the head's vertical axis from the shoulders to a Head point at the top of the head; the reference used the centroid of the mocap head band, about 8 cm lower, which tilts that axis forward. The reference's Head is now the band's centroid raised along the band's normal by the height of the NLF head-top landmark above it, measured on each fold's fitting participants (77 to 83 mm; `fit_head_raise.py`, commit `7b6c116`). The reference was regenerated (108 trials, no failure) and every run rescored; no estimate was rerun. Neck flexion error: 19.0° to 10.5° ± 5.4° (offset −8.7°, −21° to +2° by participant: the band is not worn the same way by everyone). Reference in `/root/workspace/oof/ref28`, tables in `/root/workspace/oof/t28`.
+
+**Arms, 18 participants, 108 trials each, no solver failure or dropped frame.**
+
+| Arm | Cameras | Error | Marker error | Jitter |
+|---|---|---|---|---|
+| NLF-S, 3D fused (headline) | 0, 2, 4, 6 | 8.16° ± 0.82° | 50 mm | 0.15° |
+| NLF-S, 3D fused | 0, 4 (opposed) | 8.38° ± 0.86° | 58 mm | 0.19° |
+| NLF-S, 3D fused | 0, 2 (same side) | 8.69° ± 0.88° | 104 mm | 0.19° |
+| NLF-S, 3D fused | 0 | 9.03° ± 0.94° | 115 mm | 0.24° |
+| NLF-S, 2D triangulated | 0, 2, 4, 6 | 9.05° ± 0.98° | 69 mm | 0.22° |
+| NLF-S, 2D triangulated | 0, 2 | 12.54° ± 1.28° | 93 mm | 0.49° |
+| NLF-S, 2D triangulated | 0, 4 | 22.11° ± 8.35° | 101 mm | 0.28° |
+| mmpose and LSTM augmenter (submitted baseline) | 0, 2, 4, 6 | 12.34° ± 1.05° | 76 mm | 0.19° |
+| NLF-S, 3D fused | 2, 4, 6 / 2, 4 / 4, 6 / 2 | 8.36° / 8.40° / 9.03° / 9.06° | 60 / 53 / 105 / 100 mm | |
+| FastSAM-3D | 2, 4, 6 / 2, 4 / 4, 6 / 2 | 7.94° / 7.93° / 8.48° / 8.70° | 53 / 46 / 91 / 86 mm | |
+
+- Headline without the two forearm pronation DoF: 6.69° ± 0.70°. Pronation: 33.2° (left), 22.8° (right). Besides pronation and neck flexion, only shoulder rotation exceeds 10° (11.1° both sides).
+- By task: Lifting 7.72°, Polishing 8.54°, Screwing 8.70°, SideOverhead 9.00°, RobotPolishing 7.42°, RobotWelding 7.59°.
+- Causal and aligned error coincide to 0.01° (lag 0.4 frame).
+
+**IK, filter, weights, fusion, inference.**
+
+| Variant | Error | Lag (frames) | Jitter |
+|---|---|---|---|
+| MHE, horizon 7, tuned 1-euro (paper setting) | 8.16° ± 0.82° | 0.4 | 0.153° |
+| Per-frame IK, same filter | 9.73° ± 1.54° | 1.0 | 0.145° |
+| MHE, horizon 3 / 5 / 10 / 15 / 20 | 8.16 / 8.16 / 8.16 / 8.17 / 8.17° | 0.3 to 0.6 | 0.160 to 0.144° |
+| MHE, no filter | 8.16° | −0.4 | 0.279° |
+| MHE, 5 Hz Butterworth, order 4 (submitted) | 8.40° | 2.9 | 0.156° |
+| MHE, state weight 1e-4 / 1e-2 | 9.14° / 11.70° | | |
+| MHE, control weight 1e-6 / 1e-4 | 8.16° / 8.16° | | |
+| Fusion: mean / inverse variance / reprojection weights / with symmetry | 8.16 / 8.27 / 8.67 / 9.32° | | |
+| TensorRT, per-view detection (1-euro) | 8.16° ± 0.82° | 0.5 | 0.153° |
+| TensorRT, tiled detection (1-euro) | 8.16° ± 0.81° | 0.4 | 0.153° |
+
+TensorRT and tiled detection differ from TorchScript by at most 0.05° and 0.25° on one trial.
+
+**Statistics**, participant means, Holm within each family, equivalence at ±1°:
+
+- Arms (10). Proposed against mmpose: −4.18° [−4.74, −3.63], p < 0.001. 3D fusion against 2D triangulation: −0.89° [−1.30, −0.47], p = 0.001. Camera ladder: 1 against 2 same-side +0.34°, 2 same-side against 4 +0.53°, 1 against 4 +0.87°, same-side against opposed pair +0.31°, all p ≤ 0.003. FastSAM-3D against NLF-S on cameras 2 / 4-6 / 2-4 / 2-4-6: −0.36° / −0.55° / −0.47° / −0.42°, none significant (Holm p = 0.24 each); equivalence not established (Holm p = 0.10 to 0.18).
+- IK and filter (14). MHE against per-frame IK: +1.57° [1.09, 2.05], p < 0.001. Every horizon equivalent to 7 (largest difference 0.01°). No filter: −0.01°, equivalent. 5 Hz Butterworth: +0.24° [0.22, 0.26], p = 0.002, equivalent.
+- MHE weights (4). State weight 1e-4: +0.98° [0.54, 1.43], p = 0.002; 1e-2: +3.54°, p < 0.001; control weight equivalent.
+- Fusion against the mean (3). Inverse variance +0.11°, p = 1.0, equivalent; reprojection weights +0.50° [0.14, 0.87], p = 0.024, equivalent; with symmetry +1.16°, p < 0.001.
+
+**Fusion robustness (ticket 10), rerun with the 1-euro filter and this reference.** Held-out participants (12), mean / inverse variance / median: clean 8.07 / 8.13 / 8.17°; views masked half the time 8.68 / 8.75 / 8.87°. Validation participants (6), a 1 m outlier on one limb of one view: 11.37 / 11.62 / 8.59°. The uncertainty-weighted median is unusable (12° to 17°). Conclusions of ticket 10 unchanged. Tables in `/root/workspace/oof/t28/robustness`.
+
+**REBA**, headline arm (absolute / reference's neutral / own neutral): mean absolute error 0.91 / 0.82 / 0.71, same risk level 63 % / 72 % / 75 %, weighted kappa 0.53 / 0.66 / 0.70. Absolute angles gain from the neck correction (1.05 and 59 % before); own neutral is unchanged. High-risk frames rated lower: 46 % / 51 % / 54 % by participant, so the neck offset was not the cause of the underestimation.
+
+**Hand-to-robot distance:** unchanged (SD 33 to 38 mm; at 300 mm, under 0.1 % of close frames missed, false alarms 8.6 % left and 0.3 % right).
+
+**Decisions of 2026-11-15.**
+
+- REBA: the paper's main figure is each side relative to its own neutral posture (0.71, 75 %, kappa 0.70).
+- Hand-to-robot distance: the claim is reworded at a 300 mm threshold.
+- FastSAM-3D: one sentence (another foundation model under the same protocol, slightly more accurate, much slower). Participant 3361's relabelled meshes need no further action.
+- Synchronisation, COMFI: hardware between cameras and mocap, software between the webcams; details as in the submitted paper.
+- COMETH: one sentence, no experiment.
+- InstantHMR (medium, fit on 1 crop) was tried as a front end and dropped: same accuracy as NLF-S on one COMFI participant (9.01° against 9.12°), 0.3° to 0.9° behind on two OpenCap subjects, same speed once both are batched in TensorRT (7.6 against 8.8 ms per four-view frame), no gain on pronation, and landmark maps fitted on its own meshes did not help. Not in the paper.
+- OpenCap is unaffected by the head point (its reference has no head markers).
 
 ## 1. Headline
 

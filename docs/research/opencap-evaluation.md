@@ -7,7 +7,7 @@ Where things are: code in `src/rtcosmik/paper/opencap.py`, `scripts/python/paper
 ## Summary
 
 - **Used**: 9 subjects (the tenth has no videos), 144 dynamic trials (16 per subject), 26 scored DoF. Runs at commit `609abe5`; 0 solver failures.
-- **Joint error against our reference, causal, mean ± SD over subjects** (frames of OpenCap's own analysis): five cameras 8.8° ± 1.0°, three cameras 9.3° ± 1.0°, two cameras (±45°) 9.2° ± 1.0°. Aligned error is the same to 0.1° (the pipeline's lag is under half a frame at 60 Hz). On COMFI the same pipeline gives 8.46° ± 0.84° with four cameras.
+- **Joint error against our reference, causal, mean ± SD over subjects** (frames of OpenCap's own analysis): five cameras 8.8° ± 1.0°, three cameras 9.3° ± 1.0°, two cameras (±45°) 9.2° ± 1.0°. Aligned error is the same to 0.1° (the pipeline's lag is under half a frame at 60 Hz). On COMFI the same pipeline gives 8.16° ± 0.82° with four cameras.
 - **By activity**, five cameras: squat 8.4°, sit-to-stand 8.6°, drop jump 10.4°, walking 7.4°.
 - **Marker error** after a rigid alignment per session: 58 ± 17 mm (five cameras), 68 ± 17 mm (two). It grows with the subject's height: NLF's fused landmarks under-size tall subjects (10 % for the 1.96 m subject, 92 mm) and no view corrects it.
 - **Forearm pronation** carries a 28° offset on both sides and an RMSE of 30°; the mean over the other 24 DoF is 7.1° (five cameras) and 7.4° (two).
