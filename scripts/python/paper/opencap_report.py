@@ -85,6 +85,7 @@ def score(dataset, out, subjects):
                 if not _complete(run):
                     continue
                 info = json.loads((run / "run_info.json").read_text())
+                sync = json.loads((out / "synced" / subject / f"{trial.name}.json").read_text())
                 for scope, frames in (("window", window), ("clip", None)):
                     row, per_dof = scoring.score_trial(
                         run, reference, settings.paper["clock_offset"], unscored=oc.UNSCORED,
@@ -97,7 +98,9 @@ def score(dataset, out, subjects):
                         first, later = _early_error(run, reference, columns, window, early)
                         row.update(early_mae_deg=first, later_mae_deg=later,
                                    start_residual_mm=info.get("start_residual_mm"),
-                                   first_frame_gap=int(round((times[1] - 0.0) * settings.fs)) - 1,
+                                   camera_offset_span=int(np.ptp(sync["camera_offsets_frames"])),
+                                   clock_offset_s=sync["clock_offset_from_nominal_s"],
+                                   sync_residual_mm=sync["residual_mm"],
                                    window_first=window[0], window_frames=window[1] - window[0] + 1,
                                    clip_frames=len(times))
                     trials.append({**key, **row})
@@ -283,11 +286,19 @@ def tables(trials, dofs, rel, agreement):
         a = window[window.arm == tag]
         rows.append([tag, f"{a.early_mae_deg.mean():.2f}", f"{a.later_mae_deg.mean():.2f}",
                      f"{a.start_residual_mm.mean():.1f}", f"{a.start_residual_mm.max():.1f}",
-                     f"{np.corrcoef(a.first_frame_gap, a.marker_lag)[0, 1]:.2f}",
-                     f"{a.marker_lag.min()} to {a.marker_lag.max()}"])
-    out += [f"### Start of a trial (first {EARLY_S} s of the window against the rest) and time base", "",
+                     f"{a.marker_lag.mean():.2f} ({a.marker_lag.min()} to {a.marker_lag.max()})"])
+    sync = window[window.arm == next(iter(oc.ARMS))]
+    sync_rows = [[name, len(g), f"{g.camera_offset_span.mean():.1f}", int(g.camera_offset_span.max()),
+                  f"{g.clock_offset_s.mean():+.3f}", f"{g.clock_offset_s.min():+.3f} to {g.clock_offset_s.max():+.3f}",
+                  f"{g.sync_residual_mm.mean():.0f}", f"{(g.window_frames / g.clip_frames).mean():.2f}"]
+                 for name, g in sync.groupby("activity")]
+    out += [f"### Start of a trial (first {EARLY_S} s of the window against the rest)", "",
             _markdown(rows, ["arm", "MAE first frames deg", "MAE later deg", "start residual mm, mean",
-                             "start residual mm, max", "r(first-frame gap, marker lag)", "marker lag range"]), ""]
+                             "start residual mm, max", "marker lag frames, mean (range)"]), "",
+            "### Synchronisation of the released clips", "",
+            _markdown(sync_rows, ["activity", "trials", "camera offset span frames, mean", "max",
+                                  "clock offset from the clip's nominal start s, mean", "range",
+                                  "residual after rigid fit mm", "scored share of the synchronised frames"]), ""]
     return "\n".join(out)
 
 

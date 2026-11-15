@@ -48,17 +48,6 @@ def test_trc_gives_named_markers_in_file_units_and_nan_for_empty_cells(tmp_path)
     assert np.isnan(markers["C7"][1]).all()
 
 
-def test_first_video_frame_sits_one_period_before_the_second():
-    # The synced clips stamp their first frame at 0 whatever the gap that follows.
-    times = oc.frame_times([0.0, 0.2, 0.2 + 1 / 60, 0.2 + 2 / 60], fs=60)
-    np.testing.assert_allclose(times, [0.2 - 1 / 60, 0.2, 0.2 + 1 / 60, 0.2 + 2 / 60])
-
-
-def test_decoder_repeats_of_the_first_frame_are_counted_from_the_gap():
-    assert oc.leading_repeats([0.0, 0.2, 0.2 + 1 / 60], fs=60) == 11
-    assert oc.leading_repeats([0.0, 1 / 60, 2 / 60], fs=60) == 0
-
-
 def test_resampling_interpolates_linearly_and_never_extrapolates_or_bridges_gaps():
     t = np.arange(0, 0.05, 0.01)                       # 100 Hz
     values = np.stack([100 * t, 3 - 50 * t], 1)        # two linear channels
@@ -71,6 +60,54 @@ def test_resampling_interpolates_linearly_and_never_extrapolates_or_bridges_gaps
     assert np.isnan(out[2]).all()                      # next to the missing sample
     np.testing.assert_allclose(out[3], [4.0, 1.0])
     assert np.isnan(out[4]).all()                      # past the last sample
+
+
+def _trajectory(frames, markers, seed=0, fs=60.0):
+    """Smooth, non-periodic marker trajectories: a function of time in seconds."""
+    rng = np.random.default_rng(seed)
+    freq, phase = rng.uniform(0.3, 2.0, (4, markers, 3)), rng.uniform(0, 6.28, (4, markers, 3))
+    amp = rng.uniform(0.05, 0.3, (4, markers, 3))
+    at = lambda t: (amp * np.sin(2 * np.pi * freq * np.asarray(t, float)[:, None, None, None] + phase)).sum(1)
+    return at, at(np.arange(frames) / fs)
+
+
+def test_camera_offsets_are_recovered_despite_a_constant_bias_per_camera_and_gaps():
+    _, track = _trajectory(260, 6)
+    true = [4, 0, -7, 11]                                # camera c's row r shows instant r + true[c]
+    rng = np.random.default_rng(1)
+    views = np.stack([track[20 + o:220 + o] + rng.normal(0, 0.1, 3) + rng.normal(0, 0.005, (200, 6, 3))
+                      for o in true], 1)
+    views[:15, 2] = np.nan
+
+    offsets = oc.camera_offsets(views, max_lag=20)
+
+    assert list(offsets - offsets[1]) == true
+
+
+def test_aligned_cameras_show_the_same_instant_on_each_row():
+    instants = np.arange(100.0)
+    offsets = np.array([4, 0, -7])
+    views = np.stack([instants + o for o in offsets], 1)[:, :, None]    # each cell holds its instant
+
+    aligned, first = oc.align_cameras(views, offsets)
+
+    assert aligned.shape == (100 - 11, 3, 1)
+    assert (aligned[:, 0] == aligned[:, 1]).all() and (aligned[:, 1] == aligned[:, 2]).all()
+    assert aligned[0, 1, 0] == first == 4               # in the rows of the camera with offset 0
+
+
+def test_clock_offset_places_the_video_rows_on_the_mocap_clock():
+    from scipy.spatial.transform import Rotation
+    at, _ = _trajectory(1, 8, seed=3)
+    mocap_times = np.arange(0, 1.5, 0.01)
+    R, t = Rotation.from_euler("zyx", [2.0, 0.1, -0.2]).as_matrix(), np.array([1.0, -3.0, 0.5])
+    truth = -0.4625                                      # row 0 was filmed before the mocap started
+    rows = at(np.arange(150) / 60 + truth) @ R.T + t
+
+    offset, residual = oc.clock_offset(rows, 60, mocap_times, at(mocap_times), search=(-1.0, 0.5))
+
+    assert offset == pytest.approx(truth, abs=1 / 240)
+    assert residual < 0.005
 
 
 def test_reference_markers_are_renamed_scaled_to_metres_and_put_on_the_frame_times(tmp_path):

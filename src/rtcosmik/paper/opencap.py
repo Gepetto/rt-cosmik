@@ -204,30 +204,121 @@ def read_mot(path):
     return table[:, 0], {name: table[:, i] for i, name in enumerate(names) if i}
 
 
-def video_pts(path):
-    """Presentation times (s) of a video's frames, in decoding order."""
-    out = subprocess.run(["ffprobe", "-v", "error", "-select_streams", "v:0", "-show_entries",
-                          "packet=pts_time", "-of", "csv=p=0", str(path)],
-                         capture_output=True, text=True, check=True).stdout
-    return np.array([float(line.strip(",")) for line in out.split()])
+def original_video(subject_dir, session, camera, trial):
+    """The whole recording a synced clip was cut from."""
+    return video_path(subject_dir, session, camera, trial).with_name(f"{trial}.avi")
 
 
-def frame_times(pts, fs):
-    """Mocap-clock time of each frame of a synced clip.
+def _thumbnails(path):
+    out = subprocess.run(["ffmpeg", "-v", "error", "-i", str(path), "-vsync", "0", "-vf",
+                          "scale=90:160", "-f", "rawvideo", "-pix_fmt", "gray", "-"],
+                         capture_output=True, check=True).stdout
+    return np.frombuffer(out, np.uint8).reshape(-1, 160, 90).astype(np.float32)
 
-    The clips are stamped on the mocap clock, except their first frame: it is
-    stamped 0 and followed by a gap, although it was filmed one period before
-    the second.
+
+def clip_start(original, clip):
+    """``(first, count)``: the clip's frames are ``first .. first + count - 1`` of the original."""
+    whole, part = _thumbnails(original), _thumbnails(clip)
+    difference = np.abs(whole[:len(whole) - len(part) + 1] - part[0]).mean((1, 2))
+    first = int(np.argmin(difference))
+    if difference[first] > 0.5 or np.abs(whole[first + len(part) - 1] - part[-1]).mean() > 0.5:
+        raise RuntimeError(f"{clip} is not a run of frames of {original}")
+    return first, len(part)
+
+
+def read_frames(path, first, count, size_wh):
+    """BGR frames ``first .. first + count - 1`` of a video; None where the video has none."""
+    width, height = size_wh
+    start = max(first, 0)
+    process = subprocess.Popen(
+        ["ffmpeg", "-v", "error", "-i", str(path), "-vsync", "0", "-vf",
+         f"select='between(n,{start},{first + count - 1})',scale={width}:{height}",
+         "-f", "rawvideo", "-pix_fmt", "bgr24", "-"], stdout=subprocess.PIPE)
+    try:
+        for index in range(first, first + count):
+            data = b"" if index < 0 else process.stdout.read(width * height * 3)
+            yield (np.frombuffer(data, np.uint8).reshape(height, width, 3)
+                   if len(data) == width * height * 3 else None)
+    finally:
+        process.kill()
+        process.wait()
+
+
+def _pair_lag(a, b, max_lag):
+    """Rows ``b`` is ahead of ``a`` by: ``a[r]`` and ``b[r + lag]`` show the same instant."""
+    best, cost = 0, np.inf
+    for lag in range(-max_lag, max_lag + 1):
+        x = a[max(-lag, 0):len(a) - max(lag, 0)]
+        y = b[max(lag, 0):len(b) - max(-lag, 0)]
+        ok = np.isfinite(x).all((1, 2)) & np.isfinite(y).all((1, 2))
+        if ok.sum() < len(a) // 2:
+            continue
+        d = (x[ok] - x[ok].mean(0)) - (y[ok] - y[ok].mean(0))    # a view's depth bias is not a lag
+        value = np.linalg.norm(d, axis=-1).mean()
+        if value < cost:
+            best, cost = lag, value
+    return best
+
+
+def camera_offsets(views, max_lag):
+    """Whole frames each camera's rows are late by, from their world-frame landmarks (F, C, M, 3).
+
+    Camera ``c``'s row ``r`` shows instant ``r + offsets[c]``. Every pair of
+    cameras is compared, and the offsets are the least-squares fit to the pair lags.
     """
-    times = np.array(pts, float)
-    if len(times) > 1:
-        times[0] = times[1] - 1 / fs
-    return times
+    cameras = views.shape[1]
+    rows, lags = [], []
+    for a in range(cameras):
+        for b in range(a + 1, cameras):
+            row = np.zeros(cameras)
+            row[a], row[b] = 1, -1
+            rows.append(row)
+            lags.append(_pair_lag(views[:, a], views[:, b], max_lag))
+    rows.append(np.ones(cameras))
+    lags.append(0)
+    offsets = np.linalg.lstsq(np.array(rows), np.array(lags, float), rcond=None)[0]
+    return np.round(offsets - offsets.min()).astype(int)
 
 
-def leading_repeats(pts, fs):
-    """Copies of the first frame a constant-rate decoder emits to fill the gap after it."""
-    return int(round((pts[1] - pts[0]) * fs)) - 1 if len(pts) > 1 else 0
+def align_cameras(array, offsets):
+    """Rows of ``array`` (F, C, ...) shifted per camera so that a row is one instant.
+
+    Returns the rows every camera has, and the instant of the first of them
+    counted in the rows of a camera whose offset is 0.
+    """
+    offsets = np.asarray(offsets)
+    start = offsets.max() - offsets
+    length = array.shape[0] - (offsets.max() - offsets.min())
+    aligned = np.stack([array[s:s + length, c] for c, s in enumerate(start)], axis=1)
+    return aligned, int(offsets.max())
+
+
+def _clock_cost(rows, fs, mocap_times, mocap, offset, coverage):
+    times = np.arange(len(rows)) / fs + offset
+    inside = (times >= mocap_times[0]) & (times <= mocap_times[-1])
+    span = min(len(rows), (mocap_times[-1] - mocap_times[0]) * fs)
+    if inside.sum() < coverage * span:
+        return np.inf
+    source = rows[inside].reshape(-1, 3)
+    target = resample(mocap_times, mocap, times[inside]).reshape(-1, 3)
+    ok = np.isfinite(source).all(1) & np.isfinite(target).all(1)
+    R, t = rigid_fit(source[ok], target[ok])
+    return float(np.linalg.norm(source[ok] @ R.T + t - target[ok], axis=1).mean())
+
+
+def clock_offset(rows, fs, mocap_times, mocap, search, coverage=0.9, step=1 / 240):
+    """``(offset, residual)``: row ``r`` of the landmarks (F, M, 3) was filmed at mocap time ``r / fs + offset``.
+
+    The offset minimises the distance left between the landmarks and the mocap
+    markers (F2, M, 3) after a rigid fit, among those that keep ``coverage`` of
+    the shorter of the two inside the other.
+    """
+    cost = lambda offset: _clock_cost(rows, fs, mocap_times, mocap, offset, coverage)
+    coarse = np.arange(search[0], search[1] + 1e-9, 1 / fs)
+    best = min(coarse, key=cost)
+    fine = np.arange(best - 1 / fs, best + 1 / fs + 1e-9, step)
+    best = min(fine, key=cost)
+    return float(best), cost(best)
 
 
 def resample(times, values, at):

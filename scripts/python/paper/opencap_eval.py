@@ -3,12 +3,13 @@
 
 Stages, each resumable:
 
-    reference   mocap markers through our model and IK (the reference runs)
     record      YOLO + NLF on the five videos of every trial, saved as views (GPU)
+    sync        cameras synchronised on their landmarks, video clock set on the mocap's
+    reference   mocap markers through our model and IK (the reference runs)
     replay      the arms of ``opencap.ARMS`` from the recorded views (CPU)
     report      scores and tables, with OpenCap's released angles beside ours
 
-    python3 scripts/python/paper/opencap_eval.py reference \\
+    python3 scripts/python/paper/opencap_eval.py record \\
         --dataset /root/workspace/OpenCap/data/LabValidation_withVideos --out /root/workspace/oof/t16
 
 The model is calibrated on the static trial, then every dynamic trial starts
@@ -101,6 +102,11 @@ def _median_frame(markers):
     return {name: np.nanmedian(xyz, axis=0) for name, xyz in markers.items()}
 
 
+def _views(out, subject, trial):
+    """A trial's recorded views: synchronised ones for a dynamic trial, the clip's for the static."""
+    return out / ("views" if trial == oc.STATIC else "synced") / subject / f"{trial}.npz"
+
+
 def reference_subject(job):
     """Reference runs of one subject: calibrated on the static mocap, one run per dynamic trial."""
     from rtcosmik.pipeline.solver import HumanSolver
@@ -117,8 +123,7 @@ def reference_subject(job):
     oc.require_standing(settings.joint_angles_names, q)
     for trial in todo:
         run_dir = out / "runs" / subject / trial.name / REFERENCE_TAG
-        times = oc.frame_times(oc.video_pts(oc.video_path(subject_dir, trial.session, 0, trial.name)),
-                               settings.fs)
+        times = np.load(_views(out, subject, trial.name))["times"]
         markers = oc.reference_markers(oc.trc_path(subject_dir, trial.name), at=times)
         frames = [(f, {n: markers[n][f] for n in settings.marker_names}) for f in range(len(times))]
         frames = [(f, m) for f, m in frames if all(np.isfinite(v).all() for v in m.values())]
@@ -131,14 +136,18 @@ def reference_subject(job):
 
 
 def record_subject(dataset, out, subject):
-    """Per-view NLF output of the static and dynamic trials of one subject, five cameras."""
+    """Per-view NLF output of the static and dynamic trials of one subject, five cameras.
+
+    Row ``r`` of a recording holds, for each camera, the frame ``r - margin``
+    of its released clip, read from the whole video so that the frames around
+    the clip are there for the synchronisation.
+    """
     import sweep
     from rtcosmik import landmark_maps
     from rtcosmik.camera.cam_utils import load_camera_parameters
     from rtcosmik.nlf.nlf import extract_views
     from rtcosmik.paper.nlf_views import ViewsRecorder
     from rtcosmik.provenance import estimator_identity
-    from rtcosmik.utils.VideoReader import OfflineVideoSource
 
     base = _settings()
     landmark_map = landmark_maps.select(base, subject)
@@ -146,40 +155,105 @@ def record_subject(dataset, out, subject):
     settings = landmark_maps.apply(landmark_map, base)
     subject_dir = dataset / subject
     cameras = list(oc.CAMERAS)
+    size = (settings.width, settings.height)
     static = oc.Trial(oc.STATIC, oc.session_of(subject_dir, oc.STATIC), None)
     for trial in [static] + oc.trials(subject_dir):
         views_path = out / "views" / subject / f"{trial.name}.npz"
         if views_path.exists():
             continue
+        before, after = (0, 0) if trial.name == oc.STATIC else settings.opencap["sync_margin_frames"]
         cam_dir = _calibration(dataset, out, subject, trial.session)
         mtxs = load_camera_parameters(cam_dir, cameras)[0]
         estimator = sweep._nlf_estimator(mtxs, len(cameras), settings)
         estimator.reset_tracking()
-        paths = [oc.video_path(subject_dir, trial.session, c, trial.name) for c in cameras]
-        pts = oc.video_pts(paths[0])
-        repeats = oc.leading_repeats(pts, settings.fs)    # the decoder fills the gap after frame 0
+        originals = [oc.original_video(subject_dir, trial.session, c, trial.name) for c in cameras]
+        clips = [oc.clip_start(original, oc.video_path(subject_dir, trial.session, c, trial.name))
+                 for c, original in zip(cameras, originals)]
+        if len({count for _, count in clips}) != 1:
+            raise RuntimeError(f"{subject}/{trial.name}: clips of different lengths {clips}")
+        rows = before + clips[0][1] + after
+        readers = [oc.read_frames(original, first - before, rows, size)
+                   for original, (first, _) in zip(originals, clips)]
         recorder = ViewsRecorder(cameras, len(settings.marker_names), landmark_map,
                                  estimator_identity(settings, len(cameras)))
-        source = OfflineVideoSource(paths=[str(p) for p in paths],
-                                    size_wh=(settings.width, settings.height), loop=False)
-        read = 0
-        try:
-            while True:
-                frames = source.read()
-                if frames is None:
-                    break
-                read += 1
-                if read <= repeats:
-                    continue
-                nlf_out = estimator.estimate_from_frames(frames)[0]
-                recorder.append(extract_views(nlf_out, len(cameras)))
-        finally:
-            source.release()
-        if read - repeats != len(pts):
-            raise RuntimeError(f"{subject}/{trial.name}: decoded {read} frames with {repeats} "
-                               f"repeats, the clip holds {len(pts)}")
+        blank = np.zeros((settings.height, settings.width, 3), np.uint8)
+        absent = []
+        for row in range(rows):
+            frames = [next(reader) for reader in readers]
+            absent += [(row, c) for c, frame in enumerate(frames) if frame is None]
+            nlf_out = estimator.estimate_from_frames([blank if f is None else f for f in frames])[0]
+            recorder.append(extract_views(nlf_out, len(cameras)))
+        for reader in readers:
+            reader.close()
+        for row, camera in absent:
+            for array in (recorder.keypoints, recorder.poses3d, recorder.uncertainties):
+                array[row][camera] = np.nan
         recorder.save(views_path)
-        LOGGER.info(f"recorded {subject}/{trial.name}: {len(pts)} frames")
+        views_path.with_suffix(".json").write_text(json.dumps(
+            {"clip_first_frame": [first for first, _ in clips], "clip_frames": clips[0][1],
+             "margin_frames": [before, after]}))
+        LOGGER.info(f"recorded {subject}/{trial.name}: {rows} rows, clip of {clips[0][1]} frames")
+
+
+def _world_landmarks(poses, cam_dir, cameras):
+    """Per-camera landmarks (F, C, M, 3) taken from each camera's frame to the world."""
+    from rtcosmik.camera.cam_utils import load_camera_parameters, load_world_transformation
+    projections = load_camera_parameters(cam_dir, cameras)[2]
+    world_R, world_T = (np.asarray(a) for a in load_world_transformation(cam_dir, cameras[0]))
+    world = []
+    for camera, projection in enumerate(projections):
+        projection = np.asarray(projection)
+        in_reference = (poses[:, camera] - projection[:, 3]) @ projection[:, :3]
+        world.append(in_reference @ world_R.T + world_T)
+    return np.stack(world, 1)
+
+
+def sync_subject(job):
+    """Synchronise the cameras of each dynamic trial and set its clock on the mocap's.
+
+    Writes ``synced/<subject>/<trial>.npz``: the recording with one instant per
+    row, cut to the mocap trial, with the mocap time of each row.
+    """
+    dataset, out, subject = job
+    settings = _settings()
+    choice = settings.opencap
+    names = list(settings.marker_names)
+    common = [n for n in names if n in oc.MARKERS and n not in oc.STATIC_ONLY]
+    subject_dir = dataset / subject
+    done = 0
+    for trial in oc.trials(subject_dir):
+        raw = out / "views" / subject / f"{trial.name}.npz"
+        synced = _views(out, subject, trial.name)
+        if synced.exists():
+            continue
+        data = dict(np.load(raw))
+        margin = json.loads(raw.with_suffix(".json").read_text())["margin_frames"][0]
+        cameras = [int(c) for c in data["cameras"]]
+        world = _world_landmarks(data["poses3d"].astype(float),
+                                 _calibration(dataset, out, subject, trial.session), cameras)
+        offsets = oc.camera_offsets(world, choice["max_camera_lag_frames"])
+        world, first = oc.align_cameras(world, offsets)
+        with np.errstate(all="ignore"):
+            fused = np.nanmean(world, axis=1)[:, [names.index(n) for n in common]]
+        mocap_times = oc.read_trc(oc.trc_path(subject_dir, trial.name))[0]
+        mocap = oc.reference_markers(oc.trc_path(subject_dir, trial.name))
+        mocap = np.stack([mocap[n] for n in common], 1)
+        nominal = (first - margin) / settings.fs
+        offset, residual = oc.clock_offset(
+            fused, settings.fs, mocap_times, mocap,
+            search=(nominal + choice["clock_search_s"][0], nominal + choice["clock_search_s"][1]))
+        times = np.arange(len(fused)) / settings.fs + offset
+        keep = (times >= mocap_times[0]) & (times <= mocap_times[-1])
+        for key in ("keypoints", "poses3d", "uncertainties"):
+            data[key] = oc.align_cameras(data[key], offsets)[0][keep]
+        synced.parent.mkdir(parents=True, exist_ok=True)
+        np.savez_compressed(synced, times=times[keep], **data)
+        synced.with_suffix(".json").write_text(json.dumps(
+            {"camera_offsets_frames": offsets.tolist(), "clock_offset_s": offset,
+             "clock_offset_from_nominal_s": offset - nominal, "residual_mm": residual * 1000,
+             "frames": int(keep.sum()), "mocap_s": float(mocap_times[-1] - mocap_times[0])}))
+        done += 1
+    return subject, done
 
 
 def replay_arm(job):
@@ -193,11 +267,10 @@ def replay_arm(job):
     settings = _settings()
     cameras = list(oc.ARMS[tag])
     subject_dir = dataset / subject
-    views = lambda trial: out / "views" / subject / f"{trial}.npz"
     todo = [t for t in oc.trials(subject_dir) if not _done(out / "runs" / subject / t.name / tag)]
     if not todo:
         return subject, tag, 0
-    static = replay_markers(views(oc.STATIC), _calibration(
+    static = replay_markers(_views(out, subject, oc.STATIC), _calibration(
         dataset, out, subject, oc.session_of(subject_dir, oc.STATIC)), cameras, fusion=settings.fusion)
     posture = np.median([p3d for _, p3d in static], axis=0)
     solver = HumanSolver(settings, **_anthropometry(subject_dir), logger=logging.getLogger("solve"))
@@ -205,16 +278,16 @@ def replay_arm(job):
     oc.require_standing(settings.joint_angles_names, q)
     for trial in todo:
         run_dir = out / "runs" / subject / trial.name / tag
-        landmark_map = checked_recording(views(trial.name), subject, settings)
+        views = _views(out, subject, trial.name)
+        landmark_map = checked_recording(views, subject, settings)
         start_run(run_dir, settings, dict(name="nlf", tag=tag, cameras=cameras, participant=subject,
-                                          task=trial.name, dataset=str(dataset),
-                                          views=str(views(trial.name)), reconstruction="fuse3d",
-                                          calibration=oc.STATIC),
-                  repo=REPO, landmark_map=landmark_map, estimator=recorded_estimator(views(trial.name)))
+                                          task=trial.name, dataset=str(dataset), views=str(views),
+                                          reconstruction="fuse3d", calibration=oc.STATIC),
+                  repo=REPO, landmark_map=landmark_map, estimator=recorded_estimator(views))
         marker_filter = MarkerFilter(len(settings.marker_names), settings)
         frames = [(frame, dict(zip(settings.marker_names, marker_filter(p3d))))
                   for frame, p3d in replay_markers(
-                      views(trial.name), _calibration(dataset, out, subject, trial.session),
+                      views, _calibration(dataset, out, subject, trial.session),
                       cameras, fusion=settings.fusion)]
         _solve_trial(solver, frames, run_dir, settings)
     return subject, tag, len(todo)
@@ -236,7 +309,7 @@ def _pool(function, jobs, workers):
 def main():
     ap = argparse.ArgumentParser(description=__doc__,
                                  formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument("stage", choices=["reference", "record", "replay", "report"])
+    ap.add_argument("stage", choices=["record", "sync", "reference", "replay", "report"])
     ap.add_argument("--dataset", type=Path, required=True, help="LabValidation_withVideos")
     ap.add_argument("--out", type=Path, required=True, help="views, run folders and tables go here")
     ap.add_argument("--subjects", nargs="*", default=list(oc.SUBJECTS))
@@ -250,6 +323,12 @@ def main():
     elif args.stage == "record":
         for subject in args.subjects:
             record_subject(args.dataset, args.out, subject)
+    elif args.stage == "sync":
+        import multiprocessing
+        with multiprocessing.get_context("spawn").Pool(args.workers) as pool:
+            for result in pool.imap_unordered(
+                    sync_subject, [(args.dataset, args.out, s) for s in args.subjects]):
+                LOGGER.info(f"  synced {result}")
     elif args.stage == "replay":
         _pool(replay_arm, [(args.dataset, args.out, s, tag) for tag in oc.ARMS
                            for s in args.subjects], args.workers)
