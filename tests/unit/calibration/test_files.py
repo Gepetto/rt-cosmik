@@ -80,7 +80,8 @@ def test_hardware_info_leaves_out_what_cannot_be_read(monkeypatch):
 
 
 def test_relative_poses_are_read_back_and_replace_stale_world_poses(tmp_path):
-    from rtcosmik.calibration.files import save_intrinsics, save_relative_poses
+    from rtcosmik.calibration.files import (save_intrinsics, save_relative_poses,
+                                            save_world_pose)
     from rtcosmik.camera.cam_utils import load_camera_parameters
     cameras, root = [0, 2, 4], str(tmp_path)
     K, D = np.array([[700.0, 0, 640], [0, 700.0, 360], [0, 0, 1]]), np.zeros((1, 5))

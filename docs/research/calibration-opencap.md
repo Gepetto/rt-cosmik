@@ -1,8 +1,10 @@
 # Human-pose calibration on OpenCap
 
+Extrinsics of each walking trial from the subject's other walking clips, against the dataset's checkerboard calibration; then the walking trials replayed under them. The travel rule is not applied to these calibrations (the clips are short); the refusal table shows what it would refuse, trial by trial. Produced by `scripts/python/paper/opencap_calibration.py`; discussion in `resubmission-findings.md`, section 0f.
+
 ## Extrinsics against the checkerboard (walking session, relative to Cam0)
 
-| Camera | Subjects | Rotation (deg) | Position (mm) | Baseline (m) | Length (%) |
+| Camera | Subjects | Rotation (deg) | Position (mm) | Baseline (m) | Length, absolute error (%) |
 |---|---|---|---|---|---|
 | Cam1 | 9 | 1.96 (0.86 to 4.20) | 106 (44 to 256) | 1.51 | 4.5 |
 | Cam2 | 9 | 2.90 (0.50 to 5.79) | 305 (54 to 1068) | 4.17 | 6.4 |
@@ -13,10 +15,10 @@
 
 | Activity | Trials | Refused | Travel (m) |
 |---|---|---|---|
-| drop_jump | 54 | 35 | 0.38 to 0.57 |
-| sit_to_stand | 18 | 18 | 0.10 to 0.18 |
-| squat | 18 | 18 | 0.09 to 0.13 |
-| walking | 54 | 34 | 0.27 to 0.58 |
+| drop_jump | 54 | 54 | 0.35 to 0.50 |
+| sit_to_stand | 18 | 18 | 0.10 to 0.23 |
+| squat | 18 | 18 | 0.08 to 0.14 |
+| walking | 54 | 48 | 0.40 to 0.58 |
 
 ## Walking trials under both calibrations (mean over subjects)
 

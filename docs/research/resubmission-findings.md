@@ -296,7 +296,7 @@ Full tables: `docs/research/calibration-comfi.md`, `docs/research/calibration-op
 
 - Joint angles do not depend on the calibration. Positions do: the error doubles, to the level of one camera or two cameras on the same side (115 and 104 mm). Registering every view onto the reference camera makes the views agree at that camera's own estimate, so its depth bias is no longer averaged out by the opposite cameras.
 - At 300 mm the hand-distance check keeps under 0.3 % of missed frames; false alarms on the left hand go from 8.6 % to 12.0 %.
-- The essential-matrix method gives the same positions (99 mm); with the scale set from stature, 71 mm on average but 144 mm for the worst participant.
+- The essential-matrix alternative gives the same positions (99 mm, on the 104 trials replayed with it); with the scale set from stature, 71 mm on average but 144 mm for the worst participant. These two were replayed from scratch scripts, not from the repository.
 
 **Sensitivity to extrinsic errors (COMFI, 108 trials, cameras 2, 4, 6 perturbed in random directions, seeded per trial).**
 
@@ -308,7 +308,7 @@ Full tables: `docs/research/calibration-comfi.md`, `docs/research/calibration-op
 
 Joint angles change by at most 0.02° for any participant. Positions tolerate 1° and 50 mm (under 4 mm of extra error); hand-distance SD stays within 2 mm of the unperturbed value up to 1° and 20 mm.
 
-**OpenCap (ticket 17).** The dataset calibration is a checkerboard, so the OpenCap results of section 0c already are results under a deployment calibration. Human-pose calibration was computed for each walking trial from the subject's five other walking clips (about 430 frames, 7 s), nine subjects. The clips cover a short stretch (travel 0.43 to 0.51 m, at the 0.5 m rule), so the rule is not applied to these calibrations; taken one by one, the squat and sit-to-stand trials and most drop-jump and walking clips are refused.
+**OpenCap (ticket 17).** The dataset calibration is a checkerboard, so the OpenCap results of section 0c already are results under a deployment calibration. Human-pose calibration was computed for each walking trial from the subject's five other walking clips (about 430 frames, 7 s), nine subjects. The clips cover a short stretch (travel 0.43 to 0.51 m, at the 0.5 m rule), so the rule is not applied to these calibrations; taken one by one, every squat, sit-to-stand and drop-jump trial and 48 of the 54 walking clips are refused.
 
 | | Checkerboard | Human pose |
 |---|---|---|
