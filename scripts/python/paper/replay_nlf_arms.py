@@ -60,8 +60,12 @@ def arm_cameras(tag, participant):
     return cameras
 
 
-def replay_trial(dataset, views_path, out_dir, participant, task, arm, settings, repo=REPO):
-    """One arm on one recorded trial; returns a sweep.FIELDS row."""
+def replay_trial(dataset, views_path, out_dir, participant, task, arm, settings, repo=REPO,
+                 cam_dir=None):
+    """One arm on one recorded trial; returns a sweep.FIELDS row.
+
+    ``cam_dir`` replaces the dataset calibration.
+    """
     import yaml
     import sweep
     from rtcosmik.filtering.iir import MarkerFilter
@@ -77,13 +81,15 @@ def replay_trial(dataset, views_path, out_dir, participant, task, arm, settings,
     require_paper_evaluation(settings)
     landmark_map = checked_recording(views_path, participant, settings)
     start_run(out_dir, settings, dict(arm, participant=participant, task=task,
-                                      views=str(views_path), dataset=str(dataset)), repo=repo,
+                                      views=str(views_path), dataset=str(dataset),
+                                      calibration=str(cam_dir) if cam_dir else "dataset"),
+              repo=repo,
               landmark_map=landmark_map, estimator=recorded_estimator(views_path))
     row = dict.fromkeys(sweep.FIELDS, "")
     row.update(arm=arm["name"], participant=participant, task=task,
                cameras="-".join(map(str, cameras)), n_horizon=settings.N)
-    frames = replay_markers(views_path, dataset / "cam_params" / participant, cameras,
-                            arm["reconstruction"])
+    cam_dir = dataset / "cam_params" / participant if cam_dir is None else Path(cam_dir)
+    frames = replay_markers(views_path, cam_dir, cameras, arm["reconstruction"])
     meta = yaml.safe_load((dataset / "metadata" / f"{participant}.yaml").read_text())
     solver = HumanSolver(settings, gender=meta["gender"][0], height=meta["height"],
                          weight=meta["weight"], logger=logging.getLogger("solve"))
