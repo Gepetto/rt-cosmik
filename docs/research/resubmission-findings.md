@@ -73,7 +73,7 @@ The three are interchangeable for accuracy. The trial that tiled detection degra
 | NLF-S, 2D triangulated | 0, 2, 4, 6 | 9.57° ± 0.97° | 9.32° | 74 mm | 0.22° |
 | NLF-S, 2D triangulated | 0, 2 | 12.96° ± 1.25° | 12.76° | 96 mm | 0.47° |
 | NLF-S, 2D triangulated | 0, 4 | 22.18° ± 8.19° | 22.08° | 105 mm | 0.29° |
-| mmpose and LSTM augmenter (submitted baseline) | 0, 2, 4, 6 | 12.81° ± 1.07° | 12.53° | 80 mm | 0.20° |
+| RTMPose+LSTM (the baseline of the submitted paper) | 0, 2, 4, 6 | 12.81° ± 1.07° | 12.53° | 80 mm | 0.20° |
 
 The arms on cameras 2 / 4-6 / 2-4 / 2-4-6 of the first table are now produced by the same repository script, with the same figures.
 
@@ -121,7 +121,7 @@ The paper setting is now the 1-euro filter at 2 Hz at rest, beta 15 (commit `209
 | NLF-S, 2D triangulated | 0, 2, 4, 6 | 9.33° ± 0.99° | 9.32° | 70 mm | 0.22° |
 | NLF-S, 2D triangulated | 0, 2 | 12.84° ± 1.28° | 12.83° | 94 mm | 0.49° |
 | NLF-S, 2D triangulated | 0, 4 | 22.41° ± 8.34° | 22.43° | 102 mm | 0.28° |
-| mmpose and LSTM augmenter (submitted baseline) | 0, 2, 4, 6 | 12.57° ± 1.08° | 12.53° | 77 mm | 0.19° |
+| RTMPose+LSTM (the baseline of the submitted paper) | 0, 2, 4, 6 | 12.57° ± 1.08° | 12.53° | 77 mm | 0.19° |
 | NLF-S, 3D fused | 2, 4, 6 | 8.66° ± 0.84° | 8.66° | 61 mm | 0.17° |
 | NLF-S, 3D fused | 2, 4 | 8.70° ± 0.85° | 8.69° | 54 mm | 0.19° |
 | NLF-S, 3D fused | 4, 6 | 9.33° ± 0.89° | 9.32° | 106 mm | 0.19° |
@@ -202,7 +202,7 @@ The paper pipeline, unchanged (NLF-S, mean fusion, tuned 1-euro filter, MHE hori
 | NLF-S, 2D triangulated | 0, 2, 4, 6 | 9.05° ± 0.98° | 69 mm | 0.22° |
 | NLF-S, 2D triangulated | 0, 2 | 12.54° ± 1.28° | 93 mm | 0.49° |
 | NLF-S, 2D triangulated | 0, 4 | 22.11° ± 8.35° | 101 mm | 0.28° |
-| mmpose and LSTM augmenter (submitted baseline) | 0, 2, 4, 6 | 12.34° ± 1.05° | 76 mm | 0.19° |
+| RTMPose+LSTM (the baseline of the submitted paper) | 0, 2, 4, 6 | 12.34° ± 1.05° | 76 mm | 0.19° |
 | NLF-S, 3D fused | 2, 4, 6 / 2, 4 / 4, 6 / 2 | 8.36° / 8.40° / 9.03° / 9.06° | 60 / 53 / 105 / 100 mm | |
 | FastSAM-3D | 2, 4, 6 / 2, 4 / 4, 6 / 2 | 7.94° / 7.93° / 8.48° / 8.70° | 53 / 46 / 91 / 86 mm | |
 
