@@ -20,6 +20,12 @@ ARMS = {"nlf_5cam": (0, 1, 2, 3, 4), "nlf_3cam": (1, 2, 3), "nlf_2cam": (1, 3)}
 REFERENCE_SET = "opencap_mocap"
 CAMERA_FILE = "cameraIntrinsicsExtrinsics.pickle"
 MM_TO_M = 1e-3
+#: Both arms run in a z-up world, as on COMFI: the model calibration converges
+#: to a folded posture in the checkerboard's own frame (y down).
+BOARD_TO_WORLD = np.array([[1.0, 0, 0], [0, 0, 1], [0, -1, 0]])    # board: x right, y down, z into the wall
+LAB_TO_WORLD = np.array([[1.0, 0, 0], [0, 0, -1], [0, 1, 0]])      # mocap: y up
+#: A standing calibration posture flexes hips and knees less than this (deg).
+STANDING_FLEXION_DEG = 30.0
 
 #: Activity -> prefix of its trial names.
 ACTIVITIES = {"squat": "squats", "sit_to_stand": "STS", "drop_jump": "DJ", "walking": "walking"}
@@ -148,7 +154,7 @@ def load_camera(path):
 
 
 def write_calibration(subject_dir, session, out_dir, cameras=CAMERAS):
-    """A session's cameras in the COMFI calibration layout; the world is the checkerboard frame (m)."""
+    """A session's cameras in the COMFI calibration layout; the world is the checkerboard frame, z up (m)."""
     import cv2
     import yaml
     out_dir = Path(out_dir)
@@ -167,7 +173,8 @@ def write_calibration(subject_dir, session, out_dir, cameras=CAMERAS):
         pose.parent.mkdir(parents=True, exist_ok=True)
         pose.write_text(yaml.safe_dump({"camera_extrinsics": {
             "frame_from": f"camera_{camera}", "frame_to": "checkerboard",
-            "rotation_matrix": R.T.tolist(), "translation_vector": (-R.T @ t).tolist()}}))
+            "rotation_matrix": (BOARD_TO_WORLD @ R.T).tolist(),
+            "translation_vector": (-BOARD_TO_WORLD @ R.T @ t).tolist()}}))
     return out_dir
 
 
@@ -238,14 +245,23 @@ def resample(times, values, at):
 
 
 def reference_markers(path, at=None):
-    """A trial's mocap markers under our names, in metres, at times ``at`` (default: as sampled)."""
+    """A trial's mocap markers under our names, in metres and z up, at times ``at`` (default: as sampled)."""
     times, theirs = read_trc(path)
     markers = {}
     for ours, name in MARKERS.items():
         if name in theirs:
-            xyz = theirs[name] * MM_TO_M
+            xyz = theirs[name] @ LAB_TO_WORLD.T * MM_TO_M
             markers[ours] = xyz if at is None else resample(times, xyz, at)
     return markers
+
+
+def require_standing(joint_names, q):
+    """Refuse a calibration whose posture is not a standing one: the IK settled in a wrong minimum."""
+    flexion = {name: abs(np.degrees(value)) for name, value in zip(joint_names, q)
+               if "Hip_Flexion" in name or "Knee_Flexion" in name}
+    worst = max(flexion, key=flexion.get)
+    if flexion[worst] > STANDING_FLEXION_DEG:
+        raise RuntimeError(f"calibration posture has {worst} at {flexion[worst]:.0f} deg")
 
 
 def window_frames(times, time_range):

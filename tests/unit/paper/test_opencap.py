@@ -85,7 +85,7 @@ def test_reference_markers_are_renamed_scaled_to_metres_and_put_on_the_frame_tim
 
     assert set(markers) == {"RASI", "RMWRI"}           # clusters are not ours
     np.testing.assert_allclose(markers["RASI"][:, 0], [0.015, 0.02])
-    np.testing.assert_allclose(markers["RMWRI"], [[0.01, 0.02, 0.03]] * 2)
+    np.testing.assert_allclose(markers["RMWRI"], [[0.01, -0.03, 0.02]] * 2)   # the lab's y is up, ours z
 
 
 def test_opencap_mocap_set_is_what_dynamic_trials_carry():
@@ -142,7 +142,8 @@ def test_written_calibration_takes_a_board_point_into_every_camera_and_back(tmp_
 
     board_mm = np.array([250.0, -900.0, -400.0])
     in_camera_m = {c: (R @ board_mm + t) / 1000 for c, (R, t) in poses.items()}
-    np.testing.assert_allclose(world_R @ in_camera_m[0] + world_T, board_mm / 1000, atol=1e-9)
+    # the board's y points down and its z into the wall; the world is z up
+    np.testing.assert_allclose(world_R @ in_camera_m[0] + world_T, [0.25, -0.4, 0.9], atol=1e-9)
     np.testing.assert_allclose(projections[1] @ np.append(in_camera_m[0], 1), in_camera_m[3], atol=1e-9)
     assert mtxs[0][0, 2] == 360 and mtxs[0][1, 2] == 640
 
@@ -159,6 +160,13 @@ def test_rigid_fit_recovers_a_rotation_and_translation_and_ignores_missing_point
 
     np.testing.assert_allclose(R_fit, R, atol=1e-9)
     np.testing.assert_allclose(t_fit, t, atol=1e-9)
+
+
+def test_folded_calibration_posture_is_refused():
+    names = ["Left_Hip_Flexion_Extension[rad]", "Left_Knee_Flexion_Extension[rad]", "Lumbar_Flexion_Extension[rad]"]
+    oc.require_standing(names, np.radians([10.0, -8.0, 50.0]))
+    with pytest.raises(RuntimeError, match="Left_Hip_Flexion"):
+        oc.require_standing(names, np.radians([82.0, 48.0, 0.0]))
 
 
 def test_activity_of_a_trial_name():

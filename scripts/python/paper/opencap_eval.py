@@ -113,7 +113,8 @@ def reference_subject(job):
     if not todo:
         return subject, 0
     solver = HumanSolver(settings, **_anthropometry(subject_dir), logger=logging.getLogger("solve"))
-    solver.calibrate(_median_frame(oc.reference_markers(oc.trc_path(subject_dir, oc.STATIC))))
+    q = solver.calibrate(_median_frame(oc.reference_markers(oc.trc_path(subject_dir, oc.STATIC))))
+    oc.require_standing(settings.joint_angles_names, q)
     for trial in todo:
         run_dir = out / "runs" / subject / trial.name / REFERENCE_TAG
         times = oc.frame_times(oc.video_pts(oc.video_path(subject_dir, trial.session, 0, trial.name)),
@@ -200,7 +201,8 @@ def replay_arm(job):
         dataset, out, subject, oc.session_of(subject_dir, oc.STATIC)), cameras, fusion=settings.fusion)
     posture = np.median([p3d for _, p3d in static], axis=0)
     solver = HumanSolver(settings, **_anthropometry(subject_dir), logger=logging.getLogger("solve"))
-    solver.calibrate(dict(zip(settings.marker_names, posture)))
+    q = solver.calibrate(dict(zip(settings.marker_names, posture)))
+    oc.require_standing(settings.joint_angles_names, q)
     for trial in todo:
         run_dir = out / "runs" / subject / trial.name / tag
         landmark_map = checked_recording(views(trial.name), subject, settings)
