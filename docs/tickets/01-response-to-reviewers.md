@@ -4,9 +4,9 @@
 
 **Blocked by:** None (can start immediately)
 
-**Status:** done (draft)
+**Status:** rewritten as the response to submit (2026-11-15); the remaining items are its red "To do before submission" blocks
 
 - [x] Every AE, R1, R2 (major and minor) and R3 comment appears verbatim
 - [x] Each comment has a blue answer where one exists and a red plan
 - [x] Numbers quoted are traceable to existing results and flagged as to be recomputed
-- [ ] Each red item is later linked to the ticket that delivers it
+- [x] Each red item is later linked to the ticket that delivers it
