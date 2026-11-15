@@ -2,7 +2,7 @@
 
 Machine: NVIDIA RTX 4500 Ada Generation, 32 cores, load average 1.5 at start, 2026-11-15 15:38.
 
-Rates are processing rates on recorded video, frames released at the camera rate; a live system is capped by its cameras. The first 40 frames of each trial are left out. Acquisition and synchronisation delays are not in these figures.
+Rates are processing rates on recorded video, frames released at the camera rate; a live system is capped by its cameras (40 Hz on COMFI, 60 Hz on OpenCap). The first 40 frames of each trial are left out. The cameras' acquisition delay and the synchronisation error between cameras are not in the stage and latency figures.
 
 ## Pipeline stages, COMFI
 
@@ -21,13 +21,14 @@ Rates are processing rates on recorded video, frames released at the camera rate
 | filter | 0.03 | 0.03 | 0.05 | 0.3 |
 | ik | 3.49 | 4.34 | 5.64 | 9.8 |
 | output | 0.16 | 0.25 | 0.31 | 6.3 |
+| rest of the inference | 1.13 | 1.41 | 2.60 | 4.7 |
 | processing, decode excluded | 22.70 | 25.94 | 30.92 | 50.8 |
 | processing and decode | 22.72 | 25.97 | 30.95 | 50.8 |
 
 - Processing rate: 44 frames/s (44 with video decoding).
 - Frames not finished when the next one arrives (25.0 ms): 2607 of 14991 (17.39 %); with video decoding 2678 (17.86 %).
 - Delay from a frame's arrival to its joint angles: median 22.9 ms, 95th 31.0, 99th 47.1, max 172.9.
-- Latency of a motion event, as waiting for the next frame (0 to 25.0 ms), processing and filter lag (10 ms): median 45 ms, at most 82 ms for 99 % of frames.
+- Latency of a motion event, as the wait for the next frame (0 to 25.0 ms), that delay and the lag of the estimate (10 ms): median 46 ms, 95th 59, 99th 73.
 
 ### NLF backend `tensorrt`, detection `per_view`
 
@@ -44,13 +45,14 @@ Rates are processing rates on recorded video, frames released at the camera rate
 | filter | 0.03 | 0.03 | 0.05 | 0.2 |
 | ik | 3.34 | 3.97 | 5.83 | 10.0 |
 | output | 0.16 | 0.18 | 0.25 | 13.6 |
+| rest of the inference | 1.13 | 1.70 | 2.13 | 4.1 |
 | processing, decode excluded | 17.49 | 20.05 | 24.82 | 43.4 |
 | processing and decode | 17.52 | 20.08 | 24.85 | 43.5 |
 
 - Processing rate: 57 frames/s (57 with video decoding).
 - Frames not finished when the next one arrives (25.0 ms): 161 of 14991 (1.07 %); with video decoding 166 (1.11 %).
 - Delay from a frame's arrival to its joint angles: median 17.5 ms, 95th 20.2, 99th 25.2, max 44.7.
-- Latency of a motion event, as waiting for the next frame (0 to 25.0 ms), processing and filter lag (10 ms): median 40 ms, at most 60 ms for 99 % of frames.
+- Latency of a motion event, as the wait for the next frame (0 to 25.0 ms), that delay and the lag of the estimate (10 ms): median 40 ms, 95th 52, 99th 54.
 
 ### NLF backend `tensorrt`, detection `tiled`
 
@@ -67,13 +69,14 @@ Rates are processing rates on recorded video, frames released at the camera rate
 | filter | 0.03 | 0.04 | 0.05 | 0.1 |
 | ik | 3.50 | 4.59 | 6.52 | 10.3 |
 | output | 0.16 | 0.20 | 0.32 | 13.7 |
+| rest of the inference | 1.10 | 1.49 | 2.49 | 5.5 |
 | processing, decode excluded | 14.20 | 16.76 | 20.69 | 37.5 |
 | processing and decode | 14.23 | 16.79 | 20.72 | 37.5 |
 
 - Processing rate: 70 frames/s (70 with video decoding).
 - Frames not finished when the next one arrives (25.0 ms): 38 of 14991 (0.25 %); with video decoding 39 (0.26 %).
 - Delay from a frame's arrival to its joint angles: median 14.2 ms, 95th 16.8, 99th 20.8, max 38.5.
-- Latency of a motion event, as waiting for the next frame (0 to 25.0 ms), processing and filter lag (10 ms): median 37 ms, at most 56 ms for 99 % of frames.
+- Latency of a motion event, as the wait for the next frame (0 to 25.0 ms), that delay and the lag of the estimate (10 ms): median 37 ms, 95th 48, 99th 50.
 
 ## Pipeline stages, OpenCap LabValidation
 
@@ -92,13 +95,14 @@ Rates are processing rates on recorded video, frames released at the camera rate
 | filter | 0.03 | 0.03 | 0.04 | 0.1 |
 | ik | 3.25 | 3.98 | 5.00 | 8.7 |
 | output | 0.15 | 0.18 | 0.29 | 1.5 |
+| rest of the inference | 1.12 | 1.49 | 2.25 | 3.7 |
 | processing, decode excluded | 22.89 | 26.22 | 29.31 | 38.9 |
 | processing and decode | 22.91 | 26.24 | 29.34 | 38.9 |
 
 - Processing rate: 44 frames/s (44 with video decoding).
 - Frames not finished when the next one arrives (16.7 ms): 4293 of 4293 (100.00 %); with video decoding 4293 (100.00 %).
 - Delay from a frame's arrival to its joint angles: median 2039.0 ms, 95th 5392.5, 99th 6535.5, max 6791.3.
-- Latency of a motion event, as waiting for the next frame (0 to 16.7 ms), processing and filter lag (7 ms): median 2054 ms, at most 6559 ms for 99 % of frames.
+- Latency of a motion event, as the wait for the next frame (0 to 16.7 ms), that delay and the lag of the estimate (5 ms): median 2053 ms, 95th 5408, 99th 6551.
 
 ### NLF backend `tensorrt`, detection `per_view`
 
@@ -115,13 +119,14 @@ Rates are processing rates on recorded video, frames released at the camera rate
 | filter | 0.03 | 0.03 | 0.05 | 0.1 |
 | ik | 3.24 | 4.02 | 5.23 | 9.8 |
 | output | 0.16 | 0.18 | 0.29 | 10.7 |
+| rest of the inference | 1.10 | 1.58 | 2.55 | 3.0 |
 | processing, decode excluded | 18.42 | 21.69 | 25.00 | 30.8 |
 | processing and decode | 18.44 | 21.72 | 25.02 | 30.8 |
 
 - Processing rate: 54 frames/s (54 with video decoding).
 - Frames not finished when the next one arrives (16.7 ms): 4293 of 4293 (100.00 %); with video decoding 4293 (100.00 %).
 - Delay from a frame's arrival to its joint angles: median 687.4 ms, 95th 1732.6, 99th 2126.7, max 2183.8.
-- Latency of a motion event, as waiting for the next frame (0 to 16.7 ms), processing and filter lag (7 ms): median 702 ms, at most 2150 ms for 99 % of frames.
+- Latency of a motion event, as the wait for the next frame (0 to 16.7 ms), that delay and the lag of the estimate (5 ms): median 701 ms, 95th 1747, 99th 2140.
 
 ### NLF backend `tensorrt`, detection `tiled`
 
@@ -138,13 +143,14 @@ Rates are processing rates on recorded video, frames released at the camera rate
 | filter | 0.03 | 0.03 | 0.05 | 0.2 |
 | ik | 3.42 | 4.32 | 6.07 | 9.6 |
 | output | 0.16 | 0.22 | 0.31 | 6.0 |
+| rest of the inference | 1.07 | 1.43 | 2.55 | 3.4 |
 | processing, decode excluded | 14.82 | 17.58 | 21.89 | 27.9 |
 | processing and decode | 14.85 | 17.61 | 21.95 | 28.0 |
 
 - Processing rate: 67 frames/s (67 with video decoding).
 - Frames not finished when the next one arrives (16.7 ms): 725 of 4293 (16.89 %); with video decoding 741 (17.26 %).
 - Delay from a frame's arrival to its joint angles: median 14.9 ms, 95th 20.9, 99th 27.1, max 36.5.
-- Latency of a motion event, as waiting for the next frame (0 to 16.7 ms), processing and filter lag (7 ms): median 30 ms, at most 50 ms for 99 % of frames.
+- Latency of a motion event, as the wait for the next frame (0 to 16.7 ms), that delay and the lag of the estimate (5 ms): median 29 ms, 95th 37, 99th 43.
 
 ## Inverse kinematics (COMFI)
 
@@ -166,4 +172,6 @@ The moving-horizon IK costs +1.26 ms per frame more than the per-frame IK (media
 | 4 | 25.07 | 764 (0.29 %) | 5705 (2.15 %) | 83 | -16.8 to 16.9 |
 | 6 | 25.08 | 789 (0.30 %) | 3750 (1.41 %) | 80 | -17.0 to 17.2 |
 
-Spread of the four cameras' times within a frame: median over trials of the per-trial median 17.1 ms, of the 95th percentile 23.9 ms; largest in any frame 69 ms.
+The timestamps are arrival times at the recording computer, not exposure times, and arrivals are bursty: a long interval is usually followed by short ones. Dropped frames can therefore only be bounded, between the frames missing against the nominal rate and the long intervals.
+
+Spread of the four cameras' times within a frame, medians over trials: median 17.1 ms, 95th percentile 23.9 ms, 99th 27.8 ms; largest in any frame 69 ms.

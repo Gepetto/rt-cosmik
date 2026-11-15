@@ -5,9 +5,8 @@ from pathlib import Path
 
 import numpy as np
 
-from rtcosmik.paper.timing import missed_deadlines, paced_latency, statistics
-from sustained_timing import (CAMERAS, CONFIGURATIONS, FILTER_LAG_FRAMES, IK_TYPES, STAGES,
-                              WARMUP_FRAMES)
+from rtcosmik.paper.timing import event_latency, missed_deadlines, paced_latency, statistics
+from sustained_timing import CAMERAS, CONFIGURATIONS, IK_TYPES, LAG_FRAMES, STAGES, WARMUP_FRAMES
 
 PASSES = {"replay": "COMFI", "opencap": "OpenCap LabValidation"}
 
@@ -18,7 +17,8 @@ def _trials(folder):
     for path in sorted(folder.glob("*.csv")):
         with open(path) as handle:
             rows = list(csv.DictReader(handle))[WARMUP_FRAMES:]
-        trials[path.stem] = {key: np.array([float(r[key]) for r in rows]) for key in rows[0]}
+        if rows:
+            trials[path.stem] = {key: np.array([float(r[key]) for r in rows]) for key in rows[0]}
     return trials
 
 
@@ -42,6 +42,7 @@ def replay_section(folder):
                   f"{1e3 / period_ms:.0f} Hz.", "",
                   "| Stage (ms) | Median | 95th | 99th | Max |", "|---|---|---|---|---|"]
         lines += [_line(stage, statistics(pooled[stage])) for stage in STAGES]
+        lines.append(_line("rest of the inference", statistics(pooled["inference_other"])))
         lines.append(_line("processing, decode excluded", statistics(pooled["processing"])))
         with_decode = pooled["processing"] + pooled["decode"]
         lines.append(_line("processing and decode", statistics(with_decode)))
@@ -50,7 +51,8 @@ def replay_section(folder):
         replayed = np.concatenate([paced_latency(t["processing"] + t["decode"], period_ms)
                                    for t in trials.values()])
         stats = statistics(latency)
-        lag = FILTER_LAG_FRAMES * period_ms
+        lag = LAG_FRAMES[folder.name] * period_ms
+        event = statistics(event_latency(latency, period_ms, lag))
         lines += [
             f"- Processing rate: {1e3 / np.median(pooled['processing']):.0f} frames/s "
             f"({1e3 / np.median(with_decode):.0f} with video decoding).",
@@ -61,10 +63,9 @@ def replay_section(folder):
             f"({100 * missed_deadlines(replayed, period_ms) / frames:.2f} %).",
             f"- Delay from a frame's arrival to its joint angles: median {stats['median']:.1f} ms, "
             f"95th {stats['p95']:.1f}, 99th {stats['p99']:.1f}, max {stats['max']:.1f}.",
-            f"- Latency of a motion event, as waiting for the next frame (0 to {period_ms:.1f} ms), "
-            f"processing and filter lag ({lag:.0f} ms): median "
-            f"{period_ms / 2 + stats['median'] + lag:.0f} ms, at most "
-            f"{period_ms + stats['p99'] + lag:.0f} ms for 99 % of frames.", ""]
+            f"- Latency of a motion event, as the wait for the next frame (0 to {period_ms:.1f} ms), "
+            f"that delay and the lag of the estimate ({lag:.0f} ms): median {event['median']:.0f} ms, "
+            f"95th {event['p95']:.0f}, 99th {event['p99']:.0f}.", ""]
     return lines
 
 
@@ -74,7 +75,7 @@ def ik_section(out):
     for ik_type, label in IK_TYPES.items():
         trials = _trials(out / "ik" / ik_type)
         if not trials:
-            return []
+            return ["Not measured.", ""]
         pooled = np.concatenate([t["ik"] for t in trials.values()])
         medians[ik_type] = np.median(pooled)
         lines.append(_line(label, statistics(pooled)))
@@ -102,10 +103,14 @@ def timestamps_section(out):
         lines.append(f"| {camera} | {mean:.2f} | {int(missing.sum())} ({100 * missing.sum() / frames:.2f} %) | "
                      f"{int(long.sum())} ({100 * long.sum() / frames:.2f} %) | "
                      f"{value(f'interval_max_{camera}_ms').max():.0f} | {offset.min():.1f} to {offset.max():.1f} |")
-    lines += ["", "Spread of the four cameras' times within a frame: median over trials of the "
-              f"per-trial median {np.median(value('spread_median_ms')):.1f} ms, of the 95th percentile "
-              f"{np.median(value('spread_p95_ms')):.1f} ms; largest in any frame "
-              f"{value('spread_max_ms').max():.0f} ms.", ""]
+    lines += ["", "The timestamps are arrival times at the recording computer, not exposure times, and "
+              "arrivals are bursty: a long interval is usually followed by short ones. Dropped frames "
+              "can therefore only be bounded, between the frames missing against the nominal rate and "
+              "the long intervals.", "",
+              "Spread of the four cameras' times within a frame, medians over trials: median "
+              f"{np.median(value('spread_median_ms')):.1f} ms, 95th percentile "
+              f"{np.median(value('spread_p95_ms')):.1f} ms, 99th {np.median(value('spread_p99_ms')):.1f} ms; "
+              f"largest in any frame {value('spread_max_ms').max():.0f} ms.", ""]
     return lines
 
 
@@ -116,8 +121,9 @@ def write(out):
              f"Machine: {machine.get('gpu', '?')}, {machine.get('cores', '?')} cores, load average "
              f"{machine.get('load_average', float('nan')):.1f} at start, {machine.get('date', '')}.", "",
              "Rates are processing rates on recorded video, frames released at the camera rate; a live "
-             f"system is capped by its cameras. The first {WARMUP_FRAMES} frames of each trial are left "
-             "out. Acquisition and synchronisation delays are not in these figures.", ""]
+             "system is capped by its cameras (40 Hz on COMFI, 60 Hz on OpenCap). The first "
+             f"{WARMUP_FRAMES} frames of each trial are left out. The cameras' acquisition delay and the "
+             "synchronisation error between cameras are not in the stage and latency figures.", ""]
     for folder, title in PASSES.items():
         section = replay_section(out / folder)
         if section:

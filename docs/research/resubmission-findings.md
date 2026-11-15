@@ -254,22 +254,22 @@ TensorRT and tiled detection differ from TorchScript by at most 0.05Â° and 0.25Â
 
 Workstation (RTX 4500 Ada, 32 cores, idle), frames released at the camera rate, every stage waiting for the GPU. Full tables: `docs/research/timing-workstation.md`; procedure: `docs/research/timing.md`; per-frame files in `/root/workspace/oof/t19`.
 
-| Dataset | Inference | Processing per frame, median (95th, 99th) | Rate | Frames late for the next one | Latency of a motion event, median (99 %) |
+| Dataset | Inference | Processing per frame, median (95th, 99th) | Rate | Frames late for the next one | Latency of a motion event, median (95th, 99th) |
 |---|---|---|---|---|---|
-| COMFI, 4 cameras, 40 Hz | TorchScript, per-view detection | 22.7 ms (25.9, 30.9) | 44 fps | 17.4 % | 45 ms (82) |
-| COMFI | TensorRT, per-view detection | 17.5 ms (20.1, 24.8) | 57 fps | 1.07 % | 40 ms (60) |
-| COMFI | TensorRT, tiled detection | 14.2 ms (16.8, 20.7) | 70 fps | 0.25 % | 37 ms (56) |
+| COMFI, 4 cameras, 40 Hz | TorchScript, per-view detection | 22.7 ms (25.9, 30.9) | 44 fps | 17.4 % | 46 ms (59, 73) |
+| COMFI | TensorRT, per-view detection | 17.5 ms (20.1, 24.8) | 57 fps | 1.07 % | 40 ms (52, 54) |
+| COMFI | TensorRT, tiled detection | 14.2 ms (16.8, 20.7) | 70 fps | 0.25 % | 37 ms (48, 50) |
 | OpenCap, 4 cameras, 60 Hz | TorchScript, per-view detection | 22.9 ms | 44 fps | all | not sustained |
 | OpenCap | TensorRT, per-view detection | 18.4 ms | 54 fps | all | not sustained |
-| OpenCap | TensorRT, tiled detection | 14.8 ms (17.6, 21.9) | 67 fps | 16.9 % | 30 ms (50) |
+| OpenCap | TensorRT, tiled detection | 14.8 ms (17.6, 21.9) | 67 fps | 16.9 % | 29 ms (37, 43) |
 
 - COMFI: 6 trials of participant 1012, 14,991 frames per configuration. OpenCap: subject 4, 16 trials, 4,293 frames, cameras 0, 1, 3, 4.
 - Stages, COMFI, TensorRT with tiled detection (median): upload 1.8 ms, detection 3.2, NLF crop 2.3, NLF 2.0, fusion 0.14, filter 0.03, IK 3.5, output 0.16.
-- Latency is the wait for the next frame (0 to one period), the delay from a frame's arrival to its joint angles, and the filter lag (0.4 frame). Acquisition delay is not measured.
+- Latency is the wait for the next frame (spread over one period), the delay from a frame's arrival to its joint angles (with the backlog a late frame leaves), and the lag of the estimate behind the reference (0.4 frame on COMFI, 0.3 on OpenCap). The cameras' acquisition delay and the synchronisation error between cameras are not in it. Rates are processing rates on recorded video: a live system is capped by its cameras, 40 Hz on COMFI.
 - TorchScript, the default, does not hold 40 Hz on this workstation: one frame in six is late. The 40 Hz claim needs the TensorRT backend; with tiled detection there is margin (99th percentile 20.7 ms for 25 ms).
 - At 60 Hz only TensorRT with tiled detection keeps up, with one frame in six late; the median processing time (14.8 ms) is under the 16.7 ms period.
 - **IK cost**, recorded NLF output, same session: moving-horizon IK 2.80 ms per frame (95th 3.59), per-frame IK 1.54 ms (95th 1.81). The moving horizon costs 1.26 ms more (1.7 ms in the submitted paper).
-- **COMFI timestamps**, 108 trials, 265,037 frames per camera: mean interval 25.07 ms; 0.29 % of frames missing against 40 Hz; 1.4 to 2.5 % of intervals longer than 1.5 periods (longest 83 ms), followed by shorter ones. The four cameras' times within a frame differ by 17.1 ms (median) and 23.9 ms (95th percentile): the software synchronisation between webcams is within about one camera period. OpenCap's videos carry no acquisition timestamps.
+- **COMFI timestamps**, 108 trials, 265,037 frames per camera: mean interval 25.07 ms. The timestamps are arrival times at the recording computer, not exposure times, and arrivals are bursty, so dropped frames can only be bounded: between 0.29 % (frames missing against 40 Hz) and 1.4 to 2.5 % (intervals longer than 1.5 periods, longest 83 ms, usually followed by shorter ones). The four cameras' times within a frame differ by 17.1 ms (median), 23.9 ms (95th percentile) and 27.8 ms (99th), 69 ms at most: the software synchronisation between webcams is about one camera period. OpenCap's videos carry no acquisition timestamps.
 - The laptop (RTX 3050 Ti) and the RTX 4070 desktop remain to be measured by the author with the same procedure.
 
 ## 1. Headline

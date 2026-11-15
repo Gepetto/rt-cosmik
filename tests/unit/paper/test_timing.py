@@ -62,3 +62,11 @@ def test_a_late_frame_followed_by_an_early_one_is_a_long_interval_but_no_missing
     assert report["long_intervals"] == [1]
     assert report["interval_ms"][0]["mean"] == pytest.approx(25.0)
     assert report["interval_ms"][0]["max"] == pytest.approx(40.0)
+
+
+def test_event_latency_adds_a_wait_spread_over_one_period_to_each_frame_delay_and_the_lag():
+    latency = timing.event_latency([10.0] * 50, period_ms=20.0, lag_ms=5.0)
+
+    stats = timing.statistics(latency)
+    assert stats["median"] == pytest.approx(25.0, abs=0.6)        # 10 of waiting on average
+    assert 15.0 < latency.min() < 16.0 and 34.0 < latency.max() < 35.0

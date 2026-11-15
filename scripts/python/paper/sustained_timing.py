@@ -52,8 +52,9 @@ OPENCAP_CAMERAS = (0, 1, 3, 4)
 IK_TYPES = {"mhe": "Moving-horizon IK", "sbs": "Per-frame IK"}
 STAGES = ("decode", "upload", "detection", "crop", "nlf", "fusion", "filter", "ik", "output")
 WARMUP_FRAMES = 40           # calibration and first solves, left out of the statistics
-#: Lag of the paper's marker filter, in frames (resubmission-findings.md, section 0d).
-FILTER_LAG_FRAMES = 0.4
+#: Lag of the estimate behind the reference, in frames, per pass (resubmission-findings.md 0d;
+#: opencap-evaluation.md).
+LAG_FRAMES = {"replay": 0.4, "opencap": 0.3}
 
 
 def _settings():
@@ -86,7 +87,7 @@ def timed_trial(source, estimator, projections, world, settings, solve_first, so
     marker_filter = MarkerFilter(len(settings.marker_names), settings)
     saver = CSVSaver(str(run_dir), markers_header=["Frame_0"] + list(settings.marker_names),
                      joint_angles_header=list(settings.joint_angles_names))
-    rows, frame, started = [], 0, time.perf_counter()
+    rows, frame, solved, started = [], 0, False, time.perf_counter()
     while True:
         t0 = time.perf_counter()
         frames = source.read()
@@ -100,20 +101,20 @@ def timed_trial(source, estimator, projections, world, settings, solve_first, so
         torch.cuda.synchronize()
         t3 = time.perf_counter()
         points = reconstruct_3d(views, projections, settings.fusion)
-        if len(points) == 0:
-            frame += 1
-            continue
-        points = np.asarray(points) @ world_R.T + world_T
-        t4 = time.perf_counter()
-        markers = dict(zip(settings.marker_names, marker_filter(points)))
-        t5 = time.perf_counter()
-        q = solver.solve(markers) if rows else solve_first(markers)
-        t6 = time.perf_counter()
-        row = OrderedDict([("Frame_0", frame)])
-        for marker in settings.marker_names:
-            row[f"{marker}_x"], row[f"{marker}_y"], row[f"{marker}_z"] = map(float, markers[marker])
-        saver.save_markers(row)
-        saver.save_joint_angles(OrderedDict(zip(settings.joint_angles_names, (float(v) for v in q))))
+        t4 = t5 = t6 = time.perf_counter()
+        if len(points):                       # a frame nobody was seen in still costs its inference
+            points = np.asarray(points) @ world_R.T + world_T
+            t4 = time.perf_counter()
+            markers = dict(zip(settings.marker_names, marker_filter(points)))
+            t5 = time.perf_counter()
+            q = solver.solve(markers) if solved else solve_first(markers)
+            solved = True
+            t6 = time.perf_counter()
+            row = OrderedDict([("Frame_0", frame)])
+            for marker in settings.marker_names:
+                row[f"{marker}_x"], row[f"{marker}_y"], row[f"{marker}_z"] = map(float, markers[marker])
+            saver.save_markers(row)
+            saver.save_joint_angles(OrderedDict(zip(settings.joint_angles_names, (float(v) for v in q))))
         t7 = time.perf_counter()
         named = [stage["h2d+pre_ms"], stage["yolo_ms"], stage.get("crop_ms", 0.0), stage["nlf_ms"]]
         rows.append([frame, 1e3 * (t1 - t0), *named, 1e3 * (t4 - t3), 1e3 * (t5 - t4),
@@ -276,14 +277,16 @@ def timestamps(dataset, out, period_s):
             report = timestamp_report(times, period_s)
             rows.append([participant, task, report["frames"], *report["missing_frames"],
                          *report["long_intervals"], report["spread_ms"]["median"],
-                         report["spread_ms"]["p95"], report["spread_ms"]["max"],
+                         report["spread_ms"]["p95"], report["spread_ms"]["p99"],
+                         report["spread_ms"]["max"],
                          *report["offset_to_first_ms"],
                          *[s["mean"] for s in report["interval_ms"]],
                          *[s["max"] for s in report["interval_ms"]]])
     cams = [str(c) for c in CAMERAS]
     _write(out / "timestamps.csv",
            ["participant", "task", "frames", *[f"missing_{c}" for c in cams],
-            *[f"long_{c}" for c in cams], "spread_median_ms", "spread_p95_ms", "spread_max_ms",
+            *[f"long_{c}" for c in cams], "spread_median_ms", "spread_p95_ms", "spread_p99_ms",
+            "spread_max_ms",
             *[f"offset_{c}_ms" for c in cams], *[f"interval_mean_{c}_ms" for c in cams],
             *[f"interval_max_{c}_ms" for c in cams]], rows)
     return len(rows), missing
@@ -292,7 +295,7 @@ def timestamps(dataset, out, period_s):
 def machine():
     """What ran the passes, for the report."""
     import torch
-    return {"host": platform.node(), "cpu": platform.processor() or platform.machine(),
+    return {"cpu": platform.processor() or platform.machine(),
             "cores": os.cpu_count(), "gpu": torch.cuda.get_device_name(0),
             "load_average": os.getloadavg()[0], "date": time.strftime("%Y-%m-%d %H:%M")}
 

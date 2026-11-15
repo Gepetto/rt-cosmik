@@ -27,6 +27,12 @@ def missed_deadlines(latency_ms, period_ms):
     return int(np.sum(np.asarray(latency_ms) > period_ms))
 
 
+def event_latency(delay_ms, period_ms, lag_ms, waits=20):
+    """Latencies of motion events: each frame's delay, a wait spread evenly over one period, and the lag."""
+    wait = (np.arange(waits) + 0.5) * period_ms / waits
+    return (np.asarray(delay_ms, dtype=float)[:, None] + wait[None, :]).ravel() + lag_ms
+
+
 def timestamp_report(times, period_s):
     """Frame deficit, long intervals and inter-camera spread of ``times`` (F, C), in seconds.
 
