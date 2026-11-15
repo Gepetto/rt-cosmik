@@ -140,7 +140,9 @@ def record_subject(dataset, out, subject):
 
     Row ``r`` of a recording holds, for each camera, the frame ``r - margin``
     of its released clip, read from the whole video so that the frames around
-    the clip are there for the synchronisation.
+    the clip are there for the synchronisation. The person is picked on the
+    clip's first frame and followed forwards, then backwards through the
+    frames before the clip, where bystanders are alone in some views.
     """
     import sweep
     from rtcosmik import landmark_maps
@@ -177,14 +179,25 @@ def record_subject(dataset, out, subject):
         recorder = ViewsRecorder(cameras, len(settings.marker_names), landmark_map,
                                  estimator_identity(settings, len(cameras)))
         blank = np.zeros((settings.height, settings.width, 3), np.uint8)
-        absent = []
-        for row in range(rows):
-            frames = [next(reader) for reader in readers]
-            absent += [(row, c) for c, frame in enumerate(frames) if frame is None]
+        absent, views = [], [None] * rows
+
+        def estimate(row, frames):
+            absent.extend((row, c) for c, frame in enumerate(frames) if frame is None)
             nlf_out = estimator.estimate_from_frames([blank if f is None else f for f in frames])[0]
-            recorder.append(extract_views(nlf_out, len(cameras)))
+            views[row] = extract_views(nlf_out, len(cameras))
+
+        earlier = [[next(reader) for reader in readers] for _ in range(before)]
+        for row in range(before, rows):
+            estimate(row, [next(reader) for reader in readers])
+            if row == before:
+                at_clip_start = estimator.tracking_state()
         for reader in readers:
             reader.close()
+        estimator.restore_tracking(at_clip_start)
+        for row in reversed(range(before)):
+            estimate(row, earlier[row])
+        for row_views in views:
+            recorder.append(row_views)
         for row, camera in absent:
             for array in (recorder.keypoints, recorder.poses3d, recorder.uncertainties):
                 array[row][camera] = np.nan
@@ -227,14 +240,17 @@ def sync_subject(job):
         if synced.exists():
             continue
         data = dict(np.load(raw))
-        margin = json.loads(raw.with_suffix(".json").read_text())["margin_frames"][0]
+        clip = json.loads(raw.with_suffix(".json").read_text())
+        margin = clip["margin_frames"][0]
         cameras = [int(c) for c in data["cameras"]]
         world = _world_landmarks(data["poses3d"].astype(float),
                                  _calibration(dataset, out, subject, trial.session), cameras)
-        offsets = oc.camera_offsets(world, choice["max_camera_lag_frames"])
+        # Offsets from the clip itself; the median keeps a bystander seen by one camera out of the clock.
+        offsets = oc.camera_offsets(world[margin:margin + clip["clip_frames"]],
+                                    choice["max_camera_lag_frames"])
         world, first = oc.align_cameras(world, offsets)
         with np.errstate(all="ignore"):
-            fused = np.nanmean(world, axis=1)[:, [names.index(n) for n in common]]
+            fused = np.nanmedian(world, axis=1)[:, [names.index(n) for n in common]]
         mocap_times = oc.read_trc(oc.trc_path(subject_dir, trial.name))[0]
         mocap = oc.reference_markers(oc.trc_path(subject_dir, trial.name))
         mocap = np.stack([mocap[n] for n in common], 1)

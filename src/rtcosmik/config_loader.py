@@ -222,7 +222,7 @@ class DefaultSettings:
         # The released clips are cut at key frames, each camera on its own: the cameras
         # are synchronised on their landmarks and the video clock set on the mocap's.
         "sync_margin_frames": (60, 24),           # read before and after each clip
-        "max_camera_lag_frames": 20,
+        "max_camera_lag_frames": 14,              # key frames are 12 frames apart
         "clock_search_s": (-0.5, 1.0),            # around the clip's nominal start
         "marker_set": "parity",                   # the estimate's; the reference tracks "opencap_mocap"
     })

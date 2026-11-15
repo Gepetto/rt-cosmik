@@ -343,6 +343,16 @@ class NLFEstimator:
         self._locked_boxes_xyxy = [None for _ in range(self.C)]
         self._lock_missing_count = [0 for _ in range(self.C)]
 
+    def tracking_state(self):
+        """The person tracked in each view, to hand back to :meth:`restore_tracking`."""
+        return ([None if b is None else b.clone() for b in self._locked_boxes_xyxy],
+                list(self._lock_missing_count))
+
+    def restore_tracking(self, state):
+        boxes, missing = state
+        self._locked_boxes_xyxy = [None if b is None else b.clone() for b in boxes]
+        self._lock_missing_count = list(missing)
+
     def _select_locked_box_xywh(self, res, cam_idx):
         """
         Keep selecting the same person by matching current detections
