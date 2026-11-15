@@ -218,6 +218,11 @@ def frame_times(pts, fs):
     return times
 
 
+def leading_repeats(pts, fs):
+    """Copies of the first frame a constant-rate decoder emits to fill the gap after it."""
+    return int(round((pts[1] - pts[0]) * fs)) - 1 if len(pts) > 1 else 0
+
+
 def resample(times, values, at):
     """Linear interpolation of ``values`` (F, ...) at ``at``; NaN outside ``times`` or beside a gap."""
     times, values, at = np.asarray(times, float), np.asarray(values, float), np.asarray(at, float)

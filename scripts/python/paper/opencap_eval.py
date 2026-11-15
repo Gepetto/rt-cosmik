@@ -155,7 +155,8 @@ def record_subject(dataset, out, subject):
         estimator = sweep._nlf_estimator(mtxs, len(cameras), settings)
         estimator.reset_tracking()
         paths = [oc.video_path(subject_dir, trial.session, c, trial.name) for c in cameras]
-        expected = len(oc.video_pts(paths[0]))
+        pts = oc.video_pts(paths[0])
+        repeats = oc.leading_repeats(pts, settings.fs)    # the decoder fills the gap after frame 0
         recorder = ViewsRecorder(cameras, len(settings.marker_names), landmark_map,
                                  estimator_identity(settings, len(cameras)))
         source = OfflineVideoSource(paths=[str(p) for p in paths],
@@ -167,14 +168,17 @@ def record_subject(dataset, out, subject):
                 if frames is None:
                     break
                 read += 1
+                if read <= repeats:
+                    continue
                 nlf_out = estimator.estimate_from_frames(frames)[0]
                 recorder.append(extract_views(nlf_out, len(cameras)))
         finally:
             source.release()
-        if read != expected:
-            raise RuntimeError(f"{subject}/{trial.name}: decoded {read} frames, the clip holds {expected}")
+        if read - repeats != len(pts):
+            raise RuntimeError(f"{subject}/{trial.name}: decoded {read} frames with {repeats} "
+                               f"repeats, the clip holds {len(pts)}")
         recorder.save(views_path)
-        LOGGER.info(f"recorded {subject}/{trial.name}: {read} frames")
+        LOGGER.info(f"recorded {subject}/{trial.name}: {len(pts)} frames")
 
 
 def replay_arm(job):

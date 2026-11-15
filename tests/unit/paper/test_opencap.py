@@ -54,6 +54,11 @@ def test_first_video_frame_sits_one_period_before_the_second():
     np.testing.assert_allclose(times, [0.2 - 1 / 60, 0.2, 0.2 + 1 / 60, 0.2 + 2 / 60])
 
 
+def test_decoder_repeats_of_the_first_frame_are_counted_from_the_gap():
+    assert oc.leading_repeats([0.0, 0.2, 0.2 + 1 / 60], fs=60) == 11
+    assert oc.leading_repeats([0.0, 1 / 60, 2 / 60], fs=60) == 0
+
+
 def test_resampling_interpolates_linearly_and_never_extrapolates_or_bridges_gaps():
     t = np.arange(0, 0.05, 0.01)                       # 100 Hz
     values = np.stack([100 * t, 3 - 50 * t], 1)        # two linear channels
