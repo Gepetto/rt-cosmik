@@ -134,6 +134,7 @@ the ankle frame built from the two malleoli is sensitive to it.
 python3 scripts/python/paper/sample_nlf_dense.py --out /root/workspace/nlf_dense_samples
 python3 scripts/python/paper/fit_nlf_marker_map.py --samples /root/workspace/nlf_dense_samples --out-dir config/landmark_maps
 python3 scripts/python/paper/fit_fastsam_landmark_map.py --results /root/workspace/COMFI/fastsam/results_multicam --out-dir config/landmark_maps
+python3 scripts/python/paper/fit_head_raise.py --runs <runs> --arm nlf_0-2-4-6 --dataset /root/workspace/COMFI   # reference head point, per fold
 ```
 
 Every arm run selects the map named by `settings.paper["landmark_map"]`, and so

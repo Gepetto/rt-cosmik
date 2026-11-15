@@ -269,14 +269,14 @@ def run_mocap(dataset, participant, task, cameras, out_dir, settings,
     """
     from collections import OrderedDict
     import yaml
-    from rtcosmik.paper.mocap_reference import MocapMarkerSource
+    from rtcosmik.paper.mocap_reference import MocapMarkerSource, head_raise
     from rtcosmik.pipeline.solver import HumanSolver
     from rtcosmik.saver.csv_saver import CSVSaver
 
     root = Path(dataset)
     meta = yaml.safe_load((root / "metadata" / f"{participant}.yaml").read_text())
     source = MocapMarkerSource(root / "mocap" / "aligned" / participant / task,
-                               settings.marker_names)
+                               settings.marker_names, head_raise=head_raise(participant))
     solver = HumanSolver(settings, gender=meta["gender"][0], height=meta["height"],
                          weight=meta["weight"], logger=logging.getLogger("solve"))
     _start(out_dir, settings, "mocap", dataset, participant, task, cameras)
