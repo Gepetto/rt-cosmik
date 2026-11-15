@@ -218,7 +218,7 @@ class DefaultSettings:
     opencap: dict = field(default_factory=lambda: {
         "fs": 60, "width": 720, "height": 1280,   # native video rate, portrait images
         "clock_offset": 0,                        # frames; the reference is sampled on the video clock
-        "max_lag_s": 0.5,                         # alignment search; a walking trial lasts 1.3 s
+        "max_lag_s": 0.2,                         # alignment search; half a gait cycle is 0.5 s
         # The released clips are cut at key frames, each camera on its own: the cameras
         # are synchronised on their landmarks and the video clock set on the mocap's.
         "sync_margin_frames": (60, 24),           # read before and after each clip

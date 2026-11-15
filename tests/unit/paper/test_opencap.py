@@ -276,4 +276,5 @@ def test_dataset_settings_run_at_the_video_rate_in_portrait():
     assert (s.fs, s.width, s.height) == (60, 720, 1280)
     assert s.dt == pytest.approx(1 / 60)
     assert s.paper["clock_offset"] == 0
+    assert round(s.opencap["max_lag_s"] * s.fs) == 12   # well inside half a gait cycle
     assert settings.fs == 40                            # the shared settings are untouched
