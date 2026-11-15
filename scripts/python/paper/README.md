@@ -310,3 +310,7 @@ data (stages `record`, `sync`, `reference`, `replay`, `report`); the dataset's
 layout, marker mapping and synchronisation live in `src/rtcosmik/paper/opencap.py`
 and what differs from COMFI in `settings.opencap`. Method and results:
 `docs/research/opencap-evaluation.md`.
+
+## Timing
+
+`sustained_timing.py` times every pipeline stage on recorded video released at the camera rate, the two IK solvers, and reads the COMFI timestamp files; `timing_report.py` writes the report. Procedure: `docs/research/timing.md`.
