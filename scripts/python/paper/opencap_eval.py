@@ -295,17 +295,24 @@ def sync_subject(job):
 
 
 def replay_arm(job):
-    """One arm on one subject: calibrated on its own static landmarks, one run per dynamic trial."""
+    """One arm on one subject: calibrated on its own static landmarks, one run per dynamic trial.
+
+    With ``runs`` and ``calibrations`` in the job, only the trials that have a
+    calibration folder ``<calibrations>/<subject>/<trial>/<tag>`` are replayed,
+    under it, into ``<runs>/<subject>/<trial>/<tag>``.
+    """
     from rtcosmik.filtering.iir import MarkerFilter
     from rtcosmik.landmark_maps import checked_recording
     from rtcosmik.paper.nlf_views import replay_markers
     from rtcosmik.pipeline.solver import HumanSolver
     from rtcosmik.provenance import recorded_estimator, start_run
-    dataset, out, subject, tag = job
+    dataset, out, subject, tag = job[:4]
+    runs, calibrations = job[4:] if len(job) > 4 else (out / "runs", None)
     settings = _settings()
     cameras = list(oc.ARMS[tag])
     subject_dir = dataset / subject
-    todo = [t for t in oc.trials(subject_dir) if not _done(out / "runs" / subject / t.name / tag)]
+    todo = [t for t in oc.trials(subject_dir) if not _done(runs / subject / t.name / tag)
+            and (calibrations is None or (calibrations / subject / t.name / tag).is_dir())]
     if not todo:
         return subject, tag, 0
     static_dir = _calibration(dataset, out, subject, oc.session_of(subject_dir, oc.STATIC))
@@ -317,14 +324,16 @@ def replay_arm(job):
     q = solver.calibrate(dict(zip(settings.marker_names, posture)))
     oc.require_standing(settings.joint_angles_names, q)
     for trial in todo:
-        run_dir = out / "runs" / subject / trial.name / tag
+        run_dir = runs / subject / trial.name / tag
         views = _views(out, subject, trial.name)
         landmark_map = checked_recording(views, subject, settings)
-        cam_dir = _calibration(dataset, out, subject, trial.session)
+        cam_dir = (_calibration(dataset, out, subject, trial.session) if calibrations is None
+                   else calibrations / subject / trial.name / tag)
         edit, far = _without_far_views(views, cam_dir, cameras, settings)
         start_run(run_dir, settings, dict(name="nlf", tag=tag, cameras=cameras, participant=subject,
                                           task=trial.name, dataset=str(dataset), views=str(views),
                                           reconstruction="fuse3d", calibration=oc.STATIC,
+                                          cameras_calibration=str(cam_dir),
                                           far_views_share=far.tolist()),
                   repo=REPO, landmark_map=landmark_map, estimator=recorded_estimator(views))
         marker_filter = MarkerFilter(len(settings.marker_names), settings)
