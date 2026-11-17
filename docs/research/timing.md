@@ -9,8 +9,7 @@ It does not measure the cameras' acquisition delay. Rates are processing rates o
 - The Docker image of `main` and a clone of this branch.
 - The models and engines. `bash scripts/bash/fetch_models.sh` downloads the models and builds the detector engines. Run it again with `nlf_backend = "tensorrt"` in `settings.py` for the NLF engine, and once more with `detection_mode = "tiled"` for the tiled detector engine; then put `settings.py` back. The IK solver is generated on the first run.
 - The COMFI subset: participant 1012, tasks Screwing, Polishing, SideOverhead, RobotPolishing, RobotWelding, Lifting, with `videos/1012/<task>/camera_{0,2,4,6}.mp4`, `cam_params/1012` and `metadata/1012.yaml`.
-- For the IK cost, the NLF output of the same trials, recorded once:
-  `python3 scripts/python/paper/sweep.py --arm nlf --dataset <COMFI> --cameras 0 2 4 6 --participants 1012 --tasks Screwing Polishing SideOverhead RobotPolishing RobotWelding Lifting --tag nlf_0-2-4-6 --output-dir <runs> --summary <runs>/nlf.csv --views-cache <views>`
+- For the IK cost, the NLF output of the same trials, recorded once by the `views` stage below.
 - An idle machine: no other job on the GPU or the CPU. The report states the load average at start.
 
 ## Commands
@@ -18,7 +17,8 @@ It does not measure the cameras' acquisition delay. Rates are processing rates o
 ```
 export OMP_NUM_THREADS=1 OPENBLAS_NUM_THREADS=1 MKL_NUM_THREADS=1
 python3 scripts/python/paper/sustained_timing.py replay     --dataset <COMFI> --out results/timing
-python3 scripts/python/paper/sustained_timing.py ik         --dataset <COMFI> --out results/timing --views <views>
+python3 scripts/python/paper/sustained_timing.py views      --dataset <COMFI> --out results/timing --views results/timing/views
+python3 scripts/python/paper/sustained_timing.py ik         --dataset <COMFI> --out results/timing --views results/timing/views
 python3 scripts/python/paper/sustained_timing.py timestamps --dataset <COMFI> --out results/timing
 python3 scripts/python/paper/sustained_timing.py report     --dataset <COMFI> --out results/timing
 ```

@@ -8,6 +8,7 @@ Stages, each writing under ``--out``:
                 the camera rate, one pass per inference configuration.
 ``opencap``     the same on one OpenCap subject (``--dataset`` is then
                 LabValidation_withVideos): four cameras at 60 Hz.
+``views``       records the NLF output of the same trials into ``--views``.
 ``ik``          the recorded NLF output of the same trials through the
                 moving-horizon and the per-frame IK, one after the other.
 ``timestamps``  dropped frames and inter-camera spread of every COMFI trial of
@@ -221,6 +222,42 @@ def replay_opencap(job):
     return name
 
 
+def record_views(dataset, views):
+    """NLF's per-camera output of the subset's trials, for the ``ik`` stage."""
+    import sweep
+    from rtcosmik import landmark_maps
+    from rtcosmik.camera.cam_utils import load_camera_parameters
+    from rtcosmik.nlf.nlf import extract_views
+    from rtcosmik.paper.nlf_views import ViewsRecorder
+    from rtcosmik.provenance import estimator_identity
+    from rtcosmik.utils.VideoReader import OfflineVideoSource
+
+    base = _settings()
+    cameras = list(CAMERAS)
+    for participant, task in SUBSET:
+        path = views / participant / f"{task}.npz"
+        if path.exists():
+            continue
+        landmark_map = landmark_maps.select(base, participant)
+        landmark_maps.require_out_of_fold(landmark_map, participant, base)
+        settings = landmark_maps.apply(landmark_map, base)
+        mtxs = load_camera_parameters(dataset / "cam_params" / participant, cameras)[0]
+        estimator = sweep._nlf_estimator(mtxs, len(cameras), settings)
+        videos = [dataset / "videos" / participant / task / f"camera_{c}.mp4" for c in cameras]
+        source = OfflineVideoSource(paths=[str(v) for v in videos],
+                                    size_wh=(settings.width, settings.height), loop=False)
+        recorder = ViewsRecorder(cameras, len(settings.marker_names), landmark_map,
+                                 estimator_identity(settings, len(cameras)))
+        try:
+            while (frames := source.read()) is not None:
+                recorder.append(extract_views(estimator.estimate_from_frames(frames)[0],
+                                              len(cameras)))
+        finally:
+            source.release()
+        recorder.save(path)
+        print(f"{participant}/{task}: {len(recorder.keypoints)} frames", flush=True)
+
+
 def ik_cost(job):
     """Solve time (ms) per frame of one IK type on the subset's recorded NLF output."""
     import yaml
@@ -309,10 +346,10 @@ def _fresh(function, job):
 def main():
     ap = argparse.ArgumentParser(description=__doc__,
                                  formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument("stage", choices=["replay", "opencap", "ik", "timestamps", "report"])
+    ap.add_argument("stage", choices=["replay", "opencap", "views", "ik", "timestamps", "report"])
     ap.add_argument("--dataset", type=Path, required=True)
     ap.add_argument("--out", type=Path, required=True)
-    ap.add_argument("--views", type=Path, help="recorded NLF output of the subset (stage ik)")
+    ap.add_argument("--views", type=Path, help="recorded NLF output of the subset (stages views and ik)")
     args = ap.parse_args()
     args.out.mkdir(parents=True, exist_ok=True)
 
@@ -323,6 +360,8 @@ def main():
     elif args.stage == "opencap":
         for name in CONFIGURATIONS:
             print(f"replayed {_fresh(replay_opencap, (args.dataset, args.out, name))}", flush=True)
+    elif args.stage == "views":
+        record_views(args.dataset, args.views)
     elif args.stage == "ik":
         if args.views is None:
             ap.error("stage ik needs --views")
